@@ -4,7 +4,6 @@ import {
   VIEW_LABELS,
   type LibraryEntry,
   type LibraryPayload,
-  type ShowEpisode,
   type Command,
   type GridItem,
   type RemoteId,
@@ -36,8 +35,8 @@ import { presentation, hueFor, listFolder, mosaicSources, rootEntries } from "./
 import type { UpNextItem } from "../../shared/protocol.ts";
 import { PlayerControls } from "./player-controls.ts";
 import { History } from "./history.ts";
-import { EXTRAS_TAB, allEpisodes, primaryFor, tabIds, tabOf } from "./show-page.ts";
-import type { MatchOption } from "./metadata-service.ts";
+import { ShowView } from "./show-view.ts";
+import { DetailsPage } from "./details-page.ts";
 import { MetadataService } from "./metadata-service.ts";
 import { nullMetadata, type Metadata } from "../ports/metadata.ts";
 
@@ -114,8 +113,8 @@ export class Core {
   readonly library: MediaLibrary;
   /** TMDB details for Shows and Films (saved matches, Fix match, key settings). */
   readonly details: MetadataService;
-  /** A TMDB key being typed on a phone. Kept out of the Screen state and snapshots. */
-  #keyDraft = "";
+  #show: ShowView;
+  #detailsPage: DetailsPage;
   /** What the phone currently typing is typing into. */
   #typingFor: "search" | "tmdbKey" | undefined;
   #cancelSaves: (() => void) | undefined;
@@ -162,6 +161,38 @@ export class Core {
       changed: () => this.#emit(),
     });
     this.#thumbs = new ThumbnailScheduler(ports.thumbnails, () => this.#emit());
+    this.#show = new ShowView(this.#state, {
+      library: this.library,
+      history: this.#history,
+      details: this.details,
+      thumbs: this.#thumbs,
+      art: (path) => this.#art(path),
+      grid: () => this.#currentGrid(),
+      viewKey: () => this.viewKey,
+      focusedEntry: () => {
+        const focused = resolveFocus(this.#currentGrid(), this.#state.focus[this.viewKey]);
+        return this.#rows()
+          .rows.flatMap((r) => r.entries)
+          .find((e) => (e.id ?? e.path) === focused?.id);
+      },
+      play: (path, fromStart) => this.#play(path, fromStart),
+      setView: (view) => this.#setView(view),
+      toast: (text) => this.#toast(text),
+      changed: () => this.#emit(),
+    });
+    this.#detailsPage = new DetailsPage(this.#state, {
+      details: this.details,
+      connectedPhone: () =>
+        this.#lastFrom !== undefined && this.#remotes.has(this.#lastFrom)
+          ? this.#lastFrom
+          : undefined,
+      startTyping: (remote) => {
+        this.#state.typingBy = remote;
+        this.#typingFor = "tmdbKey";
+      },
+      setView: (view) => this.#setView(view),
+      toast: (text) => this.#toast(text),
+    });
     this.#libraryFolders = Array.isArray(lib.folders)
       ? lib.folders.filter((f): f is string => typeof f === "string")
       : [];
@@ -398,9 +429,9 @@ export class Core {
       ];
     }
     if (this.#state.view === "player") return this.#controls.grid();
-    if (this.#state.view === "details") return this.#detailsGrid();
-    if (this.#state.view === "show") return this.#showGrid();
-    if (this.#state.view === "fixMatch") return this.#fixGrid();
+    if (this.#state.view === "details") return this.#detailsPage.grid();
+    if (this.#state.view === "show") return this.#show.grid();
+    if (this.#state.view === "fixMatch") return this.#show.fixGrid();
     if (this.#state.view === "credits")
       return [{ id: "done", r: 0, c: 0, label: "Done", action: "back", initial: true }];
     if (!this.#isLibraryView()) return this.#grids.get(this.viewKey) ?? [];
@@ -449,56 +480,6 @@ export class Core {
     return [gear, ...tiles];
   }
 
-  #detailsGrid(): GridItem[] {
-    const s = this.details.settings();
-    const rows: Omit<GridItem, "r" | "c">[] = [
-      { id: "own-key", label: "Use my own key", action: "details:own-key", initial: true },
-      ...(s.hasOwnKey
-        ? [{ id: "remove-key", label: "Remove my key", action: "details:remove-key" }]
-        : []),
-      { id: "toggle", label: "Online details", action: "details:toggle" },
-      { id: "refresh", label: "Refresh details", action: "details:refresh" },
-      { id: "credits", label: "Credits", action: "details:credits" },
-    ];
-    return rows.map((row, r) => ({ ...row, r, c: 0 }));
-  }
-
-  /** Actions on the "Show and film details" page. */
-  #detailsAction(action: string): boolean {
-    if (!action.startsWith("details:")) return false;
-    switch (action) {
-      case "details:own-key":
-        // The key is typed on a phone's typing sheet.
-        if (this.#lastFrom !== undefined && this.#remotes.has(this.#lastFrom))
-          this.#startKeyTyping(this.#lastFrom);
-        else this.#toast("Open Couch's Remote on your phone to type the key");
-        break;
-      case "details:remove-key":
-        this.details.setKey(undefined);
-        this.#toast("Using the built-in key");
-        break;
-      case "details:toggle":
-        this.details.setEnabled(!this.details.settings().enabled);
-        break;
-      case "details:refresh":
-        this.details.refresh();
-        this.#toast("Refreshing details");
-        break;
-      case "details:credits":
-        this.#setView("credits");
-        break;
-      default:
-        return false;
-    }
-    return true;
-  }
-
-  #startKeyTyping(remote: RemoteId): void {
-    this.#state.typingBy = remote;
-    this.#typingFor = "tmdbKey";
-    this.#keyDraft = "";
-  }
-
   #openFolder(path: string): void {
     const entries = listFolder(path);
     if (!entries) return this.#toast("Connect the drive to see this folder");
@@ -516,271 +497,6 @@ export class Core {
     this.#state.view = "folder";
   }
 
-  /** OK on a show tile: the show page, focused on the episode its primary button plays. */
-  #openShow(id: string): void {
-    const show = this.library.show(id);
-    if (!show) return;
-    this.#state.showId = id;
-    const primary = primaryFor(show, this.#history);
-    if (primary) this.#focusShowEpisode(primary.episode.path);
-    else this.#state.showTab = tabIds(show)[0];
-    this.#setView("show");
-    this.#wantShowPictures();
-  }
-
-  /** Back on the show page after playback: focus the episode played, or the next one after an end. */
-  #returnToShow(path: string, ended: boolean): void {
-    const show = this.library.show(this.#state.showId!);
-    if (!show) {
-      this.#state.view = "library";
-      return;
-    }
-    const next = ended ? this.library.nextEpisode(path) : undefined;
-    this.#focusShowEpisode(next?.path ?? path);
-    this.#state.view = "show";
-    this.#wantShowPictures();
-  }
-
-  /** Select the episode's season tab and focus its row. */
-  #focusShowEpisode(path: string): void {
-    const show = this.#state.showId ? this.library.show(this.#state.showId) : undefined;
-    const episode = show && allEpisodes(show).find((e) => e.path === path);
-    if (!show || !episode) return;
-    const tab = tabOf(episode);
-    this.#state.showTab = tab;
-    const index = show.seasons.find((se) => String(se.number) === tab)!.episodes.indexOf(episode);
-    this.#state.focus[`show:${show.id}`] = { r: 1 + index, c: 1 + tabIds(show).indexOf(tab) };
-  }
-
-  /** The episodes (or extras) listed under the selected tab. */
-  #showList(show: NonNullable<ReturnType<MediaLibrary["show"]>>): ShowEpisode[] {
-    const tab = this.#state.showTab;
-    const decorate = (e: ShowEpisode, path: string): ShowEpisode => {
-      const { episode } = this.#art(path);
-      const thumb = episode?.still ?? this.#thumbs.urlFor(path);
-      const progress = this.#history.progress(path);
-      const left = progress
-        ? Math.max(1, Math.ceil((progress.duration - progress.position) / 60))
-        : 0;
-      return {
-        ...e,
-        ...(episode?.name && e.number !== undefined ? { title: episode.name } : {}),
-        ...(episode?.overview ? { overview: episode.overview } : {}),
-        ...(thumb ? { thumb } : {}),
-        ...(progress
-          ? {
-              progress: {
-                fraction: progress.position / progress.duration,
-                left: `${left} min left`,
-              },
-            }
-          : this.#history.isWatched(path)
-            ? { watched: true }
-            : {}),
-      };
-    };
-    if (tab === EXTRAS_TAB) {
-      return show.extras.map((x) =>
-        decorate(
-          {
-            id: x.path,
-            title: x.title,
-            hue: hueFor(x.title),
-            ...(x.missing ? { missing: true } : {}),
-          },
-          x.path,
-        ),
-      );
-    }
-    const season = show.seasons.find((se) => String(se.number) === tab) ?? show.seasons[0];
-    return (season?.episodes ?? []).map((e) =>
-      decorate(
-        {
-          id: e.path,
-          number: e.episode,
-          title: presentation(e.path).title,
-          hue: hueFor(show.name),
-          ...(e.missing ? { missing: true } : {}),
-        },
-        e.path,
-      ),
-    );
-  }
-
-  #wantShowPictures(): void {
-    const show = this.#state.showId ? this.library.show(this.#state.showId) : undefined;
-    if (!show) return;
-    const primary = primaryFor(show, this.#history)?.episode.path;
-    this.#thumbs.want([...(primary ? [primary] : []), ...this.#showList(show).map((e) => e.id)]);
-  }
-
-  #canFix(): boolean {
-    const d = this.details.settings();
-    return d.enabled && d.keyLabel !== "No key";
-  }
-
-  #showGrid(): GridItem[] {
-    const show = this.#state.showId ? this.library.show(this.#state.showId) : undefined;
-    if (!show) return [];
-    const tabs = tabIds(show);
-    const selected = Math.max(0, tabs.indexOf(this.#state.showTab ?? ""));
-    const primary = primaryFor(show, this.#history);
-    const grid: GridItem[] = [
-      { id: "settings", r: -1, c: 0, label: "Settings", action: "open:settings" },
-      { id: "play", r: 0, c: 0, label: primary?.label ?? "Play", action: "show:play" },
-      ...tabs.map((t, i) => ({
-        id: `tab:${t}`,
-        r: 0,
-        c: 1 + i,
-        label: t === EXTRAS_TAB ? "Extras" : `Season ${t}`,
-        action: `show:tab:${t}`,
-      })),
-      ...this.#showList(show).map((e, i) => ({
-        id: e.id,
-        r: 1 + i,
-        c: 1 + selected,
-        label: e.title,
-        action: `library:play:${e.id}`,
-      })),
-    ];
-    if (this.#canFix())
-      grid.push({ id: "fix", r: 1, c: 0, label: "Fix match", action: "show:fix" });
-    const first = grid.find((i) => i.id === primary?.episode.path) ?? grid[0];
-    if (first) first.initial = true;
-    return grid;
-  }
-
-  #fixOptions: MatchOption[] | undefined;
-
-  #fixGrid(): GridItem[] {
-    const options = this.#fixOptions ?? [];
-    return [
-      ...options.map((o, i) => ({
-        id: `cand:${o.tmdbId}`,
-        r: i,
-        c: 0,
-        label: o.name,
-        action: `fix:${o.tmdbId}`,
-        initial: i === 0,
-      })),
-      {
-        id: "frames",
-        r: options.length,
-        c: 0,
-        label: "Use video frames",
-        action: "fix:frames",
-        initial: options.length === 0,
-      },
-    ];
-  }
-
-  #showAction(action: string): boolean {
-    const [ns, verb, ...rest] = action.split(":");
-    const arg = rest.join(":");
-    if (ns === "fix") {
-      this.#applyFix(verb === "frames" ? "frames" : Number(verb));
-      return true;
-    }
-    if (ns !== "show") return false;
-    const show = this.#state.showId ? this.library.show(this.#state.showId) : undefined;
-    if (!show) return true;
-    if (verb === "play") {
-      const primary = primaryFor(show, this.#history);
-      if (primary) this.#play(primary.episode.path, primary.fromStart);
-    } else if (verb === "tab") {
-      this.#state.showTab = arg;
-      this.#wantShowPictures();
-      const list = this.#showList(show);
-      const c = 1 + tabIds(show).indexOf(arg);
-      if (list.length) this.#state.focus[this.viewKey] = { r: 1, c };
-    } else if (verb === "fix") {
-      this.#openFixMatch(show.id);
-    }
-    return true;
-  }
-
-  /** Where Fix match was opened from, and for which show or film. */
-  #fixId: string | undefined;
-  #fixBack: "show" | "library" = "show";
-
-  /** The show or film under the focused Library tile, when its match can be fixed. */
-  #fixTarget(): string | undefined {
-    if (this.#state.view !== "library" || !this.#canFix()) return undefined;
-    const focused = resolveFocus(this.#currentGrid(), this.#state.focus[this.viewKey]);
-    const entry = this.#rows()
-      .rows.flatMap((r) => r.entries)
-      .find((e) => (e.id ?? e.path) === focused?.id);
-    if (!entry || entry.missing) return undefined;
-    if (entry.kind === "show") return entry.path;
-    if (entry.kind !== "video" || this.library.showOf(entry.path)) return undefined;
-    return this.library.films().some((f) => f.path === entry.path) ? entry.path : undefined;
-  }
-
-  /** Menu key, long press or the phone's button: Fix match for the focused show or film. */
-  #menu(): void {
-    if (this.#state.view === "show" && this.#state.showId && this.#canFix())
-      return this.#openFixMatch(this.#state.showId, "show");
-    const id = this.#fixTarget();
-    if (id) this.#openFixMatch(id, "library");
-  }
-
-  #openFixMatch(id: string, back: "show" | "library" = "show"): void {
-    this.#fixId = id;
-    this.#fixBack = back;
-    this.#fixOptions = undefined;
-    delete this.#state.focus.fixMatch;
-    this.#state.view = "fixMatch";
-    void this.details.candidates(id).then((options) => {
-      if (this.#state.view !== "fixMatch" || this.#fixId !== id) return;
-      this.#fixOptions = options;
-      this.#emit();
-    });
-  }
-
-  #applyFix(choice: number | "frames"): void {
-    const id = this.#fixId;
-    if (!id) return;
-    this.#state.view = this.#fixBack;
-    this.#toast(choice === "frames" ? "Using video frames" : "Fixing the match");
-    void this.details.fixMatch(id, choice).then(() => this.#emit());
-  }
-
-  /** After a move or hover onto a season tab, the list below follows. */
-  #syncShowTab(): void {
-    if (this.#state.view !== "show") return;
-    const focused = resolveFocus(this.#currentGrid(), this.#state.focus[this.viewKey]);
-    if (focused?.id.startsWith("tab:")) {
-      const tab = focused.id.slice(4);
-      if (tab !== this.#state.showTab) {
-        this.#state.showTab = tab;
-        this.#wantShowPictures();
-      }
-    }
-  }
-
-  #moveShow(direction: "up" | "down" | "left" | "right"): void {
-    const grid = this.#currentGrid();
-    const current = resolveFocus(grid, this.#state.focus[this.viewKey]);
-    if (!current) return;
-    const set = (i: GridItem) => (this.#state.focus[this.viewKey] = { r: i.r, c: i.c });
-    const buttons = grid.filter((i) => i.c === 0);
-    if (current.c === 0) {
-      if (direction === "right") {
-        const primary = grid.find((i) => i.initial && i.c > 0);
-        const target =
-          primary ?? grid.find((i) => i.c > 0 && i.r >= 1) ?? grid.find((i) => i.c > 0);
-        if (target) set(target);
-      } else if (direction !== "left") {
-        set(moveFocus(buttons, current, direction));
-      }
-      return;
-    }
-    const next = moveFocus(grid, current, direction);
-    if (direction === "left" && (next === current || current.r >= 1)) {
-      set(grid.find((i) => i.id === "play")!);
-    } else set(next);
-  }
-
   #libraryAction(action: string): boolean {
     if (!action.startsWith("library:")) return false;
     const [, verb, ...rest] = action.split(":");
@@ -789,7 +505,7 @@ export class Core {
     else if (verb === "open") this.#openFolder(arg);
     else if (verb === "play") this.#play(arg);
     else if (verb === "playstart") this.#play(arg, true);
-    else if (verb === "show") this.#openShow(arg);
+    else if (verb === "show") this.#show.open(arg);
     else if (verb === "remove") this.#saveFolders(this.#libraryFolders.filter((f) => f !== arg));
     else if (verb === "add") {
       void this.#ports.mac
@@ -882,7 +598,7 @@ export class Core {
       this.#focusEntry(p.path, ended);
       this.#state.view = this.#state.folderPath ? "folder" : "library";
     } else if (this.#playedFrom === "show" && this.#state.showId) {
-      this.#returnToShow(p.path, ended);
+      this.#show.returnTo(p.path, ended);
     } else {
       this.#state.view = this.#playedFrom === "show" ? "library" : this.#playedFrom;
     }
@@ -1117,8 +833,8 @@ export class Core {
     const homeVideos = this.#continueEntries().slice(0, HOME_VIDEOS);
     return {
       library: this.#library(),
-      ...(this.#state.view === "show" ? this.#showPayload() : {}),
-      ...(this.#state.view === "fixMatch" ? this.#fixPayload() : {}),
+      ...(this.#state.view === "show" ? this.#show.payload() : {}),
+      ...(this.#state.view === "fixMatch" ? this.#show.fixPayload() : {}),
       ...(this.#state.view === "details" ||
       this.#state.view === "settings" ||
       this.#state.view === "credits"
@@ -1135,58 +851,6 @@ export class Core {
       focusedLabel: focused?.label,
       pairingUrl: this.pairingUrl,
       now: this.#ports.clock.now(),
-    };
-  }
-
-  #showPayload(): Pick<ScreenPayload, "show"> {
-    const show = this.#state.showId ? this.library.show(this.#state.showId) : undefined;
-    if (!show) return {};
-    const primary = primaryFor(show, this.#history);
-    const tabs = tabIds(show);
-    const selected = tabs.includes(this.#state.showTab ?? "") ? this.#state.showTab : tabs[0];
-    const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
-    const d = this.details.detailsFor(show.id);
-    const backdrop = d?.backdrop ?? (primary && this.#thumbs.urlFor(primary.episode.path));
-    return {
-      show: {
-        id: show.id,
-        name: show.name,
-        meta: [
-          ...((d?.years ?? show.year) ? [d?.years ?? String(show.year)] : []),
-          plural(show.seasons.length, "season"),
-          plural(show.episodeCount, "episode"),
-        ],
-        primary: primary?.label ?? "Play",
-        ...(backdrop ? { backdrop } : {}),
-        ...(d?.poster ? { poster: d.poster } : {}),
-        ...(d?.overview ? { overview: d.overview } : {}),
-        tabs: tabs.map((t) => ({
-          id: t,
-          label: t === EXTRAS_TAB ? "Extras" : `Season ${t}`,
-          selected: t === selected,
-        })),
-        episodes: this.#showList(show),
-        canFix: this.#canFix(),
-        artExpected: this.#canFix() && !this.details.usesFrames(show.id),
-      },
-    };
-  }
-
-  #fixPayload(): Pick<ScreenPayload, "fixMatch"> {
-    const id = this.#fixId ?? "";
-    const name =
-      this.library.show(id)?.name ?? this.library.films().find((f) => f.path === id)?.title ?? "";
-    return {
-      fixMatch: {
-        name: name.replace(/\s*\(\d{4}\)$/, ""),
-        loading: this.#fixOptions === undefined,
-        options: (this.#fixOptions ?? []).map((o) => ({
-          id: `cand:${o.tmdbId}`,
-          name: o.name,
-          ...(o.year ? { year: o.year } : {}),
-          ...(o.poster ? { poster: o.poster } : {}),
-        })),
-      },
     };
   }
 
@@ -1223,7 +887,7 @@ export class Core {
           }
         : {}),
       typeAvailable: s.view === "youtube" || s.view === "details",
-      ...(this.#fixTarget() ? { fixAvailable: true } : {}),
+      ...(this.#show.fixTarget() ? { fixAvailable: true } : {}),
       ...(s.view === "details" ? { typeLabel: "Type TMDB key" } : {}),
       showVolume: s.view === "youtube",
       showSkip: s.view === "youtube",
@@ -1293,7 +957,7 @@ export class Core {
         this.#back();
         break;
       case "menu":
-        this.#menu();
+        this.#show.menu();
         break;
       case "home":
         this.#setView("home");
@@ -1335,7 +999,7 @@ export class Core {
   #type(command: Command, from: Source): void {
     const yt = this.#ports.youtube;
     const owner = this.#state.typingBy;
-    if (this.#state.view === "details") return this.#typeKey(command, from);
+    if (this.#state.view === "details") return this.#detailsPage.typeKey(command, from);
     if (owner !== undefined && this.#typingFor !== "search") return;
     switch (command.command) {
       case "typeOpen":
@@ -1359,34 +1023,6 @@ export class Core {
       case "typeCancel":
         if (owner !== from) return;
         this.#state.typingBy = undefined;
-        break;
-    }
-  }
-
-  /** Typing the household's TMDB key: the text never goes into the Screen state. */
-  #typeKey(command: Command, from: Source): void {
-    const owner = this.#state.typingBy;
-    switch (command.command) {
-      case "typeOpen":
-        if (from === "screen" || (owner !== undefined && owner !== from)) return;
-        this.#startKeyTyping(from);
-        break;
-      case "typeText":
-        if (owner === from) this.#keyDraft = command.args?.text ?? "";
-        break;
-      case "typeSubmit":
-        if (owner !== from) return;
-        this.#state.typingBy = undefined;
-        if (this.#keyDraft.trim()) {
-          this.details.setKey(this.#keyDraft);
-          this.#toast("TMDB key saved");
-        }
-        this.#keyDraft = "";
-        break;
-      case "typeCancel":
-        if (owner !== from) return;
-        this.#state.typingBy = undefined;
-        this.#keyDraft = "";
         break;
     }
   }
@@ -1450,8 +1086,8 @@ export class Core {
     if (this.#state.view === "youtube") return this.#ports.youtube.sendKey(direction);
     if (!current) return;
     if (this.#state.view === "show") {
-      this.#moveShow(direction);
-      this.#syncShowTab();
+      this.#show.move(direction);
+      this.#show.syncTab();
       return;
     }
     const next = moveFocus(grid, current, direction);
@@ -1464,7 +1100,7 @@ export class Core {
     const item = this.#currentGrid().find((i) => i.r === r && i.c === c);
     if (!item) return;
     this.#state.focus[this.viewKey] = { r: item.r, c: item.c };
-    this.#syncShowTab();
+    this.#show.syncTab();
     this.#controls.cardActivity();
     this.#emit();
   }
@@ -1477,8 +1113,8 @@ export class Core {
     if (item.action === "back") return this.#back();
     if (
       this.#libraryAction(item.action) ||
-      this.#detailsAction(item.action) ||
-      this.#showAction(item.action)
+      this.#detailsPage.action(item.action) ||
+      this.#show.action(item.action)
     )
       return;
     const action = ACTIONS[item.action];
@@ -1504,7 +1140,7 @@ export class Core {
       return;
     }
     if (this.#state.view === "fixMatch") {
-      this.#state.view = this.#fixBack;
+      this.#show.leaveFix();
       this.#keepLibraryFocus();
       return;
     }
@@ -1522,10 +1158,7 @@ export class Core {
       this.#ports.youtube.hide();
     }
     this.#state.view = view;
-    if (from === "details") {
-      this.#state.typingBy = undefined;
-      this.#keyDraft = "";
-    }
+    if (from === "details") this.#detailsPage.cancel();
     if (view === "library") void this.library.refresh(this.#libraryFolders);
   }
 
