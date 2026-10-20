@@ -1,4 +1,5 @@
 import { BrowserWindow, WebContentsView, session } from "electron";
+import { applyCompatPatch } from "./youtube-compat.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "./youtube.ts";
 
 export const YOUTUBE_URL = "https://www.youtube.com/tv";
@@ -68,7 +69,7 @@ export class ElectronYouTube implements YouTube {
 
   /** Starts loading in the background so opening YouTube is instant. */
   start(): void {
-    this.#load();
+    void applyCompatPatch(this.#view.webContents).then(() => this.#load());
   }
 
   #load(): void {
