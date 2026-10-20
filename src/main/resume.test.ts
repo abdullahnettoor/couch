@@ -243,6 +243,48 @@ describe("resuming", () => {
   });
 });
 
+describe("leaving a video goes back to where it was started", () => {
+  test("from Home's card: Back returns Home, not into the video's folder", async () => {
+    await start();
+    watchAndLeave(d(), 900);
+    focusOn("continue");
+    press("ok");
+    press("back");
+    expect(screen().state.view).toBe("home");
+    expect(screen().focusedId).toBe("continue");
+  });
+
+  test("from the Library's Continue watching row: Back returns to the Library", async () => {
+    await start();
+    watchAndLeave(d(), 900);
+    focusOn("library");
+    press("ok");
+    focusOn(d());
+    press("ok");
+    press("back");
+    expect(screen().state.view).toBe("library");
+    press("back");
+    expect(screen().state.view).toBe("home");
+  });
+
+  test("from Home's card, the end of the file also returns Home", async () => {
+    await start();
+    watchAndLeave(d(), 900);
+    focusOn("continue");
+    press("ok");
+    h.player.emit({ type: "ended", reason: "eof" });
+    expect(screen().state.view).toBe("home");
+  });
+
+  test("from a folder: Back still returns to that folder", async () => {
+    await start();
+    playFromLibrary(a());
+    press("back");
+    expect(screen().state.view).toBe("folder");
+    expect(screen().focusedId).toBe(a());
+  });
+});
+
 describe("Continue watching lists", () => {
   test("Library row lists all, newest first; tiles show progress", async () => {
     await start();
@@ -293,15 +335,5 @@ describe("end of file", () => {
     expect(loads().length).toBe(before);
     expect(screen().library!.entries.find((e) => e.path === a())!.watched).toBe(true);
     expect(screen().continueCard).toBeUndefined();
-  });
-
-  test("resuming from Home ends in the video's folder", async () => {
-    await start();
-    watchAndLeave(c(), 600);
-    focusOn("continue");
-    press("ok");
-    h.player.emit({ type: "ended", reason: "eof" });
-    expect(screen().state.view).toBe("folder");
-    expect(screen().focusedId).toBe(c());
   });
 });

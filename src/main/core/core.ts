@@ -77,6 +77,8 @@ export class Core {
   #libraryFolders: string[];
   /** The open folder's contents, read fresh each time it is opened. */
   #listing: LibraryEntry[] = [];
+  /** Where the playing video was started from; leaving playback returns there. */
+  #playedFrom: View = "folder";
   #mpvMissing = false;
   #overlayShown = false;
   #cancelOverlay: (() => void) | undefined;
@@ -342,16 +344,9 @@ export class Core {
   /** Start a Library video full screen, resuming where it was left. */
   #play(path: string): void {
     if (this.#mpvMissing) return this.#toast(MPV_MISSING);
-    const dir = dirname(path);
-    if (this.#state.folderPath !== dir || this.#listing.length === 0) {
-      const entries = listFolder(dir);
-      if (entries) {
-        this.#listing = entries;
-        this.#queueThumbnails(entries);
-        this.#state.folderPath = dir;
-      }
-    }
-    this.#focusEntry(path);
+    // Continue watching (Home or the Library row) returns there, not into the video's folder.
+    this.#playedFrom = this.#state.view === "folder" ? "folder" : this.#state.view;
+    if (this.#playedFrom === "folder") this.#focusEntry(path);
     const startSeconds = this.#history.resumeAt(path);
     this.#state.player = { path, pos: startSeconds ?? 0, dur: 0, paused: false };
     this.#state.view = "player";
@@ -404,11 +399,15 @@ export class Core {
     this.#cancelNote?.();
     this.#resumeNote = undefined;
     this.#history.save(p.path, p.pos, p.dur, this.#ports.clock.now(), ended);
-    this.#focusEntry(p.path, ended);
     this.#state.player = undefined;
     this.#overlayShown = false;
     this.#cancelOverlay?.();
-    this.#state.view = this.#state.folderPath ? "folder" : "library";
+    if (this.#playedFrom === "folder") {
+      this.#focusEntry(p.path, ended);
+      this.#state.view = this.#state.folderPath ? "folder" : "library";
+    } else {
+      this.#state.view = this.#playedFrom;
+    }
     if (toast) this.#toast(toast);
     this.#emit();
   }
