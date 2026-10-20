@@ -36,6 +36,10 @@ Planned homes: `src/main/core/` (state + commands), `src/main/ports/` (YouTube, 
 
 Build outputs: `dist/renderer` (Vite), `dist/main/index.mjs` (ESM), `dist/preload/index.cjs` (CJS, required for sandboxed preload). `vite.config.ts` holds all three configs: Vite (root `src/renderer`), `pack` (tsdown) for main and preload, and `test` (root forced to the repo).
 
+**TMDB details (optional).** Posters and show/film details come from [TMDB](https://www.themoviedb.org). A release build can carry the project's TMDB key: put `COUCH_TMDB_TOKEN=<API Read Access Token or v3 API key>` in a git-ignored `.env` in the repo root (or set it in the environment, e.g. a CI secret) before `vp run build` / `vp run package`. It is injected into the main-process bundle only (never the renderer, the Remote page or the repo). Without it Couch behaves as bring-your-own-key: the household can paste their own key in Settings → Show and film details, or use video frames. Never commit `.env`.
+
+This product uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.
+
 ## mpv hand-off
 
 Couch loads libmpv in-process through a small native add-on (`native/mpv-embed/`, Objective-C++, N-API) and draws the video into an NSView (a `CAOpenGLLayer`) added on top of Couch's window. The video therefore moves, resizes and goes full screen with Couch, and no separate mpv window exists. The core is created idle at start with the same options as before plus `input-ipc-server`, and is still controlled only through a Unix socket in a temp folder. The view is shown on mpv's `file-loaded` and hidden on `end-file`, so Couch's UI returns when playback stops. The overlay is still mpv's `osd-overlay`. libmpv is `dlopen`ed (Homebrew paths, or `COUCH_LIBMPV=/path/libmpv.2.dylib`), so Couch still opens and shows the "needs mpv" message without it. Without the add-on (vitest) `MpvPlayer` spawns a headless mpv process instead.

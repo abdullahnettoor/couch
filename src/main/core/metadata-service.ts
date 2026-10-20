@@ -198,7 +198,7 @@ export class MetadataService {
       ...this.#library.films().map((f): Item => ({
         id: f.id,
         kind: "film",
-        title: f.title,
+        title: f.year ? f.title.replace(/\s*\(\d{4}\)$/, "") : f.title,
         ...(f.year ? { year: f.year } : {}),
         seasons: [],
       })),
