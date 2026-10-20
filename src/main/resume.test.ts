@@ -29,9 +29,8 @@ afterEach(async () => {
 });
 
 const start = async () => (h = await startHarness(new FileStore(storeDir)));
-const core = () => h.app.core;
-const press = (command: CommandName) => core().handle({ command }, "screen");
-const screen = () => core().screen();
+const press = (command: CommandName) => h.app.screenCommand({ command });
+const screen = () => h.app.screen();
 const loads = () => h.player.calls.filter((x) => x.call === "load");
 const lastLoad = () => loads().at(-1)!.args as [string, { startSeconds?: number }];
 
@@ -161,32 +160,46 @@ describe("saving", () => {
     position(100);
     h.clock.advance(5000);
     position(104);
-    h.clock.advance(4000); // killed here: last save was at 100
-    const store = new FileStore(storeDir);
-    expect(store.read<any>("history", {}).items[a()].position).toBe(100);
-    h.clock.advance(1000);
-    expect(store.read<any>("history", {}).items[a()].position).toBe(104);
-  });
-
-  test("savePlayingPosition saves right now, and does nothing when idle", async () => {
+    h.clock.advance(4000);
+    await h.stop(); // killed here: last save was at 100
     await start();
-    core().savePlayingPosition();
-    playFromLibrary(a());
-    position(300);
-    core().savePlayingPosition();
-    expect(new FileStore(storeDir).read<any>("history", {}).items[a()].position).toBe(300);
+    expect(screen().continueCard?.progress?.left).toBe("119 min left");
+    expect(screen().continueCard?.progress?.fraction).toBeCloseTo(100 / 7200);
   });
 
-  test("Back, Home and Quit save", async () => {
+  test("a later 5 s save replaces the earlier one", async () => {
+    await start();
+    playFromLibrary(a());
+    position(100);
+    h.clock.advance(5000);
+    position(104);
+    h.clock.advance(5000);
+    await h.stop();
+    await start();
+    expect(screen().continueCard?.progress?.fraction).toBeCloseTo(104 / 7200);
+  });
+
+  test("Back, Home and quitting save", async () => {
     await start();
     playFromLibrary(a());
     position(200);
     press("back");
-    expect(core().screen().continueCard?.progress?.left).toBe("117 min left");
+    expect(screen().continueCard?.progress?.left).toBe("117 min left");
+    h.clock.advance(1000);
     playFromLibrary(b());
     position(400);
     press("home");
-    expect(new FileStore(storeDir).read<any>("history", {}).items[b()].position).toBe(400);
+    await h.stop();
+    await start();
+    expect(screen().continueCard?.path).toBe(b());
+    expect(screen().continueCard?.progress?.fraction).toBeCloseTo(400 / 7200);
+    h.clock.advance(5000);
+    playFromLibrary(c());
+    position(500);
+    h.app.beforeQuit();
+    await h.stop();
+    await start();
+    expect(screen().continueCard?.path).toBe(c());
   });
 
   test("history survives a restart", async () => {

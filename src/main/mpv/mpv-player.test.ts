@@ -70,7 +70,7 @@ realMpv(
     await new Promise((r) => setTimeout(r, 2000));
     expect(events).toContainEqual({ type: "ended", reason: "eof" });
 
-    const pid = (player as unknown as { child: { pid: number } }).child.pid;
+    const pid = player.pid!;
     await player.dispose();
     expect(() => execSync(`kill -0 ${pid}`, { stdio: "ignore" })).toThrow();
   },

@@ -38,7 +38,7 @@ describe("thumbnails through the Remote", () => {
   async function openRoot() {
     for (const n of names) writeFileSync(path(n), "");
     h = await startHarness(new FileStore(storeDir));
-    h.app.core.handle({ command: "home" }, "screen");
+    h.app.screenCommand({ command: "home" });
     const phone = await h.connectPhone();
     h.mac.folderPick = root;
     await phone.press("up");

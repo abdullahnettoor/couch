@@ -4,7 +4,10 @@ import { ADD_PHONE_ITEMS, SETTINGS_ITEMS } from "../../shared/settings-grid.ts";
 import { YOUTUBE_ERROR_ITEMS } from "../../shared/youtube-grid.ts";
 import type { Command, GridItem, RemoteSnapshot, ScreenPayload } from "../../shared/protocol.ts";
 import { startApp, type CouchApp } from "../app.ts";
-import { MemoryStore, type Store } from "../ports/store.ts";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { FileStore, type Store } from "../ports/store.ts";
 import { FakeClock, FakeMac, FakePlayer, FakeThumbnails, FakeYouTube } from "../ports/fakes.ts";
 
 /** A pretend phone: a WebSocket client that records every snapshot. */
@@ -117,8 +120,14 @@ export interface Harness {
   stop(): Promise<void>;
 }
 
-/** Starts Couch's main-process app (core + Remote server) on a random port with fake ports. */
-export async function startHarness(store: Store = new MemoryStore()): Promise<Harness> {
+/**
+ * Starts Couch's main-process app (core + Remote server) on a random port with fake ports.
+ * The Store is a real FileStore in a temp folder (removed on stop) unless one is passed in,
+ * which is how tests restart: stop, then start again with the same Store.
+ */
+export async function startHarness(given?: Store): Promise<Harness> {
+  const tmp = given ? undefined : mkdtempSync(join(tmpdir(), "couch-store-"));
+  const store = given ?? new FileStore(tmp!);
   const player = new FakePlayer();
   const youtube = new FakeYouTube();
   const mac = new FakeMac();
@@ -155,6 +164,7 @@ export async function startHarness(store: Store = new MemoryStore()): Promise<Ha
     async stop() {
       for (const p of phones) p.close();
       await app.stop();
+      if (tmp) rmSync(tmp, { recursive: true, force: true });
     },
   };
 }

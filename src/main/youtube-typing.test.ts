@@ -22,7 +22,7 @@ describe("YouTube typing", () => {
     expect(a.last!.typing).toBe("you");
     expect(b.last!.typing).toBe("other");
     expect(calls("openSearch")).toHaveLength(1);
-    expect(h.app.core.screen().state.typingBy).toBeDefined();
+    expect(h.screen.last.state.typingBy).toBeDefined();
   });
 
   test("typeText reaches the port with the whole text, only from the owner", async () => {
@@ -69,7 +69,7 @@ describe("YouTube typing", () => {
     expect(a.last!.typeAvailable).toBe(false);
     await a.press("typeOpen");
     expect(a.last!.typing).toBe("none");
-    expect(h.app.core.screen().state.toast).toBe("Typing works inside YouTube search");
+    expect(h.screen.last.state.toast).toBe("Typing works inside YouTube search");
     expect(calls("openSearch")).toHaveLength(0);
   });
 

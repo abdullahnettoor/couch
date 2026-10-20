@@ -9,6 +9,10 @@ export interface CouchApp {
   /** The Screen's keyboard sends the same commands as a phone. */
   screenCommand(command: Command): void;
   reportGrid(viewKey: string, items: GridItem[]): void;
+  /** What the Screen renderer would draw right now. */
+  screen(): ScreenPayload;
+  /** Saves playback state and stops the player; called on ⌘Q. */
+  beforeQuit(): void;
   /** Subscribe to what the renderer should draw. */
   onScreen(listener: (payload: ScreenPayload) => void): () => void;
   stop(): Promise<void>;
@@ -30,6 +34,8 @@ export async function startApp(options: AppOptions): Promise<CouchApp> {
     remote,
     screenCommand: (command) => core.handle(command, screenSource),
     reportGrid: (viewKey, items) => core.reportGrid(viewKey, items),
+    screen: () => core.screen(),
+    beforeQuit: () => core.beforeQuit(),
     onScreen(listener) {
       return core.onChange(() => listener(core.screen()));
     },

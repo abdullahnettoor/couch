@@ -53,14 +53,14 @@ describe("display sleep", () => {
 
   test("playback never lets the display sleep", async () => {
     await playVideo();
-    expect(h.app.core.screen().state.view).toBe("player");
+    expect(h.screen.last.state.view).toBe("player");
     h.clock.advance(60 * MIN);
     expect(awake().at(-1)).toBe(true);
   });
 
   test("YouTube never lets the display sleep", async () => {
     await phone.press("ok"); // first Home item is YouTube
-    expect(h.app.core.screen().state.view).toBe("youtube");
+    expect(h.screen.last.state.view).toBe("youtube");
     h.clock.advance(60 * MIN);
     expect(awake().at(-1)).toBe(true);
   });
@@ -82,7 +82,7 @@ describe("displays", () => {
     await playVideo();
     h.player.displayFails = true;
     h.mac.setDisplays([builtIn, monitor]);
-    await phone.waitFor(() => h.app.core.screen().state.view !== "player");
+    await phone.waitFor(() => h.screen.last.state.view !== "player");
     expect(h.player.calls.some((c) => c.call === "stop")).toBe(true);
   });
 });
@@ -91,8 +91,8 @@ describe("quitting", () => {
   test("stops playback and the player before quitting", async () => {
     await playVideo();
     h.player.calls.length = 0;
-    h.app.core.beforeQuit();
+    h.app.beforeQuit();
     expect(h.player.calls.some((c) => c.call === "stop")).toBe(true);
-    expect(h.app.core.screen().state.view).not.toBe("player");
+    expect(h.screen.last.state.view).not.toBe("player");
   });
 });

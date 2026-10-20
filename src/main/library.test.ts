@@ -141,7 +141,7 @@ describe("Library through the Remote", () => {
     mkdirSync(join(root, "Shows", "Season 1"), { recursive: true });
     writeFileSync(join(root, "Shows", "Season 1", "Ep.1.mkv"), "");
     h = await startHarness(store());
-    h.app.core.handle({ command: "home" }, "screen");
+    h.app.screenCommand({ command: "home" });
     const phone = await openLibrary();
     await addFolder(phone, join(root, "Shows"));
     await openLibrary(phone);

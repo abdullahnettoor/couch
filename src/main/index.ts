@@ -30,7 +30,7 @@ function publishMpv(): void {
 }
 
 function publishScreen(): void {
-  if (couch && win && !win.isDestroyed()) win.webContents.send(Channel.screen, couch.core.screen());
+  if (couch && win && !win.isDestroyed()) win.webContents.send(Channel.screen, couch.screen());
 }
 
 /** Bring the Screen back in front, with keyboard focus, after mpv's window goes away. */
@@ -121,7 +121,7 @@ app.on("before-quit", (event) => {
   if (quitting || !player) return;
   event.preventDefault();
   quitting = true;
-  couch?.core.beforeQuit();
+  couch?.beforeQuit();
   void Promise.all([player.dispose(), couch?.stop()]).finally(() => app.quit());
 });
 

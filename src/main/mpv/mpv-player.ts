@@ -83,6 +83,10 @@ export class MpvPlayer implements Player {
     }
   }
 
+  get pid(): number | undefined {
+    return this.child?.pid;
+  }
+
   get running(): boolean {
     return this.child !== undefined;
   }

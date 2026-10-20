@@ -149,7 +149,8 @@ describe("Settings", () => {
     expect(h.screen.last.pairingUrl).toContain(newKey);
     expect(await tryConnect(h.app.remote.port, oldKey)).toBe("refused");
     expect(await tryConnect(h.app.remote.port, newKey)).toBe("open");
-    const restartKey = h.store.read<{ key: string }>("pairing", { key: "" }).key;
-    expect(restartKey).toBe(newKey);
+    await h.stop();
+    h = await startHarness(h.store);
+    expect(h.pairingKey()).toBe(newKey);
   });
 });
