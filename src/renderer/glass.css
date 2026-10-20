@@ -500,3 +500,14 @@ svg.i {
 body.windowed {
   --chrome-top: 38px;
 }
+
+/* ---- Show and film details, Credits ---- */
+.details-hint {
+  color: var(--t3);
+}
+.tmdb-logo {
+  display: block;
+  width: calc(300 * var(--u));
+  margin: 0 calc(32 * var(--u)) calc(30 * var(--u));
+  opacity: 0.85;
+}

@@ -1,4 +1,8 @@
+import { existsSync } from "node:fs";
 import { defineConfig } from "vite-plus";
+
+// A git-ignored `.env` may hold COUCH_TMDB_TOKEN; the real environment wins.
+if (existsSync(".env")) process.loadEnvFile(".env");
 
 export default defineConfig({
   // Renderer (src/renderer) is built by `vp build`; main and preload by `vp pack`.
@@ -13,6 +17,8 @@ export default defineConfig({
       format: "esm",
       platform: "node",
       deps: { neverBundle: ["electron"] },
+      // The TMDB project key goes into the main process bundle only (never the renderer or preload).
+      define: { __COUCH_TMDB_TOKEN__: JSON.stringify(process.env.COUCH_TMDB_TOKEN ?? "") },
       clean: true,
     },
     {

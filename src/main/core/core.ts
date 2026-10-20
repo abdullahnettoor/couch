@@ -33,6 +33,8 @@ import { presentation, hueFor, listFolder, mosaicSources, rootEntries } from "./
 import type { UpNextItem } from "../../shared/protocol.ts";
 import { PlayerControls } from "./player-controls.ts";
 import { History } from "./history.ts";
+import { MetadataService } from "./metadata-service.ts";
+import { nullMetadata, type Metadata } from "../ports/metadata.ts";
 
 /** In-progress videos shown on Home. */
 const HOME_VIDEOS = 3;
@@ -46,6 +48,10 @@ export interface Ports {
   clock: Clock;
   store: Store;
   thumbnails?: Thumbnails;
+  /** Show and film details (TMDB). Without it, everything uses frames. */
+  metadata?: Metadata;
+  /** The project's TMDB key, built into release builds; used when the household has none of its own. */
+  tmdbProjectKey?: string;
 }
 
 /** Who sent a command: a connected phone, or the Screen's own keyboard. */
@@ -101,6 +107,10 @@ export class Core {
   #history: History;
   /** The Library index and its Shows and Films; scans run in the background. */
   readonly library: MediaLibrary;
+  /** TMDB details for Shows and Films (saved matches, Fix match, key settings). */
+  readonly details: MetadataService;
+  /** A TMDB key being typed on a phone. Kept out of the Screen state and snapshots. */
+  #keyDraft = "";
   #cancelSaves: (() => void) | undefined;
   #resumeNote: string | undefined;
   #cancelNote: (() => void) | undefined;
@@ -116,7 +126,19 @@ export class Core {
     const lib = ports.store.read<{ folders?: unknown }>("library", {});
     this.#history = new History(ports.store);
     this.library = new MediaLibrary(ports.store, ports.clock);
-    this.library.onChange(() => this.#emit());
+    this.details = new MetadataService({
+      store: ports.store,
+      clock: ports.clock,
+      port: ports.metadata ?? nullMetadata,
+      library: this.library,
+      projectKey: ports.tmdbProjectKey,
+      changed: () => this.#emit(),
+    });
+    this.library.onChange(() => {
+      this.details.sync();
+      this.#emit();
+    });
+    this.details.sync();
     this.#controls = new PlayerControls(this.#state, {
       clock: ports.clock,
       playing: () => {
@@ -319,6 +341,9 @@ export class Core {
       ];
     }
     if (this.#state.view === "player") return this.#controls.grid();
+    if (this.#state.view === "details") return this.#detailsGrid();
+    if (this.#state.view === "credits")
+      return [{ id: "done", r: 0, c: 0, label: "Done", action: "back", initial: true }];
     if (!this.#isLibraryView()) return this.#grids.get(this.viewKey) ?? [];
     const lib = this.#library()!;
     if (lib.folders) {
@@ -366,6 +391,55 @@ export class Core {
       initial: tiles.length === 0,
     };
     return [gear, ...tiles];
+  }
+
+  #detailsGrid(): GridItem[] {
+    const s = this.details.settings();
+    const rows: Omit<GridItem, "r" | "c">[] = [
+      { id: "own-key", label: "Use my own key", action: "details:own-key", initial: true },
+      ...(s.hasOwnKey
+        ? [{ id: "remove-key", label: "Remove my key", action: "details:remove-key" }]
+        : []),
+      { id: "toggle", label: "Online details", action: "details:toggle" },
+      { id: "refresh", label: "Refresh details", action: "details:refresh" },
+      { id: "credits", label: "Credits", action: "details:credits" },
+    ];
+    return rows.map((row, r) => ({ ...row, r, c: 0 }));
+  }
+
+  /** Actions on the "Show and film details" page. */
+  #detailsAction(action: string): boolean {
+    if (!action.startsWith("details:")) return false;
+    switch (action) {
+      case "details:own-key":
+        // The key is typed on a phone's typing sheet.
+        if (this.#lastFrom !== undefined && this.#remotes.has(this.#lastFrom))
+          this.#startKeyTyping(this.#lastFrom);
+        else this.#toast("Open Couch's Remote on your phone to type the key");
+        break;
+      case "details:remove-key":
+        this.details.setKey(undefined);
+        this.#toast("Using the built-in key");
+        break;
+      case "details:toggle":
+        this.details.setEnabled(!this.details.settings().enabled);
+        break;
+      case "details:refresh":
+        this.details.refresh();
+        this.#toast("Refreshing details");
+        break;
+      case "details:credits":
+        this.#setView("credits");
+        break;
+      default:
+        return false;
+    }
+    return true;
+  }
+
+  #startKeyTyping(remote: RemoteId): void {
+    this.#state.typingBy = remote;
+    this.#keyDraft = "";
   }
 
   #openFolder(path: string): void {
@@ -701,6 +775,11 @@ export class Core {
     const homeVideos = this.#continueEntries().slice(0, HOME_VIDEOS);
     return {
       library: this.#library(),
+      ...(this.#state.view === "details" ||
+      this.#state.view === "settings" ||
+      this.#state.view === "credits"
+        ? { details: this.details.settings() }
+        : {}),
       continueCard: this.#continueEntries()[0],
       homeVideos,
       hero: homeVideos.find((v) => v.path === focused?.id) ?? homeVideos[0],
@@ -742,7 +821,8 @@ export class Core {
             },
           }
         : {}),
-      typeAvailable: s.view === "youtube",
+      typeAvailable: s.view === "youtube" || s.view === "details",
+      ...(s.view === "details" ? { typeLabel: "Type TMDB key" } : {}),
       showVolume: s.view === "youtube",
       showSkip: s.view === "youtube",
       typing: s.typingBy === undefined ? "none" : s.typingBy === remote ? "you" : "other",
@@ -850,6 +930,7 @@ export class Core {
   #type(command: Command, from: Source): void {
     const yt = this.#ports.youtube;
     const owner = this.#state.typingBy;
+    if (this.#state.view === "details") return this.#typeKey(command, from);
     switch (command.command) {
       case "typeOpen":
         if (this.#state.view !== "youtube") return this.#toast(TYPING_HINT);
@@ -871,6 +952,34 @@ export class Core {
       case "typeCancel":
         if (owner !== from) return;
         this.#state.typingBy = undefined;
+        break;
+    }
+  }
+
+  /** Typing the household's TMDB key: the text never goes into the Screen state. */
+  #typeKey(command: Command, from: Source): void {
+    const owner = this.#state.typingBy;
+    switch (command.command) {
+      case "typeOpen":
+        if (from === "screen" || (owner !== undefined && owner !== from)) return;
+        this.#startKeyTyping(from);
+        break;
+      case "typeText":
+        if (owner === from) this.#keyDraft = command.args?.text ?? "";
+        break;
+      case "typeSubmit":
+        if (owner !== from) return;
+        this.#state.typingBy = undefined;
+        if (this.#keyDraft.trim()) {
+          this.details.setKey(this.#keyDraft);
+          this.#toast("TMDB key saved");
+        }
+        this.#keyDraft = "";
+        break;
+      case "typeCancel":
+        if (owner !== from) return;
+        this.#state.typingBy = undefined;
+        this.#keyDraft = "";
         break;
     }
   }
@@ -913,6 +1022,7 @@ export class Core {
   }
 
   dispose(): void {
+    this.details.dispose();
     this.#thumbs.dispose();
     this.#unsubDisplays();
     this.#cancelIdle?.();
@@ -952,7 +1062,7 @@ export class Core {
     const item = resolveFocus(grid, this.#state.focus[this.viewKey]);
     if (!item) return;
     if (item.action === "back") return this.#back();
-    if (this.#libraryAction(item.action)) return;
+    if (this.#libraryAction(item.action) || this.#detailsAction(item.action)) return;
     const action = ACTIONS[item.action];
     // Placeholder Apps until they exist.
     if (action) action(this.#actionContext());
@@ -988,6 +1098,10 @@ export class Core {
       this.#ports.youtube.hide();
     }
     this.#state.view = view;
+    if (from === "details" && view !== "credits") {
+      this.#state.typingBy = undefined;
+      this.#keyDraft = "";
+    }
     if (view === "library") void this.library.refresh(this.#libraryFolders);
   }
 
