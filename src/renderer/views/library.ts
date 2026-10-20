@@ -22,6 +22,8 @@ export function render(payload: ScreenPayload): void {
       if (e.missing) classes.push("missing");
       const tile = el("div", classes.join(" "), `<div class="t">${escape(e.title)}</div>`);
       tile.style.setProperty("--hue", String(e.hue));
+      if (e.thumb) tile.style.backgroundImage = `url("${e.thumb}")`;
+      if (e.thumb) tile.classList.add("has-thumb");
       if (e.missing) tile.append(el("div", "note", "Drive not connected"));
       grid.append(tile);
     }

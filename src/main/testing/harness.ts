@@ -5,7 +5,7 @@ import { YOUTUBE_ERROR_ITEMS } from "../../shared/youtube-grid.ts";
 import type { Command, GridItem, RemoteSnapshot, ScreenPayload } from "../../shared/protocol.ts";
 import { startApp, type CouchApp } from "../app.ts";
 import { MemoryStore, type Store } from "../ports/store.ts";
-import { FakeClock, FakeMac, FakePlayer, FakeYouTube } from "../ports/fakes.ts";
+import { FakeClock, FakeMac, FakePlayer, FakeThumbnails, FakeYouTube } from "../ports/fakes.ts";
 
 /** A pretend phone: a WebSocket client that records every snapshot. */
 export class FakePhone {
@@ -107,6 +107,7 @@ export interface Harness {
   youtube: FakeYouTube;
   mac: FakeMac;
   clock: FakeClock;
+  thumbnails: FakeThumbnails;
   phones: FakePhone[];
   store: Store;
   /** The current pairing key, as a phone would read it from the QR code. */
@@ -122,7 +123,17 @@ export async function startHarness(store: Store = new MemoryStore()): Promise<Ha
   const youtube = new FakeYouTube();
   const mac = new FakeMac();
   const clock = new FakeClock();
-  const app = await startApp({ player, youtube, mac, clock, store, port: 0, host: "127.0.0.1" });
+  const thumbnails = new FakeThumbnails();
+  const app = await startApp({
+    player,
+    youtube,
+    mac,
+    clock,
+    store,
+    thumbnails,
+    port: 0,
+    host: "127.0.0.1",
+  });
   const screen = new FakeScreen(app);
   const phones: FakePhone[] = [];
   return {
@@ -132,6 +143,7 @@ export async function startHarness(store: Store = new MemoryStore()): Promise<Ha
     youtube,
     mac,
     clock,
+    thumbnails,
     phones,
     store,
     pairingKey: () => new URL(app.core.pairingUrl).searchParams.get("key")!,
