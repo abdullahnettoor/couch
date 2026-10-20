@@ -1,20 +1,31 @@
 import { app, BrowserWindow, ipcMain, screen } from "electron";
 import { join } from "node:path";
-import { Channel, type ScreenCommand, type ScreenStatus } from "../shared/ipc.ts";
+import { Channel, type GridReport } from "../shared/ipc.ts";
+import type { Command } from "../shared/protocol.ts";
 import type { PlayerEvent } from "../shared/player.ts";
+import { startApp, type CouchApp } from "./app.ts";
 import { pickTargetDisplay } from "./display.ts";
+import { systemClock } from "./ports/clock.ts";
+import { createElectronMac } from "./ports/electron-mac.ts";
+import { nullYouTube } from "./ports/null-youtube.ts";
 import { findMpv } from "./mpv/find-mpv.ts";
 import { MpvPlayer } from "./mpv/mpv-player.ts";
 
-// Temporary (ticket 002): the real core and Remote arrive in later tickets.
-const SAMPLE = process.env.COUCH_SAMPLE ?? join(app.getAppPath(), ".dev", "sample.mkv");
+const REMOTE_PORT = Number(process.env.COUCH_PORT ?? 4747);
 
 let win: BrowserWindow | undefined;
 let player: MpvPlayer | undefined;
-const status: ScreenStatus = { mpvMissing: false, playing: false, paused: false, position: 0 };
+let couch: CouchApp | undefined;
+let mpvMissing = false;
+let mpvMessage: string | undefined;
 
-function publish(): void {
-  win?.webContents.send(Channel.status, status);
+function publishMpv(): void {
+  if (win && !win.isDestroyed())
+    win.webContents.send(Channel.mpv, { missing: mpvMissing, message: mpvMessage });
+}
+
+function publishScreen(): void {
+  if (couch && win && !win.isDestroyed()) win.webContents.send(Channel.screen, couch.core.screen());
 }
 
 /** Bring the Screen back in front, with keyboard focus, after mpv's window goes away. */
@@ -29,56 +40,19 @@ function reclaimScreen(): void {
 function onPlayerEvent(event: PlayerEvent): void {
   switch (event.type) {
     case "missing":
-      status.mpvMissing = true;
+      mpvMissing = true;
       break;
     case "exited":
-      status.message = "mpv stopped unexpectedly";
-      status.playing = false;
+      mpvMessage = "mpv stopped unexpectedly";
       reclaimScreen();
-      break;
-    case "position":
-      status.position = event.seconds;
-      break;
-    case "pause":
-      status.paused = event.paused;
       break;
     case "ended":
-      status.playing = false;
-      status.paused = false;
       reclaimScreen();
       break;
-    case "duration":
+    default:
       return;
   }
-  publish();
-}
-
-async function handleCommand(command: ScreenCommand): Promise<void> {
-  if (command === "quit") return app.quit();
-  if (!player || status.mpvMissing) return;
-  try {
-    switch (command) {
-      case "play":
-        status.playing = true;
-        publish();
-        await player.load(SAMPLE);
-        break;
-      case "togglePause":
-        await player.setPaused(!status.paused);
-        break;
-      case "seekBack":
-        await player.seekBy(-10);
-        break;
-      case "seekForward":
-        await player.seekBy(10);
-        break;
-      case "stop":
-        await player.stop();
-        break;
-    }
-  } catch (error) {
-    console.error("player command failed", command, error);
-  }
+  publishMpv();
 }
 
 async function createScreen(): Promise<void> {
@@ -103,7 +77,10 @@ async function createScreen(): Promise<void> {
     win?.show();
     win?.setSimpleFullScreen(true);
   });
-  win.webContents.on("did-finish-load", publish);
+  win.webContents.on("did-finish-load", () => {
+    publishMpv();
+    publishScreen();
+  });
   await win.loadFile(join(import.meta.dirname, "../renderer/index.html"));
 
   player = new MpvPlayer({
@@ -112,47 +89,30 @@ async function createScreen(): Promise<void> {
   });
   player.onEvent(onPlayerEvent);
   await player.start();
-  if (process.env.COUCH_SELFTEST) void selfTest();
+  const mac = createElectronMac();
+  mac.keepAwake(true);
+  couch = await startApp({
+    player,
+    youtube: nullYouTube,
+    mac,
+    clock: systemClock,
+    port: REMOTE_PORT,
+  });
+  couch.onScreen(publishScreen);
+  publishScreen();
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-/** Dev aid (COUCH_SELFTEST=1): play/stop and play-to-end five times, logging window state. */
-async function selfTest(): Promise<void> {
-  const log = (what: string) =>
-    console.log(
-      `[selftest] ${what}: focused=${win?.isFocused()} visible=${win?.isVisible()} simpleFS=${win?.isSimpleFullScreen()} bounds=${JSON.stringify(win?.getBounds())}`,
-    );
-  await sleep(1500);
-  log("start");
-  if (process.env.COUCH_SELFTEST === "quit-mid-play") {
-    await handleCommand("play");
-    await sleep(2500);
-    return app.quit();
-  }
-  for (let i = 1; i <= 5; i++) {
-    await handleCommand("play");
-    await sleep(2500);
-    if (i % 2 === 1) {
-      await handleCommand("stop");
-    } else {
-      await player?.seekTo(19);
-      await sleep(2500);
-    }
-    await sleep(700);
-    log(`round ${i} after ${i % 2 === 1 ? "stop" : "eof"}`);
-  }
-  app.quit();
-}
-
-ipcMain.on(Channel.command, (_event, command: ScreenCommand) => void handleCommand(command));
+ipcMain.on(Channel.command, (_event, command: Command) => couch?.screenCommand(command));
+ipcMain.on(Channel.grid, (_event, report: GridReport) =>
+  couch?.reportGrid(report.viewKey, report.items),
+);
 
 let quitting = false;
 app.on("before-quit", (event) => {
   if (quitting || !player) return;
   event.preventDefault();
   quitting = true;
-  void player.dispose().finally(() => app.quit());
+  void Promise.all([player.dispose(), couch?.stop()]).finally(() => app.quit());
 });
 
 app.on("window-all-closed", () => app.quit());
