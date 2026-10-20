@@ -16,7 +16,7 @@ const check = (name: string, ok: boolean, extra = "") => {
 };
 const page = (bg: string) =>
   `data:text/html,<body style="margin:0;background:${bg}"><div id=box style="position:fixed;left:100px;top:100px;width:200px;height:200px;background:rgb(255,0,0)"></div></body>`;
-app.whenReady().then(async () => {
+void app.whenReady().then(async () => {
   const win = new BrowserWindow({
     width: 1280,
     height: 720,
