@@ -43,6 +43,7 @@ const SKIP_SECONDS = 10;
 const OVERLAY_MS = 3000;
 const MPV_MISSING = "Couch needs mpv to play videos. Install it with: brew install mpv";
 const VOLUME_STEP = 5;
+const TYPING_HINT = "Typing works inside YouTube search";
 const YOUTUBE_NOTE = "Press Home on your phone to come back";
 
 /** The single source of truth: holds the Screen state and turns commands into new state. */
@@ -65,6 +66,7 @@ export class Core {
   #port = 0;
   #forgetListeners = new Set<() => void>();
   #ytFailed = false;
+  #lastFrom: RemoteId | undefined;
   #ytTopLevel = true;
   #ytOff: () => void;
   #libraryFolders: string[];
@@ -464,7 +466,8 @@ export class Core {
     this.#emit();
   }
 
-  handle(command: Command, _from: Source): void {
+  handle(command: Command, from: Source): void {
+    if (from !== "screen") this.#lastFrom = from;
     if (this.#state.player && this.#playbackCommand(command)) {
       this.#emit();
       return;
@@ -492,10 +495,44 @@ export class Core {
       case "volDown":
         void this.#nudgeVolume(command.command === "volUp" ? VOLUME_STEP : -VOLUME_STEP);
         break;
+      case "typeOpen":
+      case "typeText":
+      case "typeSubmit":
+      case "typeCancel":
+        this.#type(command, from);
+        break;
       default:
         break;
     }
     this.#emit();
+  }
+
+  #type(command: Command, from: Source): void {
+    const yt = this.#ports.youtube;
+    const owner = this.#state.typingBy;
+    switch (command.command) {
+      case "typeOpen":
+        if (this.#state.view !== "youtube") return this.#toast(TYPING_HINT);
+        if (from === "screen" || (owner !== undefined && owner !== from)) return;
+        this.#state.typingBy = from;
+        this.#state.query = "";
+        yt.openSearch();
+        break;
+      case "typeText":
+        if (owner !== from) return;
+        this.#state.query = command.args?.text ?? "";
+        yt.setSearchText(this.#state.query);
+        break;
+      case "typeSubmit":
+        if (owner !== from) return;
+        yt.submitSearch();
+        this.#state.typingBy = undefined;
+        break;
+      case "typeCancel":
+        if (owner !== from) return;
+        this.#state.typingBy = undefined;
+        break;
+    }
   }
 
   dispose(): void {
@@ -552,6 +589,7 @@ export class Core {
     const from = this.#state.view;
     if (from === view) return;
     if (from === "youtube") {
+      this.#state.typingBy = undefined;
       this.#ports.youtube.hide();
       this.#ports.mac.keepDisplayAwake(false);
     }
@@ -585,6 +623,17 @@ export class Core {
         break;
       case "route":
         this.#ytTopLevel = event.topLevel;
+        break;
+      case "searchOpened":
+        if (
+          this.#state.view === "youtube" &&
+          this.#state.typingBy === undefined &&
+          this.#lastFrom !== undefined &&
+          this.#remotes.has(this.#lastFrom)
+        ) {
+          this.#state.typingBy = this.#lastFrom;
+          this.#state.query = "";
+        }
         break;
       default:
         return;

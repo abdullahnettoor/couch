@@ -5,6 +5,7 @@ export const nullYouTube: YouTube = {
   show() {},
   hide() {},
   sendKey() {},
+  openSearch() {},
   setSearchText() {},
   submitSearch() {},
   playPause() {},

@@ -45,6 +45,13 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .np .row { margin-bottom:12px; }
   .np .rbtn { font-size:15px; font-weight:600; }
   .np .rbtn.on { color:var(--lamp); }
+  .type.dim { opacity:.35; }
+  .sheet { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:flex-end; z-index:5; }
+  .sheet form { width:100%; max-width:480px; margin:0 auto; padding:18px; background:var(--surface); border-radius:22px 22px 0 0; display:grid; gap:12px; }
+  .sheet input { width:100%; height:52px; border-radius:14px; border:1px solid var(--surface-3); background:var(--surface-2); color:var(--ink); font:inherit; font-size:18px; padding:0 14px; user-select:text; -webkit-user-select:text; }
+  .sheet .btns { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .sheet .btns button { height:50px; border-radius:16px; background:var(--surface-2); }
+  .sheet .btns .go { background:var(--lamp); color:#16130f; font-weight:600; }
   .type { margin-top:12px; width:100%; height:54px; border-radius:18px; background:var(--surface-2); color:var(--ink-2); font-size:15px; font-weight:500; }
 </style>
 </head>
@@ -87,8 +94,15 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     <button class="rbtn" data-cmd="volDown" aria-label="Volume down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
     <button class="rbtn" data-cmd="volUp" aria-label="Volume up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14M12 5v14"/></svg></button>
   </div>
-  <button class="type" id="type" data-cmd="typeOpen" disabled>Type</button>
+  <button class="type" id="type" data-cmd="typeOpen">Type</button>
+  <div class="where" id="other" hidden>Typing on another phone</div>
 </main>
+<div class="sheet" id="sheet" hidden>
+  <form id="form" autocomplete="off">
+    <input id="text" type="text" enterkeyhint="search" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Search YouTube">
+    <div class="btns"><button type="button" id="cancel">Cancel</button><button type="submit" class="go">Search</button></div>
+  </form>
+</div>
 <script>
 (function () {
   var ws = null, retry = 0, timer = null, open = false;
@@ -113,10 +127,10 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     $("where").innerHTML = "On the Screen: <b></b>";
     $("where").firstChild.nextSibling.textContent = s.where;
     $("count").textContent = s.remotes === 1 ? "1 phone" : s.remotes + " phones";
-    $("type").disabled = !s.typeAvailable;
     var np = s.nowPlaying;
     $("np").hidden = !np;
     $("dpad").hidden = !!np;
+    $("type").hidden = !!np;
     if (np) {
       duration = np.duration;
       $("np-title").textContent = np.title;
@@ -129,6 +143,11 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       $("np-subs").classList.toggle("on", np.subtitlesOn);
       $("np-vol").textContent = "Volume " + s.volume + "%";
     }
+    $("type").classList.toggle("dim", !s.typeAvailable);
+    $("other").hidden = s.typing !== "other";
+    var mine = s.typing === "you";
+    if (mine && $("sheet").hidden) { $("text").value = ""; $("sheet").hidden = false; $("text").focus(); }
+    if (!mine) { $("sheet").hidden = true; $("text").blur(); }
     $("vol").hidden = !s.showVolume;
   }
 
@@ -161,6 +180,16 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       timer = setTimeout(connect, wait);
     };
   }
+
+  function send(command, text) {
+    if (!open) return;
+    var m = { type: "command", command: command };
+    if (text !== undefined) m.args = { text: text };
+    ws.send(JSON.stringify(m));
+  }
+  $("text").addEventListener("input", function () { send("typeText", $("text").value); });
+  $("form").addEventListener("submit", function (e) { e.preventDefault(); send("typeSubmit"); });
+  $("cancel").addEventListener("click", function () { send("typeCancel"); });
 
   document.addEventListener("click", function (e) {
     var el = e.target.closest ? e.target.closest("[data-cmd]") : null;
