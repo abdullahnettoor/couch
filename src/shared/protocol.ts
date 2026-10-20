@@ -146,6 +146,8 @@ export interface ScreenPayload {
   continueCard?: LibraryEntry;
   /** Home: up to three in-progress videos, newest first. */
   homeVideos?: LibraryEntry[];
+  /** Home: the in-progress video the backdrop and title show: the focused one, else the newest. */
+  hero?: LibraryEntry;
   /** The player overlay the renderer draws over the video; present while a video plays. */
   overlay?: PlayerOverlay;
   /** What the pairing QR code encodes. */

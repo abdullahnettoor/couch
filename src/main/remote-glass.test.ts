@@ -23,14 +23,14 @@ afterEach(async () => {
   rmSync(storeDir, { recursive: true, force: true });
 });
 
-const press = (command: "up" | "down" | "left" | "right" | "ok" | "home") =>
-  h.app.screenCommand({ command });
-function focusOn(id: string) {
+let phone: Awaited<ReturnType<Harness["connectPhone"]>>;
+const press = (command: "up" | "down" | "left" | "right" | "ok" | "home") => phone.press(command);
+async function focusOn(id: string) {
   for (let i = 0; i < 60 && h.app.screen().focusedId !== id; i++) {
     const { grid, focusedId } = h.app.screen();
     const cur = grid.find((x) => x.id === focusedId)!;
     const t = grid.find((x) => x.id === id)!;
-    press(t.r > cur.r ? "down" : t.r < cur.r ? "up" : t.c > cur.c ? "right" : "left");
+    await press(t.r > cur.r ? "down" : t.r < cur.r ? "up" : t.c > cur.c ? "right" : "left");
   }
   expect(h.app.screen().focusedId).toBe(id);
 }
@@ -41,15 +41,15 @@ const url = (path: string, key?: string) =>
 describe("layout hint", () => {
   test("follows the view", async () => {
     h = await startHarness();
-    const phone = await h.connectPhone();
+    phone = await h.connectPhone();
     expect(phone.last!.layout).toBe("home");
-    focusOn("library");
-    press("ok");
+    await focusOn("library");
+    await press("ok");
     await phone.settle();
     expect(phone.last!.layout).toBe("other");
-    press("home");
-    focusOn("youtube");
-    press("ok");
+    await press("home");
+    await focusOn("youtube");
+    await press("ok");
     await phone.settle();
     expect(phone.last!.view).toBe("youtube");
     expect(phone.last!.layout).toBe("youtube");
@@ -61,21 +61,21 @@ describe("continueCard", () => {
     h = await startHarness(new FileStore(storeDir));
     const key = "a".repeat(40);
     h.thumbnails.cache.set(film(), `file:///thumbs/${key}.jpg`);
-    const phone = await h.connectPhone();
+    phone = await h.connectPhone();
     expect(phone.last!.continueCard).toBeUndefined();
 
-    focusOn("library");
-    press("ok");
+    await focusOn("library");
+    await press("ok");
     for (const id of [root, join(root, "Films"), film()]) {
-      focusOn(id);
-      press("ok");
+      await focusOn(id);
+      await press("ok");
     }
     h.player.emit({ type: "duration", seconds: 7200 });
     h.player.emit({ type: "position", seconds: 1800 });
     await phone.settle();
     expect(phone.last!.layout).toBe("player");
     expect(phone.last!.continueCard).toBeUndefined();
-    press("home");
+    await press("home");
     await phone.settle();
     expect(phone.last!.layout).toBe("home");
     expect(phone.last!.continueCard).toEqual({

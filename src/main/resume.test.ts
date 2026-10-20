@@ -45,6 +45,20 @@ function focusOn(id: string) {
   expect(screen().focusedId).toBe(id);
 }
 
+let phone: Awaited<ReturnType<Harness["connectPhone"]>>;
+const tap = (command: CommandName) => phone.press(command);
+
+/** Like focusOn, through the connected phone. */
+async function focusViaPhone(id: string) {
+  for (let i = 0; i < 60 && screen().focusedId !== id; i++) {
+    const { grid, focusedId } = screen();
+    const cur = grid.find((x) => x.id === focusedId)!;
+    const t = grid.find((x) => x.id === id)!;
+    await tap(t.r > cur.r ? "down" : t.r < cur.r ? "up" : t.c > cur.c ? "right" : "left");
+  }
+  expect(screen().focusedId).toBe(id);
+}
+
 /** Library → folders → open the video, then report its duration. */
 function playFromLibrary(path: string, duration = 7200) {
   press("home");
@@ -123,6 +137,7 @@ describe("thresholds", () => {
 
   test("Home grid: gear, Resume / From start, then Apps and videos; Up reaches the gear", async () => {
     await start();
+    phone = await h.connectPhone();
     watchAndLeave(a(), 600);
     const g = screen().grid;
     const at = (id: string) => g.find((i) => i.id === id)!;
@@ -130,13 +145,33 @@ describe("thresholds", () => {
     expect(at("resume").r).toBe(1);
     expect(at("fromstart").r).toBe(1);
     expect([at("youtube").r, at("library").r, at(a()).r]).toEqual([2, 2, 2]);
-    focusOn("resume");
-    press("up");
+    await focusViaPhone("resume");
+    await tap("up");
     expect(screen().focusedId).toBe("settings");
+  });
+
+  test("the hero follows the focused video, else the newest", async () => {
+    await start();
+    phone = await h.connectPhone();
+    watchAndLeave(a(), 600);
+    h.clock.advance(1000);
+    watchAndLeave(b(), 600);
+    expect(screen().hero?.path).toBe(b());
+    await focusViaPhone(a());
+    expect(screen().hero?.path).toBe(a());
+    await focusViaPhone("youtube");
+    expect(screen().hero?.path).toBe(b());
+  });
+
+  test("no in-progress video, no hero", async () => {
+    await start();
+    phone = await h.connectPhone();
+    expect(screen().hero).toBeUndefined();
   });
 
   test("up to three in-progress videos, newest first", async () => {
     await start();
+    phone = await h.connectPhone();
     watchAndLeave(a(), 600);
     for (const p of [b(), c(), d()]) {
       h.clock.advance(1000);
@@ -148,23 +183,25 @@ describe("thresholds", () => {
 
   test("From start passes no start position; Resume passes the saved one", async () => {
     await start();
+    phone = await h.connectPhone();
     watchAndLeave(a(), 600);
-    focusOn("fromstart");
-    press("ok");
+    await focusViaPhone("fromstart");
+    await tap("ok");
     expect(lastLoad()[1].startSeconds).toBeUndefined();
-    press("back");
+    await tap("back");
     expect(screen().state.view).toBe("home");
-    focusOn("resume");
-    press("ok");
+    await focusViaPhone("resume");
+    await tap("ok");
     expect(lastLoad()[1].startSeconds).toBe(600);
   });
 
   test("no in-progress video: no Resume row, apps on row 1", async () => {
     await start();
+    phone = await h.connectPhone();
     expect(screen().homeVideos).toEqual([]);
     expect(screen().grid.some((i) => i.id === "resume")).toBe(false);
     expect(screen().grid.find((i) => i.id === "youtube")!.r).toBe(1);
-    press("up");
+    await tap("up");
     expect(screen().focusedId).toBe("settings");
   });
 

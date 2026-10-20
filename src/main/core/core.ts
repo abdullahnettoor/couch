@@ -855,10 +855,12 @@ export class Core {
     this.#syncRoot();
     const grid = this.#currentGrid();
     const focused = resolveFocus(grid, this.#state.focus[this.viewKey]);
+    const homeVideos = this.#continueEntries().slice(0, HOME_VIDEOS);
     return {
       library: this.#library(),
       continueCard: this.#continueEntries()[0],
-      homeVideos: this.#continueEntries().slice(0, HOME_VIDEOS),
+      homeVideos,
+      hero: homeVideos.find((v) => v.path === focused?.id) ?? homeVideos[0],
       overlay: this.#overlay(),
       state: structuredClone(this.#state),
       viewKey: this.viewKey,

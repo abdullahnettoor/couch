@@ -1,4 +1,4 @@
-import { HOME_ITEMS, heroVideo } from "../../shared/home-grid.ts";
+import { HOME_ITEMS } from "../../shared/home-grid.ts";
 import { iconSvg } from "../../shared/icons.ts";
 import type { LibraryEntry, ScreenPayload } from "../../shared/protocol.ts";
 import { el, focusable, qrSvg, root } from "./dom.ts";
@@ -80,7 +80,7 @@ function syncBackdrop(videos: LibraryEntry[], hero: LibraryEntry | undefined): v
 export function render(payload: ScreenPayload): void {
   const date = new Date(payload.now);
   const videos = payload.homeVideos ?? [];
-  const hero = heroVideo(videos, payload.focusedId);
+  const hero = payload.hero;
   if (!view || root.firstElementChild !== view) {
     view = el("div", "screen-glass home");
     bg = el("div", "h-bg");
