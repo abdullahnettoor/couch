@@ -103,6 +103,8 @@ export class MetadataService {
   #idle: (() => void)[] = [];
   #problem: { source: KeySource; at: number } | undefined;
   #timers = new Set<() => void>();
+  /** Bumped when the household chooses; lookups started before that are dropped. */
+  #choices = new Map<string, number>();
 
   constructor(deps: {
     store: Store;
@@ -302,6 +304,7 @@ export class MetadataService {
     if (!key || (this.#blocked() && !force)) return;
     const existing = this.#items[item.id];
     if (existing?.state === "frames") return;
+    const stale = this.#staleCheck(item.id);
     try {
       let tmdbId = existing?.fixed ? existing.tmdbId : undefined;
       if (tmdbId === undefined) {
@@ -309,6 +312,7 @@ export class MetadataService {
           this.#port.search(key.value, item.kind, item.title, item.year),
         );
         const hit = this.#pick(item, results);
+        if (stale()) return;
         if (!hit) return this.#save(item.id, { state: "none", triedAt: this.#clock.now() });
         tmdbId = hit.id;
       }
@@ -317,6 +321,7 @@ export class MetadataService {
         ? item.seasons
         : (existing?.seasons ?? []).map((s) => s.number);
       const d = await this.#call(() => this.#port.details(key.value, item.kind, id, seasons));
+      if (stale()) return;
       this.#save(item.id, {
         state: "matched",
         triedAt: this.#clock.now(),
@@ -331,6 +336,7 @@ export class MetadataService {
       });
       await this.#downloadImages(item.id);
     } catch (error) {
+      if (stale()) return;
       if (
         error instanceof MetadataError &&
         (error.status === 401 || error.status === 403 || error.status === 429)
@@ -343,6 +349,11 @@ export class MetadataService {
       if (existing?.state === "matched") return;
       this.#save(item.id, { state: "failed", triedAt: this.#clock.now() });
     }
+  }
+
+  #staleCheck(id: string): () => boolean {
+    const at = this.#choices.get(id) ?? 0;
+    return () => (this.#choices.get(id) ?? 0) !== at;
   }
 
   #save(id: string, entry: Entry): void {
@@ -416,6 +427,8 @@ export class MetadataService {
 
   /** Re-links a title to a chosen TMDB result, or to "frames" (details off for it). Saved; Refresh keeps it. */
   async fixMatch(id: string, choice: number | "frames"): Promise<void> {
+    this.#choices.set(id, (this.#choices.get(id) ?? 0) + 1);
+    const stale = this.#staleCheck(id);
     if (choice === "frames") {
       this.#save(id, { state: "frames", triedAt: this.#clock.now(), fixed: true });
       return;
@@ -429,6 +442,7 @@ export class MetadataService {
       const d = await this.#call(() =>
         this.#port.details(key.value, item.kind, choice, item.seasons),
       );
+      if (stale()) return;
       this.#save(id, {
         state: "matched",
         triedAt: this.#clock.now(),
@@ -443,6 +457,7 @@ export class MetadataService {
       });
       await this.#downloadImages(id);
     } catch {
+      if (stale()) return;
       if (previous) this.#items[id] = previous;
       else delete this.#items[id];
     }

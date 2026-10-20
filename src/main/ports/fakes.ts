@@ -250,6 +250,8 @@ export class FakeMetadata implements Metadata {
   images: string[] = [];
   /** When set, every call throws it (a function can decide per call). */
   fail: MetadataError | ((key: string) => MetadataError | undefined) | undefined;
+  /** When set, searches wait for it (to model a slow lookup). */
+  hold: Promise<void> | undefined;
   #cached = new Set<string>();
 
   #check(key: string): void {
@@ -263,7 +265,8 @@ export class FakeMetadata implements Metadata {
     } catch (error) {
       return Promise.reject(error as Error);
     }
-    return Promise.resolve(this.catalog[kind][title.toLowerCase()] ?? []);
+    const results = this.catalog[kind][title.toLowerCase()] ?? [];
+    return this.hold ? this.hold.then(() => results) : Promise.resolve(results);
   }
   details(key: string, kind: MetadataKind, id: number, seasons: number[]) {
     this.detailCalls.push({ key, kind, id, seasons });

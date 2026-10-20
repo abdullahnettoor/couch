@@ -144,6 +144,37 @@ describe("Fix match", () => {
   });
 });
 
+describe("a household choice beats a lookup in flight", () => {
+  async function slowRefresh() {
+    await start();
+    let release!: () => void;
+    h!.metadata.hold = new Promise((r) => (release = r));
+    core().details.refresh();
+    await new Promise((r) => setTimeout(r, 10));
+    return () => {
+      release();
+      h!.metadata.hold = undefined;
+    };
+  }
+
+  test("Use video frames is not overwritten when the lookup completes", async () => {
+    const release = await slowRefresh();
+    await core().details.fixMatch(show().id, "frames");
+    release();
+    await settle();
+    expect(core().details.usesFrames(show().id)).toBe(true);
+    expect(core().details.detailsFor(show().id)).toBeUndefined();
+  });
+
+  test("a Fix match is not overwritten when the lookup completes", async () => {
+    const release = await slowRefresh();
+    await core().details.fixMatch(show().id, 4);
+    release();
+    await settle();
+    expect(core().details.detailsFor(show().id)!.tmdbId).toBe(4);
+  });
+});
+
 describe("falling back to frames", () => {
   test("no key: no lookups, 'No key'", async () => {
     await start("");
