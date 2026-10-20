@@ -427,6 +427,9 @@ export class Core {
       case "exited":
         if (p) this.#endPlayback("mpv stopped unexpectedly");
         break;
+      case "key":
+        this.handle({ command: event.command }, "screen");
+        break;
       case "ended":
         // Our own stops report "stop"; only a natural end or a failure leaves playback.
         if (event.reason === "eof") this.#endPlayback(undefined, true);

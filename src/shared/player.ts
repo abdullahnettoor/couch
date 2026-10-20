@@ -1,10 +1,14 @@
+import type { CommandName } from "./protocol.ts";
+
 export type PlayerEvent =
   | { type: "position"; seconds: number }
   | { type: "pause"; paused: boolean }
   | { type: "duration"; seconds: number }
   | { type: "ended"; reason: "eof" | "stop" | "error" }
   | { type: "exited" }
-  | { type: "missing" };
+  | { type: "missing" }
+  /** A Screen key pressed while the video window has keyboard focus. */
+  | { type: "key"; command: CommandName };
 
 export interface LoadOptions {
   startSeconds?: number;

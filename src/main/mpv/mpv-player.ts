@@ -1,8 +1,9 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { LoadOptions, Player, PlayerEvent, PlayerOverlay } from "../../shared/player.ts";
+import type { CommandName } from "../../shared/protocol.ts";
 import { overlayAss } from "./overlay.ts";
 import { MpvIpcClient, type MpvEvent } from "./ipc-client.ts";
 
@@ -15,9 +16,42 @@ export interface MpvPlayerOptions {
   extraArgs?: string[];
 }
 
-export function buildMpvArgs(socketPath: string, screenName?: string): string[] {
+/**
+ * The only keys mpv's window answers to while it has focus: the Screen's keys, handed to Couch.
+ * mpv's own bindings stay off so nothing (Esc, F, Q, double-click, dragging) can leave full
+ * screen, move the window or quit mpv behind Couch's back.
+ */
+const WINDOW_KEYS: Record<string, CommandName> = {
+  UP: "up",
+  DOWN: "down",
+  LEFT: "left",
+  RIGHT: "right",
+  ENTER: "ok",
+  KP_ENTER: "ok",
+  ESC: "back",
+  h: "home",
+  H: "home",
+  SPACE: "playpause",
+};
+const KEY_MESSAGE = "couch-key";
+
+export function windowInputConf(): string {
+  return Object.entries(WINDOW_KEYS)
+    .map(([key, command]) => `${key} script-message ${KEY_MESSAGE} ${command}`)
+    .join("\n");
+}
+
+export function buildMpvArgs(
+  socketPath: string,
+  screenName?: string,
+  inputConf?: string,
+): string[] {
   const args = [
     "--no-config",
+    "--input-default-bindings=no",
+    "--input-builtin-bindings=no",
+    "--input-builtin-dragging=no",
+    "--window-dragging=no",
     "--idle=yes",
     `--input-ipc-server=${socketPath}`,
     "--fs",
@@ -32,6 +66,7 @@ export function buildMpvArgs(socketPath: string, screenName?: string): string[] 
     "--slang=eng,en",
     "--sub-auto=fuzzy",
   ];
+  if (inputConf) args.push(`--input-conf=${inputConf}`);
   if (screenName) args.push(`--fs-screen-name=${screenName}`);
   return args;
 }
@@ -61,9 +96,15 @@ export class MpvPlayer implements Player {
     }
     this.dir = mkdtempSync(join(tmpdir(), "couch-mpv-"));
     const socketPath = join(this.dir, "mpv.sock");
-    const child = spawn(mpvPath, [...buildMpvArgs(socketPath, screenName), ...extraArgs], {
-      stdio: "ignore",
-    });
+    const inputConf = join(this.dir, "input.conf");
+    writeFileSync(inputConf, windowInputConf());
+    const child = spawn(
+      mpvPath,
+      [...buildMpvArgs(socketPath, screenName, inputConf), ...extraArgs],
+      {
+        stdio: "ignore",
+      },
+    );
     this.child = child;
     child.on("error", () => this.emit({ type: "missing" }));
     child.on("exit", () => {
@@ -184,6 +225,10 @@ export class MpvPlayer implements Player {
         this.emit({ type: "pause", paused: e.data });
       else if (e.name === "duration" && typeof e.data === "number")
         this.emit({ type: "duration", seconds: e.data });
+    } else if (e.event === "client-message") {
+      const [name, command] = Array.isArray(e.args) ? e.args : [];
+      if (name === KEY_MESSAGE && Object.values(WINDOW_KEYS).includes(command))
+        this.emit({ type: "key", command });
     } else if (e.event === "end-file") {
       const reason = e.reason === "eof" ? "eof" : e.reason === "error" ? "error" : "stop";
       if (e.reason === "quit") return;

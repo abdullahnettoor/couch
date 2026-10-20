@@ -140,6 +140,17 @@ describe("playing a Library video", () => {
     expect(h.screen.last.state.view).toBe("folder");
   });
 
+  test("keys pressed on the Mac while the video window has focus act like the Screen's keys", async () => {
+    await start();
+    await playVideo();
+    h.player.emit({ type: "key", command: "right" });
+    expect(calls("seekTo").at(-1)!.args[0]).toBe(10);
+    h.player.emit({ type: "key", command: "back" });
+    await phone.settle();
+    expect(calls("stop")).toHaveLength(1);
+    expect(h.screen.last.state.view).toBe("folder");
+  });
+
   test("Home stops playback and goes Home", async () => {
     await start();
     await playVideo();

@@ -1,5 +1,5 @@
 import type { CouchApi } from "../shared/ipc.ts";
-import type { CommandName } from "../shared/protocol.ts";
+import { SCREEN_KEYS } from "../shared/keyboard.ts";
 import { VIEWS } from "./views/index.ts";
 import "./style.css";
 
@@ -9,21 +9,8 @@ declare global {
   }
 }
 
-const KEYS: Record<string, CommandName> = {
-  ArrowUp: "up",
-  ArrowDown: "down",
-  ArrowLeft: "left",
-  ArrowRight: "right",
-  Enter: "ok",
-  Escape: "back",
-  Backspace: "back",
-  h: "home",
-  H: "home",
-  " ": "playpause",
-};
-
 window.addEventListener("keydown", (event) => {
-  const command = KEYS[event.key];
+  const command = SCREEN_KEYS[event.key];
   if (!command) return;
   event.preventDefault();
   window.couch.send({ command });
