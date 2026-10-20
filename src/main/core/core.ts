@@ -415,7 +415,18 @@ export class Core {
     if (switching) this.savePlayingPosition();
     else this.#playedFrom = this.#state.view === "folder" ? "folder" : this.#state.view;
     if (this.#playedFrom === "folder") this.#focusEntry(path);
-    const upNext = (listFolder(dirname(path)) ?? []).filter((e) => e.kind === "video");
+    const show = this.library.showOf(path);
+    const upNext: LibraryEntry[] = show
+      ? show.seasons.flatMap((se) =>
+          se.episodes.map((e): LibraryEntry => ({
+            kind: "video",
+            path: e.path,
+            title: presentation(e.path).title,
+            hue: hueFor(presentation(e.path).title),
+          })),
+        )
+      : (listFolder(dirname(path)) ?? []).filter((e) => e.kind === "video");
+    this.#upNextLabel = show?.name;
     const startSeconds = fromStart ? undefined : this.#history.resumeAt(path);
     this.#state.player = { path, pos: startSeconds ?? 0, dur: 0, paused: false };
     this.#state.view = "player";
@@ -642,6 +653,9 @@ export class Core {
     };
   }
 
+  /** The show's name while its episodes are the Up next list. */
+  #upNextLabel: string | undefined;
+
   #upNextTiles(): NonNullable<PlayerOverlay["upNext"]> {
     const playing = this.#state.player?.path;
     const tiles = this.#controls.upNext.map((e) => {
@@ -659,7 +673,7 @@ export class Core {
     });
     return {
       tiles,
-      folder: basename(dirname(playing ?? "")),
+      folder: this.#upNextLabel ?? basename(dirname(playing ?? "")),
       focusedIndex: this.#controls.focusedTile,
     };
   }
