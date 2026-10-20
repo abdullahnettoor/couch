@@ -28,6 +28,29 @@ afterEach(() => {
   rmSync(storeDir, { recursive: true, force: true });
 });
 
+describe("continue-watching pictures share the same limit", () => {
+  test("no more than two are made at once", async () => {
+    const paths = ["a", "b", "c", "d", "e"].map((n) => join(root, `${n}.mkv`));
+    for (const p of paths) writeFileSync(p, "");
+    const seeded = new FileStore(storeDir);
+    seeded.write("history", {
+      items: Object.fromEntries(
+        paths.map((p, i) => [p, { position: 300, duration: 3000, at: i + 1 }]),
+      ),
+    });
+    const h = await startHarness(seeded);
+    const phone = await h.connectPhone();
+    await phone.press("home");
+    h.app.screen();
+    expect(h.thumbnails.started).toHaveLength(2);
+    h.thumbnails.finish(h.thumbnails.started[0]!);
+    await phone.settle();
+    h.app.screen();
+    expect(h.thumbnails.maxInFlight).toBe(2);
+    await h.stop();
+  });
+});
+
 describe("thumbnails through the Remote", () => {
   let h: Harness;
   afterEach(() => h?.stop());

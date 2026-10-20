@@ -30,7 +30,7 @@ import { ACTIONS, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
 import { cleanTitle, hueFor, listFolder, mosaicSources, rootEntries } from "./library.ts";
 import type { UpNextItem } from "../../shared/protocol.ts";
-import { DOCK_IDS, DOCK_LABELS, DOCK_ROW, type DockId } from "../../shared/player-dock.ts";
+import { PlayerControls } from "./player-controls.ts";
 import { History } from "./history.ts";
 
 /** In-progress videos shown on Home. */
@@ -52,9 +52,7 @@ export type Source = RemoteId | "screen";
 
 const TOAST_MS = 3000;
 const IDLE_DISPLAY_MS = 30 * 60_000;
-const SKIP_SECONDS = 10;
 const OVERLAY_MS = 3000;
-const CONTROLS_MS = 4500;
 const SAVE_EVERY_MS = 5000;
 const MPV_MISSING = "Couch needs mpv to play videos. Install it with: brew install mpv";
 const VOLUME_STEP = 5;
@@ -91,15 +89,13 @@ export class Core {
   /** Where the playing video was started from; leaving playback returns there. */
   #playedFrom: View = "folder";
   #mpvMissing = false;
-  #cancelOverlay: (() => void) | undefined;
   #cancelVolume: (() => void) | undefined;
   #subtitlesRaised = "falsefalse";
   #unsubPlayer: () => void;
   #thumbs: ThumbnailScheduler;
   #mosaics = new Map<string, { sources: string[]; count: number }>();
   #rootKey: string | undefined;
-  /** The playing video's folder (videos only), read when it starts. */
-  #upNext: LibraryEntry[] = [];
+  #controls: PlayerControls;
   #history: History;
   #cancelSaves: (() => void) | undefined;
   #resumeNote: string | undefined;
@@ -115,6 +111,19 @@ export class Core {
     this.#ports = ports;
     const lib = ports.store.read<{ folders?: unknown }>("library", {});
     this.#history = new History(ports.store);
+    this.#controls = new PlayerControls(this.#state, {
+      clock: ports.clock,
+      playing: () => {
+        const p = this.#state.player;
+        return p && { path: p.path, position: p.pos, paused: p.paused };
+      },
+      seekTo: (seconds) => this.#seekTo(seconds),
+      togglePause: () => this.#togglePause(),
+      toggleSubtitles: () => this.#toggleSubtitles(),
+      setVolume: (percent) => void this.#setVolume(percent),
+      play: (path) => this.#play(path),
+      changed: () => this.#emit(),
+    });
     this.#thumbs = new ThumbnailScheduler(ports.thumbnails, () => this.#emit());
     this.#libraryFolders = Array.isArray(lib.folders)
       ? lib.folders.filter((f): f is string => typeof f === "string")
@@ -300,7 +309,7 @@ export class Core {
         })),
       ];
     }
-    if (this.#state.view === "player") return this.#dockGrid();
+    if (this.#state.view === "player") return this.#controls.grid();
     if (!this.#isLibraryView()) return this.#grids.get(this.viewKey) ?? [];
     const lib = this.#library()!;
     if (lib.folders) {
@@ -397,13 +406,11 @@ export class Core {
     if (switching) this.savePlayingPosition();
     else this.#playedFrom = this.#state.view === "folder" ? "folder" : this.#state.view;
     if (this.#playedFrom === "folder") this.#focusEntry(path);
-    this.#upNext = (listFolder(dirname(path)) ?? []).filter((e) => e.kind === "video");
+    const upNext = (listFolder(dirname(path)) ?? []).filter((e) => e.kind === "video");
     const startSeconds = fromStart ? undefined : this.#history.resumeAt(path);
     this.#state.player = { path, pos: startSeconds ?? 0, dur: 0, paused: false };
     this.#state.view = "player";
-    this.#state.focus.player = { r: DOCK_ROW, c: DOCK_IDS.indexOf("playpause") };
-    this.#state.controls = "dock";
-    this.#showControls();
+    this.#controls.begin(upNext);
     this.#cancelNote?.();
     this.#resumeNote = undefined;
     if (startSeconds !== undefined) {
@@ -453,9 +460,7 @@ export class Core {
     this.#resumeNote = undefined;
     this.#history.save(p.path, p.pos, p.dur, this.#ports.clock.now(), ended);
     this.#state.player = undefined;
-    this.#state.controls = "hidden";
-    this.#upNext = [];
-    this.#cancelOverlay?.();
+    this.#controls.end();
     if (this.#playedFrom === "folder") {
       this.#focusEntry(p.path, ended);
       this.#state.view = this.#state.folderPath ? "folder" : "library";
@@ -504,215 +509,69 @@ export class Core {
       case "pause":
         if (p && p.paused !== event.paused) {
           p.paused = event.paused;
-          this.#showControls();
+          this.#controls.show();
           this.#emit();
         }
         break;
     }
   }
 
-  /** Up next needs another video in the folder to be worth opening. */
-  #upNextAvailable(): boolean {
-    return this.#upNext.length > 1;
+  #quiet(promise: Promise<void>): void {
+    void promise.catch(() => {});
   }
 
-  /** The dock's focusable items on row DOCK_ROW, plus the Up next tiles on row 0 while it is open. */
-  #dockGrid(): GridItem[] {
-    const dock = DOCK_IDS.flatMap((id, c): GridItem[] =>
-      id === "upnext" && !this.#upNextAvailable()
-        ? []
-        : [
-            {
-              id,
-              r: DOCK_ROW,
-              c,
-              label: DOCK_LABELS[id],
-              action: `dock:${id}`,
-              initial: id === "playpause",
-            },
-          ],
-    );
-    if (this.#state.controls !== "upnext") return dock;
-    const tiles = this.#upNext.map((e, i): GridItem => ({
-      id: e.path,
-      r: 0,
-      c: i,
-      label: cleanTitle(basename(e.path)),
-      action: `upnext:${i}`,
-    }));
-    return [...tiles, ...dock];
+  #seekTo(seconds: number): void {
+    const p = this.#state.player!;
+    const max = p.dur > 0 ? p.dur : Infinity;
+    p.pos = Math.min(max, Math.max(0, seconds));
+    this.#quiet(this.#ports.player.seekTo(p.pos));
   }
 
-  #inUpNextRow(): boolean {
-    return this.#state.controls === "upnext" && this.#state.focus.player?.r === 0;
+  #togglePause(): void {
+    const p = this.#state.player!;
+    p.paused = !p.paused;
+    this.#quiet(this.#ports.player.setPaused(p.paused));
   }
 
-  #focusedDock(): DockId {
-    const item = resolveFocus(this.#dockGrid(), this.#state.focus.player);
-    return (item && item.r === DOCK_ROW ? item.id : "playpause") as DockId;
-  }
-
-  #stepDock(direction: "left" | "right"): void {
-    const grid = this.#dockGrid();
-    const next = moveFocus(grid, resolveFocus(grid, this.#state.focus.player)!, direction);
-    this.#state.focus.player = { r: next.r, c: next.c };
-  }
-
-  /** Opens Up next; false when the folder has no other videos to show. */
-  #openUpNext(): boolean {
-    if (!this.#upNextAvailable()) return false;
-    const playing = this.#upNext.findIndex((e) => e.path === this.#state.player?.path);
-    this.#state.controls = "upnext";
-    this.#state.focus.player = { r: 0, c: Math.max(0, playing) };
-    return true;
-  }
-
-  #focusUpNextRow(): void {
-    const playing = this.#upNext.findIndex((e) => e.path === this.#state.player?.path);
-    this.#state.focus.player = { r: 0, c: Math.max(0, playing) };
-  }
-
-  #closeUpNext(): void {
-    this.#state.controls = "dock";
-    this.#state.focus.player = { r: DOCK_ROW, c: DOCK_IDS.indexOf("upnext") };
-  }
-
-  /** Play the nth video of the Up next list. Out-of-range indexes are ignored. */
-  #playUpNext(index: unknown): void {
-    const entry = typeof index === "number" ? this.#upNext[index] : undefined;
-    if (entry) this.#play(entry.path);
+  #toggleSubtitles(): void {
+    this.#state.subtitlesOn = !this.#state.subtitlesOn;
+    this.#ports.store.write("playback", { subtitlesOn: this.#state.subtitlesOn });
+    this.#quiet(this.#ports.player.setSubtitles(this.#state.subtitlesOn));
   }
 
   /** Commands while a video plays. Returns false for the ones handled like anywhere else. */
   #playbackCommand(command: Command): boolean {
     const p = this.#state.player!;
-    const player = this.#ports.player;
-    const quiet = (promise: Promise<void>) => void promise.catch(() => {});
-    const seekTo = (seconds: number) => {
-      const max = p.dur > 0 ? p.dur : Infinity;
-      p.pos = Math.min(max, Math.max(0, seconds));
-      quiet(player.seekTo(p.pos));
-    };
-    const togglePause = () => {
-      p.paused = !p.paused;
-      quiet(player.setPaused(p.paused));
-    };
-    const toggleSubtitles = () => {
-      this.#state.subtitlesOn = !this.#state.subtitlesOn;
-      this.#ports.store.write("playback", { subtitlesOn: this.#state.subtitlesOn });
-      quiet(player.setSubtitles(this.#state.subtitlesOn));
-    };
     const name = command.command;
     if (name === "playUpNext") {
-      this.#playUpNext(command.args?.index);
+      this.#controls.playUpNext(command.args?.index);
       return true;
     }
-    if (name === "back" && this.#state.controls === "upnext") {
-      this.#closeUpNext();
-      this.#showControls();
-      return true;
-    }
+    if (name === "back" && this.#controls.back()) return true;
     if (name === "back" || name === "home") {
       this.#stopPlayback();
       this.#endPlayback();
       if (name === "home") this.#state.view = "home";
       return true;
     }
-    const dockWasUp = this.#state.controls !== "hidden";
-    const upNextOpen = this.#state.controls === "upnext";
-    this.#showControls();
-    if (this.#inUpNextRow()) {
-      switch (name) {
-        case "left":
-        case "right":
-          this.#stepDock(name);
-          return true;
-        case "down":
-          this.#state.focus.player = { r: DOCK_ROW, c: DOCK_IDS.indexOf("upnext") };
-          return true;
-        case "ok":
-          this.#playUpNext(this.#state.focus.player!.c);
-          return true;
-      }
-    }
+    if (name === "playpause" || name === "seekBy" || name === "seekTo" || name === "subtitles")
+      this.#controls.show();
     switch (name) {
-      case "left":
-      case "right": {
-        const sign = name === "right" ? 1 : -1;
-        const focused = this.#focusedDock();
-        if (!dockWasUp || focused === "bar") seekTo(p.pos + sign * SKIP_SECONDS);
-        else if (focused === "volume")
-          void this.#setVolume(this.#state.volume + sign * VOLUME_STEP);
-        else this.#stepDock(name);
-        return true;
-      }
-      case "up":
-      case "down": {
-        if (name === "down" && !upNextOpen) {
-          // #openUpNext does nothing when the folder has no other videos.
-          if (this.#openUpNext()) return true;
-        } else if (name === "up" && upNextOpen) {
-          this.#focusUpNextRow();
-          return true;
-        }
-        // Left/Right belong to the bar and the slider, so Up/Down step off them.
-        const focused = this.#focusedDock();
-        if (dockWasUp && (focused === "bar" || focused === "volume"))
-          this.#stepDock(name === "up" ? "left" : "right");
-        return true;
-      }
-      case "ok":
-        if (!dockWasUp) togglePause();
-        else
-          switch (this.#focusedDock()) {
-            case "playpause":
-            case "bar":
-              togglePause();
-              break;
-            case "back10":
-              seekTo(p.pos - SKIP_SECONDS);
-              break;
-            case "fwd10":
-              seekTo(p.pos + SKIP_SECONDS);
-              break;
-            case "subtitles":
-              toggleSubtitles();
-              break;
-            case "upnext":
-              if (upNextOpen) this.#closeUpNext();
-              else this.#openUpNext();
-              break;
-          }
-        return true;
       case "playpause":
-        togglePause();
+        this.#togglePause();
         return true;
       case "seekBy":
-        seekTo(p.pos + (command.args?.seconds ?? 0));
+        this.#seekTo(p.pos + (command.args?.seconds ?? 0));
         return true;
       case "seekTo":
-        seekTo(command.args?.seconds ?? 0);
+        this.#seekTo(command.args?.seconds ?? 0);
         return true;
       case "subtitles":
-        toggleSubtitles();
-        return true;
-      case "showControls":
+        this.#toggleSubtitles();
         return true;
       default:
-        return false;
+        return this.#controls.command(command);
     }
-  }
-
-  /** Bring the dock up and (re)start the countdown; while paused it stays up. */
-  #showControls(): void {
-    if (this.#state.controls !== "upnext") this.#state.controls = "dock";
-    this.#cancelOverlay?.();
-    this.#cancelOverlay = this.#ports.clock.setTimeout(() => {
-      if (this.#state.player?.paused) return;
-      if (this.#state.controls === "upnext") this.#closeUpNext();
-      this.#state.controls = "hidden";
-      this.#emit();
-    }, CONTROLS_MS);
   }
 
   /** What the renderer should draw over the video right now. */
@@ -729,8 +588,8 @@ export class Core {
               duration: p.dur,
               subtitlesOn: this.#state.subtitlesOn,
               level: this.#state.volume,
-              focusedId: this.#focusedDock(),
-              upNext: this.#upNextAvailable(),
+              focusedId: this.#controls.focusedDock(),
+              upNext: this.#controls.upNextAvailable,
             }
           : undefined,
       upNext: this.#state.controls === "upnext" ? this.#upNextTiles() : undefined,
@@ -742,7 +601,7 @@ export class Core {
 
   #upNextTiles(): NonNullable<PlayerOverlay["upNext"]> {
     const playing = this.#state.player?.path;
-    const tiles = this.#upNext.map((e) => {
+    const tiles = this.#controls.upNext.map((e) => {
       const d = this.#decorate({ ...e });
       const title = cleanTitle(basename(e.path));
       return {
@@ -754,11 +613,10 @@ export class Core {
         progress: d.progress?.fraction,
       };
     });
-    const focus = this.#state.focus.player;
     return {
       tiles,
       folder: basename(dirname(playing ?? "")),
-      focusedIndex: focus && focus.r === 0 ? focus.c : undefined,
+      focusedIndex: this.#controls.focusedTile,
     };
   }
 
@@ -772,7 +630,7 @@ export class Core {
 
   #upNextItems(): UpNextItem[] {
     const playing = this.#state.player?.path;
-    return this.#upNext.map((e) => {
+    return this.#controls.upNext.map((e) => {
       const key = this.#thumbKey(e.path);
       const progress = this.#history.progress(e.path);
       return {
@@ -841,7 +699,7 @@ export class Core {
         paused: s.player.paused,
         subtitlesOn: s.subtitlesOn,
       },
-      ...(s.player && this.#upNextAvailable() ? { upNext: this.#upNextItems() } : {}),
+      ...(s.player && this.#controls.upNextAvailable ? { upNext: this.#upNextItems() } : {}),
       volume: s.volume,
       remotes: s.remotes,
     };
@@ -1005,7 +863,7 @@ export class Core {
     this.#cancelIdle?.();
     this.#cancelToast?.();
     this.#cancelMinute?.();
-    this.#cancelOverlay?.();
+    this.#controls.dispose();
     this.#cancelSaves?.();
     this.#cancelNote?.();
     this.#cancelVolume?.();
