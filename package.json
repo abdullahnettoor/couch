@@ -7,7 +7,7 @@
   "scripts": {
     "build:native": "sh native/mpv-embed/build.sh",
     "build": "sh native/mpv-embed/build.sh && vp build && vp pack",
-    "start": "vp run build && electron .",
+    "start": "vp run build && node scripts/dev-electron.mjs",
     "package": "vp run build && node scripts/package.mjs",
     "sample": "sh scripts/make-sample.sh",
     "check": "vp check",

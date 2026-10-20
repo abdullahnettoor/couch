@@ -38,7 +38,7 @@ svg.i {
 /* A full-screen Glass page: dark radial backdrop. Children position themselves. */
 .screen-glass {
   position: fixed;
-  inset: 0;
+  inset: var(--chrome-top, 0px) 0 0 0;
   background: radial-gradient(80% 90% at 20% 30%, #2c2c2e, #000 70%);
   color: var(--t1);
 }
@@ -467,4 +467,9 @@ svg.i {
 .lib-empty {
   font-size: calc(30 * var(--u));
   color: var(--t3);
+}
+
+/* Window mode: the traffic lights sit over the top-left, so pages start below them. */
+body.windowed {
+  --chrome-top: 38px;
 }
