@@ -13,6 +13,8 @@ const [appPath] = await packager({
   appCategoryType: "public.app-category.entertainment",
   overwrite: true,
   prune: false,
+  // The add-on must be a real file on disk; Electron loads it from app.asar.unpacked.
+  asar: { unpack: "**/*.node" },
   // Unsigned on purpose in v1: no osxSign, no osxNotarize.
   ignore: [
     /^\/\.(?!$)/,
@@ -20,6 +22,7 @@ const [appPath] = await packager({
     /^\/(README|GLOSSARY)\.md$/,
     /^\/(tsconfig|vite\.config)\./,
     /^\/pnpm-/,
+    /^\/native\/mpv-embed\/(?!mpv_embed\.node$)/,
   ],
 });
 console.log(`Built ${appPath}/Couch.app`);

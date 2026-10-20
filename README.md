@@ -24,7 +24,7 @@ Run `vp` as `pnpm exec vp …` if it isn't installed globally. If `ELECTRON_RUN_
 src/
   shared/      Types shared by every process: Player port, IPC channel names
   main/        Electron main process: owns the core, ports, Remote server (later tickets)
-    mpv/       Player port implementation: mpv child process + JSON IPC client
+    mpv/       Player port implementation: MpvPlayer: in-process libmpv core (embedded) + JSON IPC client
     display.ts Picks the external monitor, else the built-in screen
     index.ts   Wiring (window, ports, quit handling)
   preload/     contextBridge API exposed to the Screen renderer (built as CJS)
@@ -38,7 +38,9 @@ Build outputs: `dist/renderer` (Vite), `dist/main/index.mjs` (ESM), `dist/preloa
 
 ## mpv hand-off
 
-One long-lived mpv (`--idle=yes --no-config --no-native-fs --fs --fs-screen-name=<display> …`, no `--force-window`) starts with Couch and is controlled only through a Unix socket in a temp folder. The Screen uses Electron `setSimpleFullScreen`, so both share one Space. When mpv stops or reaches the end of the file its window disappears and the main process calls `show()`, `app.focus({steal:true})` and `focus()` on the Screen. Quitting waits for mpv to exit.
+Couch loads libmpv in-process through a small native add-on (`native/mpv-embed/`, Objective-C++, N-API) and draws the video into an NSView (a `CAOpenGLLayer`) added on top of Couch's window. The video therefore moves, resizes and goes full screen with Couch, and no separate mpv window exists. The core is created idle at start with the same options as before plus `input-ipc-server`, and is still controlled only through a Unix socket in a temp folder. The view is shown on mpv's `file-loaded` and hidden on `end-file`, so Couch's UI returns when playback stops. The overlay is still mpv's `osd-overlay`. libmpv is `dlopen`ed (Homebrew paths, or `COUCH_LIBMPV=/path/libmpv.2.dylib`), so Couch still opens and shows the "needs mpv" message without it. Without the add-on (vitest) `MpvPlayer` spawns a headless mpv process instead.
+
+**Building the add-on** (needs Xcode command line tools and `brew install mpv`, which also supplies the headers): `pnpm run build:native` writes `native/mpv-embed/mpv_embed.node` (git-ignored; run it after `pnpm install` and before `vp run start` / `vp run package`). `vp run package` unpacks it into `app.asar.unpacked`. The built Couch.app still needs mpv installed on the Mac (libmpv comes from Homebrew, not bundled).
 
 Temporary keys on the Screen (removed once the core exists): `P` play the sample, `Space` pause, `←/→` seek 10 s, `S`/`Esc` stop, `Q` quit.
 
