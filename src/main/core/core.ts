@@ -30,6 +30,8 @@ import { cleanTitle, hueFor, listFolder, rootEntries } from "./library.ts";
 import { DOCK_IDS, DOCK_LABELS, DOCK_ROW, type DockId } from "../../shared/player-dock.ts";
 import { History } from "./history.ts";
 
+/** In-progress videos shown on Home. */
+const HOME_VIDEOS = 3;
 const TILE_COLUMNS = 4;
 const THUMBNAIL_JOBS = 2;
 const LIBRARY_VIEWS = ["library", "folder", "libraryFolders"];
@@ -93,6 +95,7 @@ export class Core {
   #unsubPlayer: () => void;
   #thumbQueue: LibraryEntry[] = [];
   #thumbRunning = 0;
+  #continueThumbs = new Map<string, string>();
   #disposed = false;
   #history: History;
   #cancelSaves: (() => void) | undefined;
@@ -222,27 +225,65 @@ export class Core {
         title,
         hue: hueFor(title),
         folder: basename(dirname(c.path)),
+        thumb: this.#continueThumb(c.path),
       });
     });
+  }
+
+  /** A frame for an in-progress video: cached now, or made in the background and shown when ready. */
+  #continueThumb(path: string): string | undefined {
+    const known = this.#continueThumbs.get(path);
+    if (known !== undefined) return known || undefined;
+    const thumbs = this.#ports.thumbnails ?? nullThumbnails;
+    const cached = thumbs.cached(path);
+    if (cached) {
+      this.#continueThumbs.set(path, cached);
+      return cached;
+    }
+    this.#continueThumbs.set(path, "");
+    void thumbs
+      .make(path)
+      .catch(() => undefined)
+      .then((url) => {
+        if (!url || this.#disposed) return;
+        this.#continueThumbs.set(path, url);
+        this.#emit();
+      });
+    return undefined;
   }
 
   #currentGrid(): GridItem[] {
     if (this.#state.view === "home") {
       const base = this.#grids.get("home") ?? [];
-      const first = base.length ? this.#continueEntries()[0] : undefined;
-      if (!first) return base;
+      const videos = base.length ? this.#continueEntries().slice(0, HOME_VIDEOS) : [];
+      const newest = videos[0];
+      if (!newest) return base;
       const apps = base.filter((i) => i.id !== "settings");
-      const row = apps.length ? apps[0]!.r : 1;
-      const col = Math.max(-1, ...apps.map((i) => i.c)) + 1;
       return [
-        ...base,
+        ...base.filter((i) => i.id === "settings"),
         {
-          id: "continue",
-          r: row,
-          c: col,
-          label: first.title,
-          action: `library:play:${first.path}`,
+          id: "resume",
+          r: 1,
+          c: 0,
+          label: `Resume ${newest.title}`,
+          action: `library:play:${newest.path}`,
+          initial: true,
         },
+        {
+          id: "fromstart",
+          r: 1,
+          c: 1,
+          label: `${newest.title} from start`,
+          action: `library:playstart:${newest.path}`,
+        },
+        ...apps.map((i) => ({ ...i, r: 2, initial: false })),
+        ...videos.map((v, i) => ({
+          id: v.path,
+          r: 2,
+          c: apps.length + i,
+          label: v.title,
+          action: `library:play:${v.path}`,
+        })),
       ];
     }
     if (this.#state.view === "player") return this.#dockGrid();
@@ -334,6 +375,7 @@ export class Core {
     if (verb === "missing") this.#toast("Connect the drive to see this folder");
     else if (verb === "open") this.#openFolder(arg);
     else if (verb === "play") this.#play(arg);
+    else if (verb === "playstart") this.#play(arg, true);
     else if (verb === "remove") this.#saveFolders(this.#libraryFolders.filter((f) => f !== arg));
     else if (verb === "add") {
       void this.#ports.mac
@@ -349,12 +391,12 @@ export class Core {
   }
 
   /** Start a Library video full screen, resuming where it was left. */
-  #play(path: string): void {
+  #play(path: string, fromStart = false): void {
     if (this.#mpvMissing) return this.#toast(MPV_MISSING);
     // Continue watching (Home or the Library row) returns there, not into the video's folder.
     this.#playedFrom = this.#state.view === "folder" ? "folder" : this.#state.view;
     if (this.#playedFrom === "folder") this.#focusEntry(path);
-    const startSeconds = this.#history.resumeAt(path);
+    const startSeconds = fromStart ? undefined : this.#history.resumeAt(path);
     this.#state.player = { path, pos: startSeconds ?? 0, dur: 0, paused: false };
     this.#state.view = "player";
     this.#state.focus.player = { r: DOCK_ROW, c: DOCK_IDS.indexOf("playpause") };
@@ -625,6 +667,7 @@ export class Core {
     return {
       library: this.#library(),
       continueCard: this.#continueEntries()[0],
+      homeVideos: this.#continueEntries().slice(0, HOME_VIDEOS),
       overlay: this.#overlay(),
       state: structuredClone(this.#state),
       viewKey: this.viewKey,
@@ -712,6 +755,13 @@ export class Core {
       case "home":
         this.#setView("home");
         break;
+      case "resume": {
+        const newest = this.#continueEntries()[0];
+        if (!newest) break;
+        this.#setView("home");
+        this.#play(newest.path);
+        break;
+      }
       case "playpause":
         if (this.#state.view === "youtube") this.#ports.youtube.playPause();
         break;
