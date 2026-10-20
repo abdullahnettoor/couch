@@ -548,7 +548,7 @@ svg.i {
 .lf-body {
   top: calc(560 * var(--u));
   padding-top: calc(30 * var(--u));
-  padding-bottom: 0;
+  padding-bottom: calc(520 * var(--u));
 }
 .lf-block {
   margin-bottom: calc(44 * var(--u));
@@ -560,6 +560,7 @@ svg.i {
   overflow: hidden;
   padding: calc(24 * var(--u)) calc(96 * var(--u)) calc(44 * var(--u)) calc(24 * var(--u));
   margin: calc(-24 * var(--u)) calc(-96 * var(--u)) calc(-44 * var(--u)) calc(-24 * var(--u));
+  mask-image: linear-gradient(90deg, transparent, #000 calc(28 * var(--u)));
 }
 .lf-folders {
   padding-bottom: calc(60 * var(--u));

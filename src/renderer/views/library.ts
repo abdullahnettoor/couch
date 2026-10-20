@@ -77,7 +77,7 @@ let lastKey = "";
 export function render(payload: ScreenPayload): void {
   const lib = payload.library;
   if (lib?.rows?.length && payload.viewKey === "library") return renderRoot(payload);
-  page = undefined;
+  firstPage = undefined;
   root.replaceChildren();
   if (!lib) return;
   const page = el("div", "screen-glass");
@@ -131,8 +131,8 @@ export function render(payload: ScreenPayload): void {
   scrollTop = body.scrollTop;
 }
 
-/** The first page keeps one backdrop layer so a change of focus can cross-fade. */
-let page: HTMLElement | undefined;
+/** The first firstPage keeps one backdrop layer so a change of focus can cross-fade. */
+let firstPage: HTMLElement | undefined;
 let backdrop: HTMLElement | undefined;
 let backdropKey = "";
 const shelfScroll = new Map<string, number>();
@@ -160,11 +160,11 @@ function syncBackdrop(e: LibraryEntry | undefined): void {
 
 function renderRoot(payload: ScreenPayload): void {
   const lib = payload.library!;
-  if (!page || root.firstElementChild !== page) {
-    page = el("div", "screen-glass lib-first");
+  if (!firstPage || root.firstElementChild !== firstPage) {
+    firstPage = el("div", "screen-glass lib-first");
     backdrop = el("div", "lf-bg");
     backdropKey = "";
-    root.replaceChildren(page);
+    root.replaceChildren(firstPage);
   }
   const focused = focusedEntry(payload);
   syncBackdrop(focused);
@@ -197,7 +197,7 @@ function renderRoot(payload: ScreenPayload): void {
     block.append(grid);
     body.append(block);
   }
-  page.replaceChildren(backdrop!, featured, body, topbar(payload));
+  firstPage.replaceChildren(backdrop!, featured, body, topbar(payload));
 
   // Scroll after attaching so offsets exist: the focused row to the top, and the tile inside its shelf.
   const card_ = body.querySelector<HTMLElement>(".lib-card.focused");

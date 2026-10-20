@@ -89,13 +89,15 @@ export function libraryRows(ctx: RowsContext): { rows: LibraryRow[]; wanted: str
 
   const continuing = ctx.continueEntries.map((e): LibraryEntry => {
     const show = library.showOf(e.path);
-    const film = library.films().find((f) => f.path === e.path);
+    const film = show ? undefined : library.films().find((f) => f.path === e.path);
+    const title = film ? bare(e.title, film.year) : e.title;
     return {
       ...e,
       id: `continue:${e.path}`,
+      title,
       feature: show
         ? showFeature(show)
-        : { kind: "Film", title: e.title, ...(film?.year ? { sub: String(film.year) } : {}) },
+        : { kind: "Film", title, ...(film?.year ? { sub: String(film.year) } : {}) },
     };
   });
   for (const e of continuing) wanted.push(e.path);
