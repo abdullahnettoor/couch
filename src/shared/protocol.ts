@@ -88,6 +88,8 @@ export interface LibraryEntry {
   hue: number;
   /** Folder whose path doesn't exist (an unplugged drive). */
   missing?: boolean;
+  /** URL of a frame from the video, once it has been made. */
+  thumb?: string;
 }
 
 /** What the Library views draw; the core also builds their grids from it. */
