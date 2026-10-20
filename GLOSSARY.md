@@ -13,11 +13,15 @@ The control surface on a phone, used from the couch to drive the Screen.
 _Avoid_: controller, phone app, mobile app
 
 **Home**:
-The first page the Screen shows, with entry points to YouTube and the Library.
+The first page the Screen shows: a simple launcher with a clock and the Apps.
 _Avoid_: launcher, dashboard, main menu
 
+**App**:
+A full-screen experience launched from Home, such as YouTube or the Library. It should feel like an app on a smart TV.
+_Avoid_: tile, channel, section
+
 **YouTube**:
-The YouTube TV experience as presented inside the Screen.
+The App that presents YouTube's TV experience inside the Screen, looking and behaving like the YouTube app on a smart TV.
 _Avoid_: YouTube TV (the paid live-TV product), Leanback
 
 **Library**:
