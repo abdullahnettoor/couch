@@ -1,3 +1,4 @@
+import { glassTokensCss } from "../../shared/glass-tokens.ts";
 import { ICON_PATHS } from "../../shared/icons.ts";
 
 /** The Remote page, served as one self-contained document (no build step for it). Plain ES5-ish JS, no template literals. */
@@ -9,9 +10,10 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 <meta name="theme-color" content="#161412">
 <title>Couch Remote</title>
 <style>
-  :root { --t1:#fff; --t2:rgba(235,235,245,.74); --t3:rgba(235,235,245,.52); --card:#2c2c2e; --card-2:#48484a; --live:#30d158; --danger:#ff453a; font-family:-apple-system,"SF Pro Text",system-ui,sans-serif; -webkit-font-smoothing:antialiased; color:var(--t1); background:#000; }
+  __TOKENS__
+  :root { font-family:-apple-system,"SF Pro Text",system-ui,sans-serif; -webkit-font-smoothing:antialiased; color:var(--t1); background:#000; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html, body { margin:0; height:100%; background:radial-gradient(80% 60% at 50% 0%, #2c2c2e, #000 70%) fixed; overscroll-behavior:none; }
+  html, body { margin:0; height:100%; background:radial-gradient(80% 60% at 50% 0%, var(--card), #000 70%) fixed; overscroll-behavior:none; }
   body { display:flex; flex-direction:column; min-height:100dvh; padding:max(18px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom)); max-width:480px; margin:0 auto; user-select:none; -webkit-user-select:none; font-size:16px; }
   [hidden] { display:none !important; }
   button { font:inherit; color:inherit; border:0; background:none; padding:0; cursor:pointer; }
@@ -84,7 +86,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .sheet form { width:100%; max-width:480px; margin:0 auto; padding:22px 20px; background:var(--card); border-radius:30px 30px 0 0; display:grid; gap:12px; box-shadow:0 -20px 50px rgba(0,0,0,.5); }
   .sheet input { width:100%; height:56px; border-radius:16px; border:0; background:#1c1c1e; color:#fff; font:inherit; font-size:19px; padding:0 16px; user-select:text; -webkit-user-select:text; caret-color:#0a84ff; }
   .sheet .btns { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .sheet .btns .k { background:#48484a; border-radius:16px; height:56px; font-size:17px; }
+  .sheet .btns .k { background:var(--card-2); border-radius:16px; height:56px; font-size:17px; }
   .sheet .btns .k.hero { background:#fff; }
 </style>
 </head>
@@ -314,4 +316,6 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 </script>
 </body>
 </html>
-`.replace("__ICONS__", JSON.stringify(ICON_PATHS));
+`
+  .replace("__ICONS__", JSON.stringify(ICON_PATHS))
+  .replace("__TOKENS__", glassTokensCss({ unit: "1px" }));

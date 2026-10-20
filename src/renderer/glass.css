@@ -1,21 +1,10 @@
 /*
- * Glass: the shared look of the Screen (tokens, material, focus language, top-right strip, toast, volume level).
+ * Glass: the shared look of the Screen (material, focus language, top-right strip, toast, volume level).
  * Sizes are written in prototype pixels (a 1920-wide Screen) through --u, so they read like the design.
- * Mirrored by src/main/ports/youtube-hud.ts for the YouTube view.
+ * Colours, radii and motion come from src/shared/glass-tokens.ts, injected by main.ts.
  */
 :root {
   --u: calc(100vw / 1920);
-  --ease: cubic-bezier(0.16, 1, 0.3, 1);
-  --t1: #fff;
-  --t2: rgba(235, 235, 245, 0.74);
-  --t3: rgba(235, 235, 245, 0.52);
-  --glass: rgba(44, 44, 48, 0.46);
-  --glass-strong: rgba(36, 36, 40, 0.72);
-  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.14);
-  --live: #30d158;
-  --danger: #ff453a;
-  --r-tile: calc(22 * var(--u));
-  --r-row: calc(22 * var(--u));
   font-family: -apple-system, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
@@ -249,6 +238,9 @@ svg.i {
 .toast.show {
   opacity: 1;
   transform: translate(-50%, 0);
+}
+.toast.notice {
+  top: calc(140 * var(--u));
 }
 .volhud {
   position: fixed;

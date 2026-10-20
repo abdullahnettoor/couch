@@ -4,9 +4,16 @@ import { SCREEN_KEYS } from "../shared/keyboard.ts";
 import { VIEWS } from "./views/index.ts";
 import { renderHud } from "./hud.ts";
 import { renderOverlay } from "./player-overlay.ts";
+import { glassTokensCss } from "../shared/glass-tokens.ts";
 import "./style.css";
 import "./glass.css";
 import "./home.css";
+
+document.head.append(
+  Object.assign(document.createElement("style"), {
+    textContent: glassTokensCss({ unit: "var(--u)" }),
+  }),
+);
 
 declare global {
   interface Window {
@@ -84,8 +91,9 @@ window.couch.onScreen((payload) => {
 });
 
 window.couch.onMpv((status) => {
-  notice.hidden = !status.missing && !status.message;
-  notice.textContent = status.missing
+  const text = status.missing
     ? "Couch needs mpv to play videos. Install it with: brew install mpv"
     : (status.message ?? "");
+  if (text) notice.textContent = text;
+  notice.classList.toggle("show", Boolean(text));
 });

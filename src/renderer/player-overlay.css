@@ -300,15 +300,9 @@ body.video-pending #volume {
   cursor: pointer;
 }
 .po-pic {
-  position: relative;
   height: calc(169 * var(--u));
   border-radius: calc(16 * var(--u));
-  overflow: hidden;
   background: #222;
-  box-shadow: 0 calc(10 * var(--u)) calc(30 * var(--u)) rgba(0, 0, 0, 0.35);
-  transition:
-    transform 0.38s var(--ease),
-    box-shadow 0.38s var(--ease);
 }
 .po-pic img,
 .po-plain {
@@ -320,13 +314,6 @@ body.video-pending #volume {
 }
 .po-plain {
   background: hsl(var(--h), 18%, 22%);
-}
-.po-ep.focused .po-pic,
-.po-ep:hover .po-pic {
-  transform: scale(1.09) translateY(calc(-6 * var(--u)));
-  box-shadow:
-    0 0 0 calc(3 * var(--u)) #fff,
-    0 calc(36 * var(--u)) calc(60 * var(--u)) rgba(0, 0, 0, 0.6);
 }
 .po-now,
 .po-watched {

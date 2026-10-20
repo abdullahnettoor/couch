@@ -1,15 +1,18 @@
+import { glassTokensCss } from "../../shared/glass-tokens.ts";
 import { ICON_PATHS } from "../../shared/icons.ts";
 
 /**
  * Glass toast and volume level for the YouTube view, injected into the page.
- * Mirrors `.toast` and `.volhud` in src/renderer/glass.css (values duplicated: this runs in another page).
+ * Mirrors `.toast` and `.volhud` in src/renderer/glass.css. Tokens are shared but prefixed
+ * `--couch-` so they cannot clash with the page's own variables.
  */
 const CSS = `
 :root{--couch-u:calc(100vw/1920)}
-#couch-volume,#couch-note{position:fixed;z-index:2147483647;pointer-events:none;color:#fff;
+${glassTokensCss({ unit: "var(--couch-u)", prefix: "couch-" })}
+#couch-volume,#couch-note{position:fixed;z-index:2147483647;pointer-events:none;color:var(--couch-t1);
 font:600 calc(22*var(--couch-u))/1 -apple-system,"SF Pro Text",system-ui,sans-serif;
-background:rgba(44,44,48,.62);backdrop-filter:blur(40px) saturate(1.8);-webkit-backdrop-filter:blur(40px) saturate(1.8);
-box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 24px 70px rgba(0,0,0,.35)}
+background:var(--couch-glass-strong);backdrop-filter:blur(40px) saturate(1.8);-webkit-backdrop-filter:blur(40px) saturate(1.8);
+box-shadow:var(--couch-glass-edge),0 24px 70px rgba(0,0,0,.35)}
 #couch-volume{right:calc(60*var(--couch-u));top:50%;transform:translateY(-50%);width:calc(80*var(--couch-u));height:calc(380*var(--couch-u));
 border-radius:calc(40*var(--couch-u));padding:calc(18*var(--couch-u));box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:calc(14*var(--couch-u))}
 #couch-volume .n{font-weight:700;font-variant-numeric:tabular-nums}

@@ -1,37 +1,12 @@
-:root {
-  --ink: #f3ede4;
-  --ink-2: #c9bfb1;
-  --ink-3: #8f8577;
-  --surface: #1b1916;
-}
 html,
 body {
   margin: 0;
   height: 100%;
-  background: #110f0d;
-  color: var(--ink);
-  font-family: system-ui, sans-serif;
+  background: #000;
+  color: var(--t1);
   overflow: hidden;
 }
 body.idle,
 body.idle * {
   cursor: none !important;
-}
-.view {
-  position: fixed;
-  inset: 0;
-  container-type: inline-size;
-  background:
-    radial-gradient(70cqw 50cqw at 85% -10%, rgba(242, 180, 90, 0.13), transparent 70%),
-    radial-gradient(60cqw 40cqw at -10% 110%, rgba(120, 90, 60, 0.16), transparent 70%), #110f0d;
-}
-.notice {
-  position: fixed;
-  top: 2vw;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #3a2a10;
-  padding: 1vw 2vw;
-  border-radius: 12px;
-  font-size: 1.4vw;
 }
