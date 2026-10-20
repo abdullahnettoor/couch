@@ -2,60 +2,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
-import {
-  cleanFolderName,
-  cleanTitle,
-  episodeLine,
-  listFolder,
-  parseTitle,
-} from "./core/library.ts";
+import { listFolder } from "./core/library.ts";
 import { FileStore } from "./ports/store.ts";
 import { startHarness, type Harness } from "./testing/harness.ts";
-
-describe("cleanTitle", () => {
-  test.each([
-    ["The.Grand.Budapest.Hotel.2014.1080p.BluRay.x264.mkv", "The Grand Budapest Hotel (2014)"],
-    ["Paddington_2_2017_720p.mp4", "Paddington 2 (2017)"],
-    ["Ep 2.MKV", "Ep 2"],
-    ["Home Movie.mov", "Home Movie"],
-    ["Blade.Runner.2049.2017.WEB-DL.x265.mkv", "Blade Runner 2049 (2017)"],
-    ["Some.Show.S01E02.HDTV.mkv", "Episode 2"],
-  ])("%s", (file, title) => expect(cleanTitle(file)).toBe(title));
-});
-
-describe("parseTitle", () => {
-  test.each([
-    [
-      "Arcane S01E01 Welcome to the Playground.mkv",
-      { series: "Arcane", season: 1, episode: 1, name: "Welcome to the Playground" },
-    ],
-    [
-      "Kung_Fu_Panda_The_Dragon_Knight_S01E04_720p_10bit_WEBRip_2CH_x265.mkv",
-      { series: "Kung Fu Panda The Dragon Knight", season: 1, episode: 4, name: "Episode 4" },
-    ],
-    ["Show.1x02.Name.mp4", { series: "Show", season: 1, episode: 2, name: "Name" }],
-    [
-      "Blue Eye Samurai S01E03 .mkv",
-      { series: "Blue Eye Samurai", season: 1, episode: 3, name: "Episode 3" },
-    ],
-    ["Show S02 E05 - Pilot.mkv", { series: "Show", season: 2, episode: 5, name: "Pilot" }],
-    ["Elemental.2023.1080p.mkv", { name: "Elemental (2023)" }],
-  ])("%s", (file, title) => expect(parseTitle(file)).toEqual(title));
-
-  test("episodeLine", () => {
-    expect(episodeLine("Arcane S01E01 Welcome.mkv")).toBe("Arcane · S1 E1");
-    expect(episodeLine("Elemental.2023.mkv")).toBeUndefined();
-  });
-});
-
-describe("folder names", () => {
-  test("release tags are cleaned", () => {
-    expect(cleanFolderName("Elemental (2023) [2160p] [4K] [WEB] [5.1] [YTS.MX]")).toBe(
-      "Elemental (2023)",
-    );
-    expect(cleanFolderName("Season 2")).toBe("Season 2");
-  });
-});
 
 let root: string;
 let storeDir: string;
@@ -67,6 +16,81 @@ beforeEach(() => {
 afterEach(() => {
   rmSync(root, { recursive: true, force: true });
   rmSync(storeDir, { recursive: true, force: true });
+});
+
+describe("Titles shown for files and folders", () => {
+  let h: Harness;
+  afterEach(() => h?.stop());
+
+  /** Puts the files (and folders) in a library folder and returns what the Screen shows for each. */
+  async function shown(files: string[], folders: string[] = []) {
+    const dir = join(root, "Cases");
+    mkdirSync(dir);
+    for (const f of files) writeFileSync(join(dir, f), "");
+    for (const f of folders) mkdirSync(join(dir, f));
+    const store = new FileStore(storeDir);
+    store.write("library", { folders: [root] });
+    h = await startHarness(store);
+    const phone = await h.connectPhone();
+    await phone.press("right");
+    await phone.press("ok");
+    await phone.press("ok");
+    await phone.press("ok"); // Cases
+    const byName = new Map(
+      h.screen.last.library!.entries.map((e) => [e.path.slice(dir.length + 1), e]),
+    );
+    return (name: string) => byName.get(name)!;
+  }
+
+  test.each([
+    ["The.Grand.Budapest.Hotel.2014.1080p.BluRay.x264.mkv", "The Grand Budapest Hotel (2014)"],
+    ["Paddington_2_2017_720p.mp4", "Paddington 2 (2017)"],
+    ["Ep 2.MKV", "Ep 2"],
+    ["Home Movie.mov", "Home Movie"],
+    ["Blade.Runner.2049.2017.WEB-DL.x265.mkv", "Blade Runner 2049 (2017)"],
+    ["Elemental.2023.1080p.mkv", "Elemental (2023)"],
+  ])("movie %s has no episode line", async (file, title) => {
+    const entry = (await shown([file]))(file);
+    expect(entry.title).toBe(title);
+    expect(entry.line).toBeUndefined();
+  });
+
+  test.each([
+    ["Some.Show.S01E02.HDTV.mkv", "Episode 2", "Some Show · S1 E2"],
+    ["Arcane S01E01 Welcome to the Playground.mkv", "Welcome to the Playground", "Arcane · S1 E1"],
+    [
+      "Kung_Fu_Panda_The_Dragon_Knight_S01E04_720p_10bit_WEBRip_2CH_x265.mkv",
+      "Episode 4",
+      "Kung Fu Panda The Dragon Knight · S1 E4",
+    ],
+    ["Show.1x02.Name.mp4", "Name", "Show · S1 E2"],
+    ["Blue Eye Samurai S01E03 .mkv", "Episode 3", "Blue Eye Samurai · S1 E3"],
+    ["Show S02 E05 - Pilot.mkv", "Pilot", "Show · S2 E5"],
+    ["ShowS01E01Name.mkv", "Name", "Show · S1 E1"],
+    ["Show1x02Name.mkv", "Name", "Show · S1 E2"],
+    ["Show-S01E01-Name.mkv", "Name", "Show · S1 E1"],
+    ["Show - S01E01 - Name.mkv", "Name", "Show · S1 E1"],
+  ])("episode %s", async (file, title, line) => {
+    const entry = (await shown([file]))(file);
+    expect({ title: entry.title, line: entry.line }).toEqual({ title, line });
+  });
+
+  test("things that look like codes but aren't stay whole", async () => {
+    const files = ["Movie.x264.mkv", "Clip 1080p.mkv", "Blade Runner 2049.mkv"];
+    const entry = await shown(files);
+    for (const f of files) expect(entry(f).line).toBeUndefined();
+  });
+
+  test("folder names lose release tags", async () => {
+    const entry = await shown(
+      [],
+      ["Elemental (2023) [2160p] [4K] [WEB] [5.1] [YTS.MX]", "Season 2"],
+    );
+    expect(entry("Elemental (2023) [2160p] [4K] [WEB] [5.1] [YTS.MX]").title).toBe(
+      "Elemental (2023)",
+    );
+    expect(entry("Season 2").title).toBe("Season 2");
+  });
 });
 
 describe("listFolder", () => {

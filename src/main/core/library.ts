@@ -81,7 +81,7 @@ export interface Title {
   name: string;
 }
 
-const EPISODE = /(?<![a-z0-9])(?:s(\d{1,2})[ ._-]*e(\d{1,3})|(\d{1,2})x(\d{2,3}))(?![a-z0-9])/i;
+const EPISODE = /(?<!\d)(?:s(\d{1,2})[ ._-]*e(\d{1,3})|(\d{1,2})x(\d{2,3}))(?!\d)/i;
 
 /** "Arcane S01E01 Welcome to the Playground.mkv" → { series: "Arcane", season: 1, episode: 1, name: "Welcome to the Playground" }. */
 export function parseTitle(fileName: string): Title {
@@ -92,7 +92,7 @@ export function parseTitle(fileName: string): Title {
   if (m) {
     const season = Number(m[1] ?? m[3]);
     const episode = Number(m[2] ?? m[4]);
-    const series = tidy(normal.slice(0, m.index));
+    const series = tidy(normal.slice(0, m.index).replace(/[-–:\s]+$/, ""));
     const name = untagged(words(normal.slice(m.index + m[0].length)), 0)
       .join(" ")
       .replace(/^[-–:\s]+|[-–:\s]+$/g, "");
