@@ -13,6 +13,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
+    "@types/ws": "^8.18.2",
     "electron": "^44.9.0",
     "typescript": "~7.0.2",
     "vite": "catalog:",
@@ -24,5 +25,8 @@
       "version": "12.14.0",
       "onFail": "download"
     }
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
   }
 }
