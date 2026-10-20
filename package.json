@@ -13,11 +13,13 @@
     "test": "vp test run"
   },
   "dependencies": {
+    "qrcode": "^1.5.4",
     "ws": "^8.22.0"
   },
   "devDependencies": {
     "@electron/packager": "^20.3.0",
     "@types/node": "^26.6.5",
+    "@types/qrcode": "^1.5.6",
     "@types/ws": "^8.18.2",
     "electron": "^44.9.0",
     "typescript": "~7.0.2",
