@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 import { MetadataError } from "./ports/metadata.ts";
 import { FileStore } from "./ports/store.ts";
 import { TmdbMetadata } from "./ports/tmdb-metadata.ts";
-import { startHarness, type Harness } from "./testing/harness.ts";
+import { startHarness, type FakePhone, type Harness } from "./testing/harness.ts";
 
 const BEARER = "eyJhbGciOi.PROJECT.token";
 const OWN = "abcd1234ownkey9876";
@@ -14,6 +14,7 @@ const DAY = 24 * 60 * 60_000;
 let root: string;
 let storeDir: string;
 let h: Harness | undefined;
+let phone: FakePhone | undefined;
 const touch = (...parts: string[]) => {
   const p = join(root, ...parts);
   mkdirSync(dirname(p), { recursive: true });
@@ -29,6 +30,7 @@ beforeEach(() => {
 afterEach(async () => {
   await h?.stop();
   h = undefined;
+  phone = undefined;
   rmSync(root, { recursive: true, force: true });
   rmSync(storeDir, { recursive: true, force: true });
 });
@@ -85,7 +87,7 @@ describe("matching", () => {
       { id: 1, name: "Arcane Beta", popularity: 1 },
       { id: 2, name: "Arcane Alpha", popularity: 9 },
     ];
-    core().details.refresh();
+    await refreshFromSettings();
     await settle();
     expect(core().details.detailsFor(show().id)!.tmdbId).toBe(2);
   });
@@ -98,11 +100,67 @@ describe("matching", () => {
     expect(h!.metadata.searches).toEqual([]);
     expect(h!.metadata.detailCalls).toEqual([]);
     expect(core().details.detailsFor(show().id)).toMatchObject({ tmdbId: 94605 });
-    core().details.refresh();
+    await refreshFromSettings();
     await settle();
     expect(h!.metadata.searches).toHaveLength(2);
   });
 });
+
+async function remote() {
+  phone ??= await h!.connectPhone();
+  return phone;
+}
+async function focusLabel(label: string) {
+  const p = await remote();
+  for (let i = 0; i < 40 && h!.screen.last.focusedLabel !== label; i++) {
+    const { grid, focusedId } = h!.screen.last;
+    const cur = grid.find((x) => x.id === focusedId)!;
+    const t = grid.find((x) => x.label === label)!;
+    await p.press(t.r > cur.r ? "down" : t.r < cur.r ? "up" : t.c > cur.c ? "right" : "left");
+  }
+  expect(h!.screen.last.focusedLabel).toBe(label);
+}
+/** Settings → Show and film details → Refresh details, on the Remote. */
+async function refreshFromSettings() {
+  const p = await remote();
+  await p.press("home");
+  await p.press("up");
+  await p.press("ok");
+  for (let i = 0; i < 3; i++) await p.press("down");
+  await p.press("ok");
+  await focusLabel("Refresh details");
+  await p.press("ok");
+  await p.press("home");
+}
+async function openShowPage() {
+  const p = await remote();
+  await p.press("home");
+  await focusLabel("Library");
+  await p.press("ok");
+  for (let i = 0; i < 40 && h!.screen.last.focusedId !== "shows:show:arcane"; i++) {
+    const { grid, focusedId } = h!.screen.last;
+    const cur = grid.find((x) => x.id === focusedId)!;
+    const t = grid.find((x) => x.id === "shows:show:arcane")!;
+    await p.press(t.r > cur.r ? "down" : t.r < cur.r ? "up" : t.c > cur.c ? "right" : "left");
+  }
+  await p.press("ok");
+  expect(h!.screen.last.state.view).toBe("show");
+}
+/** Show page → Fix match → the option with this label (or "Use video frames"). */
+async function fixMatchTo(label: string) {
+  await openShowPage();
+  await focusLabel("Fix match");
+  const p = await remote();
+  await p.press("ok");
+  await p.waitFor(() => h!.screen.last.fixMatch?.loading === false);
+  await focusLabel(label);
+  await p.press("ok");
+  expect(h!.screen.last.state.view).toBe("show");
+}
+const poster = async () => {
+  await openShowPage();
+  return h!.screen.last.show!.poster;
+};
 
 describe("Fix match", () => {
   test("lists the top 5 with posters, re-links, and survives Refresh", async () => {
@@ -113,34 +171,40 @@ describe("Fix match", () => {
       year: 2000 + i,
       posterPath: `/p${i}.jpg`,
     }));
-    const options = await core().details.candidates(show().id);
-    expect(options.map((o) => o.tmdbId)).toEqual([1, 2, 3, 4, 5]);
+    await openShowPage();
+    await focusLabel("Fix match");
+    const p = await remote();
+    await p.press("ok");
+    await p.waitFor(() => h!.screen.last.fixMatch?.loading === false);
+    const options = h!.screen.last.fixMatch!.options;
+    expect(options.map((o) => o.id)).toEqual([1, 2, 3, 4, 5].map((i) => `cand:${i}`));
     expect(options[0]).toMatchObject({
       name: "Arcane 1",
       year: 2001,
       poster: "file:///tmdb/poster/p1.jpg",
     });
-    await core().details.fixMatch(show().id, 4);
-    expect(core().details.detailsFor(show().id)!.tmdbId).toBe(4);
-    const searches = h!.metadata.searches.length;
-    core().details.refresh();
+    await focusLabel("Arcane 4");
+    await p.press("ok");
     await settle();
-    expect(core().details.detailsFor(show().id)!.tmdbId).toBe(4);
-    expect(h!.metadata.detailCalls.slice(-2).map((c) => c.id)).toContain(4);
+    expect(await poster()).toBe("file:///tmdb/poster/p4.jpg");
+    const searches = h!.metadata.searches.length;
+    await refreshFromSettings();
+    await settle();
+    expect(await poster()).toBe("file:///tmdb/poster/p4.jpg");
     // Refresh re-fetched Sing's search only; Arcane kept its chosen id.
     expect(h!.metadata.searches.length).toBe(searches + 1);
   });
 
   test("Use video frames turns details off for that title and keeps it off", async () => {
     await start();
-    await core().details.fixMatch(show().id, "frames");
-    expect(core().details.detailsFor(show().id)).toBeUndefined();
-    expect(core().details.usesFrames(show().id)).toBe(true);
+    expect(await poster()).toBeDefined();
+    await fixMatchTo("Use video frames");
+    expect(h!.screen.last.show!.poster).toBeUndefined();
     const before = h!.metadata.searches.length;
-    core().details.refresh();
+    await refreshFromSettings();
     await settle();
     expect(h!.metadata.searches.length).toBe(before + 1); // only the film
-    expect(core().details.detailsFor(show().id)).toBeUndefined();
+    expect(await poster()).toBeUndefined();
   });
 });
 
@@ -149,29 +213,26 @@ describe("a household choice beats a lookup in flight", () => {
     await start();
     let release!: () => void;
     h!.metadata.hold = new Promise((r) => (release = r));
-    core().details.refresh();
+    h!.metadata.holdLeft = 2;
+    await refreshFromSettings();
     await new Promise((r) => setTimeout(r, 10));
-    return () => {
-      release();
-      h!.metadata.hold = undefined;
-    };
+    return release;
   }
 
   test("Use video frames is not overwritten when the lookup completes", async () => {
     const release = await slowRefresh();
-    await core().details.fixMatch(show().id, "frames");
+    await fixMatchTo("Use video frames");
     release();
     await settle();
-    expect(core().details.usesFrames(show().id)).toBe(true);
-    expect(core().details.detailsFor(show().id)).toBeUndefined();
+    expect(await poster()).toBeUndefined();
   });
 
   test("a Fix match is not overwritten when the lookup completes", async () => {
     const release = await slowRefresh();
-    await core().details.fixMatch(show().id, 4);
+    await fixMatchTo("Arcane: League");
     release();
     await settle();
-    expect(core().details.detailsFor(show().id)!.tmdbId).toBe(4);
+    expect(await poster()).toBe("file:///tmdb/poster/wrong.jpg");
   });
 });
 

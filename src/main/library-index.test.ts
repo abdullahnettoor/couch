@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 import { History } from "./core/history.ts";
 import { cleanFolderName, parseTitle } from "./core/library.ts";
 import { MediaLibrary } from "./core/media-library.ts";
-import { FileStore, MemoryStore, type Store } from "./ports/store.ts";
+import { FileStore, type Store } from "./ports/store.ts";
 import { startHarness } from "./testing/harness.ts";
 
 let root: string;
@@ -27,7 +27,7 @@ const touch = (...parts: string[]) => {
   writeFileSync(p, "");
   return p;
 };
-const scanned = async (store: Store = new MemoryStore()) => {
+const scanned = async (store: Store = new FileStore(storeDir)) => {
   const lib = new MediaLibrary(store, clock);
   await lib.refresh([root]);
   return lib;
@@ -127,11 +127,52 @@ describe("grouping", () => {
   });
 });
 
+describe("grouping as the Library shows it", () => {
+  test("the Shows and Films rows list the spec's titles", async () => {
+    spec();
+    const store = new FileStore(storeDir);
+    store.write("library", { folders: [root] });
+    const h = await startHarness(store);
+    try {
+      await h.app.core.library.settled();
+      const phone = await h.connectPhone();
+      await phone.press("home");
+      for (let i = 0; i < 40 && h.screen.last.focusedId !== "library"; i++) {
+        const { grid, focusedId } = h.screen.last;
+        const cur = grid.find((x) => x.id === focusedId)!;
+        const t = grid.find((x) => x.id === "library")!;
+        await phone.press(
+          t.r > cur.r ? "down" : t.r < cur.r ? "up" : t.c > cur.c ? "right" : "left",
+        );
+      }
+      await phone.press("ok");
+      const rows = h.screen.last.library!.rows!;
+      const titles = (id: string) => rows.find((r) => r.id === id)!.entries.map((e) => e.title);
+      expect(titles("shows")).toEqual([
+        "Arcane",
+        "Avatar The Last Airbender",
+        "Korra",
+        "Lessons",
+        "The Legend of Vox Machina",
+      ]);
+      expect(titles("films")).toEqual([
+        "Kung Fu Panda 4",
+        "Minions The Rise of Gru",
+        "Sing",
+        "Sing 2",
+        "Wrapper",
+      ]);
+    } finally {
+      await h.stop();
+    }
+  });
+});
+
 describe("index", () => {
   test("new and deleted files are picked up on the next scan; first-seen is kept", async () => {
     const a = touch("Film A.mkv");
     let now = 100;
-    const lib = new MediaLibrary(new MemoryStore(), { now: () => now });
+    const lib = new MediaLibrary(new FileStore(storeDir), { now: () => now });
     await lib.refresh([root]);
     expect(lib.films().map((f) => f.title)).toEqual(["Film A"]);
     now = 5000;
@@ -156,8 +197,7 @@ describe("index", () => {
   test("a missing drive keeps its entries, marked missing", async () => {
     touch("Film A.mkv");
     touch("Show", "Show S01E01.mkv");
-    const store = new MemoryStore();
-    const lib = await scanned(store);
+    const lib = await scanned();
     rmSync(root, { recursive: true });
     await lib.refresh([root]);
     expect(lib.films()[0]).toMatchObject({ title: "Film A", missing: true });
@@ -228,7 +268,7 @@ describe("order and Next up", () => {
     seasons();
     touch("Other", "Other S01E01.mkv");
     const lib = await scanned();
-    const history = new History(new MemoryStore());
+    const history = new History(new FileStore(storeDir));
     expect(lib.nextUp(history)).toEqual([]);
     history.save(path(1, 8), 0, 0, 10, true);
     history.save(path(1, 10), 0, 0, 20, true);
