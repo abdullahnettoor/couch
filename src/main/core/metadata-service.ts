@@ -169,6 +169,8 @@ export class MetadataService {
   setKey(key: string | undefined): void {
     const clean = key?.trim();
     this.#ownKey = clean || undefined;
+    for (const [id, e] of Object.entries(this.#items))
+      if (e.state === "failed" && !e.fixed) delete this.#items[id];
     this.#saveSettings();
     this.#problem = undefined;
     this.sync();
@@ -343,7 +345,9 @@ export class MetadataService {
       ) {
         // The key itself is refused or exhausted: stop looking up and fall back to frames.
         this.#problem = { source: key.source, at: this.#clock.now() };
-        this.#changed();
+        if (existing?.state !== "matched")
+          this.#save(item.id, { state: "failed", triedAt: this.#clock.now() });
+        else this.#changed();
         return;
       }
       if (existing?.state === "matched") return;

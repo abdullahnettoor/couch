@@ -286,6 +286,22 @@ describe("keys", () => {
     expect(core().details.detailsFor(show().id)).toBeDefined();
   });
 
+  test("an exhausted key is not retried after a restart within a day", async () => {
+    const store = new FileStore(storeDir);
+    store.write("library", { folders: [root] });
+    h = await startHarness(store, { tmdbProjectKey: BEARER });
+    h.metadata.fail = new MetadataError("revoked", 401);
+    await settle();
+    await h.stop();
+    h = await startHarness(new FileStore(storeDir), { tmdbProjectKey: BEARER });
+    await settle();
+    expect(h.metadata.searches).toEqual([]);
+    h.clock.advance(DAY + 1000);
+    core().details.sync();
+    await settle();
+    expect(h.metadata.searches.length).toBeGreaterThan(0);
+  });
+
   test("Off stops lookups", async () => {
     await start();
     core().details.setEnabled(false);
