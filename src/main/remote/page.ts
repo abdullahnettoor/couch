@@ -51,6 +51,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .search.dim { opacity:.35; }
   .cw { margin-top:18px; display:flex; gap:14px; align-items:center; padding:10px; border-radius:20px; background:var(--card); width:100%; text-align:left; }
   .cw .pic { width:104px; height:58px; border-radius:10px; background:#3a3a3c center/cover; flex:none; }
+  .cw.nx { margin:10px 0 0; }
   .cw b { display:block; font-size:16px; }
   .cw span.l { font-size:13px; color:var(--t3); }
   .cw .txt { min-width:0; flex:1; }
@@ -100,6 +101,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   <div class="np" id="np" hidden>
     <div class="art" id="np-art"></div>
     <h3 id="np-title"></h3><div class="f" id="np-folder"></div>
+    <button class="cw nx" id="nx" data-cmd="playNext" hidden><span class="pic" id="nx-pic"></span><span class="txt"><b id="nx-title"></b><span class="l" id="nx-line">Play next</span></span><span class="go" data-i="play"></span></button>
     <div class="seek" id="seek"><div class="bar"><div class="fill" id="np-fill"></div><div class="knob" id="np-knob"></div></div></div>
     <div class="tm"><span id="np-elapsed"></span><span id="np-remaining"></span></div>
     <div class="tr">
@@ -240,6 +242,12 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       var playing = (s.upNext || []).filter(function (u) { return u.playing && u.thumbKey; })[0];
       $("np-art").style.backgroundImage = playing ? thumb(playing.thumbKey) : "none";
       renderUpNext(s.upNext);
+    }
+    $("nx").hidden = !s.next;
+    if (s.next) {
+      $("nx-title").textContent = s.next.title;
+      $("nx-line").textContent = s.next.line || "Play next";
+      $("nx-pic").style.backgroundImage = s.next.thumbKey ? thumb(s.next.thumbKey) : "none";
     }
     $("other").hidden = s.typing !== "other";
     var mine = s.typing === "you";

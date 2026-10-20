@@ -134,6 +134,7 @@ export class Core {
       toggleSubtitles: () => this.#toggleSubtitles(),
       setVolume: (percent) => void this.#setVolume(percent),
       play: (path) => this.#play(path),
+      leave: () => this.#endPlayback(undefined, true),
       changed: () => this.#emit(),
     });
     this.#thumbs = new ThumbnailScheduler(ports.thumbnails, () => this.#emit());
@@ -504,7 +505,7 @@ export class Core {
         break;
       case "ended":
         // Our own stops report "stop"; only a natural end or a failure leaves playback.
-        if (event.reason === "eof") this.#endPlayback(undefined, true);
+        if (event.reason === "eof") this.#ended();
         else if (event.reason === "error") this.#endPlayback("Couldn't play this video");
         break;
       case "position": {
@@ -528,6 +529,17 @@ export class Core {
         }
         break;
     }
+  }
+
+  /** The video played to its end: offer the next one in its folder, or leave. */
+  #ended(): void {
+    const p = this.#state.player;
+    if (!p || !this.#controls.offerNext()) return this.#endPlayback(undefined, true);
+    this.#cancelSaves?.();
+    this.#cancelSaves = undefined;
+    if (p.dur > 0) p.pos = p.dur;
+    this.#history.save(p.path, p.pos, p.dur, this.#ports.clock.now(), true);
+    this.#emit();
   }
 
   #quiet(promise: Promise<void>): void {
@@ -557,6 +569,15 @@ export class Core {
   #playbackCommand(command: Command): boolean {
     const p = this.#state.player!;
     const name = command.command;
+    if (this.#state.controls === "next") {
+      if (name === "playNext") this.#controls.playNext();
+      else if (name === "back" || name === "home") {
+        this.#endPlayback(undefined, true);
+        if (name === "home") this.#state.view = "home";
+      } else return this.#controls.command(command);
+      return true;
+    }
+    if (name === "playNext") return true;
     if (name === "playUpNext") {
       this.#controls.playUpNext(command.args?.index);
       return true;
@@ -597,7 +618,7 @@ export class Core {
       ...lineOf(p.path),
       controls: this.#state.controls,
       dock:
-        this.#state.controls !== "hidden"
+        this.#state.controls !== "hidden" && this.#state.controls !== "next"
           ? {
               position: p.pos,
               duration: p.dur,
@@ -608,9 +629,23 @@ export class Core {
             }
           : undefined,
       upNext: this.#state.controls === "upnext" ? this.#upNextTiles() : undefined,
+      next: this.#nextCard(),
       paused: p.paused,
       note: this.#resumeNote,
       volume: this.#state.volumeShown ? this.#state.volume : undefined,
+    };
+  }
+
+  #nextCard(): PlayerOverlay["next"] {
+    const next = this.#controls.next;
+    if (!next || this.#state.controls !== "next") return undefined;
+    const title = cleanTitle(basename(next.path));
+    return {
+      title,
+      ...lineOf(next.path),
+      thumb: this.#thumbs.lookup(next.path),
+      hue: hueFor(title),
+      focusedId: this.#controls.focusedCard(),
     };
   }
 
@@ -701,6 +736,17 @@ export class Core {
               title: card.title,
               left: card.progress?.left ?? "",
               ...(this.#thumbKey(card.path) ? { thumbKey: this.#thumbKey(card.path) } : {}),
+            },
+          }
+        : {}),
+      ...(s.controls === "next" && this.#controls.next
+        ? {
+            next: {
+              title: cleanTitle(basename(this.#controls.next.path)),
+              ...lineOf(this.#controls.next.path),
+              ...(this.#thumbKey(this.#controls.next.path)
+                ? { thumbKey: this.#thumbKey(this.#controls.next.path) }
+                : {}),
             },
           }
         : {}),
@@ -1061,7 +1107,10 @@ export class Core {
   }
 
   #emit(): void {
-    const raised = this.#state.controls !== "hidden" && this.#state.player !== undefined;
+    const raised =
+      this.#state.controls !== "hidden" &&
+      this.#state.controls !== "next" &&
+      this.#state.player !== undefined;
     const level = `${raised}${this.#state.controls === "upnext"}`;
     if (level !== this.#subtitlesRaised) {
       this.#subtitlesRaised = level;

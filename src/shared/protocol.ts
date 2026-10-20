@@ -31,6 +31,7 @@ export const COMMAND_NAMES = [
   "seekTo",
   "volSet",
   "playUpNext",
+  "playNext",
   "typeOpen",
   "typeText",
   "typeSubmit",
@@ -88,7 +89,7 @@ export interface ScreenState {
   player?: { path: string; pos: number; dur: number; paused: boolean };
   subtitlesOn: boolean;
   /** Player controls: the dock is up, or only the video shows. */
-  controls: "hidden" | "dock" | "upnext";
+  controls: "hidden" | "dock" | "upnext" | "next";
   volume: number;
   /** The volume level indicator is on screen. */
   volumeShown?: boolean;
@@ -193,6 +194,8 @@ export interface RemoteSnapshot {
   continueCard?: RemoteContinueCard;
   typeAvailable: boolean;
   typing: "none" | "you" | "other";
+  /** The end-of-video card: the next video in the folder, waiting for a Play press. */
+  next?: { title: string; line?: string; thumbKey?: string };
   nowPlaying?: {
     title: string;
     line?: string;
