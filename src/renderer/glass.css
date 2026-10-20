@@ -597,6 +597,21 @@ svg.i {
 body.windowed {
   --chrome-top: 38px;
 }
+/* ...and that strip, plus the top bar's empty areas, drags the window; the gear stays clickable. */
+body.windowed::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: var(--chrome-top);
+  z-index: 100;
+  -webkit-app-region: drag;
+}
+body.windowed .topbar {
+  -webkit-app-region: drag;
+}
+body.windowed .topbar [data-id] {
+  -webkit-app-region: no-drag;
+}
 
 /* ---- Show and film details, Credits ---- */
 .details-hint {

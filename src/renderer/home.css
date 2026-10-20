@@ -178,7 +178,7 @@
 .h-qr {
   position: absolute;
   right: calc(96 * var(--u));
-  bottom: calc(84 * var(--u));
+  top: calc(160 * var(--u));
   width: calc(220 * var(--u));
   padding: calc(15 * var(--u));
   box-sizing: border-box;

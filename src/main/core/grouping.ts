@@ -1,5 +1,5 @@
 import { basename, dirname, sep } from "node:path";
-import { cleanFolderName, type Title } from "./library.ts";
+import { cleanFolderName, plainTitle, type Title } from "./library.ts";
 
 /** One video file in the index. `folders` is the folder chain below the Library folder `root`. */
 export interface IndexedVideo {
@@ -64,7 +64,7 @@ export interface Grouped {
 }
 
 const EXTRAS_DIR = /(?:^|[\s-])(?:extras?|featurettes?|specials?|bonus|behind the scenes)$/i;
-const SEASON_DIR = /^(?:(.*?)[\s._-]*)?(?:s|season|series)[\s._-]*\d{1,2}$/i;
+const SEASON_DIR = /^(?:(.*?)[\s._-]*)?(?:s|season|series)[\s._-]*(\d{1,2})$/i;
 const YEAR_TAIL = /\s*\(?\b((?:19|20)\d{2})(?:-\d{2,4})?\)?$/;
 const collator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
 
@@ -95,11 +95,12 @@ function mergeKeys(keys: string[]): Map<string, string> {
       }
     return false;
   };
+  const same = (a: string, b: string) => a.replace(/ /g, "") === b.replace(/ /g, "");
   const parent = new Map(keys.map((k) => [k, k]));
   const find = (k: string): string => (parent.get(k) === k ? k : find(parent.get(k)!));
   for (const a of keys)
     for (const b of keys)
-      if (a !== b && expands(a.split(" "), b.split(" "))) {
+      if (a !== b && (same(a, b) || expands(a.split(" "), b.split(" ")))) {
         const [ra, rb] = [find(a), find(b)];
         parent.set(ra.length > rb.length ? rb : ra, ra.length > rb.length ? ra : rb);
       }
@@ -166,10 +167,21 @@ export function groupVideos(videos: IndexedVideo[]): Grouped {
 
   // Rule 1: episodes. Series name from the file, else the nearest non-season folder.
   const found: { v: IndexedVideo; raw: string; name: string; anchor: Anchor }[] = [];
+  const all = videos.map((v): IndexedVideo => {
+    if (v.title.episode === undefined || v.title.season !== undefined) return v;
+    // "Ep 1" without a season only counts inside a season folder.
+    const own = SEASON_DIR.exec(cleanFolderName(basename(dirname(v.path))));
+    if (!own) return { ...v, title: { name: plainTitle(basename(v.path)) } };
+    return { ...v, title: { ...v.title, season: Number(own[2]) } };
+  });
+  videos = all;
   for (const v of videos) {
     if (v.title.episode === undefined) continue;
     const anchor = anchorOf(v);
-    const name = v.title.series || anchor.name;
+    // A tidy tree (episodes in "S01" / "Season 1" folders under one show folder) is named by that folder.
+    const own = SEASON_DIR.exec(cleanFolderName(basename(dirname(v.path))));
+    const tidyTree = own && !own[1]?.trim() && anchor.dir !== undefined;
+    const name = (tidyTree ? "" : v.title.series) || anchor.name;
     const raw = showKey(name);
     if (raw) found.push({ v, raw, name, anchor });
   }

@@ -288,3 +288,65 @@ describe("order and Next up", () => {
     expect(lib.nextUp(history).map((n) => n.show.name)).toEqual(["Other"]);
   });
 });
+
+describe("Cobra Kai's real tree", () => {
+  const counts = [10, 13, 10, 10, 10, 12];
+  const name = (s: number, e: number) =>
+    [
+      `Cobra_Kai_S1 Ep_${e}_720P.mp4`,
+      `Cobra_Kai_S2E${e}_720P.mp4`,
+      `CobraKai_S03e${String(e).padStart(2, "0")}_720p_W3B_DL_x264.mkv`,
+      `Cobra.Kai.S04E${String(e).padStart(2, "0")}.WEBRip.x264-ION10.mp4`,
+      `Cobra.kai.s05e${String(e).padStart(2, "0")}.long.long.way.from.home.mkv`,
+      `Cobra.Kai.S06E${String(e).padStart(2, "0")}.1080p.NF-[y2flix.cc].mp4`,
+    ][s - 1]!;
+
+  test("one show, six seasons, no films", async () => {
+    counts.forEach((n, i) => {
+      for (let e = 1; e <= n; e++)
+        touch("Series", "Cobra.Kai", `Cobra Kai S0${i + 1}`, name(i + 1, e));
+    });
+    touch("Series", "Cobra.Kai", "Cobra Kai S01", "Cobra_Kai_S1Ep10_720P.mp4.bak.txt");
+    const lib = await scanned();
+    expect(lib.shows().map((s) => s.name)).toEqual(["Cobra Kai"]);
+    const show = lib.shows()[0]!;
+    expect(show.seasons.map((s) => [s.number, s.episodes.length])).toEqual(
+      counts.map((n, i) => [i + 1, n]),
+    );
+    expect(show.episodeCount).toBe(65);
+    expect(lib.films()).toEqual([]);
+  });
+
+  test("marker styles", () => {
+    expect(parseTitle("Cobra_Kai_S1 Ep_4_-720P.mp4")).toMatchObject({ season: 1, episode: 4 });
+    expect(parseTitle("Show S01 Ep01.mkv")).toMatchObject({
+      series: "Show",
+      season: 1,
+      episode: 1,
+    });
+    expect(parseTitle("Show Season 2 Episode 5.mkv")).toMatchObject({
+      series: "Show",
+      season: 2,
+      episode: 5,
+    });
+    expect(parseTitle("Ep 3.mkv")).toMatchObject({ episode: 3 });
+    expect(parseTitle("Ep 3.mkv").season).toBeUndefined();
+  });
+
+  test("seasonless episode files take the season from their folder; elsewhere they are films", async () => {
+    touch("Shows", "Dark Matter", "Season 2", "Ep 1.mkv");
+    touch("Shows", "Dark Matter", "Season 2", "E02.mkv");
+    touch("Loose", "Episode 1 The Movie.mkv");
+    const lib = await scanned();
+    const show = lib.shows().find((s) => s.name === "Dark Matter")!;
+    expect(show.seasons.map((s) => [s.number, s.episodes.length])).toEqual([[2, 2]]);
+    expect(lib.films().map((f) => f.title)).toEqual(["Episode 1 The Movie"]);
+  });
+
+  test("Squid Game across two top-level season folders is one show", async () => {
+    touch("Squid.Game.S02", "Squid.Game.S02E01.mkv");
+    touch("Squid.Game.S03", "Squid.Game.S03E01.mkv");
+    const lib = await scanned();
+    expect(lib.shows().map((s) => [s.name, s.seasons.length])).toEqual([["Squid Game", 2]]);
+  });
+});

@@ -99,29 +99,41 @@ export interface Title {
   name: string;
 }
 
-const EPISODE = /(?<!\d)(?:s(\d{1,2})[ ._-]*e(\d{1,3})|(\d{1,2})x(\d{2,3}))(?!\d)/i;
+const EPISODE =
+  /(?<!\d)(?:s(?:eason)?[ ._-]*(\d{1,2})[ ._-]*(?:episode|ep|e)[ ._-]*(\d{1,3})|(\d{1,2})x(\d{2,3}))(?!\d)/i;
+/** "Ep 1", "Episode 1", "E01": an episode whose season comes from its folder. */
+const BARE_EPISODE = /(?<![a-z\d])(?:(?:episode|ep)[ ._-]*(\d{1,3})|e(\d{2,3}))(?![a-z\d])/i;
 
 /** "Arcane S01E01 Welcome to the Playground.mkv" → { series: "Arcane", season: 1, episode: 1, name: "Welcome to the Playground" }. */
 export function parseTitle(fileName: string): Title {
   const ext = extname(fileName).toLowerCase();
   const stem = VIDEO_EXTENSIONS.includes(ext) ? fileName.slice(0, -ext.length) : fileName;
   const normal = stem.replace(/[._]+/g, " ");
-  const m = EPISODE.exec(normal);
+  const full = EPISODE.exec(normal);
+  const m = full ?? BARE_EPISODE.exec(normal);
   if (m) {
-    const season = Number(m[1] ?? m[3]);
-    const episode = Number(m[2] ?? m[4]);
+    const bare = !full;
+    const season = bare ? undefined : Number(m[1] ?? m[3]);
+    const episode = Number(bare ? (m[1] ?? m[2]) : (m[2] ?? m[4]));
     const series = tidy(normal.slice(0, m.index).replace(/[-–:\s]+$/, ""));
     const name = untagged(words(normal.slice(m.index + m[0].length)), 0)
       .join(" ")
       .replace(/^[-–:\s]+|[-–:\s]+$/g, "");
     return {
       ...(series ? { series } : {}),
-      season,
+      ...(season === undefined ? {} : { season }),
       episode,
       name: name || `Episode ${episode}`,
     };
   }
   return { name: tidy(stem) || stem };
+}
+
+/** A file name's cleaned title, ignoring any episode marker. */
+export function plainTitle(fileName: string): string {
+  const ext = extname(fileName).toLowerCase();
+  const stem = VIDEO_EXTENSIONS.includes(ext) ? fileName.slice(0, -ext.length) : fileName;
+  return tidy(stem) || stem;
 }
 
 /** "The.Grand.Budapest.Hotel.2014.1080p.BluRay.x264.mkv" → "The Grand Budapest Hotel (2014)"; episodes give their name. */
@@ -133,7 +145,7 @@ export function cleanTitle(fileName: string): string {
 export function episodeLine(fileName: string): string | undefined {
   const t = parseTitle(fileName);
   if (t.episode === undefined) return undefined;
-  const code = `S${t.season} E${t.episode}`;
+  const code = t.season === undefined ? `E${t.episode}` : `S${t.season} E${t.episode}`;
   return t.series ? `${t.series} · ${code}` : code;
 }
 
