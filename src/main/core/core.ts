@@ -609,11 +609,13 @@ export class Core {
     this.#state.focus.player = { r: next.r, c: next.c };
   }
 
-  #openUpNext(): void {
-    if (!this.#upNextAvailable()) return;
+  /** Opens Up next; false when the folder has no other videos to show. */
+  #openUpNext(): boolean {
+    if (!this.#upNextAvailable()) return false;
     const playing = this.#upNext.findIndex((e) => e.path === this.#state.player?.path);
     this.#state.controls = "upnext";
     this.#state.focus.player = { r: 0, c: Math.max(0, playing) };
+    return true;
   }
 
   #closeUpNext(): void {
@@ -692,8 +694,8 @@ export class Core {
       case "up":
       case "down": {
         if (name === "down" && this.#state.controls !== "upnext") {
-          this.#openUpNext();
-          if (this.#state.controls === "upnext") return true;
+          // #openUpNext does nothing when the folder has no other videos.
+          if (this.#openUpNext()) return true;
         } else if (name === "up" && this.#state.controls === "upnext") return true;
         // Left/Right belong to the bar and the slider, so Up/Down step off them.
         const focused = this.#focusedDock();
