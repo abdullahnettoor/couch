@@ -26,3 +26,4 @@ dist-ssr
 out
 .debug/
 native/mpv-embed/*.node
+.env
