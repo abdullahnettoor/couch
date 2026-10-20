@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { app, BrowserWindow, WebContentsView, session } from "electron";
 import { SCREEN_KEYS } from "../../shared/keyboard.ts";
+import { revealScreen } from "../reveal.ts";
 import { applyCompatPatch } from "./youtube-compat.ts";
 import { CONTROLS_HIDE_MS, SKIP_COMMIT_MS, skipKeys } from "./youtube-skip.ts";
 import { applyToRequestHeaders, buildIdentity } from "./youtube-identity.ts";
@@ -150,7 +151,7 @@ export class ElectronYouTube implements YouTube {
     this.#visible = true;
     this.#fit();
     this.#view.setVisible(true);
-    this.#view.webContents.focus();
+    void revealScreen(this.#win).then(() => this.#view.webContents.focus());
     if (note) void this.#showNote(note);
   }
 

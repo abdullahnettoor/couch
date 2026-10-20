@@ -5,6 +5,7 @@ import type { Command } from "../shared/protocol.ts";
 import type { PlayerEvent } from "../shared/player.ts";
 import { startApp, type CouchApp } from "./app.ts";
 import { pickTargetDisplay } from "./display.ts";
+import { revealScreen } from "./reveal.ts";
 import { systemClock } from "./ports/clock.ts";
 import { createElectronMac } from "./ports/electron-mac.ts";
 import { ElectronYouTube } from "./ports/electron-youtube.ts";
@@ -92,6 +93,8 @@ async function createScreen(): Promise<void> {
   player = new MpvPlayer({
     mpvPath: process.env.COUCH_FORCE_NO_MPV ? undefined : findMpv(),
     screenName: display.label || undefined,
+    // mpv's window opens on the active Space, so make that Couch's before every video.
+    beforeLoad: () => (win ? revealScreen(win) : Promise.resolve()),
   });
   player.onEvent(onPlayerEvent);
   await player.start();

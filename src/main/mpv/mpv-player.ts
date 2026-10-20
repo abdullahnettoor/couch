@@ -14,6 +14,8 @@ export interface MpvPlayerOptions {
   screenName?: string;
   /** Extra mpv arguments (tests use --vo=null --ao=null). */
   extraArgs?: string[];
+  /** Runs before each video loads; the Screen uses it to bring its Space forward. */
+  beforeLoad?: () => Promise<void>;
 }
 
 /**
@@ -136,6 +138,7 @@ export class MpvPlayer implements Player {
     const opts: Record<string, string> = {};
     if (options.subtitles !== undefined) opts["sub-visibility"] = options.subtitles ? "yes" : "no";
     if (options.startSeconds) opts.start = String(options.startSeconds);
+    await this.options.beforeLoad?.();
     await this.send(["loadfile", path, "replace", -1, opts]);
     await this.send(["set_property", "pause", false]);
   }
