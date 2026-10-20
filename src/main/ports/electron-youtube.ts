@@ -124,7 +124,8 @@ export class ElectronYouTube implements YouTube {
     void wc
       .loadURL("about:blank")
       .catch(() => {})
-      .then(() => applyIdentity(wc))
+      // The identity must never hold YouTube back; load anyway if DevTools doesn't answer.
+      .then(() => Promise.race([applyIdentity(wc), new Promise((r) => setTimeout(r, 3000))]))
       .then(() => this.#load());
   }
 
