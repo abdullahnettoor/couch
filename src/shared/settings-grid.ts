@@ -6,6 +6,7 @@ type SettingsItem = Omit<GridItem, "r" | "c">;
 const ITEMS: SettingsItem[] = [
   { id: "add-phone", label: "Add a phone", action: "settings:add-phone", initial: true },
   { id: "forget-phones", label: "Forget all phones", action: "settings:forget-phones" },
+  { id: "library-folders", label: "Library folders", action: "settings:library-folders" },
   { id: "restart-youtube", label: "Restart YouTube", action: "settings:restart-youtube" },
   { id: "quit", label: "Quit Couch", action: "settings:quit" },
 ];

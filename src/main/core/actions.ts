@@ -19,6 +19,7 @@ export type ActionHandler = (ctx: ActionContext) => void;
  */
 const homeActions: Record<string, ActionHandler> = {
   "open:settings": (ctx) => ctx.open("settings"),
+  "open:library": (ctx) => ctx.open("library"),
   "open:youtube": (ctx) => ctx.openYouTube(),
 };
 
@@ -30,6 +31,7 @@ const youtubeActions: Record<string, ActionHandler> = {
 const settingsActions: Record<string, ActionHandler> = {
   "settings:add-phone": (ctx) => ctx.open("addPhone"),
   "settings:forget-phones": (ctx) => ctx.forgetAllPhones(),
+  "settings:library-folders": (ctx) => ctx.open("libraryFolders"),
   "settings:quit": (ctx) => ctx.quit(),
 };
 
@@ -44,4 +46,6 @@ export const BACK_TARGETS: Partial<Record<View, View>> = {
   settings: "home",
   addPhone: "settings",
   youtubeError: "home",
+  libraryFolders: "settings",
+  library: "home",
 };
