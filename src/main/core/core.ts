@@ -17,11 +17,13 @@ import type { Mac } from "../ports/mac.ts";
 import type { YouTube, YouTubeEvent } from "../ports/youtube.ts";
 import { randomBytes } from "node:crypto";
 import type { Store } from "../ports/store.ts";
+import { nullThumbnails, type Thumbnails } from "../ports/thumbnails.ts";
 import { ACTIONS, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
 import { listFolder, rootEntries } from "./library.ts";
 
 const TILE_COLUMNS = 4;
+const THUMBNAIL_JOBS = 2;
 const LIBRARY_VIEWS = ["library", "folder", "libraryFolders"];
 
 export interface Ports {
@@ -30,6 +32,7 @@ export interface Ports {
   mac: Mac;
   clock: Clock;
   store: Store;
+  thumbnails?: Thumbnails;
 }
 
 /** Who sent a command: a connected phone, or the Screen's own keyboard. */
@@ -66,6 +69,9 @@ export class Core {
   #libraryFolders: string[];
   /** The open folder's contents, read fresh each time it is opened. */
   #listing: LibraryEntry[] = [];
+  #thumbQueue: LibraryEntry[] = [];
+  #thumbRunning = 0;
+  #disposed = false;
 
   constructor(ports: Ports) {
     this.#ports = ports;
@@ -185,8 +191,41 @@ export class Core {
     const entries = listFolder(path);
     if (!entries) return this.#toast("Connect the drive to see this folder");
     this.#listing = entries;
+    this.#queueThumbnails(entries);
     this.#state.folderPath = path;
     this.#state.view = "folder";
+  }
+
+  /** Cached pictures appear at once; the rest are made in the background, a couple at a time. */
+  #queueThumbnails(entries: LibraryEntry[]): void {
+    const thumbs = this.#ports.thumbnails ?? nullThumbnails;
+    this.#thumbQueue = [];
+    for (const e of entries) {
+      if (e.kind !== "video") continue;
+      const url = thumbs.cached(e.path);
+      if (url) e.thumb = url;
+      else this.#thumbQueue.push(e);
+    }
+    this.#pumpThumbnails();
+  }
+
+  #pumpThumbnails(): void {
+    const thumbs = this.#ports.thumbnails ?? nullThumbnails;
+    while (!this.#disposed && this.#thumbRunning < THUMBNAIL_JOBS && this.#thumbQueue.length) {
+      const entry = this.#thumbQueue.shift()!;
+      this.#thumbRunning++;
+      void thumbs
+        .make(entry.path)
+        .catch(() => undefined)
+        .then((url) => {
+          this.#thumbRunning--;
+          if (url && !this.#disposed && this.#listing.includes(entry)) {
+            entry.thumb = url;
+            this.#emit();
+          }
+          this.#pumpThumbnails();
+        });
+    }
   }
 
   #libraryAction(action: string): boolean {
@@ -335,6 +374,7 @@ export class Core {
   }
 
   dispose(): void {
+    this.#disposed = true;
     this.#cancelToast?.();
     this.#cancelMinute?.();
     this.#ytOff();
