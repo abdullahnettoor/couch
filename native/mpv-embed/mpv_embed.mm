@@ -66,6 +66,8 @@ static void *getProc(void *, const char *name) {
 @property(nonatomic) CFTimeInterval lastSample;
 @property(atomic) float r, g, b;
 @property(atomic) BOOL hasColor;
+// Set by getColor(): only the tinted fallback reads the colour, so only then is the frame sampled.
+@property(atomic) BOOL wantsColor;
 @end
 
 static void onUpdate(void *ctx) {
@@ -129,7 +131,7 @@ static void onUpdate(void *ctx) {
     {MPV_RENDER_PARAM_BLOCK_FOR_TARGET_TIME, &block}, {MPV_RENDER_PARAM_INVALID, NULL}};
   api.render_render(self.render, params);
   CFTimeInterval now = CACurrentMediaTime();
-  if (now - self.lastSample > 0.9) {
+  if (self.wantsColor && now - self.lastSample > 0.9) {
     // Average an 8x8 grid of pixels: the video's main colour, for the tinted fallback.
     self.lastSample = now;
     int w = f.w, h = f.h; double sr = 0, sg = 0, sb = 0; int n = 0;
@@ -297,6 +299,7 @@ static napi_value GetColor(napi_env env, napi_callback_info info) {
   int32_t id; napi_get_value_int32(env, argv[0], &id);
   MpvView *v = views[id];
   napi_value out;
+  if (v) ((MpvLayer *)v.layer).wantsColor = YES;
   if (!v || !((MpvLayer *)v.layer).hasColor) { napi_get_null(env, &out); return out; }
   MpvLayer *l = (MpvLayer *)v.layer;
   napi_create_array_with_length(env, 3, &out);

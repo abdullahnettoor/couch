@@ -44,5 +44,8 @@ const child = spawn(
     env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined },
   },
 );
-child.on("exit", (code) => process.exit(code ?? 0));
+child.on("exit", (code, signal) => {
+  if (signal) process.kill(process.pid, signal);
+  process.exit(code ?? 1);
+});
 for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => child.kill(sig));

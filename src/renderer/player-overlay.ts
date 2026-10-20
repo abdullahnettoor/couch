@@ -295,23 +295,38 @@ function reportGlass(): void {
 }
 function glassLoop(): void {
   reportGlass();
-  if (el.hidden || !nativeGlass) {
+  if (el.hidden || !nativeGlass || !glassPanelsVisible()) {
     glassRunning = false;
     return;
   }
   requestAnimationFrame(glassLoop);
+}
+/** True while a panel is meant to show, or is still fading out. */
+function glassPanelsVisible(): boolean {
+  return (
+    el.classList.contains("controls") ||
+    upNextRow.classList.contains("show") ||
+    glassPanels.some((node) => Number(getComputedStyle(node).opacity) > 0)
+  );
 }
 let nativeGlass = false;
 export function setNativeGlass(on: boolean): void {
   nativeGlass = on;
   document.documentElement.classList.toggle("native-glass", on);
 }
-new MutationObserver(() => {
-  if (el.hidden) reportGlass();
+function startGlassLoop(): void {
   if (!nativeGlass || glassRunning || el.hidden) return;
   glassRunning = true;
   requestAnimationFrame(glassLoop);
+}
+new MutationObserver(() => {
+  if (el.hidden) reportGlass();
+  startGlassLoop();
 }).observe(el, { attributes: true, attributeFilter: ["hidden", "class"] });
+new MutationObserver(startGlassLoop).observe(upNextRow, {
+  attributes: true,
+  attributeFilter: ["class"],
+});
 window.addEventListener("resize", reportGlass);
 
 export function setVideoTint(css: string | undefined): void {
