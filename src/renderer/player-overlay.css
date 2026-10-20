@@ -393,6 +393,7 @@ body.video-pending #volume {
   background: rgba(20, 20, 24, 0.1);
   backdrop-filter: none;
   box-shadow: var(--glass-edge);
+}
 
 .po-next {
   position: absolute;
