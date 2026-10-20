@@ -562,6 +562,7 @@ export class Core {
       view: s.view,
       typeAvailable: s.view === "youtube",
       showVolume: s.view === "youtube",
+      showSkip: s.view === "youtube",
       typing: s.typingBy === undefined ? "none" : s.typingBy === remote ? "you" : "other",
       nowPlaying: s.player && {
         title: cleanTitle(basename(s.player.path)),
@@ -629,6 +630,9 @@ export class Core {
         break;
       case "playpause":
         if (this.#state.view === "youtube") this.#ports.youtube.playPause();
+        break;
+      case "seekBy":
+        if (this.#state.view === "youtube") this.#ports.youtube.seekBy(command.args?.seconds ?? 0);
         break;
       case "volUp":
       case "volDown":

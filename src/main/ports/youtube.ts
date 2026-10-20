@@ -23,6 +23,8 @@ export interface YouTube {
   setSearchText(text: string): void;
   submitSearch(): void;
   playPause(): void;
+  /** Skips the playing video forward (+) or back (−) by this many seconds. */
+  seekBy(seconds: number): void;
   /** Draws the volume level above the view, or removes it when undefined. */
   showVolume(percent: number | undefined): void;
   restart(): void;

@@ -141,4 +141,17 @@ describe("YouTube App", () => {
     await phone.press("home");
     expect(phone.last?.showVolume).toBe(false);
   });
+
+  test("skip buttons show in YouTube only and seekBy goes to the YouTube port", async () => {
+    expect(phone.last?.showSkip).toBe(false);
+    await phone.press({ command: "seekBy", args: { seconds: 10 } });
+    expect(calls("seekBy")).toHaveLength(0);
+    await openYouTube();
+    expect(phone.last?.showSkip).toBe(true);
+    await phone.press({ command: "seekBy", args: { seconds: 10 } });
+    await phone.press({ command: "seekBy", args: { seconds: -10 } });
+    expect(calls("seekBy").map((c) => c.args[0])).toEqual([10, -10]);
+    await phone.press("home");
+    expect(phone.last?.showSkip).toBe(false);
+  });
 });

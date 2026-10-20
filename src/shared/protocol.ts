@@ -154,6 +154,8 @@ export interface RemoteSnapshot {
   };
   /** The Remote shows its volume −/+ pair (YouTube). */
   showVolume: boolean;
+  /** The Remote shows its −10 s / +10 s pair (YouTube). */
+  showSkip: boolean;
   volume: number;
   remotes: number;
 }

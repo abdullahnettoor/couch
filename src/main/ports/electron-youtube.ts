@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { app, BrowserWindow, WebContentsView, session } from "electron";
 import { SCREEN_KEYS } from "../../shared/keyboard.ts";
 import { applyCompatPatch } from "./youtube-compat.ts";
+import { CONTROLS_HIDE_MS, SKIP_COMMIT_MS, skipKeys } from "./youtube-skip.ts";
 import { applyToRequestHeaders, buildIdentity } from "./youtube-identity.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "./youtube.ts";
 
@@ -54,6 +55,8 @@ export class ElectronYouTube implements YouTube {
   #inSearch = false;
   #query = "";
   #typingTimer: ReturnType<typeof setTimeout> | undefined;
+  #skipTimer: ReturnType<typeof setTimeout> | undefined;
+  #lastSkipAt = 0;
 
   constructor(win: BrowserWindow) {
     this.#win = win;
@@ -202,6 +205,22 @@ export class ElectronYouTube implements YouTube {
     const wc = this.#view.webContents;
     wc.sendInputEvent({ type: "keyDown", keyCode: "MediaPlayPause" });
     wc.sendInputEvent({ type: "keyUp", keyCode: "MediaPlayPause" });
+  }
+
+  /**
+   * Skips by driving YouTube's own scrubber with keys (Left/Right, then OK after the last press).
+   * j/l, media fast-forward keys and bare arrows do not seek in the TV player.
+   */
+  seekBy(seconds: number): void {
+    const now = Date.now();
+    for (const key of skipKeys(seconds, now - this.#lastSkipAt < CONTROLS_HIDE_MS))
+      this.sendKey(key);
+    this.#lastSkipAt = now;
+    clearTimeout(this.#skipTimer);
+    this.#skipTimer = setTimeout(() => {
+      this.sendKey("ok");
+      this.#lastSkipAt = 0;
+    }, SKIP_COMMIT_MS);
   }
 
   openSearch(): void {

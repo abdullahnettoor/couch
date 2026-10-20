@@ -9,6 +9,7 @@ export const nullYouTube: YouTube = {
   setSearchText() {},
   submitSearch() {},
   playPause() {},
+  seekBy() {},
   showVolume() {},
   restart() {},
   onEvent: () => () => {},

@@ -94,6 +94,10 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     <button class="rbtn" data-cmd="volDown" aria-label="Volume down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
     <button class="rbtn" data-cmd="volUp" aria-label="Volume up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14M12 5v14"/></svg></button>
   </div>
+  <div class="row" id="skip" hidden style="margin-top:12px;grid-template-columns:1fr 1fr">
+    <button class="rbtn" data-cmd="seekBy" data-seconds="-10" aria-label="Back 10 seconds">⏪ 10 s</button>
+    <button class="rbtn" data-cmd="seekBy" data-seconds="10" aria-label="Forward 10 seconds">⏩ 10 s</button>
+  </div>
   <button class="type" id="type" data-cmd="typeOpen">Type</button>
   <div class="where" id="other" hidden>Typing on another phone</div>
 </main>
@@ -149,6 +153,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     if (mine && $("sheet").hidden) { $("text").value = ""; $("sheet").hidden = false; $("text").focus(); }
     if (!mine) { $("sheet").hidden = true; $("text").blur(); }
     $("vol").hidden = !s.showVolume;
+    $("skip").hidden = !s.showSkip;
   }
 
   var duration = 0;
