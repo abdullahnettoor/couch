@@ -1,3 +1,5 @@
+import { ICON_PATHS } from "../../shared/icons.ts";
+
 /** The Remote page, served as one self-contained document (no build step for it). Plain ES5-ish JS, no template literals. */
 export const REMOTE_PAGE = String.raw`<!doctype html>
 <html lang="en">
@@ -7,109 +9,141 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 <meta name="theme-color" content="#161412">
 <title>Couch Remote</title>
 <style>
-  :root { --ink:#f3ede4; --ink-2:#c9bfb1; --ink-3:#8f8577; --surface:#1b1916; --surface-2:#26231f; --surface-3:#34302a; --lamp:#f2b45a; font-family: system-ui, sans-serif; color: var(--ink); background:#161412; }
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin:0; height:100%; background:#161412; overscroll-behavior:none; }
-  body { display:flex; flex-direction:column; padding:18px 18px 24px; max-width:480px; margin:0 auto; user-select:none; -webkit-user-select:none; }
-  .top { display:flex; justify-content:space-between; font-size:13px; color:var(--ink-3); padding:4px 6px 0; }
-  .top .who { display:flex; align-items:center; gap:8px; color:var(--ink-2); font-weight:500; }
-  .dot { width:8px; height:8px; border-radius:50%; background:#7bc47f; }
-  .off .dot { background:#8a4a44; }
-  .where { margin:14px 6px 0; font-size:14px; color:var(--ink-3); }
-  .where b { color:var(--ink); font-weight:600; }
-  .banner { margin:12px 6px 0; padding:10px 14px; border-radius:12px; background:#3a2a10; color:#f2d9a8; font-size:14px; }
-  main { flex:1; display:flex; flex-direction:column; justify-content:center; }
+  :root { --t1:#fff; --t2:rgba(235,235,245,.74); --t3:rgba(235,235,245,.52); --card:#2c2c2e; --card-2:#48484a; --live:#30d158; --danger:#ff453a; font-family:-apple-system,"SF Pro Text",system-ui,sans-serif; -webkit-font-smoothing:antialiased; color:var(--t1); background:#000; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; background:radial-gradient(80% 60% at 50% 0%, #2c2c2e, #000 70%) fixed; overscroll-behavior:none; }
+  body { display:flex; flex-direction:column; min-height:100dvh; padding:max(18px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom)); max-width:480px; margin:0 auto; user-select:none; -webkit-user-select:none; font-size:16px; }
   [hidden] { display:none !important; }
-  button { font:inherit; color:inherit; border:0; cursor:pointer; }
+  button { font:inherit; color:inherit; border:0; background:none; padding:0; cursor:pointer; }
   button:disabled { opacity:.35; }
-  .controls { transition: opacity .2s; }
-  .off .controls { opacity:.35; pointer-events:none; }
-  .dpad { position:relative; width:min(268px, 72vw); aspect-ratio:1; margin:0 auto 28px; border-radius:50%; background:var(--surface); box-shadow: inset 0 0 0 1px #2c2925; }
-  .arrow { position:absolute; width:31%; height:31%; background:transparent; border-radius:50%; color:var(--ink-2); display:grid; place-items:center; }
-  .arrow:active { background:var(--surface-3); }
-  .arrow svg, .rbtn svg { width:24px; height:24px; }
-  .up { left:34.5%; top:1.5%; } .down { left:34.5%; bottom:1.5%; } .left { left:1.5%; top:34.5%; } .right { right:1.5%; top:34.5%; }
-  .ok { position:absolute; left:27.6%; top:27.6%; width:44.8%; height:44.8%; border-radius:50%; background:var(--surface-3); font-weight:600; font-size:17px; letter-spacing:.02em; box-shadow:0 6px 16px rgba(0,0,0,.4); }
-  .ok:active { background:#403a33; }
-  .row { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
-  .rbtn { height:60px; background:var(--surface-2); border-radius:18px; display:grid; place-items:center; transition: transform .12s; }
-  .rbtn:active { transform:scale(.94); background:var(--surface-3); }
-  .rbtn.primary { background:var(--ink); color:#16130f; }
-  .np { margin:0 auto 24px; width:100%; }
-  .np .t { font-size:20px; font-weight:600; text-align:center; }
-  .np .f { font-size:14px; color:var(--ink-3); text-align:center; margin-top:4px; }
-  .seek { margin:22px 0 6px; padding:12px 0; cursor:pointer; touch-action:none; }
-  .seek .track { height:8px; border-radius:4px; background:var(--surface-3); overflow:hidden; }
-  .seek .fill { height:100%; width:0; background:var(--lamp); }
-  .times { display:flex; justify-content:space-between; font-size:13px; color:var(--ink-3); margin-bottom:18px; }
-  .np .row { margin-bottom:12px; }
-  .np .rbtn { font-size:15px; font-weight:600; }
-  .np .rbtn.on { color:var(--lamp); }
-  .type.dim { opacity:.35; }
+  svg.i { width:1em; height:1em; display:block; fill:currentColor; flex:none; }
+  .top { display:flex; justify-content:space-between; align-items:center; color:var(--t3); font-size:14px; }
+  .top b { display:block; color:var(--t1); font-size:19px; margin-top:2px; }
+  .live { display:flex; align-items:center; gap:6px; font-size:13px; }
+  .live i { width:8px; height:8px; border-radius:4px; background:var(--live); }
+  .off .live i { background:var(--danger); }
+  .banner { margin-top:12px; padding:10px 14px; border-radius:14px; background:#3a2a10; color:#f2d9a8; font-size:14px; }
+  .note { margin-top:10px; font-size:14px; color:var(--t3); }
+  main { flex:1; display:flex; flex-direction:column; transition:opacity .2s; }
+  .off main { opacity:.35; pointer-events:none; }
+  .pad { margin:26px auto 0; width:min(270px, 70vw); aspect-ratio:1; border-radius:50%; position:relative; background:radial-gradient(circle at 50% 35%, #3a3a3c, var(--card)); box-shadow:inset 0 0 0 1px rgba(255,255,255,.06), 0 18px 40px rgba(0,0,0,.4); flex:none; }
+  .dir { position:absolute; width:24%; height:24%; display:grid; place-items:center; color:var(--t3); font-size:26px; border-radius:50%; }
+  .dir:active { background:rgba(255,255,255,.12); }
+  .dir.u { left:38%; top:2%; } .dir.d { left:38%; bottom:2%; } .dir.l { left:2%; top:38%; } .dir.r { right:2%; top:38%; }
+  .ok { position:absolute; left:25%; top:25%; width:50%; height:50%; border-radius:50%; background:var(--card-2); box-shadow:inset 0 1px 0 rgba(255,255,255,.12); font-size:19px; font-weight:600; }
+  .ok:active { background:#5a5a5c; }
+  .keys { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:22px; }
+  .k { height:64px; border-radius:32px; background:var(--card); display:flex; align-items:center; justify-content:center; gap:8px; font-size:15px; font-weight:600; box-shadow:inset 0 1px 0 rgba(255,255,255,.07); font-size:26px; transition:transform .12s; }
+  .k:active { transform:scale(.95); background:var(--card-2); }
+  .k.hero { background:#fff; color:#000; }
+  .k.txt { font-size:15px; }
+  .k.on { background:#fff; color:#000; }
+  .vol .k:nth-child(2) { gap:2px; color:var(--t3); }
+  .vol .k:nth-child(2) svg { margin:0 4px; }
+  .volpill { justify-content:space-around; padding:0 4px; font-size:20px; }
+  .volpill button { width:38px; height:48px; display:grid; place-items:center; }
+  .volpill span { color:var(--t3); font-size:22px; display:grid; }
+  .bottom { margin-top:auto; padding-top:22px; }
+  .search { margin-top:18px; height:56px; border-radius:28px; background:var(--card); display:flex; align-items:center; gap:12px; padding:0 20px; color:var(--t3); font-size:17px; width:100%; }
+  .search svg { font-size:22px; }
+  .search.dim { opacity:.35; }
+  .cw { margin-top:18px; display:flex; gap:14px; align-items:center; padding:10px; border-radius:20px; background:var(--card); width:100%; text-align:left; }
+  .cw .pic { width:104px; height:58px; border-radius:10px; background:#3a3a3c center/cover; flex:none; }
+  .cw b { display:block; font-size:16px; }
+  .cw span.l { font-size:13px; color:var(--t3); }
+  .cw .txt { min-width:0; flex:1; }
+  .cw .txt b { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cw .go { width:44px; height:44px; border-radius:22px; background:#fff; color:#000; display:grid; place-items:center; font-size:22px; flex:none; }
+  .art { margin-top:18px; height:180px; border-radius:20px; overflow:hidden; background:linear-gradient(135deg,#3a3a3c,#1c1c1e) center/cover; }
+  .np h3 { margin:14px 0 0; font-size:21px; }
+  .np .f { color:var(--t3); font-size:14px; margin-top:2px; }
+  .seek { margin-top:6px; padding:14px 0; touch-action:none; cursor:pointer; position:relative; }
+  .seek .bar { height:8px; border-radius:4px; background:rgba(255,255,255,.2); position:relative; }
+  .seek .fill { position:absolute; inset:0 auto 0 0; width:0; background:#fff; border-radius:4px; }
+  .seek .knob { position:absolute; top:-7px; left:0; width:22px; height:22px; margin-left:-11px; border-radius:11px; background:#fff; box-shadow:0 2px 6px rgba(0,0,0,.4); }
+  .tm { display:flex; justify-content:space-between; font-size:13px; color:var(--t3); font-weight:600; font-variant-numeric:tabular-nums; }
+  .tr { display:flex; justify-content:space-around; align-items:center; margin-top:8px; font-size:38px; }
+  .tr button { width:64px; height:64px; display:grid; place-items:center; border-radius:50%; }
+  .tr button:active { background:rgba(255,255,255,.12); }
+  .tr .pp { font-size:56px; }
+  .ex { display:grid; grid-template-columns:1.3fr 1fr 1fr; gap:10px; margin-top:10px; }
+  .ex .k { height:52px; border-radius:16px; font-size:22px; }
+  .ex .k.txt { font-size:15px; }
+  .upn { margin-top:16px; }
+  .upn .h { font-size:14px; font-weight:600; color:var(--t3); margin-bottom:8px; }
+  .upn .list { display:flex; gap:10px; overflow-x:auto; scrollbar-width:none; }
+  .upn .e { width:120px; flex:none; text-align:left; }
+  .upn .e .pic { width:120px; height:68px; border-radius:10px; background:#3a3a3c center/cover; position:relative; }
+  .upn .e.now .pic { box-shadow:0 0 0 2px #fff; }
+  .upn .e span { display:block; font-size:12px; margin-top:4px; color:var(--t2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .upn .e.seen { opacity:.55; }
+  .other { margin-top:16px; padding:12px 16px; border-radius:14px; background:var(--card); font-size:14px; color:var(--t2); }
   .sheet { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:flex-end; z-index:5; }
-  .sheet form { width:100%; max-width:480px; margin:0 auto; padding:18px; background:var(--surface); border-radius:22px 22px 0 0; display:grid; gap:12px; }
-  .sheet input { width:100%; height:52px; border-radius:14px; border:1px solid var(--surface-3); background:var(--surface-2); color:var(--ink); font:inherit; font-size:18px; padding:0 14px; user-select:text; -webkit-user-select:text; }
-  .sheet .btns { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-  .sheet .btns button { height:50px; border-radius:16px; background:var(--surface-2); }
-  .sheet .btns .go { background:var(--lamp); color:#16130f; font-weight:600; }
-  .type { margin-top:12px; width:100%; height:54px; border-radius:18px; background:var(--surface-2); color:var(--ink-2); font-size:15px; font-weight:500; }
+  .sheet form { width:100%; max-width:480px; margin:0 auto; padding:22px 20px; background:var(--card); border-radius:30px 30px 0 0; display:grid; gap:12px; box-shadow:0 -20px 50px rgba(0,0,0,.5); }
+  .sheet input { width:100%; height:56px; border-radius:16px; border:0; background:#1c1c1e; color:#fff; font:inherit; font-size:19px; padding:0 16px; user-select:text; -webkit-user-select:text; caret-color:#0a84ff; }
+  .sheet .btns { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .sheet .btns .k { background:#48484a; border-radius:16px; height:56px; font-size:17px; }
+  .sheet .btns .k.hero { background:#fff; }
 </style>
 </head>
 <body>
-<div class="top"><span class="who"><span class="dot"></span><span id="status">Connecting…</span></span><span id="count"></span></div>
-<div class="where" id="where"></div>
+<div class="top"><div>On the Screen<b id="where"></b></div><div class="live"><i></i><span id="status">Connecting…</span><span id="count"></span></div></div>
 <div class="banner" id="banner" hidden>Can't reach Couch. Is the Mac awake and Couch open?</div>
-<div class="where" id="hint" hidden>Still nothing? Scan the QR code on the Screen again to pair this phone.</div>
-<main class="controls" id="controls">
+<div class="note" id="hint" hidden>Still nothing? Scan the QR code on the Screen again to pair this phone.</div>
+<main id="controls">
+  <button class="cw" id="cw" data-cmd="resume" hidden><span class="pic" id="cw-pic"></span><span class="txt"><b id="cw-title"></b><span class="l" id="cw-left"></span></span><span class="go" data-i="play"></span></button>
+  <button class="search" id="search" data-cmd="typeOpen" hidden><span data-i="search"></span>Search YouTube</button>
   <div class="np" id="np" hidden>
-    <div class="t" id="np-title"></div>
-    <div class="f" id="np-folder"></div>
-    <div class="seek" id="seek"><div class="track"><div class="fill" id="np-fill"></div></div></div>
-    <div class="times"><span id="np-elapsed"></span><span id="np-remaining"></span></div>
-    <div class="row">
-      <button class="rbtn" data-cmd="seekBy" data-seconds="-10" aria-label="Back 10 seconds">−10 s</button>
-      <button class="rbtn primary" data-cmd="playpause" aria-label="Play or pause" id="np-pp">Pause</button>
-      <button class="rbtn" data-cmd="seekBy" data-seconds="10" aria-label="Forward 10 seconds">+10 s</button>
+    <div class="art" id="np-art"></div>
+    <h3 id="np-title"></h3><div class="f" id="np-folder"></div>
+    <div class="seek" id="seek"><div class="bar"><div class="fill" id="np-fill"></div><div class="knob" id="np-knob"></div></div></div>
+    <div class="tm"><span id="np-elapsed"></span><span id="np-remaining"></span></div>
+    <div class="tr">
+      <button data-cmd="seekBy" data-seconds="-10" aria-label="Back 10 seconds" data-i="back10"></button>
+      <button class="pp" data-cmd="playpause" aria-label="Play or pause" id="np-pp"></button>
+      <button data-cmd="seekBy" data-seconds="10" aria-label="Forward 10 seconds" data-i="fwd10"></button>
     </div>
-    <div class="row">
-      <button class="rbtn" data-cmd="volDown" aria-label="Volume down">Vol −</button>
-      <button class="rbtn" data-cmd="subtitles" id="np-subs">Subtitles</button>
-      <button class="rbtn" data-cmd="volUp" aria-label="Volume up">Vol +</button>
+    <div class="ex">
+      <button class="k txt" data-cmd="subtitles" id="np-subs"><span data-i="cc" style="font-size:26px"></span>Subtitles</button>
+      <button class="k" data-cmd="volDown" aria-label="Volume down" data-i="minus"></button>
+      <button class="k" data-cmd="volUp" aria-label="Volume up" data-i="plus"></button>
     </div>
-    <div class="times"><span></span><span id="np-vol"></span></div>
+    <div class="upn" id="upn" hidden><div class="h">Up next</div><div class="list" id="upn-list"></div></div>
   </div>
-  <div class="dpad" id="dpad">
-    <button class="arrow up" data-cmd="up" aria-label="Up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg></button>
-    <button class="arrow down" data-cmd="down" aria-label="Down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
-    <button class="arrow left" data-cmd="left" aria-label="Left"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
-    <button class="arrow right" data-cmd="right" aria-label="Right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
+  <div class="pad" id="dpad">
+    <button class="dir u" data-cmd="up" aria-label="Up" data-i="up"></button>
+    <button class="dir d" data-cmd="down" aria-label="Down" data-i="down"></button>
+    <button class="dir l" data-cmd="left" aria-label="Left" data-i="left"></button>
+    <button class="dir r" data-cmd="right" aria-label="Right" data-i="right"></button>
     <button class="ok" data-cmd="ok">OK</button>
   </div>
-  <div class="row">
-    <button class="rbtn" data-cmd="back" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg></button>
-    <button class="rbtn" data-cmd="home" aria-label="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/></svg></button>
-    <button class="rbtn primary" data-cmd="playpause" aria-label="Play or pause"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5v14l9-7z" fill="currentColor" stroke="none"/><path d="M15 5v14M20 5v14"/></svg></button>
+  <div class="keys vol" id="vol" hidden>
+    <button class="k" data-cmd="volDown" aria-label="Volume down" data-i="minus"></button>
+    <div class="k" style="pointer-events:none;background:none;box-shadow:none" data-i="speaker"></div>
+    <button class="k" data-cmd="volUp" aria-label="Volume up" data-i="plus"></button>
   </div>
-  <div class="row vol" id="vol" hidden style="margin-top:12px;grid-template-columns:1fr 1fr">
-    <button class="rbtn" data-cmd="volDown" aria-label="Volume down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
-    <button class="rbtn" data-cmd="volUp" aria-label="Volume up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14M12 5v14"/></svg></button>
+  <div class="keys" id="skip" hidden>
+    <button class="k" data-cmd="seekBy" data-seconds="-10" aria-label="Back 10 seconds" data-i="back10"></button>
+    <div class="k volpill"><button data-cmd="volDown" aria-label="Volume down" data-i="minus"></button><span data-i="speaker"></span><button data-cmd="volUp" aria-label="Volume up" data-i="plus"></button></div>
+    <button class="k" data-cmd="seekBy" data-seconds="10" aria-label="Forward 10 seconds" data-i="fwd10"></button>
   </div>
-  <div class="row" id="skip" hidden style="margin-top:12px;grid-template-columns:1fr 1fr">
-    <button class="rbtn" data-cmd="seekBy" data-seconds="-10" aria-label="Back 10 seconds">⏪ 10 s</button>
-    <button class="rbtn" data-cmd="seekBy" data-seconds="10" aria-label="Forward 10 seconds">⏩ 10 s</button>
+  <div class="other" id="other" hidden>Typing on another phone</div>
+  <div class="keys bottom">
+    <button class="k" data-cmd="back" aria-label="Back" data-i="backArrow"></button>
+    <button class="k" data-cmd="home" aria-label="Home" data-i="home"></button>
+    <button class="k" data-cmd="playpause" aria-label="Play or pause" data-i="playpause"></button>
   </div>
-  <button class="type" id="type" data-cmd="typeOpen">Type</button>
-  <div class="where" id="other" hidden>Typing on another phone</div>
 </main>
 <div class="sheet" id="sheet" hidden>
   <form id="form" autocomplete="off">
     <input id="text" type="text" enterkeyhint="search" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Search YouTube">
-    <div class="btns"><button type="button" id="cancel">Cancel</button><button type="submit" class="go">Search</button></div>
+    <div class="btns"><button type="button" class="k txt" id="cancel">Cancel</button><button type="submit" class="k hero txt">Search</button></div>
   </form>
 </div>
 <script>
 (function () {
-  var ws = null, retry = 0, timer = null, open = false;
+  var ICONS = __ICONS__;
+  var ws = null, retry = 0, timer = null, open = false, duration = 0, dragging = false;
   var KEY = "couch-key";
   var fromUrl = new URLSearchParams(location.search).get("key");
   if (fromUrl) {
@@ -118,6 +152,13 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   }
   var key = fromUrl || (function () { try { return localStorage.getItem(KEY); } catch (e) { return null; } })() || "";
   var $ = function (id) { return document.getElementById(id); };
+  function icon(name) { return '<svg class="i" viewBox="0 0 24 24" aria-hidden="true">' + ICONS[name] + "</svg>"; }
+  function fill(root) {
+    var els = root.querySelectorAll("[data-i]");
+    for (var i = 0; i < els.length; i++) els[i].insertAdjacentHTML("afterbegin", icon(els[i].getAttribute("data-i")));
+  }
+  fill(document);
+  function thumb(k) { return "url(/thumb/" + k + ".jpg?key=" + encodeURIComponent(key) + ")"; }
 
   function setOnline(on) {
     open = on;
@@ -127,48 +168,99 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     $("status").textContent = on ? "Connected" : "Offline";
   }
 
-  function render(s) {
-    $("where").innerHTML = "On the Screen: <b></b>";
-    $("where").firstChild.nextSibling.textContent = s.where;
-    $("count").textContent = s.remotes === 1 ? "1 phone" : s.remotes + " phones";
-    var np = s.nowPlaying;
-    $("np").hidden = !np;
-    $("dpad").hidden = !!np;
-    $("type").hidden = !!np;
-    if (np) {
-      duration = np.duration;
-      $("np-title").textContent = np.title;
-      $("np-folder").textContent = np.folder;
-      $("np-fill").style.width = (np.duration > 0 ? Math.min(100, (np.position / np.duration) * 100) : 0) + "%";
-      $("np-elapsed").textContent = fmt(np.position);
-      $("np-remaining").textContent = "-" + fmt(Math.max(0, np.duration - np.position));
-      $("np-pp").textContent = np.paused ? "Play" : "Pause";
-      $("np-subs").textContent = np.subtitlesOn ? "Subtitles on" : "Subtitles off";
-      $("np-subs").classList.toggle("on", np.subtitlesOn);
-      $("np-vol").textContent = "Volume " + s.volume + "%";
-    }
-    $("type").classList.toggle("dim", !s.typeAvailable);
-    $("other").hidden = s.typing !== "other";
-    var mine = s.typing === "you";
-    if (mine && $("sheet").hidden) { $("text").value = ""; $("sheet").hidden = false; $("text").focus(); }
-    if (!mine) { $("sheet").hidden = true; $("text").blur(); }
-    $("vol").hidden = !s.showVolume;
-    $("skip").hidden = !s.showSkip;
-  }
-
-  var duration = 0;
   function fmt(t) {
     t = Math.max(0, Math.floor(t));
     var h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60;
     return (h ? h + ":" + (m < 10 ? "0" : "") + m : m) + ":" + (sec < 10 ? "0" : "") + sec;
   }
 
-  $("seek").addEventListener("click", function (e) {
+  function showProgress(pos) {
+    var pct = duration > 0 ? Math.min(100, Math.max(0, (pos / duration) * 100)) : 0;
+    $("np-fill").style.width = pct + "%";
+    $("np-knob").style.left = pct + "%";
+    $("np-elapsed").textContent = fmt(pos);
+    $("np-remaining").textContent = "-" + fmt(Math.max(0, duration - pos));
+  }
+
+  function renderUpNext(items) {
+    var box = $("upn-list");
+    $("upn").hidden = !items || items.length < 2;
+    box.textContent = "";
+    if (!items) return;
+    items.forEach(function (it, i) {
+      var b = document.createElement("button");
+      b.className = "e" + (it.playing ? " now" : "") + (it.watched && !it.playing ? " seen" : "");
+      var pic = document.createElement("div");
+      pic.className = "pic";
+      if (it.thumbKey) pic.style.backgroundImage = thumb(it.thumbKey);
+      var t = document.createElement("span");
+      t.textContent = it.title;
+      b.appendChild(pic); b.appendChild(t);
+      b.addEventListener("click", function () { sendArgs("playUpNext", { index: i }); });
+      box.appendChild(b);
+    });
+  }
+
+  function render(s) {
+    var L = s.layout || "other";
+    $("where").textContent = s.where;
+    $("count").textContent = s.remotes === 1 ? " · 1 phone" : " · " + s.remotes + " phones";
+    var np = s.nowPlaying;
+    $("np").hidden = !np;
+    $("dpad").hidden = !!np;
+    $("cw").hidden = L !== "home" || !s.continueCard;
+    if (s.continueCard) {
+      $("cw-title").textContent = s.continueCard.title;
+      $("cw-left").textContent = s.continueCard.left;
+      $("cw-pic").style.backgroundImage = s.continueCard.thumbKey ? thumb(s.continueCard.thumbKey) : "none";
+    }
+    $("search").hidden = L !== "youtube" || !!np;
+    $("search").classList.toggle("dim", !s.typeAvailable);
+    $("vol").hidden = !(L === "home" || L === "other") || !!np;
+    $("skip").hidden = !s.showSkip || !!np;
+    if (np) {
+      duration = np.duration;
+      $("np-title").textContent = np.title;
+      $("np-folder").textContent = np.folder;
+      if (!dragging) showProgress(np.position);
+      $("np-pp").innerHTML = icon(np.paused ? "play" : "pause");
+      $("np-subs").classList.toggle("on", np.subtitlesOn);
+      var playing = (s.upNext || []).filter(function (u) { return u.playing && u.thumbKey; })[0];
+      $("np-art").style.backgroundImage = playing ? thumb(playing.thumbKey) : "none";
+      renderUpNext(s.upNext);
+    }
+    $("other").hidden = s.typing !== "other";
+    var mine = s.typing === "you";
+    if (mine && $("sheet").hidden) { $("text").value = ""; $("sheet").hidden = false; $("text").focus(); }
+    if (!mine) { $("sheet").hidden = true; $("text").blur(); }
+  }
+
+  function sendArgs(command, args) {
+    if (!open) return;
+    if (navigator.vibrate) navigator.vibrate(12);
+    ws.send(JSON.stringify({ type: "command", command: command, args: args }));
+  }
+
+  var seek = $("seek");
+  function fracAt(e) {
+    var r = seek.getBoundingClientRect();
+    return Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+  }
+  seek.addEventListener("pointerdown", function (e) {
     if (!open || !(duration > 0)) return;
-    var r = this.getBoundingClientRect();
-    var frac = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
-    ws.send(JSON.stringify({ type: "command", command: "seekTo", args: { seconds: Math.round(frac * duration) } }));
+    dragging = true;
+    seek.setPointerCapture(e.pointerId);
+    showProgress(fracAt(e) * duration);
   });
+  seek.addEventListener("pointermove", function (e) {
+    if (dragging) showProgress(fracAt(e) * duration);
+  });
+  seek.addEventListener("pointerup", function (e) {
+    if (!dragging) return;
+    dragging = false;
+    sendArgs("seekTo", { seconds: Math.round(fracAt(e) * duration) });
+  });
+  seek.addEventListener("pointercancel", function () { dragging = false; });
 
   function connect() {
     var proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -212,4 +304,4 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 </script>
 </body>
 </html>
-`;
+`.replace("__ICONS__", JSON.stringify(ICON_PATHS));

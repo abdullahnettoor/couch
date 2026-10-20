@@ -1,4 +1,6 @@
-import { createServer, type Server } from "node:http";
+import { createReadStream, existsSync } from "node:fs";
+import { join } from "node:path";
+import { createServer, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { WebSocketServer, type WebSocket } from "ws";
 import { COMMAND_NAMES, type Command, type CommandName } from "../../shared/protocol.ts";
@@ -36,8 +38,17 @@ export function parseCommand(raw: string): Command | undefined {
 /** Serves the Remote page and the WebSocket that carries commands and snapshots. */
 export async function startRemoteServer(
   core: Core,
-  options: { port: number; host?: string },
+  options: { port: number; host?: string; thumbnailDir?: string },
 ): Promise<RemoteServer> {
+  const serveThumbnail = (url: string, path: string, res: ServerResponse) => {
+    const given = new URL(url, "http://localhost").searchParams.get("key");
+    const name = /^\/thumb\/([0-9a-f]{40})\.jpg$/.exec(path)?.[1];
+    const file = name && options.thumbnailDir ? join(options.thumbnailDir, `${name}.jpg`) : "";
+    if (!core.acceptsKey(given)) return void res.writeHead(401).end();
+    if (!file || !existsSync(file)) return void res.writeHead(404).end();
+    res.writeHead(200, { "content-type": "image/jpeg", "cache-control": "private, max-age=86400" });
+    createReadStream(file).pipe(res);
+  };
   const http: Server = createServer((req, res) => {
     const path = (req.url ?? "/").split("?")[0];
     if (path === "/") {
@@ -46,6 +57,8 @@ export async function startRemoteServer(
         "cache-control": "no-store",
       });
       res.end(REMOTE_PAGE);
+    } else if (path.startsWith("/thumb/")) {
+      serveThumbnail(req.url ?? "", path, res);
     } else {
       res.writeHead(404).end();
     }

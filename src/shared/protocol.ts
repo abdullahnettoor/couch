@@ -163,12 +163,27 @@ export interface UpNextItem {
   playing: boolean;
 }
 
+/** Which control layout the Remote shows. */
+export type RemoteLayout = "home" | "youtube" | "player" | "other";
+
+/** Home's Continue watching shortcut on the Remote. */
+export interface RemoteContinueCard {
+  title: string;
+  /** e.g. "38 min left" */
+  left: string;
+  /** Cache key of the video's picture, when one exists (not a path). */
+  thumbKey?: string;
+}
+
 /** Mac → every phone: sent whole after every change. */
 export interface RemoteSnapshot {
   type: "snapshot";
   /** Where the Screen is, e.g. "Home". */
   where: string;
   view: View;
+  layout: RemoteLayout;
+  /** Home only, when a video is in progress. */
+  continueCard?: RemoteContinueCard;
   typeAvailable: boolean;
   typing: "none" | "you" | "other";
   nowPlaying?: {

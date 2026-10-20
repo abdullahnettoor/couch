@@ -22,6 +22,8 @@ export interface AppOptions extends Ports {
   /** 0 picks a random port (tests). */
   port: number;
   host?: string;
+  /** Folder of cached thumbnails the Remote server may serve (by key only). */
+  thumbnailDir?: string;
 }
 
 /** Wires the core and the Remote server to the given ports. Tests and Electron both start it. */

@@ -802,15 +802,18 @@ export class Core {
     };
   }
 
+  #thumbKey(path: string): string | undefined {
+    return (this.#ports.thumbnails ?? nullThumbnails)
+      .cached(path)
+      ?.split("/")
+      .pop()
+      ?.replace(/\.jpg$/, "");
+  }
+
   #upNextItems(): UpNextItem[] {
-    const thumbs = this.#ports.thumbnails ?? nullThumbnails;
     const playing = this.#state.player?.path;
     return this.#upNext.map((e) => {
-      const url = thumbs.cached(e.path);
-      const key = url
-        ?.split("/")
-        .pop()
-        ?.replace(/\.jpg$/, "");
+      const key = this.#thumbKey(e.path);
       return {
         title: cleanTitle(basename(e.path)),
         ...(key ? { thumbKey: key } : {}),
@@ -847,10 +850,21 @@ export class Core {
 
   snapshot(remote: RemoteId): RemoteSnapshot {
     const s = this.#state;
+    const card = s.view === "home" ? this.#continueEntries()[0] : undefined;
     return {
       type: "snapshot",
       where: s.view === "folder" ? basename(s.folderPath ?? "") : VIEW_LABELS[s.view],
       view: s.view,
+      layout: s.view === "home" || s.view === "youtube" || s.view === "player" ? s.view : "other",
+      ...(card
+        ? {
+            continueCard: {
+              title: card.title,
+              left: card.progress?.left ?? "",
+              ...(this.#thumbKey(card.path) ? { thumbKey: this.#thumbKey(card.path) } : {}),
+            },
+          }
+        : {}),
       typeAvailable: s.view === "youtube",
       showVolume: s.view === "youtube",
       showSkip: s.view === "youtube",

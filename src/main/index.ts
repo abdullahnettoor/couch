@@ -110,6 +110,7 @@ async function createScreen(): Promise<void> {
     clock: systemClock,
     store: new FileStore(app.getPath("userData")),
     thumbnails: new FfmpegThumbnails(join(app.getPath("userData"), "thumbnails")),
+    thumbnailDir: join(app.getPath("userData"), "thumbnails"),
     port: REMOTE_PORT,
   });
   couch.onScreen(publishScreen);

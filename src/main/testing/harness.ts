@@ -111,6 +111,8 @@ export interface Harness {
   mac: FakeMac;
   clock: FakeClock;
   thumbnails: FakeThumbnails;
+  /** Folder the Remote server serves thumbnails from. */
+  thumbDir: string;
   phones: FakePhone[];
   store: Store;
   /** The current pairing key, as a phone would read it from the QR code. */
@@ -133,6 +135,7 @@ export async function startHarness(given?: Store): Promise<Harness> {
   const mac = new FakeMac();
   const clock = new FakeClock();
   const thumbnails = new FakeThumbnails();
+  const thumbDir = mkdtempSync(join(tmpdir(), "couch-thumbs-"));
   const app = await startApp({
     player,
     youtube,
@@ -140,6 +143,7 @@ export async function startHarness(given?: Store): Promise<Harness> {
     clock,
     store,
     thumbnails,
+    thumbnailDir: thumbDir,
     port: 0,
     host: "127.0.0.1",
   });
@@ -153,6 +157,7 @@ export async function startHarness(given?: Store): Promise<Harness> {
     mac,
     clock,
     thumbnails,
+    thumbDir,
     phones,
     store,
     pairingKey: () => new URL(app.core.pairingUrl).searchParams.get("key")!,
@@ -164,6 +169,7 @@ export async function startHarness(given?: Store): Promise<Harness> {
     async stop() {
       for (const p of phones) p.close();
       await app.stop();
+      rmSync(thumbDir, { recursive: true, force: true });
       if (tmp) rmSync(tmp, { recursive: true, force: true });
     },
   };
