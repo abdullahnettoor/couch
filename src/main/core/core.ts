@@ -28,6 +28,7 @@ import type { Thumbnails } from "../ports/thumbnails.ts";
 import { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
 import { ACTIONS, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
+import { MediaLibrary } from "./media-library.ts";
 import { presentation, hueFor, listFolder, mosaicSources, rootEntries } from "./library.ts";
 import type { UpNextItem } from "../../shared/protocol.ts";
 import { PlayerControls } from "./player-controls.ts";
@@ -98,6 +99,8 @@ export class Core {
   #rootKey: string | undefined;
   #controls: PlayerControls;
   #history: History;
+  /** The Library index and its Shows and Films; scans run in the background. */
+  readonly library: MediaLibrary;
   #cancelSaves: (() => void) | undefined;
   #resumeNote: string | undefined;
   #cancelNote: (() => void) | undefined;
@@ -112,6 +115,8 @@ export class Core {
     this.#ports = ports;
     const lib = ports.store.read<{ folders?: unknown }>("library", {});
     this.#history = new History(ports.store);
+    this.library = new MediaLibrary(ports.store, ports.clock);
+    this.library.onChange(() => this.#emit());
     this.#controls = new PlayerControls(this.#state, {
       clock: ports.clock,
       playing: () => {
@@ -130,6 +135,7 @@ export class Core {
     this.#libraryFolders = Array.isArray(lib.folders)
       ? lib.folders.filter((f): f is string => typeof f === "string")
       : [];
+    void this.library.refresh(this.#libraryFolders);
     const saved = ports.store.read<{ key?: string }>("pairing", {});
     this.#key = typeof saved.key === "string" && saved.key ? saved.key : this.#newKey();
     const playback = ports.store.read<{ subtitlesOn?: unknown }>("playback", {});
@@ -683,6 +689,7 @@ export class Core {
 
   #saveFolders(folders: string[]): void {
     this.#libraryFolders = folders;
+    void this.library.refresh(folders);
     this.#ports.store.write("library", { folders });
   }
 
@@ -981,6 +988,7 @@ export class Core {
       this.#ports.youtube.hide();
     }
     this.#state.view = view;
+    if (view === "library") void this.library.refresh(this.#libraryFolders);
   }
 
   #openYouTube(): void {

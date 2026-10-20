@@ -64,9 +64,27 @@ function untagged(list: string[], from = 1): string[] {
   return cut === -1 ? list : list.slice(0, cut);
 }
 
+/** "Kung-Fu-Panda-4" → separate words; "Gru-2022" and "Movie-1080p" split at the year or tag. Real hyphens in titles stay. */
+function dehyphen(list: string[]): string[] {
+  const single = list.filter((w) => !TAGS.has(w.toLowerCase()) && !YEAR.test(w)).length === 1;
+  return list.flatMap((w) => {
+    if (!w.includes("-") || TAGS.has(w.toLowerCase())) return [w];
+    const parts = w.split("-").filter(Boolean);
+    const joined = parts.some((p, i) => i > 0 && (YEAR.test(p) || TAGS.has(p.toLowerCase())));
+    if (!joined && !(single && parts.length >= 3)) return [w];
+    const out: string[] = [];
+    for (let i = 0; i < parts.length; i++) {
+      const pair = `${parts[i]}-${parts[i + 1]}`;
+      if (i + 1 < parts.length && TAGS.has(pair.toLowerCase())) (out.push(pair), i++);
+      else out.push(parts[i]!);
+    }
+    return out;
+  });
+}
+
 /** Release tags dropped, year kept in brackets: "The Grand Budapest Hotel (2014)". */
 function tidy(text: string): string {
-  const kept = untagged(words(text));
+  const kept = untagged(dehyphen(words(text)));
   const yearAt = kept.findLastIndex((w, i) => i > 0 && YEAR.test(w));
   if (yearAt === -1) return kept.join(" ");
   return `${kept.slice(0, yearAt).join(" ")} (${kept[yearAt]})`;
