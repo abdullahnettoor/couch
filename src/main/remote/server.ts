@@ -22,9 +22,10 @@ export function parseCommand(raw: string): Command | undefined {
   if (type !== "command" || !COMMAND_NAMES.includes(command as CommandName)) return undefined;
   const out: Command = { command: command as CommandName };
   if (typeof args === "object" && args !== null) {
-    const { seconds, text } = args as Record<string, unknown>;
+    const { seconds, text, percent } = args as Record<string, unknown>;
     out.args = {
       ...(typeof seconds === "number" && Number.isFinite(seconds) ? { seconds } : {}),
+      ...(typeof percent === "number" && Number.isFinite(percent) ? { percent } : {}),
       ...(typeof text === "string" ? { text } : {}),
     };
   }

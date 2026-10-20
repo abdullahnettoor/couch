@@ -121,18 +121,63 @@ describe("thresholds", () => {
     expect(lastLoad()[1].startSeconds).toBeUndefined();
   });
 
-  test("Continue watching shares Home's row with the apps, and Up reaches the gear", async () => {
+  test("Home grid: gear, Resume / From start, then Apps and videos; Up reaches the gear", async () => {
     await start();
     watchAndLeave(a(), 600);
-    const items = screen().grid;
-    expect(items.find((i) => i.id === "continue")!.r).toBe(
-      items.find((i) => i.id === "library")!.r,
-    );
-    focusOn("library");
-    press("right");
-    expect(screen().focusedId).toBe("continue");
+    const g = screen().grid;
+    const at = (id: string) => g.find((i) => i.id === id)!;
+    expect(at("settings").r).toBe(0);
+    expect(at("resume").r).toBe(1);
+    expect(at("fromstart").r).toBe(1);
+    expect([at("youtube").r, at("library").r, at(a()).r]).toEqual([2, 2, 2]);
+    focusOn("resume");
     press("up");
     expect(screen().focusedId).toBe("settings");
+  });
+
+  test("up to three in-progress videos, newest first", async () => {
+    await start();
+    watchAndLeave(a(), 600);
+    for (const p of [b(), c(), d()]) {
+      h.clock.advance(1000);
+      watchAndLeave(p, 600);
+    }
+    expect(screen().homeVideos!.map((e) => e.path)).toEqual([d(), c(), b()]);
+    expect(screen().grid.filter((i) => i.r === 2).length).toBe(5);
+  });
+
+  test("From start passes no start position; Resume passes the saved one", async () => {
+    await start();
+    watchAndLeave(a(), 600);
+    focusOn("fromstart");
+    press("ok");
+    expect(lastLoad()[1].startSeconds).toBeUndefined();
+    press("back");
+    expect(screen().state.view).toBe("home");
+    focusOn("resume");
+    press("ok");
+    expect(lastLoad()[1].startSeconds).toBe(600);
+  });
+
+  test("no in-progress video: no Resume row, apps on row 1", async () => {
+    await start();
+    expect(screen().homeVideos).toEqual([]);
+    expect(screen().grid.some((i) => i.id === "resume")).toBe(false);
+    expect(screen().grid.find((i) => i.id === "youtube")!.r).toBe(1);
+    press("up");
+    expect(screen().focusedId).toBe("settings");
+  });
+
+  test("a phone's resume command plays the newest", async () => {
+    await start();
+    watchAndLeave(a(), 600);
+    h.clock.advance(1000);
+    watchAndLeave(d(), 900);
+    const phone = await h.connectPhone();
+    await phone.press("resume");
+    expect(lastLoad()).toEqual([d(), { subtitles: true, startSeconds: 900 }]);
+    press("back");
+    expect(screen().state.view).toBe("home");
   });
 
   test("watched tag shows on the tile and the video plays from the start", async () => {
@@ -230,13 +275,13 @@ describe("resuming", () => {
     expect(h.screen.last.overlay?.note).toBeUndefined();
   });
 
-  test("Home's card resumes the newest video", async () => {
+  test("Home's Resume resumes the newest video", async () => {
     await start();
     watchAndLeave(a(), 600);
     h.clock.advance(1000);
     watchAndLeave(d(), 900);
     expect(screen().continueCard?.title).toBe("D Show");
-    focusOn("continue");
+    focusOn("resume");
     press("ok");
     expect(lastLoad()).toEqual([d(), { subtitles: true, startSeconds: 900 }]);
     expect(screen().state.view).toBe("player");
@@ -247,11 +292,11 @@ describe("leaving a video goes back to where it was started", () => {
   test("from Home's card: Back returns Home, not into the video's folder", async () => {
     await start();
     watchAndLeave(d(), 900);
-    focusOn("continue");
+    focusOn(d());
     press("ok");
     press("back");
     expect(screen().state.view).toBe("home");
-    expect(screen().focusedId).toBe("continue");
+    expect(screen().focusedId).toBe(d());
   });
 
   test("from the Library's Continue watching row: Back returns to the Library", async () => {
@@ -270,7 +315,7 @@ describe("leaving a video goes back to where it was started", () => {
   test("from Home's card, the end of the file also returns Home", async () => {
     await start();
     watchAndLeave(d(), 900);
-    focusOn("continue");
+    focusOn("resume");
     press("ok");
     h.player.emit({ type: "ended", reason: "eof" });
     expect(screen().state.view).toBe("home");

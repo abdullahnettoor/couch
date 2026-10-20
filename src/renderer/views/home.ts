@@ -1,14 +1,15 @@
-import { HOME_ITEMS } from "../../shared/home-grid.ts";
-import type { ScreenPayload } from "../../shared/protocol.ts";
+import { HOME_ITEMS, heroVideo } from "../../shared/home-grid.ts";
+import { iconSvg } from "../../shared/icons.ts";
+import type { LibraryEntry, ScreenPayload } from "../../shared/protocol.ts";
 import { el, focusable, qrSvg, root } from "./dom.ts";
+import { glassPill, topbar } from "./glass.ts";
 
-export const ICONS: Record<string, string> = {
-  youtube: '<svg viewBox="0 0 24 24"><path d="M9 7.5v9l7.5-4.5z" fill="currentColor"/></svg>',
-  library:
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 012-2h4l2 2.5h8a2 2 0 012 2V17a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>',
-  settings:
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>',
-};
+const YOUTUBE_MARK =
+  '<svg class="i" viewBox="0 0 24 24"><path d="M21.6 7.2a2.6 2.6 0 0 0-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.6 2.6 0 0 0 2.4 7.2C2 8.8 2 12 2 12s0 3.2.4 4.8c.2.9.9 1.6 1.8 1.8C5.8 19 12 19 12 19s6.2 0 7.8-.4c.9-.2 1.6-.9 1.8-1.8.4-1.6.4-4.8.4-4.8s0-3.2-.4-4.8z" fill="#fff"/><path d="M10 15l5.2-3L10 9z" fill="#e01e1e"/></svg>';
+
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+}
 
 function greeting(date: Date): string {
   const h = date.getHours();
@@ -21,74 +22,123 @@ function greeting(date: Date): string {
         : "Good evening";
 }
 
-export function render(payload: ScreenPayload): void {
-  const date = new Date(payload.now);
-  root.replaceChildren();
-  const view = el("div", "view home");
-  view.append(
+function appTile(id: string, label: string, focused: boolean): HTMLElement {
+  const face = id === "youtube" ? YOUTUBE_MARK : iconSvg("folder");
+  return focusable(
     el(
-      "div",
-      "ha-clock",
-      `<div class="t">${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).replace(/\s?[AP]M/i, "")}</div>` +
-        `<div class="d">${greeting(date)} · ${date.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" })}</div>`,
+      "button",
+      `h-app${focused ? " focused" : ""}`,
+      `<div class="g-tile ${id}-face">${face}</div><div class="g-cap">${label}</div>`,
     ),
+    id,
   );
-  const status = el(
-    "div",
-    "status",
-    `<span class="dot"></span>${
-      payload.state.remotes > 0
-        ? `${payload.state.remotes} ${payload.state.remotes === 1 ? "phone" : "phones"} connected`
-        : "No phone connected"
-    }`,
-  );
-  const row = el("div", "ha-row");
-  for (const item of HOME_ITEMS) {
-    const focused = item.id === payload.focusedId ? " focused" : "";
-    if (item.id === "settings") {
-      view.append(focusable(el("div", `gear${focused}`, ICONS.settings), item.id));
-    } else {
-      row.append(
-        focusable(
-          el(
-            "div",
-            `ha-app${focused}`,
-            `<div class="app-icon ${item.id}-bg">${ICONS[item.id]}</div><div class="n">${item.label}</div>`,
-          ),
-          item.id,
-        ),
-      );
-    }
-  }
-  const card = payload.continueCard;
-  if (card?.progress) {
-    const focused = payload.focusedId === "continue" ? " focused" : "";
-    row.append(
-      focusable(
-        el(
-          "div",
-          `continue-card${focused}`,
-          `<div class="k">Continue watching</div><div class="t">${escapeHtml(card.title)}</div>` +
-            `<div class="m">${escapeHtml(card.progress.left)} · ${escapeHtml(card.folder ?? "")}</div>` +
-            `<div class="bar"><i style="width:${Math.round(card.progress.fraction * 100)}%"></i></div>`,
-        ),
-        "continue",
-      ),
+}
+
+function filmTile(v: LibraryEntry, focused: boolean): HTMLElement {
+  const tile = el("div", "g-tile h-film-art");
+  tile.style.setProperty("--hue", String(v.hue));
+  if (v.thumb) tile.style.backgroundImage = `url("${v.thumb}")`;
+  if (v.progress) {
+    tile.append(
+      el("div", "h-prog", `<i style="width:${Math.round(v.progress.fraction * 100)}%"></i>`),
     );
   }
-  view.append(status, row);
-  if (payload.state.remotes === 0) {
-    view.append(
+  const cap = el(
+    "div",
+    "g-cap",
+    `${escapeHtml(v.title)}<small class="num">${escapeHtml(v.progress?.left ?? "")}</small>`,
+  );
+  const node = el("button", `h-app h-film${focused ? " focused" : ""}`);
+  node.append(tile, cap);
+  return focusable(node, v.path);
+}
+
+/** The hero frames live in one persistent layer so a change can cross-fade. */
+let view: HTMLElement | undefined;
+let bg: HTMLElement | undefined;
+let bgKey = "";
+
+function syncBackdrop(videos: LibraryEntry[], hero: LibraryEntry | undefined): void {
+  const key = videos.map((v) => `${v.path}|${v.thumb ?? ""}`).join("\n");
+  if (key !== bgKey) {
+    bgKey = key;
+    bg!.replaceChildren(
+      ...videos.map((v) => {
+        const img = el("div", "h-frame");
+        img.dataset.path = v.path;
+        img.style.setProperty("--hue", String(v.hue));
+        if (v.thumb) img.style.backgroundImage = `url("${v.thumb}")`;
+        return img;
+      }),
+    );
+  }
+  for (const img of Array.from(bg!.children) as HTMLElement[]) {
+    img.classList.toggle("on", img.dataset.path === hero?.path);
+  }
+}
+
+export function render(payload: ScreenPayload): void {
+  const date = new Date(payload.now);
+  const videos = payload.homeVideos ?? [];
+  const hero = heroVideo(videos, payload.focusedId);
+  if (!view || root.firstElementChild !== view) {
+    view = el("div", "screen-glass home");
+    bg = el("div", "h-bg");
+    bgKey = "";
+    root.replaceChildren(view);
+  }
+  syncBackdrop(videos, hero);
+  const focused = (id: string) => payload.focusedId === id;
+  const parts: HTMLElement[] = [bg!, topbar(payload)];
+  const row = el("div", "h-row");
+  const apps = HOME_ITEMS.filter((i) => i.id !== "settings");
+
+  if (hero) {
+    view.classList.remove("empty");
+    const meta = [hero.folder, hero.progress?.left].filter(Boolean).map((t) => escapeHtml(t!));
+    parts.push(
       el(
         "div",
-        "qr-card",
+        "h-hero",
+        `<h1>${escapeHtml(hero.title)}</h1><div class="m num">${meta
+          .map((t) => `<span>${t}</span>`)
+          .join("<span>·</span>")}${
+          hero.progress
+            ? `<span class="h-bar"><i style="width:${Math.round(hero.progress.fraction * 100)}%"></i></span>`
+            : ""
+        }</div>`,
+      ),
+    );
+    const acts = el("div", "h-acts");
+    acts.append(
+      glassPill("resume", "Resume", focused("resume"), "play"),
+      glassPill("fromstart", "From start", focused("fromstart"), "restart"),
+    );
+    parts[parts.length - 1]!.append(acts);
+    for (const app of apps) row.append(appTile(app.id, app.label, focused(app.id)));
+    row.append(el("div", "h-divider"));
+    for (const v of videos) row.append(filmTile(v, focused(v.path)));
+  } else {
+    view.classList.add("empty");
+    parts.push(
+      el(
+        "div",
+        "h-clock",
+        `<div class="t num">${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).replace(/\s?[AP]M/i, "")}</div>` +
+          `<div class="d">${greeting(date)} · ${date.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" })}</div>`,
+      ),
+    );
+    for (const app of apps) row.append(appTile(app.id, app.label, focused(app.id)));
+  }
+  parts.push(row);
+  if (payload.state.remotes === 0) {
+    parts.push(
+      el(
+        "div",
+        "h-qr",
         `<div class="qr">${qrSvg(payload.pairingUrl)}</div><div class="c">Scan to use your phone as a remote</div>`,
       ),
     );
   }
-  root.append(view);
-}
-
-function escapeHtml(text: string): string {
-  return text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+  view.replaceChildren(...parts);
 }

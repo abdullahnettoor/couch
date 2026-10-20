@@ -71,41 +71,138 @@ describe("playing a Library video", () => {
     await start();
     await playVideo();
     h.player.emit({ type: "duration", seconds: 600 });
+    h.clock.advance(4600);
     await phone.press({ command: "seekTo", args: { seconds: 300 } });
     expect(calls("seekTo").at(-1)!.args).toEqual([300]);
     await phone.press({ command: "seekBy", args: { seconds: -10 } });
     expect(calls("seekTo").at(-1)!.args).toEqual([290]);
-    await phone.press("right");
-    await phone.press("left");
-    await phone.press("left");
+    for (const key of ["right", "left", "left"] as const) {
+      h.clock.advance(4600);
+      await phone.press(key);
+    }
     expect(calls("seekTo").map((c) => c.args[0])).toEqual([300, 290, 300, 290, 280]);
+    h.clock.advance(4600);
     await phone.press("ok");
     expect(calls("setPaused").at(-1)!.args).toEqual([true]);
     expect(h.screen.last.overlay).toMatchObject({
       paused: true,
-      bar: { position: 280, duration: 600 },
+      dock: { position: 280, duration: 600 },
     });
     await phone.press("playpause");
     expect(calls("setPaused").at(-1)!.args).toEqual([false]);
   });
 
-  test("overlay shows on Up/Down and hides after a few seconds", async () => {
+  test("controls show on any command, hide after 4.5 s while playing, and stay up while paused", async () => {
     await start();
     await playVideo();
-    h.clock.advance(3500);
-    expect(h.screen.last.overlay!.bar).toBeUndefined();
+    h.player.emit({ type: "duration", seconds: 600 });
+    h.clock.advance(4600);
+    expect(h.screen.last.state.controls).toBe("hidden");
+    expect(h.screen.last.overlay!.dock).toBeUndefined();
     await phone.press("up");
-    expect(h.screen.last.overlay!.bar).toBeDefined();
-    h.clock.advance(3500);
-    expect(h.screen.last.overlay!.bar).toBeUndefined();
+    expect(h.screen.last.state.controls).toBe("dock");
+    h.clock.advance(4000);
+    await phone.press("volUp");
+    h.clock.advance(4000);
+    expect(h.screen.last.state.controls).toBe("dock");
+    h.clock.advance(600);
+    expect(h.screen.last.state.controls).toBe("hidden");
+    await phone.press("playpause");
+    h.clock.advance(20000);
+    expect(h.screen.last.state.controls).toBe("dock");
+    await phone.press("playpause");
+    h.clock.advance(4600);
+    expect(h.screen.last.state.controls).toBe("hidden");
   });
 
-  test("subtitles are raised while the overlay shows and lowered when it hides", async () => {
+  test("the Screen's showControls brings the dock up; phones cannot send it", async () => {
+    await start();
+    await playVideo();
+    h.clock.advance(4600);
+    phone.send("showControls" as never);
+    await phone.settle();
+    expect(h.screen.last.state.controls).toBe("hidden");
+    h.app.screenCommand({ command: "showControls" });
+    expect(h.screen.last.state.controls).toBe("dock");
+  });
+
+  test("with the controls hidden, Left/Right seek, OK pauses and other keys show the dock", async () => {
+    await start();
+    await playVideo();
+    h.player.emit({ type: "duration", seconds: 600 });
+    h.clock.advance(4600);
+    await phone.press("right");
+    expect(calls("seekTo").at(-1)!.args).toEqual([10]);
+    h.clock.advance(4600);
+    await phone.press("ok");
+    expect(calls("setPaused").at(-1)!.args).toEqual([true]);
+    await phone.press("playpause");
+    h.clock.advance(4600);
+    await phone.press("down");
+    expect(h.screen.last.state.controls).toBe("dock");
+    expect(calls("seekTo")).toHaveLength(1);
+  });
+
+  test("with the dock up, Left/Right move focus along it; bar seeks, slider sets volume", async () => {
+    await start();
+    await playVideo();
+    h.player.emit({ type: "duration", seconds: 600 });
+    const focused = () => h.screen.last.overlay!.dock!.focusedId;
+    expect(focused()).toBe("playpause");
+    await phone.press("right");
+    expect(focused()).toBe("back10");
+    await phone.press("right");
+    expect(focused()).toBe("fwd10");
+    await phone.press("right");
+    expect(focused()).toBe("bar");
+    await phone.press("right");
+    expect(calls("seekTo").at(-1)!.args).toEqual([10]);
+    expect(focused()).toBe("bar");
+    await phone.press("ok");
+    expect(calls("setPaused").at(-1)!.args).toEqual([true]);
+    await phone.press("left");
+    expect(calls("seekTo").at(-1)!.args).toEqual([0]);
+    // Left/Right belong to the bar: Down steps off it. Up next is disabled, so focus skips it.
+    await phone.press("down");
+    expect(focused()).toBe("subtitles");
+    await phone.press("left");
+    expect(focused()).toBe("bar");
+    await phone.press("down");
+    await phone.press("right");
+    await phone.press("right");
+    expect(focused()).toBe("volume");
+    await phone.press("right");
+    expect(h.mac.volume).toBe(55);
+    await phone.press("left");
+    await phone.press("left");
+    expect(h.mac.volume).toBe(45);
+    await phone.press("up");
+    expect(focused()).toBe("volicon");
+    await phone.press("left");
+    expect(focused()).toBe("subtitles");
+    await phone.press("ok");
+    expect(calls("setSubtitles").at(-1)!.args).toEqual([false]);
+  });
+
+  test("volSet clamps, reaches the Mac port and is allowed from phones", async () => {
+    await start();
+    await playVideo();
+    await phone.press({ command: "volSet", args: { percent: 70 } });
+    expect(h.mac.calls.at(-1)).toEqual({ call: "setVolume", args: [70] });
+    await phone.press({ command: "volSet", args: { percent: 250 } });
+    expect(h.mac.volume).toBe(100);
+    await phone.press({ command: "volSet", args: { percent: -5 } });
+    expect(h.mac.volume).toBe(0);
+    expect(h.screen.last.state.volumeShown).toBe(true);
+    expect(h.screen.last.overlay!.dock!.level).toBe(0);
+  });
+
+  test("subtitles are raised while the dock shows and lowered when it hides", async () => {
     await start();
     await playVideo();
     const raised = () => calls("setSubtitlesRaised").map((c) => c.args[0]);
     expect(raised().at(-1)).toBe(true);
-    h.clock.advance(3500);
+    h.clock.advance(4600);
     expect(raised().at(-1)).toBe(false);
     await phone.press("up");
     expect(raised().at(-1)).toBe(true);
@@ -159,6 +256,7 @@ describe("playing a Library video", () => {
   test("keys pressed on the Mac while the video window has focus act like the Screen's keys", async () => {
     await start();
     await playVideo();
+    h.clock.advance(4600);
     h.player.emit({ type: "key", command: "right" });
     expect(calls("seekTo").at(-1)!.args[0]).toBe(10);
     h.player.emit({ type: "key", command: "back" });
