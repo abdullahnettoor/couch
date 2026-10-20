@@ -28,6 +28,14 @@ _Avoid_: YouTube TV (the paid live-TV product), Leanback
 The user's local video folders as presented by the Screen. Every folder is treated the same; there is no movie vs TV-show distinction.
 _Avoid_: media, collection, files
 
+**Continue watching**:
+The single card on Home for the most recent unfinished Library video. Pressing it resumes from the saved position.
+_Avoid_: recents, history, up next
+
+**Now Playing**:
+The Remote's playback controls, shown while a Library video plays: seek bar, back/forward 10 seconds, play/pause, subtitles, and volume (the Mac's volume).
+_Avoid_: player controls, transport
+
 **Household**:
 The people who share one Screen. There are no profiles or logins; any household phone can act as a Remote.
 _Avoid_: user, account, profile
