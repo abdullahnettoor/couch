@@ -281,7 +281,8 @@ static napi_value SetGlass(napi_env env, napi_callback_info info) {
     glass[key] = g;
   }
   [CATransaction begin]; [CATransaction setDisableActions:YES];
-  if (g.superview != parent) [parent addSubview:g positioned:NSWindowAbove relativeTo:v];
+  // Every call: Electron reorders its view siblings (web contents, compositor) and glass left above them blurs the page.
+  [parent addSubview:g positioned:NSWindowAbove relativeTo:v];
   CGFloat H = parent.bounds.size.height;
   NSRect r = NSMakeRect(d[0], parent.isFlipped ? d[1] : H - d[1] - d[3], d[2], d[3]);
   g.frame = r;

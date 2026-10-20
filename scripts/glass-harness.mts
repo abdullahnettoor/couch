@@ -35,6 +35,9 @@ void app.whenReady().then(async () => {
     x: 100,
     y: 100,
     transparent: true,
+    ...(process.env.HIDDEN
+      ? { titleBarStyle: "hiddenInset" as const, trafficLightPosition: { x: 14, y: 12 } }
+      : {}),
     backgroundColor: "#00000000",
   });
   win.setAlwaysOnTop(true, "floating");
