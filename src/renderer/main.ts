@@ -2,7 +2,9 @@ import type { GridItem, ScreenPayload } from "../shared/protocol.ts";
 import type { CouchApi } from "../shared/ipc.ts";
 import { SCREEN_KEYS } from "../shared/keyboard.ts";
 import { VIEWS } from "./views/index.ts";
+import { renderHud } from "./hud.ts";
 import "./style.css";
+import "./glass.css";
 
 declare global {
   interface Window {
@@ -46,6 +48,14 @@ window.addEventListener("mouseup", (event) => {
   }
 });
 
+window.addEventListener("mousemove", (event) => {
+  const tile = (event.target as Element | null)?.closest<HTMLElement>(".g-tile");
+  if (!tile) return;
+  const box = tile.getBoundingClientRect();
+  tile.style.setProperty("--sx", `${((event.clientX - box.left) / box.width) * 100}%`);
+  tile.style.setProperty("--sy", `${((event.clientY - box.top) / box.height) * 100}%`);
+});
+
 let hideCursor: ReturnType<typeof setTimeout> | undefined;
 document.body.classList.add("idle");
 window.addEventListener("mousemove", () => {
@@ -54,8 +64,6 @@ window.addEventListener("mousemove", () => {
   hideCursor = setTimeout(() => document.body.classList.add("idle"), 3000);
 });
 
-const toast = document.getElementById("toast")!;
-const volume = document.getElementById("volume")!;
 const notice = document.getElementById("notice")!;
 
 window.couch.onScreen((payload) => {
@@ -65,10 +73,7 @@ window.couch.onScreen((payload) => {
     window.couch.reportGrid({ viewKey: payload.viewKey, items: view.grid });
   }
   view?.render(payload);
-  volume.textContent = `Volume ${payload.state.volume}%`;
-  volume.classList.toggle("show", Boolean(payload.state.volumeShown));
-  toast.textContent = payload.state.toast ?? "";
-  toast.classList.toggle("show", Boolean(payload.state.toast));
+  renderHud(payload);
 });
 
 window.couch.onMpv((status) => {

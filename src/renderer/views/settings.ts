@@ -1,20 +1,25 @@
 import { SETTINGS_ITEMS } from "../../shared/settings-grid.ts";
 import type { ScreenPayload } from "../../shared/protocol.ts";
-import { el, focusable, root } from "./dom.ts";
+import { el } from "./dom.ts";
+import { glassRow, splitPage } from "./glass.ts";
 
 export function render(payload: ScreenPayload): void {
-  root.replaceChildren();
-  const view = el("div", "view page");
-  view.append(el("h1", "page-title", "Settings"));
-  const list = el("div", "menu");
-  for (const item of SETTINGS_ITEMS) {
-    list.append(
-      focusable(
-        el("div", `menu-item${item.id === payload.focusedId ? " focused" : ""}`, item.label),
-        item.id,
-      ),
-    );
-  }
-  view.append(list);
-  root.append(view);
+  const phones = payload.state.remotes;
+  splitPage({ icon: "gear" }, [
+    el("h1", "", "Settings"),
+    ...SETTINGS_ITEMS.map((item) =>
+      glassRow({
+        id: item.id,
+        label: item.label,
+        focused: item.id === payload.focusedId,
+        danger: item.id === "quit",
+        value:
+          item.id === "add-phone"
+            ? "Show the QR code"
+            : item.id === "forget-phones" && phones > 0
+              ? `${phones} connected`
+              : undefined,
+      }),
+    ),
+  ]);
 }

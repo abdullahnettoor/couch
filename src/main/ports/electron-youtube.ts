@@ -1,3 +1,4 @@
+import { noteScript, volumeScript } from "./youtube-hud.ts";
 import { join } from "node:path";
 import { app, BrowserWindow, WebContentsView, session } from "electron";
 import { SCREEN_KEYS } from "../../shared/keyboard.ts";
@@ -169,26 +170,11 @@ export class ElectronYouTube implements YouTube {
   }
 
   showVolume(percent: number | undefined): void {
-    const js =
-      percent === undefined
-        ? `var e=document.getElementById('couch-volume');if(e)e.remove()`
-        : `(function(){var d=document.getElementById('couch-volume');if(!d){d=document.createElement('div');d.id='couch-volume';` +
-          `d.style.cssText='position:fixed;right:48px;top:40px;z-index:2147483647;padding:10px 22px;border-radius:12px;` +
-          `background:rgba(20,18,16,.9);color:#f3ede4;font:600 26px system-ui;pointer-events:none';document.body.appendChild(d)}` +
-          `d.textContent='Volume ${Math.round(percent)}%'})()`;
-    void this.#view.webContents.executeJavaScript(js).catch(() => {});
+    void this.#view.webContents.executeJavaScript(volumeScript(percent)).catch(() => {});
   }
 
   async #showNote(note: string): Promise<void> {
-    const text = JSON.stringify(note);
-    await this.#view.webContents
-      .executeJavaScript(
-        `(function(){var d=document.createElement('div');d.textContent=${text};` +
-          `d.style.cssText='position:fixed;left:50%;bottom:48px;transform:translateX(-50%);z-index:2147483647;` +
-          `padding:14px 28px;border-radius:14px;background:rgba(20,18,16,.9);color:#f3ede4;font:600 28px system-ui;pointer-events:none';` +
-          `document.body.appendChild(d);setTimeout(function(){d.remove()},4000)})()`,
-      )
-      .catch(() => {});
+    await this.#view.webContents.executeJavaScript(noteScript(note)).catch(() => {});
   }
 
   sendKey(key: YouTubeKey): void {

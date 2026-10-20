@@ -1,0 +1,352 @@
+/*
+ * Glass: the shared look of the Screen (tokens, material, focus language, top-right strip, toast, volume level).
+ * Sizes are written in prototype pixels (a 1920-wide Screen) through --u, so they read like the design.
+ * Mirrored by src/main/ports/youtube-hud.ts for the YouTube view.
+ */
+:root {
+  --u: calc(100vw / 1920);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --t1: #fff;
+  --t2: rgba(235, 235, 245, 0.74);
+  --t3: rgba(235, 235, 245, 0.52);
+  --glass: rgba(44, 44, 48, 0.46);
+  --glass-strong: rgba(36, 36, 40, 0.72);
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --live: #30d158;
+  --danger: #ff453a;
+  --r-tile: calc(22 * var(--u));
+  --r-row: calc(22 * var(--u));
+  font-family: -apple-system, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: inherit;
+}
+svg.i {
+  width: 1em;
+  height: 1em;
+  display: block;
+  fill: currentColor;
+  flex: none;
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+.glass {
+  background: var(--glass);
+  backdrop-filter: blur(60px) saturate(1.8);
+  box-shadow:
+    var(--glass-edge),
+    0 24px 70px rgba(0, 0, 0, 0.35);
+}
+
+/* A full-screen Glass page: dark radial backdrop. Children position themselves. */
+.screen-glass {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(80% 90% at 20% 30%, #2c2c2e, #000 70%);
+  color: var(--t1);
+}
+
+/* ---- focus language: solid white for buttons and rows ---- */
+.g-row,
+.g-pill {
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  color: var(--t2);
+  transition:
+    transform 0.3s var(--ease),
+    background 0.25s,
+    color 0.25s,
+    box-shadow 0.3s var(--ease);
+}
+.g-row {
+  justify-content: space-between;
+  box-sizing: border-box;
+  width: 100%;
+  height: calc(96 * var(--u));
+  margin-bottom: calc(8 * var(--u));
+  padding: 0 calc(32 * var(--u));
+  border-radius: var(--r-row);
+  font-size: calc(32 * var(--u));
+}
+.g-row .v {
+  display: flex;
+  align-items: center;
+  gap: calc(14 * var(--u));
+  margin-left: calc(40 * var(--u));
+  font-size: calc(26 * var(--u));
+  font-weight: 500;
+  color: var(--t3);
+}
+.g-row .v svg {
+  width: calc(24 * var(--u));
+  height: calc(24 * var(--u));
+}
+.g-pill {
+  display: inline-flex;
+  gap: calc(14 * var(--u));
+  height: calc(84 * var(--u));
+  padding: 0 calc(40 * var(--u));
+  border-radius: calc(42 * var(--u));
+  font-size: calc(30 * var(--u));
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(30px);
+}
+.g-pill svg {
+  width: calc(32 * var(--u));
+  height: calc(32 * var(--u));
+}
+.g-row.focused,
+.g-pill.focused {
+  background: #fff;
+  color: #000;
+  transform: scale(1.04);
+  box-shadow: 0 calc(20 * var(--u)) calc(40 * var(--u)) rgba(0, 0, 0, 0.4);
+}
+.g-pill.focused {
+  transform: scale(1.06);
+}
+.g-row.focused .v {
+  color: rgba(0, 0, 0, 0.55);
+}
+.g-row.danger.focused,
+.g-pill.danger.focused {
+  background: var(--danger);
+  color: #fff;
+}
+.g-row.danger.focused .v {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ---- focus language: lift and sheen for picture tiles. Put .g-tile on the picture; add .focused to it or its parent. ---- */
+.g-tile {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-tile);
+  box-shadow: 0 calc(10 * var(--u)) calc(30 * var(--u)) rgba(0, 0, 0, 0.35);
+  transition:
+    transform 0.38s var(--ease),
+    box-shadow 0.38s var(--ease);
+}
+.g-tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    120% 90% at var(--sx, 30%) var(--sy, 0%),
+    rgba(255, 255, 255, 0.32),
+    rgba(255, 255, 255, 0) 55%
+  );
+  transition: opacity 0.35s var(--ease);
+}
+.focused > .g-tile,
+.g-tile.focused {
+  transform: scale(1.09) translateY(calc(-6 * var(--u)));
+  box-shadow: 0 calc(36 * var(--u)) calc(60 * var(--u)) rgba(0, 0, 0, 0.6);
+}
+.focused > .g-tile::after,
+.g-tile.focused::after {
+  opacity: 1;
+}
+.g-cap {
+  margin-top: calc(18 * var(--u));
+  font-size: calc(25 * var(--u));
+  font-weight: 600;
+  color: var(--t2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    transform 0.38s var(--ease),
+    color 0.3s;
+}
+.focused > .g-cap {
+  color: #fff;
+  transform: translateY(calc(14 * var(--u)));
+}
+
+/* ---- top-right strip: phone count, gear, time. Gear takes data-id="settings" and .focused. ---- */
+.topbar {
+  position: absolute;
+  top: calc(52 * var(--u));
+  right: calc(96 * var(--u));
+  display: flex;
+  align-items: center;
+  gap: calc(30 * var(--u));
+  z-index: 5;
+}
+.topbar .phones {
+  display: flex;
+  align-items: center;
+  gap: calc(10 * var(--u));
+  font-size: calc(22 * var(--u));
+  color: var(--t2);
+}
+.topbar .phones i {
+  width: calc(10 * var(--u));
+  height: calc(10 * var(--u));
+  border-radius: 50%;
+  background: var(--live);
+}
+.topbar .phones.none i {
+  background: var(--t3);
+}
+.topbar .clock {
+  font-size: calc(40 * var(--u));
+  font-weight: 600;
+  text-align: right;
+}
+.tb-gear {
+  display: grid;
+  place-items: center;
+  width: calc(68 * var(--u));
+  height: calc(68 * var(--u));
+  border-radius: 50%;
+  font-size: calc(34 * var(--u));
+  color: var(--t2);
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  transition: all 0.3s var(--ease);
+}
+.tb-gear.focused {
+  background: #fff;
+  color: #000;
+  transform: scale(1.12);
+  box-shadow: 0 calc(18 * var(--u)) calc(40 * var(--u)) rgba(0, 0, 0, 0.5);
+}
+
+/* ---- toast and volume level (shown by hud.ts over every view) ---- */
+.toast {
+  position: fixed;
+  left: 50%;
+  top: calc(56 * var(--u));
+  transform: translate(-50%, calc(-30 * var(--u)));
+  padding: calc(18 * var(--u)) calc(34 * var(--u));
+  border-radius: calc(40 * var(--u));
+  background: var(--glass-strong);
+  backdrop-filter: blur(40px);
+  box-shadow: var(--glass-edge);
+  color: #fff;
+  font-size: calc(28 * var(--u));
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.35s var(--ease);
+  z-index: 30;
+}
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.volhud {
+  position: fixed;
+  right: calc(60 * var(--u));
+  top: 50%;
+  transform: translate(calc(40 * var(--u)), -50%);
+  box-sizing: border-box;
+  width: calc(80 * var(--u));
+  height: calc(380 * var(--u));
+  padding: calc(18 * var(--u));
+  border-radius: calc(40 * var(--u));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(14 * var(--u));
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.35s var(--ease),
+    transform 0.45s var(--ease);
+  z-index: 30;
+}
+.volhud.show {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+.volhud .n {
+  font-size: calc(22 * var(--u));
+  font-weight: 700;
+}
+.volhud .lvl {
+  position: relative;
+  flex: 1;
+  width: calc(44 * var(--u));
+  border-radius: calc(22 * var(--u));
+  background: rgba(255, 255, 255, 0.2);
+  overflow: hidden;
+}
+.volhud .lvl i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #fff;
+  transition: height 0.25s var(--ease);
+}
+.volhud svg {
+  width: calc(32 * var(--u));
+  height: calc(32 * var(--u));
+}
+
+/* ---- split page: big art left, title + rows right (Settings, Add a phone, Library folders, YouTube error) ---- */
+.split-art {
+  position: absolute;
+  left: calc(160 * var(--u));
+  top: 50%;
+  transform: translateY(-50%);
+  width: calc(560 * var(--u));
+  height: calc(560 * var(--u));
+  border-radius: calc(120 * var(--u));
+  display: grid;
+  place-items: center;
+  background: linear-gradient(160deg, #8e8e93, #3a3a3c);
+  box-shadow: 0 calc(40 * var(--u)) calc(100 * var(--u)) rgba(0, 0, 0, 0.6);
+  color: #e5e5ea;
+  font-size: calc(280 * var(--u));
+}
+.split-art.qr-art {
+  background: #fff;
+  padding: calc(40 * var(--u));
+  box-sizing: border-box;
+}
+.split-art.qr-art svg {
+  width: 100%;
+  height: 100%;
+  border-radius: calc(24 * var(--u));
+}
+.split-list {
+  position: absolute;
+  left: calc(860 * var(--u));
+  right: calc(140 * var(--u));
+  top: 50%;
+  transform: translateY(-50%);
+}
+.split-list h1 {
+  margin: 0 0 calc(30 * var(--u)) calc(32 * var(--u));
+  font-size: calc(60 * var(--u));
+  letter-spacing: -0.02em;
+}
+.split-list p {
+  margin: 0 calc(32 * var(--u)) calc(40 * var(--u));
+  max-width: calc(780 * var(--u));
+  font-size: calc(30 * var(--u));
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--t2);
+}
+.split-list .g-pill {
+  margin-left: calc(32 * var(--u));
+}

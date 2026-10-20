@@ -1,18 +1,20 @@
 import type { ScreenPayload } from "../../shared/protocol.ts";
-import { el, focusable, root } from "./dom.ts";
+import { el } from "./dom.ts";
+import { glassRow, splitPage } from "./glass.ts";
 
 export function render(payload: ScreenPayload): void {
-  root.replaceChildren();
-  const view = el("div", "view page");
-  view.append(el("h1", "page-title", "Library folders"));
-  const list = el("div", "menu wide");
-  for (const item of payload.grid) {
-    const focused = item.id === payload.focusedId ? " focused" : "";
-    const row = focusable(el("div", `menu-item${focused}`), item.id);
-    row.textContent = item.id === "add" ? "Add folder…" : item.label;
-    if (item.id !== "add") row.append(el("span", "hint", focused ? "OK to remove" : ""));
-    list.append(row);
-  }
-  view.append(list);
-  root.append(view);
+  splitPage({ icon: "folder" }, [
+    el("h1", "", "Library folders"),
+    ...payload.grid.map((item) => {
+      const focused = item.id === payload.focusedId;
+      const add = item.id === "add";
+      return glassRow({
+        id: item.id,
+        label: add ? "Add folder…" : item.label,
+        focused,
+        value: add ? "" : focused ? "OK to remove" : "",
+        chevron: add,
+      });
+    }),
+  ]);
 }
