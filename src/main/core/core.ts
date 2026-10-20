@@ -24,7 +24,8 @@ import { pickTargetDisplay } from "../display.ts";
 import type { YouTube, YouTubeEvent } from "../ports/youtube.ts";
 import { randomBytes } from "node:crypto";
 import type { Store } from "../ports/store.ts";
-import { nullThumbnails, type Thumbnails } from "../ports/thumbnails.ts";
+import type { Thumbnails } from "../ports/thumbnails.ts";
+import { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
 import { ACTIONS, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
 import { cleanTitle, hueFor, listFolder, mosaicSources, rootEntries } from "./library.ts";
@@ -35,7 +36,6 @@ import { History } from "./history.ts";
 /** In-progress videos shown on Home. */
 const HOME_VIDEOS = 3;
 const TILE_COLUMNS = 4;
-const THUMBNAIL_JOBS = 2;
 const LIBRARY_VIEWS = ["library", "folder", "libraryFolders"];
 
 export interface Ports {
@@ -95,16 +95,11 @@ export class Core {
   #cancelVolume: (() => void) | undefined;
   #subtitlesRaised = "falsefalse";
   #unsubPlayer: () => void;
-  #thumbQueue: string[] = [];
-  #thumbUrls = new Map<string, string>();
-  #thumbBusy = new Set<string>();
+  #thumbs: ThumbnailScheduler;
   #mosaics = new Map<string, { sources: string[]; count: number }>();
   #rootKey: string | undefined;
-  #thumbRunning = 0;
-  #continueThumbs = new Map<string, string>();
   /** The playing video's folder (videos only), read when it starts. */
   #upNext: LibraryEntry[] = [];
-  #disposed = false;
   #history: History;
   #cancelSaves: (() => void) | undefined;
   #resumeNote: string | undefined;
@@ -120,6 +115,7 @@ export class Core {
     this.#ports = ports;
     const lib = ports.store.read<{ folders?: unknown }>("library", {});
     this.#history = new History(ports.store);
+    this.#thumbs = new ThumbnailScheduler(ports.thumbnails, () => this.#emit());
     this.#libraryFolders = Array.isArray(lib.folders)
       ? lib.folders.filter((f): f is string => typeof f === "string")
       : [];
@@ -227,12 +223,12 @@ export class Core {
   /** A video's picture, or a folder's mosaic and count, from what has been made so far. */
   #withMosaic(entry: LibraryEntry): LibraryEntry {
     if (entry.kind === "video") {
-      const thumb = this.#thumbUrls.get(entry.path);
+      const thumb = this.#thumbs.urlFor(entry.path);
       return thumb ? { ...entry, thumb } : entry;
     }
     const m = this.#mosaics.get(entry.path);
     if (!m || entry.missing) return entry;
-    const mosaic = m.sources.flatMap((p) => this.#thumbUrls.get(p) ?? []);
+    const mosaic = m.sources.flatMap((p) => this.#thumbs.urlFor(p) ?? []);
     return { ...entry, count: m.count, ...(mosaic.length ? { mosaic } : {}) };
   }
 
@@ -253,7 +249,7 @@ export class Core {
       this.#mosaics.set(f, m);
       paths.push(...m.sources);
     }
-    this.#queueThumbnails(paths);
+    this.#thumbs.want(paths);
   }
 
   #continueEntries(): LibraryEntry[] {
@@ -265,31 +261,9 @@ export class Core {
         title,
         hue: hueFor(title),
         folder: basename(dirname(c.path)),
-        thumb: this.#continueThumb(c.path),
+        thumb: this.#thumbs.lookup(c.path),
       });
     });
-  }
-
-  /** A frame for an in-progress video: cached now, or made in the background and shown when ready. */
-  #continueThumb(path: string): string | undefined {
-    const known = this.#continueThumbs.get(path);
-    if (known !== undefined) return known || undefined;
-    const thumbs = this.#ports.thumbnails ?? nullThumbnails;
-    const cached = thumbs.cached(path);
-    if (cached) {
-      this.#continueThumbs.set(path, cached);
-      return cached;
-    }
-    this.#continueThumbs.set(path, "");
-    void thumbs
-      .make(path)
-      .catch(() => undefined)
-      .then((url) => {
-        if (!url || this.#disposed) return;
-        this.#continueThumbs.set(path, url);
-        this.#emit();
-      });
-    return undefined;
   }
 
   #currentGrid(): GridItem[] {
@@ -388,43 +362,9 @@ export class Core {
       this.#mosaics.set(e.path, m);
       paths.push(...m.sources);
     }
-    this.#queueThumbnails(paths);
+    this.#thumbs.want(paths);
     this.#state.folderPath = path;
     this.#state.view = "folder";
-  }
-
-  /** Cached pictures appear at once; the rest are made in the background, a couple at a time. */
-  #queueThumbnails(paths: string[]): void {
-    const thumbs = this.#ports.thumbnails ?? nullThumbnails;
-    this.#thumbQueue = [];
-    for (const path of new Set(paths)) {
-      if (this.#thumbUrls.has(path) || this.#thumbBusy.has(path)) continue;
-      const url = thumbs.cached(path);
-      if (url) this.#thumbUrls.set(path, url);
-      else this.#thumbQueue.push(path);
-    }
-    this.#pumpThumbnails();
-  }
-
-  #pumpThumbnails(): void {
-    const thumbs = this.#ports.thumbnails ?? nullThumbnails;
-    while (!this.#disposed && this.#thumbRunning < THUMBNAIL_JOBS && this.#thumbQueue.length) {
-      const path = this.#thumbQueue.shift()!;
-      this.#thumbRunning++;
-      this.#thumbBusy.add(path);
-      void thumbs
-        .make(path)
-        .catch(() => undefined)
-        .then((url) => {
-          this.#thumbRunning--;
-          this.#thumbBusy.delete(path);
-          if (url && !this.#disposed) {
-            this.#thumbUrls.set(path, url);
-            this.#emit();
-          }
-          this.#pumpThumbnails();
-        });
-    }
   }
 
   #libraryAction(action: string): boolean {
@@ -807,7 +747,7 @@ export class Core {
       const title = cleanTitle(basename(e.path));
       return {
         title,
-        thumb: this.#continueThumb(e.path),
+        thumb: this.#thumbs.lookup(e.path),
         hue: hueFor(title),
         watched: d.watched === true,
         playing: e.path === playing,
@@ -823,8 +763,8 @@ export class Core {
   }
 
   #thumbKey(path: string): string | undefined {
-    return (this.#ports.thumbnails ?? nullThumbnails)
-      .cached(path)
+    return this.#thumbs
+      .urlFor(path)
       ?.split("/")
       .pop()
       ?.replace(/\.jpg$/, "");
@@ -1060,7 +1000,7 @@ export class Core {
   }
 
   dispose(): void {
-    this.#disposed = true;
+    this.#thumbs.dispose();
     this.#unsubDisplays();
     this.#cancelIdle?.();
     this.#cancelToast?.();
