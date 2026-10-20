@@ -241,6 +241,22 @@ svg.i {
 }
 .toast.notice {
   top: calc(140 * var(--u));
+  display: flex;
+  align-items: center;
+  gap: calc(20 * var(--u));
+  font-weight: 500;
+  font-size: calc(26 * var(--u));
+  color: var(--t2);
+}
+.toast.notice svg {
+  font-size: calc(40 * var(--u));
+  color: #fff;
+}
+.toast.notice b {
+  display: block;
+  color: #fff;
+  font-weight: 700;
+  font-size: calc(30 * var(--u));
 }
 .volhud {
   position: fixed;
@@ -462,6 +478,17 @@ svg.i {
   backdrop-filter: blur(20px) saturate(1.6);
 }
 .lib-empty {
+  display: flex;
+  align-items: center;
+  gap: calc(22 * var(--u));
+  width: fit-content;
+  padding: calc(30 * var(--u)) calc(44 * var(--u));
+  border-radius: calc(32 * var(--u));
   font-size: calc(30 * var(--u));
+  font-weight: 500;
+  color: var(--t2);
+}
+.lib-empty svg {
+  font-size: calc(48 * var(--u));
   color: var(--t3);
 }

@@ -1,4 +1,5 @@
 import type { LibraryEntry, ScreenPayload } from "../../shared/protocol.ts";
+import { iconSvg } from "../../shared/icons.ts";
 import { el, focusable, root } from "./dom.ts";
 import { topbar } from "./glass.ts";
 
@@ -73,7 +74,13 @@ export function render(payload: ScreenPayload): void {
   );
   const body = el("div", "lib-body");
   if (lib.entries.length === 0) {
-    body.append(el("div", "lib-empty", escape(lib.emptyText ?? "")));
+    body.append(
+      el(
+        "div",
+        "lib-empty glass",
+        `${iconSvg("folder")}<span>${escape(lib.emptyText ?? "")}</span>`,
+      ),
+    );
   } else if (inFolder) {
     const grid = el("div", "lib-grid");
     for (const e of lib.entries) grid.append(card(e, payload));

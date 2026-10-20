@@ -1,5 +1,5 @@
 import { glassTokensCss } from "../../shared/glass-tokens.ts";
-import { ICON_PATHS } from "../../shared/icons.ts";
+import { ICON_MARKUP } from "../../shared/icons.ts";
 
 /** The Remote page, served as one self-contained document (no build step for it). Plain ES5-ish JS, no template literals. */
 export const REMOTE_PAGE = String.raw`<!doctype html>
@@ -24,8 +24,9 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .live { display:flex; align-items:center; gap:6px; font-size:13px; }
   .live i { width:8px; height:8px; border-radius:4px; background:var(--live); }
   .off .live i { background:var(--danger); }
-  .banner { margin-top:12px; padding:10px 14px; border-radius:14px; background:#3a2a10; color:#f2d9a8; font-size:14px; }
-  .note { margin-top:10px; font-size:14px; color:var(--t3); }
+  .banner { margin-top:12px; padding:12px 16px; border-radius:var(--r-row); background:var(--glass-strong); backdrop-filter:blur(40px) saturate(1.8); box-shadow:var(--glass-edge); color:var(--t1); font-size:14px; font-weight:600; display:flex; align-items:center; gap:10px; }
+  .banner::before { content:""; width:8px; height:8px; border-radius:4px; background:var(--danger); flex:none; }
+  .note { margin-top:10px; padding:0 16px; font-size:14px; color:var(--t3); }
   main { flex:1; display:flex; flex-direction:column; transition:opacity .2s; }
   .off main { opacity:.35; pointer-events:none; }
   .pad { margin:26px auto 0; width:min(270px, 70vw); aspect-ratio:1; border-radius:50%; position:relative; background:radial-gradient(circle at 50% 35%, #3a3a3c, var(--card)); box-shadow:inset 0 0 0 1px rgba(255,255,255,.06), 0 18px 40px rgba(0,0,0,.4); flex:none; }
@@ -317,5 +318,5 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 </body>
 </html>
 `
-  .replace("__ICONS__", JSON.stringify(ICON_PATHS))
+  .replace("__ICONS__", JSON.stringify(ICON_MARKUP))
   .replace("__TOKENS__", glassTokensCss({ unit: "1px" }));

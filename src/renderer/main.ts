@@ -4,6 +4,7 @@ import { SCREEN_KEYS } from "../shared/keyboard.ts";
 import { VIEWS } from "./views/index.ts";
 import { renderHud } from "./hud.ts";
 import { renderOverlay } from "./player-overlay.ts";
+import { iconSvg } from "../shared/icons.ts";
 import { glassTokensCss } from "../shared/glass-tokens.ts";
 import "./style.css";
 import "./glass.css";
@@ -36,7 +37,9 @@ const itemAt = (event: MouseEvent) => {
 const focusItem = (item: GridItem) =>
   window.couch.send({ command: "focusAt", args: { r: item.r, c: item.c } });
 
-window.addEventListener("mouseover", (event) => {
+// Real movement only: a view drawn under a resting cursor fires mouseover without the mouse moving, which
+// would steal focus from the view's first tile (or its last-focused one).
+window.addEventListener("mousemove", (event) => {
   const item = itemAt(event);
   if (item && item.id !== current?.focusedId) focusItem(item);
 });
@@ -91,9 +94,10 @@ window.couch.onScreen((payload) => {
 });
 
 window.couch.onMpv((status) => {
-  const text = status.missing
-    ? "Couch needs mpv to play videos. Install it with: brew install mpv"
-    : (status.message ?? "");
-  if (text) notice.textContent = text;
-  notice.classList.toggle("show", Boolean(text));
+  if (status.missing) {
+    notice.innerHTML = `${iconSvg("play")}<span><b>Couch needs mpv</b>to play videos. Install it with: brew install mpv</span>`;
+  } else if (status.message) {
+    notice.textContent = status.message;
+  }
+  notice.classList.toggle("show", Boolean(status.missing || status.message));
 });
