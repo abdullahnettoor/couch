@@ -110,6 +110,16 @@ describe("thumbnails over HTTP", () => {
     expect(res.status).toBe(404);
   });
 
+  test("an unreadable cache entry (a folder, a vanished file) answers an error and Couch keeps serving", async () => {
+    const dir = "d".repeat(40);
+    mkdirSync(join(h.thumbDir, `${dir}.jpg`));
+    const res = await fetch(url(`/thumb/${dir}.jpg`, h.pairingKey()));
+    expect([404, 500]).toContain(res.status);
+    await res.arrayBuffer();
+    const again = await fetch(url(`/thumb/${key}.jpg`, h.pairingKey()));
+    expect(again.status).toBe(200);
+  });
+
   test("never serves other paths", async () => {
     writeFileSync(join(h.thumbDir, "..", "secret.txt"), "x");
     for (const p of [

@@ -99,10 +99,74 @@ describe("Up next", () => {
     expect(calls("setSubtitlesRaised").at(-1)!.args).toEqual([true, false]);
   });
 
-  test("it stays open while nothing is pressed", async () => {
+  test("it hides after 4.5 s without input while playing, like the dock; any command restarts the timer", async () => {
     await playE01();
     await phone.press("down");
+    h.clock.advance(4000);
+    await phone.press("right");
+    h.clock.advance(4000);
+    expect(h.screen.last.state.controls).toBe("upnext");
+    h.clock.advance(600);
+    expect(h.screen.last.state.controls).toBe("hidden");
+    expect(overlay().upNext).toBeUndefined();
+  });
+
+  test("paused keeps it up", async () => {
+    await playE01();
+    await phone.press("playpause");
+    await phone.press("down");
     h.clock.advance(20000);
+    expect(h.screen.last.state.controls).toBe("upnext");
+  });
+
+  test("with it open, Down reaches the dock; Left/Right then move dock focus, OK acts on it, Up returns to the row", async () => {
+    await playE01();
+    await phone.press("down");
+    await phone.press("down");
+    expect(overlay().dock!.focusedId).toBe("upnext");
+    await phone.press("right");
+    expect(overlay().dock!.focusedId).toBe("subtitles");
+    expect(calls("seekTo")).toHaveLength(0);
+    await phone.press("ok");
+    expect(calls("setSubtitles")).toHaveLength(1);
+    expect(h.screen.last.state.controls).toBe("upnext");
+    expect(calls("setPaused")).toHaveLength(0);
+    await phone.press("up");
+    expect(overlay().upNext!.focusedIndex).toBeDefined();
+    expect(h.screen.last.state.controls).toBe("upnext");
+  });
+
+  test("OK on the dock's Up next button closes the row", async () => {
+    await playE01();
+    await phone.press("down");
+    await phone.press("down");
+    await phone.press("ok");
+    expect(h.screen.last.state.controls).toBe("dock");
+  });
+
+  test("hovering (Screen focusAt) a dock button or an episode focuses it, then OK activates it", async () => {
+    await playE01();
+    await phone.press("down");
+    h.app.screenCommand({ command: "focusAt", args: { r: 0, c: 2 } });
+    expect(focusedTitle()).toBe("Show S01E03");
+    h.app.screenCommand({ command: "focusAt", args: { r: 1, c: 5 } });
+    expect(overlay().dock!.focusedId).toBe("subtitles");
+    h.app.screenCommand({ command: "focusAt", args: { r: 0, c: 1 } });
+    await phone.press("ok");
+    expect(calls("load").at(-1)!.args[0]).toBe(ep(2));
+  });
+
+  test("clicking the Up next button sends focusAt then OK: it opens, and closes when open", async () => {
+    await playE01();
+    const click = () => {
+      h.app.screenCommand({ command: "focusAt", args: { r: 1, c: 4 } });
+      h.app.screenCommand({ command: "ok" });
+    };
+    click();
+    expect(h.screen.last.state.controls).toBe("upnext");
+    click();
+    expect(h.screen.last.state.controls).toBe("dock");
+    click();
     expect(h.screen.last.state.controls).toBe("upnext");
   });
 
@@ -174,6 +238,16 @@ describe("Up next from a phone", () => {
     expect(JSON.stringify(snap)).not.toContain(root);
     await phone.press("back");
     expect(phone.last!.upNext).toBeUndefined();
+  });
+
+  test("the snapshot carries each partly-watched video's progress", async () => {
+    await playE01();
+    h.player.emit({ type: "position", seconds: 150 });
+    await phone.press("down");
+    await phone.press("right");
+    await phone.press("ok"); // E02 now playing; E01 left at 150 of 600
+    const snap = await phone.press("playpause");
+    expect(snap.upNext!.map((u) => u.progress)).toEqual([0.25, undefined, undefined]);
   });
 
   test("playUpNext plays the right one; refused out of range, off the player, or with a path", async () => {

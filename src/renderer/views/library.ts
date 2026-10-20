@@ -1,5 +1,6 @@
 import type { LibraryEntry, ScreenPayload } from "../../shared/protocol.ts";
 import { el, focusable, root } from "./dom.ts";
+import { topbar } from "./glass.ts";
 
 function escape(text: string): string {
   return text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -65,6 +66,7 @@ export function render(payload: ScreenPayload): void {
   root.replaceChildren();
   if (!lib) return;
   const page = el("div", "screen-glass");
+  page.append(topbar(payload));
   const inFolder = payload.viewKey !== "library";
   page.append(
     el("div", "lib-head", `${inFolder ? "<small>Library</small>" : ""}${escape(lib.heading)}`),

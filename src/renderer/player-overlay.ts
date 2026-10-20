@@ -1,5 +1,5 @@
 import { formatTime, type PlayerOverlay, type UpNextTile } from "../shared/player.ts";
-import { DOCK_IDS, DOCK_LABELS, type DockId } from "../shared/player-dock.ts";
+import { DOCK_IDS, DOCK_LABELS, DOCK_ROW, type DockId } from "../shared/player-dock.ts";
 import { iconSvg, type IconName } from "../shared/icons.ts";
 import type { Command } from "../shared/protocol.ts";
 import "./player-overlay.css";
@@ -165,7 +165,10 @@ el.addEventListener("click", (event) => {
     if (!target.closest(".po-dock")) send({ command: "playpause" });
     return;
   }
-  if (id === "upnext") send({ command: "down" });
+  if (id === "upnext") {
+    send({ command: "focusAt", args: { r: DOCK_ROW, c: DOCK_IDS.indexOf("upnext") } });
+    send({ command: "ok" });
+  }
   else if (id === "playpause") send({ command: "playpause" });
   else if (id === "back10") send({ command: "seekBy", args: { seconds: -10 } });
   else if (id === "fwd10") send({ command: "seekBy", args: { seconds: 10 } });
@@ -177,6 +180,17 @@ el.addEventListener("click", (event) => {
       command: "volSet",
       args: { percent: Math.round(fractionOf(event, volTrack) * 100) },
     });
+});
+
+el.addEventListener("mouseover", (event) => {
+  const target = (event.target as Element).closest("[data-ep], [data-dock]");
+  if (!target) return;
+  const episode = (target as HTMLElement).dataset.ep;
+  if (episode !== undefined) send({ command: "focusAt", args: { r: 0, c: Number(episode) } });
+  else {
+    const c = DOCK_IDS.indexOf((target as HTMLElement).dataset.dock as DockId);
+    send({ command: "focusAt", args: { r: DOCK_ROW, c } });
+  }
 });
 
 el.addEventListener("mousemove", (event) => {

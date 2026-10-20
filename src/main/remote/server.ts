@@ -1,4 +1,4 @@
-import { createReadStream, existsSync } from "node:fs";
+import { createReadStream, statSync } from "node:fs";
 import { join } from "node:path";
 import { createServer, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -45,9 +45,26 @@ export async function startRemoteServer(
     const name = /^\/thumb\/([0-9a-f]{40})\.jpg$/.exec(path)?.[1];
     const file = name && options.thumbnailDir ? join(options.thumbnailDir, `${name}.jpg`) : "";
     if (!core.acceptsKey(given)) return void res.writeHead(401).end();
-    if (!file || !existsSync(file)) return void res.writeHead(404).end();
-    res.writeHead(200, { "content-type": "image/jpeg", "cache-control": "private, max-age=86400" });
-    createReadStream(file).pipe(res);
+    const isFile = (() => {
+      try {
+        return statSync(file).isFile();
+      } catch {
+        return false;
+      }
+    })();
+    if (!file || !isFile) return void res.writeHead(404).end();
+    const stream = createReadStream(file);
+    stream.once("error", () => {
+      if (res.headersSent) res.destroy();
+      else res.writeHead(404).end();
+    });
+    stream.once("open", () => {
+      res.writeHead(200, {
+        "content-type": "image/jpeg",
+        "cache-control": "private, max-age=86400",
+      });
+      stream.pipe(res);
+    });
   };
   const http: Server = createServer((req, res) => {
     const path = (req.url ?? "/").split("?")[0];

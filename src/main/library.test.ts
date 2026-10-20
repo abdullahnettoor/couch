@@ -90,6 +90,30 @@ describe("Library through the Remote", () => {
     await phone.settle();
   }
 
+  test("Up from the first row reaches the top strip's gear; OK opens Settings (empty, Library and folders)", async () => {
+    mkdirSync(join(root, "Movies", "Sub"), { recursive: true });
+    h = await startHarness(store());
+    const phone = await openLibrary();
+    await phone.press("up");
+    expect(h.screen.last.focusedLabel).toBe("Settings");
+    await phone.press("ok");
+    expect(h.screen.last.state.view).toBe("settings");
+
+    await addFolder(phone, join(root, "Movies"));
+    await openLibrary(phone);
+    await phone.press("down");
+    expect(h.screen.last.focusedLabel).toBe("Movies");
+    await phone.press("up");
+    expect(h.screen.last.focusedLabel).toBe("Settings");
+    await phone.press("down");
+    await phone.press("ok");
+    await phone.press("up");
+    expect(h.screen.last.state.view).toBe("folder");
+    expect(h.screen.last.focusedLabel).toBe("Settings");
+    await phone.press("ok");
+    expect(h.screen.last.state.view).toBe("settings");
+  });
+
   test("empty state", async () => {
     h = await startHarness(store());
     await openLibrary();

@@ -161,6 +161,8 @@ export interface UpNextItem {
   thumbKey?: string;
   watched: boolean;
   playing: boolean;
+  /** 0–1, for a partly watched video. */
+  progress?: number;
 }
 
 /** Which control layout the Remote shows. */

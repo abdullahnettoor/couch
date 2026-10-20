@@ -74,6 +74,8 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .upn .list { display:flex; gap:10px; overflow-x:auto; scrollbar-width:none; }
   .upn .e { width:120px; flex:none; text-align:left; }
   .upn .e .pic { width:120px; height:68px; border-radius:10px; background:#3a3a3c center/cover; position:relative; }
+  .upn .e .prog { position:absolute; left:6px; right:6px; bottom:6px; height:3px; border-radius:2px; background:rgba(255,255,255,.3); }
+  .upn .e .prog i { display:block; height:100%; border-radius:2px; background:#fff; }
   .upn .e.now .pic { box-shadow:0 0 0 2px #fff; }
   .upn .e span { display:block; font-size:12px; margin-top:4px; color:var(--t2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .upn .e.seen { opacity:.55; }
@@ -193,6 +195,14 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       var pic = document.createElement("div");
       pic.className = "pic";
       if (it.thumbKey) pic.style.backgroundImage = thumb(it.thumbKey);
+      if (typeof it.progress === "number") {
+        var prog = document.createElement("div");
+        prog.className = "prog";
+        var bar = document.createElement("i");
+        bar.style.width = Math.round(it.progress * 100) + "%";
+        prog.appendChild(bar);
+        pic.appendChild(prog);
+      }
       var t = document.createElement("span");
       t.textContent = it.title;
       b.appendChild(pic); b.appendChild(t);

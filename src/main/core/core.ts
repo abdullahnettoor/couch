@@ -354,17 +354,26 @@ export class Core {
           : `library:play:${e.path}`,
       initial,
     });
-    if (cont.length) {
-      return [
-        ...cont.map((e, i) => tile(e, 0, i, i === 0)),
-        ...lib.entries.map((e, i) =>
-          tile(e, 1 + Math.floor(i / TILE_COLUMNS), i % TILE_COLUMNS, false),
-        ),
-      ];
-    }
-    return lib.entries.map((e, i) =>
-      tile(e, Math.floor(i / TILE_COLUMNS), i % TILE_COLUMNS, i === 0),
-    );
+    // Row 0 is the top strip's gear, as on Home; tiles start on row 1.
+    const tiles = cont.length
+      ? [
+          ...cont.map((e, i) => tile(e, 1, i, i === 0)),
+          ...lib.entries.map((e, i) =>
+            tile(e, 2 + Math.floor(i / TILE_COLUMNS), i % TILE_COLUMNS, false),
+          ),
+        ]
+      : lib.entries.map((e, i) =>
+          tile(e, 1 + Math.floor(i / TILE_COLUMNS), i % TILE_COLUMNS, i === 0),
+        );
+    const gear: GridItem = {
+      id: "settings",
+      r: 0,
+      c: 0,
+      label: "Settings",
+      action: "open:settings",
+      initial: tiles.length === 0,
+    };
+    return [gear, ...tiles];
   }
 
   #openFolder(path: string): void {
@@ -489,7 +498,7 @@ export class Core {
       if (after !== -1) index += 1 + after;
     }
     this.#state.focus[`folder:${this.#state.folderPath}`] = {
-      r: Math.floor(index / TILE_COLUMNS),
+      r: 1 + Math.floor(index / TILE_COLUMNS),
       c: index % TILE_COLUMNS,
     };
   }
@@ -618,6 +627,11 @@ export class Core {
     return true;
   }
 
+  #focusUpNextRow(): void {
+    const playing = this.#upNext.findIndex((e) => e.path === this.#state.player?.path);
+    this.#state.focus.player = { r: 0, c: Math.max(0, playing) };
+  }
+
   #closeUpNext(): void {
     this.#state.controls = "dock";
     this.#state.focus.player = { r: DOCK_ROW, c: DOCK_IDS.indexOf("upnext") };
@@ -664,7 +678,8 @@ export class Core {
       if (name === "home") this.#state.view = "home";
       return true;
     }
-    const dockWasUp = this.#state.controls === "dock";
+    const dockWasUp = this.#state.controls !== "hidden";
+    const upNextOpen = this.#state.controls === "upnext";
     this.#showControls();
     if (this.#inUpNextRow()) {
       switch (name) {
@@ -693,10 +708,13 @@ export class Core {
       }
       case "up":
       case "down": {
-        if (name === "down" && this.#state.controls !== "upnext") {
+        if (name === "down" && !upNextOpen) {
           // #openUpNext does nothing when the folder has no other videos.
           if (this.#openUpNext()) return true;
-        } else if (name === "up" && this.#state.controls === "upnext") return true;
+        } else if (name === "up" && upNextOpen) {
+          this.#focusUpNextRow();
+          return true;
+        }
         // Left/Right belong to the bar and the slider, so Up/Down step off them.
         const focused = this.#focusedDock();
         if (dockWasUp && (focused === "bar" || focused === "volume"))
@@ -721,7 +739,8 @@ export class Core {
               toggleSubtitles();
               break;
             case "upnext":
-              this.#openUpNext();
+              if (upNextOpen) this.#closeUpNext();
+              else this.#openUpNext();
               break;
           }
         return true;
@@ -749,7 +768,8 @@ export class Core {
     if (this.#state.controls !== "upnext") this.#state.controls = "dock";
     this.#cancelOverlay?.();
     this.#cancelOverlay = this.#ports.clock.setTimeout(() => {
-      if (this.#state.player?.paused || this.#state.controls === "upnext") return;
+      if (this.#state.player?.paused) return;
+      if (this.#state.controls === "upnext") this.#closeUpNext();
       this.#state.controls = "hidden";
       this.#emit();
     }, CONTROLS_MS);
@@ -814,11 +834,13 @@ export class Core {
     const playing = this.#state.player?.path;
     return this.#upNext.map((e) => {
       const key = this.#thumbKey(e.path);
+      const progress = this.#history.progress(e.path);
       return {
         title: cleanTitle(basename(e.path)),
         ...(key ? { thumbKey: key } : {}),
         watched: this.#history.isWatched(e.path),
         playing: e.path === playing,
+        ...(progress ? { progress: progress.position / progress.duration } : {}),
       };
     });
   }
@@ -1060,7 +1082,8 @@ export class Core {
   }
 
   #focusAt(r?: number, c?: number): void {
-    if (this.#state.view === "youtube" || this.#state.view === "player") return;
+    if (this.#state.view === "youtube") return;
+    if (this.#state.view === "player" && this.#state.controls === "hidden") return;
     const item = this.#currentGrid().find((i) => i.r === r && i.c === c);
     if (!item) return;
     this.#state.focus[this.viewKey] = { r: item.r, c: item.c };
