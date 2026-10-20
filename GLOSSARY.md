@@ -36,6 +36,10 @@ _Avoid_: recents, history, up next
 The Remote's playback controls, shown while a Library video plays: seek bar, back/forward 10 seconds, play/pause, subtitles, and volume (the Mac's volume).
 _Avoid_: player controls, transport
 
+**Settings**:
+The one page for setup chores, opened from the gear on Home: adding phones, Library folders, restarting YouTube, and quitting.
+_Avoid_: preferences, options, admin
+
 **Household**:
 The people who share one Screen. There are no profiles or logins; any household phone can act as a Remote.
 _Avoid_: user, account, profile
