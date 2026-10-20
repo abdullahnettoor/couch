@@ -23,8 +23,8 @@ function row(e: ShowEpisode, focused: boolean): HTMLElement {
     "button",
     `sh-ep${focused ? " focused" : ""}${e.missing ? " missing" : ""}`,
     `<div class="sh-im">${img}${bar}</div><div><h3>${num}${escape(e.title)}</h3>${
-      status ? `<div class="st">${escape(status)}</div>` : ""
-    }</div>`,
+      e.overview ? `<p>${escape(e.overview)}</p>` : ""
+    }${status ? `<div class="st">${escape(status)}</div>` : ""}</div>`,
   );
   return focusable(node, e.id);
 }
@@ -62,9 +62,12 @@ export function render(payload: ScreenPayload): void {
   const p = shown;
   p.bg.style.backgroundImage = show.backdrop ? `url("${show.backdrop}")` : "";
 
+  p.side.classList.toggle("has-art", Boolean(show.poster));
   p.side.replaceChildren(
+    ...(show.poster ? [el("div", "sh-art", `<img src="${escape(show.poster)}" alt="">`)] : []),
     el("h1", "", escape(show.name)),
     el("div", "sh-meta", show.meta.map((m) => `<span>${escape(m)}</span>`).join("<i>·</i>")),
+    ...(show.overview ? [el("p", "sh-ov", escape(show.overview))] : []),
     el("div", "sh-acts"),
   );
   const acts = p.side.querySelector(".sh-acts")!;

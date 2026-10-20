@@ -44,6 +44,30 @@ window.addEventListener("mousemove", (event) => {
   const item = itemAt(event);
   if (item && item.id !== current?.focusedId) focusItem(item);
 });
+// Long press on a tile opens its menu (Fix match for shows and films).
+let pressTimer: number | undefined;
+let pressed = false;
+window.addEventListener("mousedown", (event) => {
+  const item = event.button === 0 ? itemAt(event) : undefined;
+  window.clearTimeout(pressTimer);
+  pressed = false;
+  if (!item) return;
+  pressTimer = window.setTimeout(() => {
+    pressed = true;
+    focusItem(item);
+    window.couch.send({ command: "menu" });
+  }, 600);
+});
+window.addEventListener("mouseup", () => window.clearTimeout(pressTimer));
+window.addEventListener(
+  "click",
+  (event) => {
+    if (!pressed) return;
+    pressed = false;
+    event.stopImmediatePropagation();
+  },
+  true,
+);
 window.addEventListener("click", (event) => {
   const item = itemAt(event);
   if (!item) return;

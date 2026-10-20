@@ -66,7 +66,7 @@ let bg: HTMLElement | undefined;
 let bgKey = "";
 
 function syncBackdrop(videos: LibraryEntry[], hero: LibraryEntry | undefined): void {
-  const key = videos.map((v) => `${v.path}|${v.thumb ?? ""}`).join("\n");
+  const key = videos.map((v) => `${v.path}|${v.backdrop ?? v.thumb ?? ""}`).join("\n");
   if (key !== bgKey) {
     bgKey = key;
     bg!.replaceChildren(
@@ -74,7 +74,8 @@ function syncBackdrop(videos: LibraryEntry[], hero: LibraryEntry | undefined): v
         const img = el("div", "h-frame");
         img.dataset.path = v.path;
         img.style.setProperty("--hue", String(v.hue));
-        if (v.thumb) img.style.backgroundImage = `url("${v.thumb}")`;
+        const url = v.backdrop ?? v.thumb;
+        if (url) img.style.backgroundImage = `url("${url}")`;
         return img;
       }),
     );
@@ -107,9 +108,9 @@ export function render(payload: ScreenPayload): void {
       el(
         "div",
         "h-hero",
-        `${hero.line ? `<div class="k">${escapeHtml(hero.line)}</div>` : ""}<h1 class="${heroSize(hero.title)}">${escapeHtml(hero.title)}</h1><div class="m num">${meta
-          .map((t) => `<span>${t}</span>`)
-          .join("<span>·</span>")}${
+        `${hero.line ? `<div class="k">${escapeHtml(hero.line)}</div>` : ""}<h1 class="${heroSize(hero.title)}">${escapeHtml(hero.title)}</h1>${
+          hero.overview ? `<p class="ov">${escapeHtml(hero.overview)}</p>` : ""
+        }<div class="m num">${meta.map((t) => `<span>${t}</span>`).join("<span>·</span>")}${
           hero.progress
             ? `<span class="h-bar"><i style="width:${Math.round(hero.progress.fraction * 100)}%"></i></span>`
             : ""

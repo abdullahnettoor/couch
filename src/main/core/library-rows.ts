@@ -1,5 +1,6 @@
 import type { LibraryEntry, LibraryRow } from "../../shared/protocol.ts";
 import { hueFor, presentation } from "./library.ts";
+import { artFor, type DetailsLookup } from "./art.ts";
 import type { MediaLibrary, Show, WatchState } from "./media-library.ts";
 
 export interface RowsContext {
@@ -11,6 +12,8 @@ export interface RowsContext {
   continueEntries: LibraryEntry[];
   /** A picture that exists already. */
   thumb(path: string): string | undefined;
+  /** TMDB details by show id or film path; without it, frames everywhere. */
+  details?: DetailsLookup;
 }
 
 /** "Elemental (2023)" → "Elemental"; the year has its own place. */
@@ -26,9 +29,18 @@ export function showStatus(show: Show, history: WatchState): string {
   return "Watched";
 }
 
-function showFeature(show: Show): NonNullable<LibraryEntry["feature"]> {
+function showFeature(
+  show: Show,
+  d?: { overview?: string; backdrop?: string },
+): NonNullable<LibraryEntry["feature"]> {
   const sub = [show.year, plural(show.seasons.length, "season")].filter(Boolean).join(" · ");
-  return { kind: "Show", title: show.name, sub };
+  return {
+    kind: "Show",
+    title: show.name,
+    sub,
+    ...(d?.overview ? { overview: d.overview } : {}),
+    ...(d?.backdrop ? { backdrop: d.backdrop } : {}),
+  };
 }
 
 /** The action a tile's OK runs. A show's target is the one place 033 swaps for the show page. */
@@ -42,6 +54,7 @@ export function tileAction(e: LibraryEntry): string {
 /** The Library's rows in order, empty ones left out, and the pictures they want (in priority order). */
 export function libraryRows(ctx: RowsContext): { rows: LibraryRow[]; wanted: string[] } {
   const { library, history } = ctx;
+  const lookup: DetailsLookup = ctx.details ?? (() => undefined);
   const wanted: string[] = [];
   const picture = (path: string) => {
     wanted.push(path);
@@ -50,7 +63,9 @@ export function libraryRows(ctx: RowsContext): { rows: LibraryRow[]; wanted: str
 
   const showTile = (row: string, show: Show, line: string): LibraryEntry => {
     const first = show.seasons[0]?.episodes[0]?.path;
-    const thumb = first ? picture(first) : undefined;
+    const frame = first ? picture(first) : undefined;
+    const d = lookup(show.id);
+    const thumb = (row === "shows" ? d?.poster : d?.backdrop) ?? frame;
     return {
       kind: "show",
       id: `${row}:${show.id}`,
@@ -60,7 +75,7 @@ export function libraryRows(ctx: RowsContext): { rows: LibraryRow[]; wanted: str
       hue: hueFor(show.name),
       ...(show.missing ? { missing: true } : {}),
       ...(thumb ? { thumb } : {}),
-      feature: showFeature(show),
+      feature: showFeature(show, d),
     };
   };
   const filmTile = (
@@ -68,7 +83,9 @@ export function libraryRows(ctx: RowsContext): { rows: LibraryRow[]; wanted: str
     film: { path: string; title: string; year?: number; missing?: boolean },
     line?: string,
   ) => {
-    const thumb = picture(film.path);
+    const frame = picture(film.path);
+    const d = lookup(film.path);
+    const thumb = (row === "films" ? d?.poster : d?.backdrop) ?? frame;
     const title = bare(film.title, film.year);
     return ctx.decorate({
       kind: "video",
@@ -83,6 +100,8 @@ export function libraryRows(ctx: RowsContext): { rows: LibraryRow[]; wanted: str
         kind: "Film",
         title: title,
         ...(film.year ? { sub: String(film.year) } : {}),
+        ...(d?.overview ? { overview: d.overview } : {}),
+        ...(d?.backdrop ? { backdrop: d.backdrop } : {}),
       },
     });
   };
@@ -90,31 +109,42 @@ export function libraryRows(ctx: RowsContext): { rows: LibraryRow[]; wanted: str
   const continuing = ctx.continueEntries.map((e): LibraryEntry => {
     const show = library.showOf(e.path);
     const film = show ? undefined : library.films().find((f) => f.path === e.path);
-    const title = film ? bare(e.title, film.year) : e.title;
+    const { details: d, episode } = artFor(library, lookup, e.path);
+    const title = film ? bare(e.title, film.year) : (episode?.name ?? e.title);
+    const art = episode?.still ?? d?.backdrop;
     return {
       ...e,
       id: `continue:${e.path}`,
       title,
+      ...(art ? { thumb: art } : {}),
       feature: show
-        ? showFeature(show)
-        : { kind: "Film", title, ...(film?.year ? { sub: String(film.year) } : {}) },
+        ? showFeature(show, d)
+        : {
+            kind: "Film",
+            title,
+            ...(film?.year ? { sub: String(film.year) } : {}),
+            ...(d?.overview ? { overview: d.overview } : {}),
+            ...(d?.backdrop ? { backdrop: d.backdrop } : {}),
+          },
     };
   });
   for (const e of continuing) wanted.push(e.path);
 
   const nextUp = library.nextUp(history).map(({ show, episode }): LibraryEntry => {
     const { title, line } = presentation(episode.path);
-    const thumb = picture(episode.path);
+    const frame = picture(episode.path);
+    const art = artFor(library, lookup, episode.path);
+    const thumb = art.episode?.still ?? art.details?.backdrop ?? frame;
     return {
       kind: "video",
       id: `nextup:${episode.path}`,
       path: episode.path,
-      title,
+      title: art.episode?.name ?? title,
       line: line ?? show.name,
       hue: hueFor(show.name),
       ...(episode.missing ? { missing: true } : {}),
       ...(thumb ? { thumb } : {}),
-      feature: showFeature(show),
+      feature: showFeature(show, art.details),
     };
   });
 

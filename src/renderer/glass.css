@@ -555,12 +555,16 @@ svg.i {
 }
 .lf-shelf {
   position: relative;
-  display: flex;
-  gap: calc(36 * var(--u));
   overflow: hidden;
   padding: calc(24 * var(--u)) calc(96 * var(--u)) calc(44 * var(--u)) calc(24 * var(--u));
   margin: calc(-24 * var(--u)) calc(-96 * var(--u)) calc(-44 * var(--u)) calc(-24 * var(--u));
   mask-image: linear-gradient(90deg, transparent, #000 calc(28 * var(--u)));
+}
+.lf-track {
+  position: relative;
+  display: flex;
+  gap: calc(36 * var(--u));
+  width: max-content;
 }
 .lf-folders {
   padding-bottom: calc(60 * var(--u));
@@ -814,4 +818,66 @@ body.windowed {
 }
 .fm-row.focused .fm-poster {
   background: rgba(0, 0, 0, 0.12);
+}
+
+/* ---- TMDB art: overviews, show page poster ---- */
+.lf-feat p {
+  margin: calc(18 * var(--u)) 0 0;
+  font-size: calc(26 * var(--u));
+  line-height: 1.4;
+  color: var(--t2);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sh-art {
+  width: calc(300 * var(--u));
+  height: calc(450 * var(--u));
+  border-radius: calc(20 * var(--u));
+  overflow: hidden;
+  box-shadow: 0 calc(30 * var(--u)) calc(60 * var(--u)) rgba(0, 0, 0, 0.6);
+  margin-bottom: calc(30 * var(--u));
+}
+.sh-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.sh-side.has-art {
+  top: calc(130 * var(--u));
+}
+.sh-side.has-art h1 {
+  font-size: calc(64 * var(--u));
+}
+.sh-ov {
+  margin: calc(14 * var(--u)) 0 0;
+  font-size: calc(22 * var(--u));
+  line-height: 1.45;
+  color: var(--t2);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sh-side.has-art .sh-acts {
+  margin-top: calc(28 * var(--u));
+}
+.sh-ep p {
+  margin: calc(8 * var(--u)) 0 0;
+  font-size: calc(21 * var(--u));
+  line-height: 1.4;
+  color: var(--t3);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.lf-feat h1,
+.lf-feat p {
+  text-shadow: 0 calc(2 * var(--u)) calc(18 * var(--u)) rgba(0, 0, 0, 0.55);
 }

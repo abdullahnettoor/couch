@@ -40,6 +40,7 @@ export const COMMAND_NAMES = [
   "typeText",
   "typeSubmit",
   "typeCancel",
+  "menu",
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
@@ -131,7 +132,19 @@ export interface LibraryEntry {
   /** Name of the folder holding the video (Continue watching). */
   folder?: string;
   /** What the Library's featured area shows while this tile is focused. */
-  feature?: { kind: "Show" | "Film" | "Folder"; title: string; sub?: string };
+  feature?: {
+    kind: "Show" | "Film" | "Folder";
+    title: string;
+    sub?: string;
+    /** TMDB overview (the Library shows at most three lines). */
+    overview?: string;
+    /** TMDB backdrop for the featured area's background. */
+    backdrop?: string;
+  };
+  /** Home: TMDB backdrop for the hero (the tile's `thumb` is the still or poster-sized art). */
+  backdrop?: string;
+  /** Home: TMDB overview under the hero title. */
+  overview?: string;
 }
 
 /** One row on the Library's first page. */
@@ -165,6 +178,8 @@ export interface ShowEpisode {
   /** Episode number; absent for extras. */
   number?: number;
   title: string;
+  /** TMDB overview, two lines. */
+  overview?: string;
   thumb?: string;
   hue: number;
   watched?: boolean;
@@ -180,8 +195,12 @@ export interface ShowPagePayload {
   meta: string[];
   /** The primary button, e.g. "Resume S1 E4". */
   primary: string;
-  /** A frame from the episode the primary button plays. */
+  /** The TMDB backdrop, or a frame from the episode the primary button plays. */
   backdrop?: string;
+  /** TMDB poster for the left column. */
+  poster?: string;
+  /** TMDB overview, four lines. */
+  overview?: string;
   tabs: { id: string; label: string; selected: boolean }[];
   episodes: ShowEpisode[];
   /** Fix match is offered (details are on and a key exists). */
@@ -258,6 +277,8 @@ export interface RemoteSnapshot {
   /** Home only, when a video is in progress. */
   continueCard?: RemoteContinueCard;
   typeAvailable: boolean;
+  /** A show or film tile is focused and details are on: the phone offers Fix match (command `menu`). */
+  fixAvailable?: boolean;
   /** The Type button's label when it isn't YouTube search. */
   typeLabel?: string;
   typing: "none" | "you" | "other";

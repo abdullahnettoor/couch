@@ -100,6 +100,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 <div class="note" id="hint" hidden>Still nothing? Scan the QR code on the Screen again to pair this phone.</div>
 <main id="controls">
   <button class="cw" id="cw" data-cmd="resume" hidden><span class="pic" id="cw-pic"></span><span class="txt"><b id="cw-title"></b><span class="l" id="cw-left"></span></span><span class="go" data-i="play"></span></button>
+  <button class="search" id="fixbtn" data-cmd="menu" hidden><span id="fix-label">Fix match</span></button>
   <button class="search" id="search" data-cmd="typeOpen" hidden><span data-i="search"></span><span id="search-label">Search YouTube</span></button>
   <div class="np" id="np" hidden>
     <div class="art" id="np-art"></div>
@@ -233,6 +234,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       $("cw-left").textContent = s.continueCard.left;
       $("cw-pic").style.backgroundImage = s.continueCard.thumbKey ? thumb(s.continueCard.thumbKey) : "none";
     }
+    $("fixbtn").hidden = !s.fixAvailable || !!np;
     $("search").hidden = (L !== "youtube" && !(s.typeLabel && s.typeAvailable)) || !!np;
     $("search-label").textContent = s.typeLabel || "Search YouTube";
     $("search").classList.toggle("dim", !s.typeAvailable);

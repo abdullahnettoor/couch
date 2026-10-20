@@ -136,16 +136,20 @@ let firstPage: HTMLElement | undefined;
 let backdrop: HTMLElement | undefined;
 let backdropKey = "";
 const shelfScroll = new Map<string, number>();
+let bodyScroll: number | undefined;
 
-function focusedEntry(payload: ScreenPayload): LibraryEntry | undefined {
+function focusedEntry(payload: ScreenPayload): { e?: LibraryEntry; poster: boolean } {
   const lib = payload.library!;
-  return [...lib.rows!.flatMap((r) => r.entries), ...lib.entries].find(
-    (e) => tileId(e) === payload.focusedId,
-  );
+  for (const row of lib.rows!) {
+    const e = row.entries.find((x) => tileId(x) === payload.focusedId);
+    if (e) return { e, poster: row.poster === true };
+  }
+  return { e: lib.entries.find((x) => tileId(x) === payload.focusedId), poster: false };
 }
 
-function syncBackdrop(e: LibraryEntry | undefined): void {
-  const url = e?.thumb ?? e?.mosaic?.[0] ?? "";
+/** The featured area's picture: the TMDB backdrop, else a frame (a poster tile's picture is no backdrop). */
+function syncBackdrop(e: LibraryEntry | undefined, poster: boolean): void {
+  const url = e?.feature?.backdrop ?? (poster ? "" : (e?.thumb ?? e?.mosaic?.[0] ?? ""));
   const key = `${e ? tileId(e) : ""}|${url}`;
   if (key === backdropKey) return;
   backdropKey = key;
@@ -162,30 +166,33 @@ function renderRoot(payload: ScreenPayload): void {
   const lib = payload.library!;
   if (!firstPage || root.firstElementChild !== firstPage) {
     firstPage = el("div", "screen-glass lib-first");
+    bodyScroll = undefined;
     backdrop = el("div", "lf-bg");
     backdropKey = "";
     root.replaceChildren(firstPage);
   }
-  const focused = focusedEntry(payload);
-  syncBackdrop(focused);
+  const { e: focused, poster } = focusedEntry(payload);
+  syncBackdrop(focused, poster);
   const feat = focused?.feature;
   const featured = el(
     "div",
     "lf-feat",
     feat
-      ? `<div class="k">${escape([feat.kind.toUpperCase(), feat.sub].filter(Boolean).join(" · "))}</div><h1>${escape(feat.title)}</h1>`
+      ? `<div class="k">${escape([feat.kind.toUpperCase(), feat.sub].filter(Boolean).join(" · "))}</div><h1>${escape(feat.title)}</h1>${feat.overview ? `<p>${escape(feat.overview)}</p>` : ""}`
       : "",
   );
   const body = el("div", "lib-body lf-body");
   const rowBlock = (row: LibraryRow): HTMLElement => {
     const block = el("div", "lf-block", `<div class="lib-rowh">${escape(row.title)}</div>`);
     const shelf = el("div", "lf-shelf");
+    const track = el("div", "lf-track");
     const shape = row.poster ? "post" : "wide";
     for (const e of row.entries) {
       const c = card(e, payload, row.id === "continue", shape);
       if (row.poster) posterLabel(c, e);
-      shelf.append(c);
+      track.append(c);
     }
+    shelf.append(track);
     block.append(shelf);
     return block;
   };
@@ -203,17 +210,30 @@ function renderRoot(payload: ScreenPayload): void {
   const card_ = body.querySelector<HTMLElement>(".lib-card.focused");
   if (!card_) return;
   const block = card_.closest<HTMLElement>(".lf-block")!;
-  body.scrollTop = block.offsetTop;
-  const shelf = card_.closest<HTMLElement>(".lf-shelf");
-  if (shelf) {
+  // The page is redrawn per payload, so each new element starts where the old one was and then moves.
+  const top = block.offsetTop;
+  body.style.scrollBehavior = "auto";
+  body.scrollTop = bodyScroll ?? top;
+  void body.offsetHeight;
+  body.style.scrollBehavior = "smooth";
+  body.scrollTop = top;
+  bodyScroll = top;
+  const track = card_.closest<HTMLElement>(".lf-track");
+  const shelf = track?.parentElement;
+  if (track && shelf) {
     const id = block.querySelector(".lib-rowh")!.textContent!;
     const u = window.innerWidth / 1920;
-    let left = shelfScroll.get(id) ?? 0;
-    const pad = 24 * u;
-    if (card_.offsetLeft - pad < left) left = card_.offsetLeft - pad;
-    else if (card_.offsetLeft + card_.offsetWidth + 96 * u > left + shelf.clientWidth)
-      left = card_.offsetLeft + card_.offsetWidth + 96 * u - shelf.clientWidth;
-    shelf.scrollLeft = left;
-    shelfScroll.set(id, shelf.scrollLeft);
+    const prev = shelfScroll.get(id);
+    let left = prev ?? 0;
+    const edge = 120 * u;
+    if (card_.offsetLeft < left) left = card_.offsetLeft;
+    else if (card_.offsetLeft + card_.offsetWidth + edge > left + shelf.clientWidth)
+      left = card_.offsetLeft + card_.offsetWidth + edge - shelf.clientWidth;
+    left = Math.max(0, Math.min(left, track.offsetWidth + edge - shelf.clientWidth));
+    track.style.transform = `translateX(${-(prev ?? left)}px)`;
+    void track.offsetHeight;
+    track.style.transition = "transform 0.45s var(--ease)";
+    track.style.transform = `translateX(${-left}px)`;
+    shelfScroll.set(id, left);
   }
 }

@@ -198,3 +198,14 @@
 .h-qr .c {
   margin-top: calc(12 * var(--u));
 }
+.h-hero .ov {
+  margin: 0 0 calc(18 * var(--u));
+  font-size: calc(26 * var(--u));
+  line-height: 1.4;
+  color: var(--t2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

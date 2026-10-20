@@ -30,6 +30,7 @@ import { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
 import { ACTIONS, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
 import { MediaLibrary } from "./media-library.ts";
+import { artFor, type PathArt } from "./art.ts";
 import { libraryRows, tileAction } from "./library-rows.ts";
 import { presentation, hueFor, listFolder, mosaicSources, rootEntries } from "./library.ts";
 import type { UpNextItem } from "../../shared/protocol.ts";
@@ -270,7 +271,26 @@ export class Core {
       decorate: (e) => this.#decorate(e),
       continueEntries: this.#continueEntries(),
       thumb: (p) => this.#thumbs.urlFor(p),
+      details: (id) => this.details.detailsFor(id),
     });
+  }
+
+  /** TMDB details for a video path (its show or film, and the episode's own name, overview and still). */
+  #art(path: string): PathArt {
+    return artFor(this.library, (id) => this.details.detailsFor(id), path);
+  }
+
+  /** The episode's still, else a film's backdrop, else a frame from the video. */
+  #still(path: string, frame: (p: string) => string | undefined): string | undefined {
+    const { details, episode } = this.#art(path);
+    return episode?.still ?? details?.backdrop ?? frame(path);
+  }
+
+  /** Overlay title and line for a video: the TMDB episode name replaces the parsed one. */
+  #present(path: string): { title: string; line?: string } {
+    const p = presentation(path);
+    const name = this.#art(path).episode?.name;
+    return name ? { ...p, title: name } : p;
   }
 
   /** A video entry with its watched tag or progress, from the history. */
@@ -323,14 +343,20 @@ export class Core {
   #continueEntries(): LibraryEntry[] {
     return this.#history.continueWatching().map((c) => {
       const { title, line } = presentation(c.path);
+      const { details, episode } = this.#art(c.path);
+      const thumb = this.#still(c.path, (p) => this.#thumbs.lookup(p));
       return this.#decorate({
         kind: "video",
         path: c.path,
-        title,
+        title: episode?.name ?? title,
         ...(line ? { line } : {}),
         hue: hueFor(title),
         folder: basename(dirname(c.path)),
-        thumb: this.#thumbs.lookup(c.path),
+        thumb,
+        ...(details?.backdrop ? { backdrop: details.backdrop } : {}),
+        ...((episode?.overview ?? details?.overview)
+          ? { overview: episode?.overview ?? details?.overview }
+          : {}),
       });
     });
   }
@@ -527,13 +553,16 @@ export class Core {
   #showList(show: NonNullable<ReturnType<MediaLibrary["show"]>>): ShowEpisode[] {
     const tab = this.#state.showTab;
     const decorate = (e: ShowEpisode, path: string): ShowEpisode => {
-      const thumb = this.#thumbs.urlFor(path);
+      const { episode } = this.#art(path);
+      const thumb = episode?.still ?? this.#thumbs.urlFor(path);
       const progress = this.#history.progress(path);
       const left = progress
         ? Math.max(1, Math.ceil((progress.duration - progress.position) / 60))
         : 0;
       return {
         ...e,
+        ...(episode?.name && e.number !== undefined ? { title: episode.name } : {}),
+        ...(episode?.overview ? { overview: episode.overview } : {}),
         ...(thumb ? { thumb } : {}),
         ...(progress
           ? {
@@ -666,21 +695,48 @@ export class Core {
     return true;
   }
 
-  #openFixMatch(id: string): void {
+  /** Where Fix match was opened from, and for which show or film. */
+  #fixId: string | undefined;
+  #fixBack: "show" | "library" = "show";
+
+  /** The show or film under the focused Library tile, when its match can be fixed. */
+  #fixTarget(): string | undefined {
+    if (this.#state.view !== "library" || !this.#canFix()) return undefined;
+    const focused = resolveFocus(this.#currentGrid(), this.#state.focus[this.viewKey]);
+    const entry = this.#rows()
+      .rows.flatMap((r) => r.entries)
+      .find((e) => (e.id ?? e.path) === focused?.id);
+    if (!entry || entry.missing) return undefined;
+    if (entry.kind === "show") return entry.path;
+    if (entry.kind !== "video" || this.library.showOf(entry.path)) return undefined;
+    return this.library.films().some((f) => f.path === entry.path) ? entry.path : undefined;
+  }
+
+  /** Menu key, long press or the phone's button: Fix match for the focused show or film. */
+  #menu(): void {
+    if (this.#state.view === "show" && this.#state.showId && this.#canFix())
+      return this.#openFixMatch(this.#state.showId, "show");
+    const id = this.#fixTarget();
+    if (id) this.#openFixMatch(id, "library");
+  }
+
+  #openFixMatch(id: string, back: "show" | "library" = "show"): void {
+    this.#fixId = id;
+    this.#fixBack = back;
     this.#fixOptions = undefined;
     delete this.#state.focus.fixMatch;
     this.#state.view = "fixMatch";
     void this.details.candidates(id).then((options) => {
-      if (this.#state.view !== "fixMatch" || this.#state.showId !== id) return;
+      if (this.#state.view !== "fixMatch" || this.#fixId !== id) return;
       this.#fixOptions = options;
       this.#emit();
     });
   }
 
   #applyFix(choice: number | "frames"): void {
-    const id = this.#state.showId;
+    const id = this.#fixId;
     if (!id) return;
-    this.#state.view = "show";
+    this.#state.view = this.#fixBack;
     this.#toast(choice === "frames" ? "Using video frames" : "Fixing the match");
     void this.details.fixMatch(id, choice).then(() => this.#emit());
   }
@@ -959,7 +1015,7 @@ export class Core {
     const p = this.#state.player;
     if (!p) return undefined;
     return {
-      ...presentation(p.path),
+      ...this.#present(p.path),
       controls: this.#state.controls,
       dock:
         this.#state.controls !== "hidden" && this.#state.controls !== "next"
@@ -983,11 +1039,11 @@ export class Core {
   #nextCard(): PlayerOverlay["next"] {
     const next = this.#controls.next;
     if (!next || this.#state.controls !== "next") return undefined;
-    const { title, line } = presentation(next.path);
+    const { title, line } = this.#present(next.path);
     return {
       title,
       ...(line ? { line } : {}),
-      thumb: this.#thumbs.lookup(next.path),
+      thumb: this.#still(next.path, (p) => this.#thumbs.lookup(p)),
       hue: hueFor(title),
       focusedId: this.#controls.focusedCard(),
     };
@@ -1000,11 +1056,11 @@ export class Core {
     const playing = this.#state.player?.path;
     const tiles = this.#controls.upNext.map((e) => {
       const d = this.#decorate({ ...e });
-      const { title, line } = presentation(e.path);
+      const { title, line } = this.#present(e.path);
       return {
         title,
         ...(line ? { line } : {}),
-        thumb: this.#thumbs.lookup(e.path),
+        thumb: this.#still(e.path, (p) => this.#thumbs.lookup(p)),
         hue: hueFor(title),
         watched: d.watched === true,
         playing: e.path === playing,
@@ -1018,9 +1074,10 @@ export class Core {
     };
   }
 
+  /** The phone fetches pictures by key: a frame's, or a cached TMDB still or poster's. */
   #thumbKey(path: string): string | undefined {
-    return this.#thumbs
-      .urlFor(path)
+    const { details, episode } = this.#art(path);
+    return (episode?.still ?? details?.poster ?? this.#thumbs.urlFor(path))
       ?.split("/")
       .pop()
       ?.replace(/\.jpg$/, "");
@@ -1032,7 +1089,7 @@ export class Core {
       const key = this.#thumbKey(e.path);
       const progress = this.#history.progress(e.path);
       return {
-        ...presentation(e.path),
+        ...this.#present(e.path),
         ...(key ? { thumbKey: key } : {}),
         watched: this.#history.isWatched(e.path),
         playing: e.path === playing,
@@ -1084,7 +1141,8 @@ export class Core {
     const tabs = tabIds(show);
     const selected = tabs.includes(this.#state.showTab ?? "") ? this.#state.showTab : tabs[0];
     const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
-    const backdrop = primary && this.#thumbs.urlFor(primary.episode.path);
+    const d = this.details.detailsFor(show.id);
+    const backdrop = d?.backdrop ?? (primary && this.#thumbs.urlFor(primary.episode.path));
     return {
       show: {
         id: show.id,
@@ -1096,6 +1154,8 @@ export class Core {
         ],
         primary: primary?.label ?? "Play",
         ...(backdrop ? { backdrop } : {}),
+        ...(d?.poster ? { poster: d.poster } : {}),
+        ...(d?.overview ? { overview: d.overview } : {}),
         tabs: tabs.map((t) => ({
           id: t,
           label: t === EXTRAS_TAB ? "Extras" : `Season ${t}`,
@@ -1108,10 +1168,12 @@ export class Core {
   }
 
   #fixPayload(): Pick<ScreenPayload, "fixMatch"> {
-    const show = this.#state.showId ? this.library.show(this.#state.showId) : undefined;
+    const id = this.#fixId ?? "";
+    const name =
+      this.library.show(id)?.name ?? this.library.films().find((f) => f.path === id)?.title ?? "";
     return {
       fixMatch: {
-        name: show?.name ?? "",
+        name: name.replace(/\s*\(\d{4}\)$/, ""),
         loading: this.#fixOptions === undefined,
         options: (this.#fixOptions ?? []).map((o) => ({
           id: `cand:${o.tmdbId}`,
@@ -1148,7 +1210,7 @@ export class Core {
       ...(s.controls === "next" && this.#controls.next
         ? {
             next: {
-              ...presentation(this.#controls.next.path),
+              ...this.#present(this.#controls.next.path),
               ...(this.#thumbKey(this.#controls.next.path)
                 ? { thumbKey: this.#thumbKey(this.#controls.next.path) }
                 : {}),
@@ -1156,12 +1218,13 @@ export class Core {
           }
         : {}),
       typeAvailable: s.view === "youtube" || s.view === "details",
+      ...(this.#fixTarget() ? { fixAvailable: true } : {}),
       ...(s.view === "details" ? { typeLabel: "Type TMDB key" } : {}),
       showVolume: s.view === "youtube",
       showSkip: s.view === "youtube",
       typing: s.typingBy === undefined ? "none" : s.typingBy === remote ? "you" : "other",
       nowPlaying: s.player && {
-        ...presentation(s.player.path),
+        ...this.#present(s.player.path),
         folder: basename(dirname(s.player.path)),
         position: s.player.pos,
         duration: s.player.dur,
@@ -1223,6 +1286,9 @@ export class Core {
         break;
       case "back":
         this.#back();
+        break;
+      case "menu":
+        this.#menu();
         break;
       case "home":
         this.#setView("home");
@@ -1431,7 +1497,8 @@ export class Core {
       return;
     }
     if (this.#state.view === "fixMatch") {
-      this.#state.view = "show";
+      this.#state.view = this.#fixBack;
+      this.#keepLibraryFocus();
       return;
     }
     const target = BACK_TARGETS[this.#state.view];
