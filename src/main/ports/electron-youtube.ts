@@ -1,11 +1,14 @@
-import { BrowserWindow, WebContentsView, session } from "electron";
+import { join } from "node:path";
+import { app, BrowserWindow, WebContentsView, session } from "electron";
 import { SCREEN_KEYS } from "../../shared/keyboard.ts";
 import { applyCompatPatch } from "./youtube-compat.ts";
+import { applyToRequestHeaders, buildIdentity } from "./youtube-identity.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "./youtube.ts";
 
 export const YOUTUBE_URL = "https://www.youtube.com/tv";
 /** The Cobalt TV identity from the feasibility research; plain Chrome UAs get a "going to youtube.com" page. */
-export const COBALT_USER_AGENT = "Mozilla/5.0 Cobalt/25 (Sony, PS4, Wired)";
+const IDENTITY = buildIdentity(app.getVersion());
+export const COBALT_USER_AGENT = IDENTITY.userAgent;
 const PARTITION = "persist:youtube";
 
 const KEY_CODES: Record<YouTubeKey, string> = {
@@ -55,7 +58,18 @@ export class ElectronYouTube implements YouTube {
   constructor(win: BrowserWindow) {
     this.#win = win;
     const ses = session.fromPartition(PARTITION);
+    app.userAgentFallback = COBALT_USER_AGENT;
     ses.setUserAgent(COBALT_USER_AGENT);
+    ses.webRequest.onBeforeSendHeaders((details, callback) => {
+      callback({
+        requestHeaders: applyToRequestHeaders(
+          IDENTITY,
+          new URL(details.url),
+          details.requestHeaders,
+        ),
+      });
+    });
+    applyCompatPatch(ses, join(app.getPath("userData"), "youtube"));
     this.#view = new WebContentsView({
       webPreferences: {
         session: ses,
@@ -107,7 +121,7 @@ export class ElectronYouTube implements YouTube {
     void wc
       .loadURL("about:blank")
       .catch(() => {})
-      .then(() => applyCompatPatch(wc))
+      .then(() => applyIdentity(wc))
       .then(() => this.#load());
   }
 
@@ -222,5 +236,36 @@ export class ElectronYouTube implements YouTube {
   onEvent(listener: (event: YouTubeEvent) => void): () => void {
     this.#listeners.add(listener);
     return () => void this.#listeners.delete(listener);
+  }
+}
+
+const AUTO_ATTACH = { autoAttach: true, waitForDebuggerOnStart: true, flatten: true };
+
+/** Makes navigator.userAgent / userAgentData match the Cobalt identity, in the page and its iframes. */
+async function applyIdentity(wc: Electron.WebContents): Promise<void> {
+  const dbg = wc.debugger;
+  const override = { userAgent: IDENTITY.userAgent, userAgentMetadata: IDENTITY.metadata };
+  try {
+    if (!dbg.isAttached()) dbg.attach("1.3");
+    dbg.on("message", (_e, method, params: any) => {
+      if (method !== "Target.attachedToTarget") return;
+      void (async () => {
+        const { sessionId, targetInfo, waitingForDebugger } = params;
+        try {
+          if (targetInfo.type === "iframe") {
+            await dbg.sendCommand("Emulation.setUserAgentOverride", override, sessionId);
+            await dbg.sendCommand("Target.setAutoAttach", AUTO_ATTACH, sessionId);
+          }
+        } catch {
+        } finally {
+          if (waitingForDebugger)
+            dbg.sendCommand("Runtime.runIfWaitingForDebugger", {}, sessionId).catch(() => {});
+        }
+      })();
+    });
+    await dbg.sendCommand("Emulation.setUserAgentOverride", override);
+    await dbg.sendCommand("Target.setAutoAttach", AUTO_ATTACH);
+  } catch (error) {
+    console.warn(`[youtube] could not apply client-hint identity: ${String(error)}`);
   }
 }

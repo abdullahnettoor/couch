@@ -1,24 +1,8 @@
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, test } from "vite-plus/test";
 import { applyCompatPatch, COMPAT_SCRIPT, compatEnabled } from "./youtube-compat.ts";
-
-function fakeContents(fail?: "attach" | "send") {
-  const sent: [string, unknown][] = [];
-  return {
-    sent,
-    wc: {
-      debugger: {
-        isAttached: () => false,
-        attach: () => {
-          if (fail === "attach") throw new Error("attach boom");
-        },
-        sendCommand: async (m: string, p?: unknown) => {
-          if (fail === "send") throw new Error("send boom");
-          sent.push([m, p]);
-        },
-      },
-    },
-  };
-}
 
 function runScript() {
   const real = (t: string) => t.includes("avc1");
@@ -31,39 +15,37 @@ function runScript() {
 }
 
 describe("YouTube compat patch", () => {
-  test("registers the script for every new document", async () => {
-    const f = fakeContents();
-    const logs: string[] = [];
-    expect(await applyCompatPatch(f.wc, { log: (m) => logs.push(m) })).toBe(true);
-    expect(f.sent[0][0]).toBe("Page.addScriptToEvaluateOnNewDocument");
-    expect((f.sent[0][1] as { source: string }).source).toBe(COMPAT_SCRIPT);
-    expect(logs).toEqual([]);
+  test("registers a preload that runs the shim in the main world", () => {
+    const registered: { type: string; filePath: string }[] = [];
+    const dir = mkdtempSync(join(tmpdir(), "couch-compat-"));
+    const ok = applyCompatPatch({ registerPreloadScript: (s) => (registered.push(s), "id") }, dir, {
+      enabled: true,
+    });
+    expect(ok).toBe(true);
+    expect(registered[0].type).toBe("frame");
+    const file = readFileSync(registered[0].filePath, "utf8");
+    expect(file).toContain("executeInMainWorld");
+    expect(file).toContain("getVideoContainerSizeOverride");
   });
 
-  test("disabled: does nothing", async () => {
-    const f = fakeContents();
-    expect(await applyCompatPatch(f.wc, { enabled: false, log: () => {} })).toBe(false);
-    expect(f.sent).toEqual([]);
+  test("disabled: does nothing", () => {
+    const registered: unknown[] = [];
+    const ses = { registerPreloadScript: (s: unknown) => (registered.push(s), "id") };
+    expect(applyCompatPatch(ses, tmpdir(), { enabled: false })).toBe(false);
+    expect(registered).toEqual([]);
   });
 
-  test.each(["attach", "send"] as const)("%s failure is logged, not thrown", async (mode) => {
+  test("a failing registration is logged, not thrown", () => {
     const logs: string[] = [];
-    const f = fakeContents(mode);
-    expect(await applyCompatPatch(f.wc, { log: (m) => logs.push(m) })).toBe(false);
-    expect(logs[0]).toContain("boom");
-  });
-
-  test("a patch that never answers gives up instead of blocking YouTube", async () => {
-    const logs: string[] = [];
-    const wc = {
-      debugger: {
-        isAttached: () => false,
-        attach: () => {},
-        sendCommand: () => new Promise<unknown>(() => {}),
+    const ses = {
+      registerPreloadScript: () => {
+        throw new Error("boom");
       },
     };
-    expect(await applyCompatPatch(wc, { log: (m) => logs.push(m), timeoutMs: 20 })).toBe(false);
-    expect(logs[0]).toContain("no answer");
+    expect(applyCompatPatch(ses, tmpdir(), { enabled: true, log: (m) => logs.push(m) })).toBe(
+      false,
+    );
+    expect(logs[0]).toContain("boom");
   });
 
   test("env switch", () => {

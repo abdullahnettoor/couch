@@ -26,13 +26,16 @@
  * SOFTWARE.
  */
 
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
 /**
  * Runs in the page before YouTube's scripts. Makes MediaSource.isTypeSupported behave like
  * Cobalt's (it validates width/height/framerate/eotf...; Chromium accepts everything, so the
  * player assumes no HFR/HDR and caps at 720p30) and reports a large video container.
  * Wrapped in try/catch so a page-side problem can never break YouTube.
  */
-export const COMPAT_SCRIPT = `(function () {
+export const COMPAT_FUNCTION = `function () {
   try {
     var hdr = function () { return window.matchMedia('(dynamic-range: high)').matches; };
     var num = function (v) { return Number(v); };
@@ -77,14 +80,15 @@ export const COMPAT_SCRIPT = `(function () {
       window.h5vcc = { system: { getVideoContainerSizeOverride: function () { return '7680x4320'; } } };
     }
   } catch (e) {}
-})();`;
+}`;
 
-export interface CompatContents {
-  debugger: {
-    isAttached(): boolean;
-    attach(version?: string): void;
-    sendCommand(method: string, params?: unknown): Promise<unknown>;
-  };
+export const COMPAT_SCRIPT = `(${COMPAT_FUNCTION})();`;
+
+/** Session preload: runs the shim in YouTube's main world before any page script, on every navigation. */
+export const COMPAT_PRELOAD = `try { require('electron').contextBridge.executeInMainWorld({ func: ${COMPAT_FUNCTION} }); } catch (e) {}\n`;
+
+export interface CompatSession {
+  registerPreloadScript(script: { type: "frame"; filePath: string }): string;
 }
 
 /** Development switch: COUCH_YOUTUBE_PATCH=off keeps YouTube at its stock 720p behaviour. */
@@ -93,32 +97,21 @@ export function compatEnabled(env: Record<string, string | undefined> = process.
 }
 
 /**
- * Registers the compatibility script for every document. Never throws: on any failure it logs
- * and returns false, and YouTube carries on unpatched (720p).
+ * Registers the compatibility shim as a session preload (written to `dir`). It is synchronous and
+ * never throws: on any failure it logs and returns false, and YouTube loads unpatched (720p).
  */
-export async function applyCompatPatch(
-  wc: CompatContents,
-  opts: { enabled?: boolean; log?: (message: string) => void; timeoutMs?: number } = {},
-): Promise<boolean> {
+export function applyCompatPatch(
+  ses: CompatSession,
+  dir: string,
+  opts: { enabled?: boolean; log?: (message: string) => void } = {},
+): boolean {
   const log = opts.log ?? ((m: string) => console.warn(m));
   if (!(opts.enabled ?? compatEnabled())) return false;
   try {
-    if (!wc.debugger.isAttached()) wc.debugger.attach("1.3");
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(
-        () => reject(new Error("no answer from DevTools")),
-        opts.timeoutMs ?? 3000,
-      );
-    });
-    try {
-      await Promise.race([
-        wc.debugger.sendCommand("Page.addScriptToEvaluateOnNewDocument", { source: COMPAT_SCRIPT }),
-        timeout,
-      ]);
-    } finally {
-      clearTimeout(timer);
-    }
+    mkdirSync(dir, { recursive: true });
+    const filePath = join(dir, "youtube-compat-preload.cjs");
+    writeFileSync(filePath, COMPAT_PRELOAD);
+    ses.registerPreloadScript({ type: "frame", filePath });
     return true;
   } catch (error) {
     log(`[youtube] 4K compatibility patch failed, staying at 720p: ${String(error)}`);
