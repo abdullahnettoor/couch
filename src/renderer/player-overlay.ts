@@ -1,6 +1,7 @@
 import { formatTime, type PlayerOverlay, type UpNextTile } from "../shared/player.ts";
 import { DOCK_IDS, DOCK_LABELS, DOCK_ROW, type DockId } from "../shared/player-dock.ts";
 import { iconSvg, type IconName } from "../shared/icons.ts";
+import type { GlassRect } from "../shared/ipc.ts";
 import type { Command } from "../shared/protocol.ts";
 import "./player-overlay.css";
 
@@ -216,3 +217,54 @@ window.addEventListener("mousemove", () => {
   lastMove = now;
   send({ command: "showControls" });
 });
+
+/** Native glass behind the dock and the Up next row: follows their rectangle and fade, frame by frame. */
+const glassPanels = [dock, upNextRow];
+let lastGlass = "";
+let glassRunning = false;
+function reportGlass(): void {
+  const rects: GlassRect[] = el.hidden
+    ? []
+    : glassPanels.map((node) => {
+        const style = getComputedStyle(node);
+        const box = node.getBoundingClientRect();
+        return {
+          x: Math.round(box.left),
+          y: Math.round(box.top),
+          w: Math.round(box.width),
+          h: Math.round(box.height),
+          r: parseFloat(style.borderTopLeftRadius) || 0,
+          alpha: Number(style.opacity),
+        };
+      });
+  const key = JSON.stringify(rects);
+  if (key !== lastGlass) {
+    lastGlass = key;
+    window.couch.reportGlass(rects);
+  }
+}
+function glassLoop(): void {
+  reportGlass();
+  if (el.hidden || !nativeGlass) {
+    glassRunning = false;
+    return;
+  }
+  requestAnimationFrame(glassLoop);
+}
+let nativeGlass = false;
+export function setNativeGlass(on: boolean): void {
+  nativeGlass = on;
+  document.documentElement.classList.toggle("native-glass", on);
+}
+new MutationObserver(() => {
+  if (el.hidden) reportGlass();
+  if (!nativeGlass || glassRunning || el.hidden) return;
+  glassRunning = true;
+  requestAnimationFrame(glassLoop);
+}).observe(el, { attributes: true, attributeFilter: ["hidden", "class"] });
+window.addEventListener("resize", reportGlass);
+
+export function setVideoTint(css: string | undefined): void {
+  if (css) document.documentElement.style.setProperty("--dock-tint", css);
+  else document.documentElement.style.removeProperty("--dock-tint");
+}

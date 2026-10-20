@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { GlassRect } from "../../shared/ipc.ts";
 import type { LoadOptions, Player, PlayerEvent } from "../../shared/player.ts";
 import { MpvIpcClient, type MpvEvent } from "./ipc-client.ts";
 
@@ -12,6 +13,10 @@ const DEFAULT_SUB_MARGIN = 22;
 
 export interface EmbeddedMpv {
   setVisible(visible: boolean): void;
+  /** Whether native glass can be placed behind the web contents. */
+  nativeGlass?: boolean;
+  setGlass?(slot: number, rect: GlassRect): void;
+  getColor?(): [number, number, number] | null;
   destroy(): void;
 }
 export type EmbedFactory = (options: Record<string, string>) => EmbeddedMpv;
@@ -107,6 +112,22 @@ export class MpvPlayer implements Player {
     } catch {
       // child exit handler reports the failure
     }
+  }
+
+  get nativeGlass(): boolean {
+    return this.embedded?.nativeGlass === true;
+  }
+
+  /** Native glass panels behind the web contents; slots missing from `rects` are hidden. */
+  setGlass(rects: GlassRect[]): void {
+    if (!this.embedded?.nativeGlass) return;
+    for (let slot = 0; slot < 2; slot++)
+      this.embedded.setGlass?.(slot, rects[slot] ?? { x: 0, y: 0, w: 0, h: 0, r: 0, alpha: 0 });
+  }
+
+  /** The video's main colour (0-255 RGB), sampled by the add-on about once a second. */
+  videoColor(): [number, number, number] | null {
+    return this.embedded?.getColor?.() ?? null;
   }
 
   get pid(): number | undefined {
@@ -218,6 +239,7 @@ export class MpvPlayer implements Player {
     } else if (e.event === "end-file") {
       const reason = e.reason === "eof" ? "eof" : e.reason === "error" ? "error" : "stop";
       this.embedded?.setVisible(false);
+      this.setGlass([]);
       if (e.reason === "quit") return;
       this.emit({ type: "ended", reason });
     }

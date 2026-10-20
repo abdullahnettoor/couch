@@ -63,6 +63,9 @@ static void *getProc(void *, const char *name) {
 @property(nonatomic) mpv_handle *mpv;
 @property(nonatomic) mpv_render_context *render;
 @property(nonatomic) CGLContextObj cgl;
+@property(nonatomic) CFTimeInterval lastSample;
+@property(atomic) float r, g, b;
+@property(atomic) BOOL hasColor;
 @end
 
 static void onUpdate(void *ctx) {
@@ -125,6 +128,18 @@ static void onUpdate(void *ctx) {
     {MPV_RENDER_PARAM_OPENGL_FBO, &f}, {MPV_RENDER_PARAM_FLIP_Y, &flip},
     {MPV_RENDER_PARAM_BLOCK_FOR_TARGET_TIME, &block}, {MPV_RENDER_PARAM_INVALID, NULL}};
   api.render_render(self.render, params);
+  CFTimeInterval now = CACurrentMediaTime();
+  if (now - self.lastSample > 0.9) {
+    // Average an 8x8 grid of pixels: the video's main colour, for the tinted fallback.
+    self.lastSample = now;
+    int w = f.w, h = f.h; double sr = 0, sg = 0, sb = 0; int n = 0;
+    for (int j = 0; j < 8; j++) for (int i = 0; i < 8; i++) {
+      GLubyte px[4];
+      glReadPixels((w * (2 * i + 1)) / 16, (h * (2 * j + 1)) / 16, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
+      sr += px[0]; sg += px[1]; sb += px[2]; n++;
+    }
+    self.r = sr / n; self.g = sg / n; self.b = sb / n; self.hasColor = YES;
+  }
   [super drawInCGLContext:ctx pixelFormat:pf forLayerTime:t displayTime:ts];
 }
 - (void)shutdown {
@@ -236,6 +251,60 @@ static napi_value SetPlacement(napi_env env, napi_callback_info info) {
   return NULL;
 }
 
+// Glass sits between the video and the web contents. Only exists on macOS 26+.
+static std::map<int, NSView *> glass; // key: id * 16 + slot
+static bool glassAvailable() { return NSClassFromString(@"NSGlassEffectView") != nil; }
+
+static napi_value GlassSupported(napi_env env, napi_callback_info) {
+  napi_value out; napi_get_boolean(env, glassAvailable(), &out);
+  return out;
+}
+
+// setGlass(id, slot, x, y, w, h, radius, alpha): rect in window content coordinates, top-left origin, points. alpha 0 hides.
+static napi_value SetGlass(napi_env env, napi_callback_info info) {
+  size_t argc = 8; napi_value argv[8];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  int32_t id, slot; double d[6];
+  napi_get_value_int32(env, argv[0], &id);
+  napi_get_value_int32(env, argv[1], &slot);
+  for (int i = 0; i < 6; i++) napi_get_value_double(env, argv[i + 2], &d[i]);
+  int key = id * 16 + slot;
+  MpvView *v = views[id];
+  if (!v || !glassAvailable()) return NULL;
+  NSView *g = glass[key];
+  NSView *parent = v.superview;
+  if (!g) {
+    g = [[NSClassFromString(@"NSGlassEffectView") alloc] init];
+    g.wantsLayer = YES;
+    glass[key] = g;
+  }
+  [CATransaction begin]; [CATransaction setDisableActions:YES];
+  if (g.superview != parent) [parent addSubview:g positioned:NSWindowAbove relativeTo:v];
+  CGFloat H = parent.bounds.size.height;
+  NSRect r = NSMakeRect(d[0], parent.isFlipped ? d[1] : H - d[1] - d[3], d[2], d[3]);
+  g.frame = r;
+  [g setValue:@(d[4]) forKey:@"cornerRadius"];
+  g.hidden = d[5] < 0.01 || r.size.width < 1 || r.size.height < 1;
+  g.alphaValue = d[5];
+  [CATransaction commit];
+  return NULL;
+}
+
+// getColor(id): [r, g, b] (0-255) of the video's average colour, sampled about once a second, or null.
+static napi_value GetColor(napi_env env, napi_callback_info info) {
+  size_t argc = 1; napi_value argv[1];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  int32_t id; napi_get_value_int32(env, argv[0], &id);
+  MpvView *v = views[id];
+  napi_value out;
+  if (!v || !((MpvLayer *)v.layer).hasColor) { napi_get_null(env, &out); return out; }
+  MpvLayer *l = (MpvLayer *)v.layer;
+  napi_create_array_with_length(env, 3, &out);
+  float c[3] = {l.r, l.g, l.b};
+  for (int i = 0; i < 3; i++) { napi_value n; napi_create_double(env, c[i], &n); napi_set_element(env, out, i, n); }
+  return out;
+}
+
 static napi_value Destroy(napi_env env, napi_callback_info info) {
   size_t argc = 1; napi_value argv[1];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
@@ -243,6 +312,7 @@ static napi_value Destroy(napi_env env, napi_callback_info info) {
   MpvView *v = views[id];
   if (v) {
     views.erase(id);
+    for (int k = 0; k < 16; k++) if (glass.count(id * 16 + k)) { [glass[id * 16 + k] removeFromSuperview]; glass.erase(id * 16 + k); }
     [(MpvLayer *)v.layer shutdown];
     [v removeFromSuperview];
   }
@@ -254,8 +324,11 @@ static napi_value Init(napi_env env, napi_value exports) {
     {"create", 0, Create, 0, 0, 0, napi_default, 0},
     {"setVisible", 0, SetVisible, 0, 0, 0, napi_default, 0},
     {"setPlacement", 0, SetPlacement, 0, 0, 0, napi_default, 0},
+    {"setGlass", 0, SetGlass, 0, 0, 0, napi_default, 0},
+    {"getColor", 0, GetColor, 0, 0, 0, napi_default, 0},
+    {"glassSupported", 0, GlassSupported, 0, 0, 0, napi_default, 0},
     {"destroy", 0, Destroy, 0, 0, 0, napi_default, 0}};
-  napi_define_properties(env, exports, 4, d);
+  napi_define_properties(env, exports, 7, d);
   return exports;
 }
 NAPI_MODULE(NODE_GYP_MODULE_NAME, Init)

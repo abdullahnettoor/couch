@@ -3,7 +3,8 @@ import type { CouchApi } from "../shared/ipc.ts";
 import { SCREEN_KEYS } from "../shared/keyboard.ts";
 import { VIEWS } from "./views/index.ts";
 import { renderHud } from "./hud.ts";
-import { renderOverlay } from "./player-overlay.ts";
+import { renderOverlay, setNativeGlass, setVideoTint } from "./player-overlay.ts";
+import { darkTint } from "../shared/glass-tint.ts";
 import { glassTokensCss } from "../shared/glass-tokens.ts";
 import "./style.css";
 import "./glass.css";
@@ -90,7 +91,9 @@ window.couch.onScreen((payload) => {
   renderHud(payload);
 });
 
+window.couch.onTint((rgb) => setVideoTint(rgb ? darkTint(rgb) : undefined));
 window.couch.onMpv((status) => {
+  setNativeGlass(status.nativeGlass === true);
   const text = status.missing
     ? "Couch needs mpv to play videos. Install it with: brew install mpv"
     : (status.message ?? "");

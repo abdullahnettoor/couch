@@ -6,6 +6,18 @@ import type { EmbedFactory } from "./mpv-player.ts";
 interface Addon {
   create(handle: Buffer, options: Record<string, string>, libraryPath?: string): number;
   setVisible(id: number, visible: boolean): void;
+  setGlass(
+    id: number,
+    slot: number,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    r: number,
+    alpha: number,
+  ): void;
+  getColor(id: number): [number, number, number] | null;
+  glassSupported(): boolean;
   destroy(id: number): void;
 }
 
@@ -24,6 +36,10 @@ export function createEmbedFactory(win: () => BrowserWindow | undefined): EmbedF
     const id = addon.create(window.getNativeWindowHandle(), options, process.env.COUCH_LIBMPV);
     return {
       setVisible: (visible) => addon.setVisible(id, visible),
+      nativeGlass: addon.glassSupported() && process.env.COUCH_NATIVE_GLASS !== "0",
+      setGlass: (slot, rect) =>
+        addon.setGlass(id, slot, rect.x, rect.y, rect.w, rect.h, rect.r, rect.alpha),
+      getColor: () => addon.getColor(id),
       destroy: () => addon.destroy(id),
     };
   };

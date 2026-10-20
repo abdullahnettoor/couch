@@ -375,3 +375,14 @@ body.video-pending #volume {
   width: calc(26 * var(--u));
   height: calc(26 * var(--u));
 }
+
+/* Dock material. Native Liquid Glass (a macOS view under the page) does the blur, so the page only adds a light tint
+   and the edge; without it the dock is stronger and tinted with the video's main colour (--dock-tint). */
+.po-dock.glass {
+  background: var(--dock-tint, var(--glass-strong));
+}
+.native-glass .po-dock.glass {
+  background: rgba(20, 20, 24, 0.1);
+  backdrop-filter: none;
+  box-shadow: var(--glass-edge);
+}

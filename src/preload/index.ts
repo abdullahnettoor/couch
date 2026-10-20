@@ -7,6 +7,10 @@ const api: CouchApi = {
   onScreen: (listener) => {
     ipcRenderer.on(Channel.screen, (_event, payload) => listener(payload));
   },
+  reportGlass: (rects) => ipcRenderer.send(Channel.glass, rects),
+  onTint: (listener) => {
+    ipcRenderer.on(Channel.tint, (_event, rgb) => listener(rgb));
+  },
   onMpv: (listener) => {
     ipcRenderer.on(Channel.mpv, (_event, status) => listener(status));
   },

@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, screen } from "electron";
 import { join } from "node:path";
-import { Channel, type GridReport } from "../shared/ipc.ts";
+import { Channel, type GlassRect, type GridReport } from "../shared/ipc.ts";
 import type { Command } from "../shared/protocol.ts";
 import type { PlayerEvent } from "../shared/player.ts";
 import { startApp, type CouchApp } from "./app.ts";
@@ -27,7 +27,11 @@ let mpvMessage: string | undefined;
 
 function publishMpv(): void {
   if (win && !win.isDestroyed())
-    win.webContents.send(Channel.mpv, { missing: mpvMissing, message: mpvMessage });
+    win.webContents.send(Channel.mpv, {
+      missing: mpvMissing,
+      message: mpvMessage,
+      nativeGlass: player?.nativeGlass === true,
+    });
 }
 
 function publishScreen(): void {
@@ -100,6 +104,12 @@ async function createScreen(): Promise<void> {
   });
   player.onEvent(onPlayerEvent);
   await player.start();
+  publishMpv();
+  // Fallback tint: the video's main colour, about once a second (only when native glass is off).
+  setInterval(() => {
+    if (player?.nativeGlass || !win || win.isDestroyed()) return;
+    win.webContents.send(Channel.tint, player?.videoColor() ?? null);
+  }, 1000).unref();
   const mac = createElectronMac(() => win);
   const youtube = new ElectronYouTube(win);
   mac.keepAwake(true);
@@ -122,6 +132,8 @@ ipcMain.on(Channel.command, (_event, command: Command) => couch?.screenCommand(c
 ipcMain.on(Channel.grid, (_event, report: GridReport) =>
   couch?.reportGrid(report.viewKey, report.items),
 );
+
+ipcMain.on(Channel.glass, (_event, rects: GlassRect[]) => player?.setGlass(rects));
 
 let quitting = false;
 app.on("before-quit", (event) => {
