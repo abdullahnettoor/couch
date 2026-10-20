@@ -1,29 +1,24 @@
-import { glassTokensCss } from "../../shared/glass-tokens.ts";
-import { ICON_PATHS } from "../../shared/icons.ts";
+import { COLORS } from "../../shared/glass-tokens.ts";
+import { ICON_PATHS, ICON_VIEWBOX } from "../../shared/icons.ts";
 
 /**
  * Glass toast and volume level for the YouTube view, injected into the page.
- * Mirrors `.toast` and `.volhud` in src/renderer/glass.css. Tokens are shared but prefixed
- * `--couch-` so they cannot clash with the page's own variables.
+ * Mirrors `.toast` and `.volhud` in src/renderer/glass.css.
+ *
+ * YouTube enforces Trusted Types (no `innerHTML`) and a CSP that ignores injected `<style>`
+ * elements, so the nodes are built with the DOM API and styled through the CSSOM only.
  */
-const CSS = `
-:root{--couch-u:calc(100vw/1920)}
-${glassTokensCss({ unit: "var(--couch-u)", prefix: "couch-" })}
-#couch-volume,#couch-note{position:fixed;z-index:2147483647;pointer-events:none;color:var(--couch-t1);
-font:600 calc(22*var(--couch-u))/1 -apple-system,"SF Pro Text",system-ui,sans-serif;
-background:var(--couch-glass-strong);backdrop-filter:blur(40px) saturate(1.8);-webkit-backdrop-filter:blur(40px) saturate(1.8);
-box-shadow:var(--couch-glass-edge),0 24px 70px rgba(0,0,0,.35)}
-#couch-volume{right:calc(60*var(--couch-u));top:50%;transform:translateY(-50%);width:calc(80*var(--couch-u));height:calc(380*var(--couch-u));
-border-radius:calc(40*var(--couch-u));padding:calc(18*var(--couch-u));box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:calc(14*var(--couch-u))}
-#couch-volume .n{font-weight:700;font-variant-numeric:tabular-nums}
-#couch-volume .lvl{width:calc(44*var(--couch-u));flex:1;border-radius:calc(22*var(--couch-u));background:rgba(255,255,255,.2);position:relative;overflow:hidden}
-#couch-volume .lvl i{position:absolute;left:0;right:0;bottom:0;background:#fff}
-#couch-volume svg{width:calc(32*var(--couch-u));height:calc(32*var(--couch-u));fill:currentColor}
-#couch-note{left:50%;top:calc(56*var(--couch-u));transform:translateX(-50%);padding:calc(18*var(--couch-u)) calc(34*var(--couch-u));
-border-radius:calc(40*var(--couch-u));font-size:calc(28*var(--couch-u));white-space:nowrap}
-`;
+const SPEAKER_PATHS = [...ICON_PATHS.speaker.matchAll(/ d="([^"]+)"/g)].map((m) => m[1]);
 
-const ensureStyle = `if(!document.getElementById('couch-hud-style')){var s=document.createElement('style');s.id='couch-hud-style';s.textContent=${JSON.stringify(CSS)};document.head.appendChild(s)}`;
+const HELPERS = `
+var U=innerWidth/1920,SVG='http://www.w3.org/2000/svg';
+function css(e,o){for(var k in o)e.style.setProperty(k,String(o[k]))}
+function px(n){return (n*U)+'px'}
+function glass(e){css(e,{position:'fixed','z-index':'2147483647','pointer-events':'none',color:${JSON.stringify(COLORS.t1)},
+font:'600 '+px(22)+'/1 -apple-system,"SF Pro Text",system-ui,sans-serif',background:${JSON.stringify(COLORS["glass-strong"])},
+'backdrop-filter':'blur(40px) saturate(1.8)','-webkit-backdrop-filter':'blur(40px) saturate(1.8)',
+'box-shadow':${JSON.stringify(COLORS["glass-edge"])}+',0 24px 70px rgba(0,0,0,.35)'})}
+`;
 
 /** Script that shows the volume level, or removes it when `percent` is undefined. */
 export function volumeScript(percent: number | undefined): string {
@@ -31,11 +26,23 @@ export function volumeScript(percent: number | undefined): string {
     return `var e=document.getElementById('couch-volume');if(e)e.remove()`;
   }
   const p = Math.max(0, Math.min(100, Math.round(percent)));
-  const html = `<span class="n">${p}</span><div class="lvl"><i style="height:${p}%"></i></div><svg viewBox="0 0 24 24">${ICON_PATHS.speaker}</svg>`;
-  return `(function(){${ensureStyle}var d=document.getElementById('couch-volume');if(!d){d=document.createElement('div');d.id='couch-volume';document.body.appendChild(d)}d.innerHTML=${JSON.stringify(html)}})()`;
+  return `(function(){${HELPERS}
+var old=document.getElementById('couch-volume');if(old)old.remove();
+var d=document.createElement('div');d.id='couch-volume';glass(d);
+css(d,{right:px(60),top:'50%',transform:'translateY(-50%)',width:px(80),height:px(380),'border-radius':px(40),padding:px(18),'box-sizing':'border-box',display:'flex','flex-direction':'column','align-items':'center',gap:px(14)});
+var n=document.createElement('span');n.textContent=${JSON.stringify(String(p))};css(n,{'font-weight':'700','font-variant-numeric':'tabular-nums'});
+var l=document.createElement('div');css(l,{width:px(44),flex:'1','border-radius':px(22),background:'rgba(255,255,255,.2)',position:'relative',overflow:'hidden'});
+var f=document.createElement('i');css(f,{position:'absolute',left:0,right:0,bottom:0,height:'${p}%',background:'#fff'});l.appendChild(f);
+var s=document.createElementNS(SVG,'svg');s.setAttribute('viewBox',${JSON.stringify(ICON_VIEWBOX)});css(s,{width:px(32),height:px(32),fill:'currentColor'});
+${JSON.stringify(SPEAKER_PATHS)}.forEach(function(v){var q=document.createElementNS(SVG,'path');q.setAttribute('d',v);s.appendChild(q)});
+d.appendChild(n);d.appendChild(l);d.appendChild(s);document.body.appendChild(d)})()`;
 }
 
 /** Script that shows a note for a few seconds. */
 export function noteScript(note: string): string {
-  return `(function(){${ensureStyle}var o=document.getElementById('couch-note');if(o)o.remove();var d=document.createElement('div');d.id='couch-note';d.textContent=${JSON.stringify(note)};document.body.appendChild(d);setTimeout(function(){d.remove()},4000)})()`;
+  return `(function(){${HELPERS}
+var o=document.getElementById('couch-note');if(o)o.remove();
+var d=document.createElement('div');d.id='couch-note';glass(d);d.textContent=${JSON.stringify(note)};
+css(d,{left:'50%',top:px(56),transform:'translateX(-50%)',padding:px(18)+' '+px(34),'border-radius':px(40),'font-size':px(28),'white-space':'nowrap'});
+document.body.appendChild(d);setTimeout(function(){d.remove()},4000)})()`;
 }

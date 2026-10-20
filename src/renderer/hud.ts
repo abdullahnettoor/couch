@@ -4,7 +4,7 @@ import { ICON_PATHS } from "../shared/icons.ts";
 const toast = document.getElementById("toast")!;
 const volume = document.getElementById("volume")!;
 
-volume.innerHTML = `<span class="n num"></span><div class="lvl"><i></i></div><svg class="i" viewBox="0 0 24 24">${ICON_PATHS.speaker}</svg>`;
+volume.innerHTML = `<span class="n num"></span><div class="lvl"><i></i></div><svg class="i" viewBox="0 0 256 256">${ICON_PATHS.speaker}</svg>`;
 const volumeNumber = volume.querySelector<HTMLElement>(".n")!;
 const volumeFill = volume.querySelector<HTMLElement>(".lvl i")!;
 

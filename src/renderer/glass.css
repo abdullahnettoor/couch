@@ -403,6 +403,9 @@ svg.i {
   font-size: calc(20 * var(--u));
   font-weight: 500;
   color: var(--t3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .lib-card.missing .g-tile {
   opacity: 0.4;

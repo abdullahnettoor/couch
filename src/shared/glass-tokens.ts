@@ -3,7 +3,7 @@
  * Each surface injects them as CSS custom properties; lengths scale by that surface's own unit
  * (the Screen's `--u`, the phone's `1px`, the YouTube page's `--couch-u`).
  */
-const COLORS = {
+export const COLORS = {
   t1: "#fff",
   t2: "rgba(235, 235, 245, 0.74)",
   t3: "rgba(235, 235, 245, 0.52)",
