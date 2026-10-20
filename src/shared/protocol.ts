@@ -12,7 +12,9 @@ export type View =
   | "player"
   | "settings"
   | "addPhone"
-  | "libraryFolders";
+  | "libraryFolders"
+  | "details"
+  | "credits";
 
 export const COMMAND_NAMES = [
   "up",
@@ -158,6 +160,8 @@ export interface ScreenPayload {
   grid: GridItem[];
   focusedId?: string;
   focusedLabel?: string;
+  /** Settings and its "Show and film details" page: the TMDB key label, On/Off and any hint. */
+  details?: { keyLabel: string; hasOwnKey: boolean; enabled: boolean; hint?: string };
   /** Present for library, folder and libraryFolders. */
   library?: LibraryPayload;
   /** Home's Continue watching card: the newest in-progress video. */
@@ -208,6 +212,8 @@ export interface RemoteSnapshot {
   /** Home only, when a video is in progress. */
   continueCard?: RemoteContinueCard;
   typeAvailable: boolean;
+  /** The Type button's label when it isn't YouTube search. */
+  typeLabel?: string;
   typing: "none" | "you" | "other";
   /** The end-of-video card: the next video in the folder, waiting for a Play press. */
   next?: { title: string; line?: string; thumbKey?: string };
@@ -240,4 +246,6 @@ export const VIEW_LABELS: Record<View, string> = {
   settings: "Settings",
   addPhone: "Add a phone",
   libraryFolders: "Library folders",
+  details: "Show and film details",
+  credits: "Credits",
 };

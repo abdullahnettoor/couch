@@ -100,7 +100,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 <div class="note" id="hint" hidden>Still nothing? Scan the QR code on the Screen again to pair this phone.</div>
 <main id="controls">
   <button class="cw" id="cw" data-cmd="resume" hidden><span class="pic" id="cw-pic"></span><span class="txt"><b id="cw-title"></b><span class="l" id="cw-left"></span></span><span class="go" data-i="play"></span></button>
-  <button class="search" id="search" data-cmd="typeOpen" hidden><span data-i="search"></span>Search YouTube</button>
+  <button class="search" id="search" data-cmd="typeOpen" hidden><span data-i="search"></span><span id="search-label">Search YouTube</span></button>
   <div class="np" id="np" hidden>
     <div class="art" id="np-art"></div>
     <h3 id="np-title"></h3><div class="f" id="np-folder"></div>
@@ -233,7 +233,8 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       $("cw-left").textContent = s.continueCard.left;
       $("cw-pic").style.backgroundImage = s.continueCard.thumbKey ? thumb(s.continueCard.thumbKey) : "none";
     }
-    $("search").hidden = L !== "youtube" || !!np;
+    $("search").hidden = (L !== "youtube" && !(s.typeLabel && s.typeAvailable)) || !!np;
+    $("search-label").textContent = s.typeLabel || "Search YouTube";
     $("search").classList.toggle("dim", !s.typeAvailable);
     if (typeof s.volume === "number" && !volDragging) showVolume(s.volume);
     $("skip").hidden = !s.showSkip || !!np;

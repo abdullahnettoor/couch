@@ -4,6 +4,8 @@ import { YOUTUBE_ERROR_ITEMS } from "../../shared/youtube-grid.ts";
 import type { GridItem, View } from "../../shared/protocol.ts";
 import type { ViewModule } from "./dom.ts";
 import * as addPhone from "./add-phone.ts";
+import * as credits from "./credits.ts";
+import * as details from "./details.ts";
 import * as home from "./home.ts";
 import * as library from "./library.ts";
 import * as libraryFolders from "./library-folders.ts";
@@ -24,4 +26,9 @@ export const VIEWS: Partial<Record<View, ViewModule & { grid?: GridItem[] }>> = 
   folder: { ...library },
   libraryFolders: { ...libraryFolders },
   player: { ...player },
+  details: { ...details },
+  credits: {
+    ...credits,
+    grid: [{ id: "done", r: 0, c: 0, label: "Done", action: "back", initial: true }],
+  },
 };
