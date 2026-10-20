@@ -34,7 +34,7 @@ const notice = document.getElementById("notice")!;
 
 window.couch.onScreen((payload) => {
   const view = VIEWS[payload.state.view];
-  if (view && payload.grid.length === 0) {
+  if (view?.grid && payload.grid.length === 0) {
     window.couch.reportGrid({ viewKey: payload.viewKey, items: view.grid });
   }
   view?.render(payload);

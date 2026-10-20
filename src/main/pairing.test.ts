@@ -96,12 +96,13 @@ describe("Settings", () => {
     return phone;
   }
 
-  test("Up from Home focuses the gear and OK opens exactly the three items", async () => {
+  test("Up from Home focuses the gear and OK opens exactly the settings items", async () => {
     await openSettings();
     expect(h.screen.last.state.view).toBe("settings");
     expect(h.screen.last.grid.map((i) => i.label)).toEqual([
       "Add a phone",
       "Forget all phones",
+      "Library folders",
       "Quit Couch",
     ]);
   });
@@ -125,6 +126,7 @@ describe("Settings", () => {
 
   test("Quit Couch quits", async () => {
     const phone = await openSettings();
+    await phone.press("down");
     await phone.press("down");
     await phone.press("down");
     await phone.press("ok");

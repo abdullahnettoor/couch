@@ -222,3 +222,50 @@ body {
   margin: 0;
   max-width: 36cqw;
 }
+.menu.wide {
+  width: 70cqw;
+}
+.menu-item .hint {
+  float: right;
+  font-size: 1.3cqw;
+}
+.lib-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.6cqw;
+}
+.lib-tile {
+  aspect-ratio: 16 / 10;
+  box-sizing: border-box;
+  padding: 1.4cqw;
+  border-radius: 1.2cqw;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  background: hsl(var(--hue) 35% 28%);
+  font-size: 1.6cqw;
+  overflow: hidden;
+  transition:
+    transform 0.22s var(--ease),
+    box-shadow 0.22s var(--ease);
+}
+.lib-tile.folder {
+  background: hsl(var(--hue) 25% 22%);
+}
+.lib-tile.missing {
+  background: var(--surface);
+  color: var(--ink-3);
+  opacity: 0.6;
+}
+.lib-tile .note {
+  margin-top: 0.4cqw;
+  font-size: 1.2cqw;
+}
+.lib-tile.focused {
+  transform: scale(1.04);
+  box-shadow: 0 0 0 0.3cqw var(--ink);
+}
+.lib-empty {
+  font-size: 2cqw;
+  color: var(--ink-3);
+}

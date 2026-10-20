@@ -1,5 +1,8 @@
+import { dirname, basename } from "node:path";
 import {
   VIEW_LABELS,
+  type LibraryEntry,
+  type LibraryPayload,
   type Command,
   type GridItem,
   type RemoteId,
@@ -15,6 +18,10 @@ import { randomBytes } from "node:crypto";
 import type { Store } from "../ports/store.ts";
 import { ACTIONS, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
+import { listFolder, rootEntries } from "./library.ts";
+
+const TILE_COLUMNS = 4;
+const LIBRARY_VIEWS = ["library", "folder", "libraryFolders"];
 
 export interface Ports {
   player: Player;
@@ -48,9 +55,16 @@ export class Core {
   #key: string;
   #port = 0;
   #forgetListeners = new Set<() => void>();
+  #libraryFolders: string[];
+  /** The open folder's contents, read fresh each time it is opened. */
+  #listing: LibraryEntry[] = [];
 
   constructor(ports: Ports) {
     this.#ports = ports;
+    const lib = ports.store.read<{ folders?: unknown }>("library", {});
+    this.#libraryFolders = Array.isArray(lib.folders)
+      ? lib.folders.filter((f): f is string => typeof f === "string")
+      : [];
     const saved = ports.store.read<{ key?: string }>("pairing", {});
     this.#key = typeof saved.key === "string" && saved.key ? saved.key : this.#newKey();
     this.#scheduleMinute();
@@ -99,14 +113,104 @@ export class Core {
   }
 
   get viewKey(): string {
-    return this.#state.view;
+    const { view, folderPath } = this.#state;
+    return view === "folder" ? `folder:${folderPath}` : view;
+  }
+
+  #isLibraryView(): boolean {
+    return LIBRARY_VIEWS.includes(this.#state.view);
+  }
+
+  /** The Library views are built here from disk; other views' grids come from the renderer. */
+  #library(): LibraryPayload | undefined {
+    switch (this.#state.view) {
+      case "library":
+        return {
+          heading: "Library",
+          entries: rootEntries(this.#libraryFolders),
+          emptyText: "No folders yet. Add one in Settings on the Mac.",
+        };
+      case "folder":
+        return {
+          heading: basename(this.#state.folderPath ?? ""),
+          entries: this.#listing,
+          emptyText: "No videos in this folder.",
+        };
+      case "libraryFolders":
+        return { heading: "Library folders", entries: [], folders: this.#libraryFolders };
+      default:
+        return undefined;
+    }
+  }
+
+  #currentGrid(): GridItem[] {
+    if (!this.#isLibraryView()) return this.#grids.get(this.viewKey) ?? [];
+    const lib = this.#library()!;
+    if (lib.folders) {
+      return [
+        { id: "add", r: 0, c: 0, label: "Add folder", action: "library:add", initial: true },
+        ...lib.folders.map((f, i) => ({
+          id: f,
+          r: i + 1,
+          c: 0,
+          label: f,
+          action: `library:remove:${f}`,
+        })),
+      ];
+    }
+    return lib.entries.map((e, i) => ({
+      id: e.path,
+      r: Math.floor(i / TILE_COLUMNS),
+      c: i % TILE_COLUMNS,
+      label: e.title,
+      action: e.missing
+        ? "library:missing"
+        : e.kind === "folder"
+          ? `library:open:${e.path}`
+          : `library:play:${e.path}`,
+      initial: i === 0,
+    }));
+  }
+
+  #openFolder(path: string): void {
+    const entries = listFolder(path);
+    if (!entries) return this.#toast("Connect the drive to see this folder");
+    this.#listing = entries;
+    this.#state.folderPath = path;
+    this.#state.view = "folder";
+  }
+
+  #libraryAction(action: string): boolean {
+    if (!action.startsWith("library:")) return false;
+    const [, verb, ...rest] = action.split(":");
+    const arg = rest.join(":");
+    if (verb === "missing") this.#toast("Connect the drive to see this folder");
+    else if (verb === "open") this.#openFolder(arg);
+    else if (verb === "remove") this.#saveFolders(this.#libraryFolders.filter((f) => f !== arg));
+    else if (verb === "add") {
+      void this.#ports.mac
+        .pickFolder()
+        .then((path) => {
+          if (path && !this.#libraryFolders.includes(path))
+            this.#saveFolders([...this.#libraryFolders, path]);
+          this.#emit();
+        })
+        .catch(() => {});
+    } else return false;
+    return true;
+  }
+
+  #saveFolders(folders: string[]): void {
+    this.#libraryFolders = folders;
+    this.#ports.store.write("library", { folders });
   }
 
   /** Everything the Screen renderer needs to draw. */
   screen(): ScreenPayload {
-    const grid = this.#grids.get(this.viewKey) ?? [];
+    const grid = this.#currentGrid();
     const focused = resolveFocus(grid, this.#state.focus[this.viewKey]);
     return {
+      library: this.#library(),
       state: structuredClone(this.#state),
       viewKey: this.viewKey,
       grid,
@@ -121,7 +225,7 @@ export class Core {
     const s = this.#state;
     return {
       type: "snapshot",
-      where: VIEW_LABELS[s.view],
+      where: s.view === "folder" ? basename(s.folderPath ?? "") : VIEW_LABELS[s.view],
       view: s.view,
       typeAvailable: s.view === "youtube",
       typing: s.typingBy === undefined ? "none" : s.typingBy === remote ? "you" : "other",
@@ -185,7 +289,7 @@ export class Core {
   }
 
   #move(direction: "up" | "down" | "left" | "right"): void {
-    const grid = this.#grids.get(this.viewKey) ?? [];
+    const grid = this.#currentGrid();
     const current = resolveFocus(grid, this.#state.focus[this.viewKey]);
     if (!current) return;
     const next = moveFocus(grid, current, direction);
@@ -193,10 +297,11 @@ export class Core {
   }
 
   #ok(): void {
-    const grid = this.#grids.get(this.viewKey) ?? [];
+    const grid = this.#currentGrid();
     const item = resolveFocus(grid, this.#state.focus[this.viewKey]);
     if (!item) return;
     if (item.action === "back") return this.#back();
+    if (this.#libraryAction(item.action)) return;
     const action = ACTIONS[item.action];
     // Placeholder tiles until the Apps exist.
     if (action) action(this.#actionContext());
@@ -204,6 +309,12 @@ export class Core {
   }
 
   #back(): void {
+    if (this.#state.view === "folder") {
+      const path = this.#state.folderPath ?? "";
+      if (this.#libraryFolders.includes(path)) this.#state.view = "library";
+      else this.#openFolder(dirname(path));
+      return;
+    }
     const target = BACK_TARGETS[this.#state.view];
     if (target) this.#state.view = target;
   }

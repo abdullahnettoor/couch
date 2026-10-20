@@ -56,9 +56,8 @@ describe("Remote on Home", () => {
 
   test("OK on a tile shows a toast on the Screen, which clears itself", async () => {
     const phone = await h.connectPhone();
-    await phone.press("right");
     await phone.press("ok");
-    expect(h.screen.last.state.toast).toBe("Library is coming soon");
+    expect(h.screen.last.state.toast).toBe("YouTube is coming soon");
     h.clock.advance(3500);
     expect(h.screen.last.state.toast).toBeUndefined();
   });

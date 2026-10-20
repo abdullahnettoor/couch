@@ -10,7 +10,8 @@ export type View =
   | "folder"
   | "player"
   | "settings"
-  | "addPhone";
+  | "addPhone"
+  | "libraryFolders";
 
 export const COMMAND_NAMES = [
   "up",
@@ -77,6 +78,29 @@ export interface ScreenState {
   toast?: string;
 }
 
+/** A tile in the Library: a folder or a video file. */
+export interface LibraryEntry {
+  kind: "folder" | "video";
+  path: string;
+  /** Folder name, or the cleaned file title. */
+  title: string;
+  /** Plain tile colour derived from the title. */
+  hue: number;
+  /** Folder whose path doesn't exist (an unplugged drive). */
+  missing?: boolean;
+}
+
+/** What the Library views draw; the core also builds their grids from it. */
+export interface LibraryPayload {
+  /** Heading: "Library", or the folder's name. */
+  heading: string;
+  entries: LibraryEntry[];
+  /** Shown instead of tiles when there are none. */
+  emptyText?: string;
+  /** Library folders settings page: the added folder paths. */
+  folders?: string[];
+}
+
 /** Core → Screen renderer. */
 export interface ScreenPayload {
   state: ScreenState;
@@ -84,6 +108,8 @@ export interface ScreenPayload {
   grid: GridItem[];
   focusedId?: string;
   focusedLabel?: string;
+  /** Present for library, folder and libraryFolders. */
+  library?: LibraryPayload;
   /** What the pairing QR code encodes. */
   pairingUrl: string;
   /** Epoch ms from the Clock port, for the Home clock. */
@@ -119,4 +145,5 @@ export const VIEW_LABELS: Record<View, string> = {
   player: "Now Playing",
   settings: "Settings",
   addPhone: "Add a phone",
+  libraryFolders: "Library folders",
 };
