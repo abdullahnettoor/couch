@@ -168,8 +168,7 @@ el.addEventListener("click", (event) => {
   if (id === "upnext") {
     send({ command: "focusAt", args: { r: DOCK_ROW, c: DOCK_IDS.indexOf("upnext") } });
     send({ command: "ok" });
-  }
-  else if (id === "playpause") send({ command: "playpause" });
+  } else if (id === "playpause") send({ command: "playpause" });
   else if (id === "back10") send({ command: "seekBy", args: { seconds: -10 } });
   else if (id === "fwd10") send({ command: "seekBy", args: { seconds: 10 } });
   else if (id === "subtitles") send({ command: "subtitles" });
