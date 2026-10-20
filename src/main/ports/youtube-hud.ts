@@ -31,7 +31,7 @@ export function volumeScript(percent: number | undefined): string {
     return `var e=document.getElementById('couch-volume');if(e)e.remove()`;
   }
   const p = Math.max(0, Math.min(100, Math.round(percent)));
-  const html = `<span class="n">${p}</span><div class="lvl"><i style="height:${p}%"></i></div><svg viewBox="0 0 24 24">${ICON_PATHS.speaker}</svg>`;
+  const html = `<span class="n">${p}</span><div class="lvl"><i style="height:${p}%"></i></div><svg viewBox="0 0 256 256">${ICON_PATHS.speaker}</svg>`;
   return `(function(){${ensureStyle}var d=document.getElementById('couch-volume');if(!d){d=document.createElement('div');d.id='couch-volume';document.body.appendChild(d)}d.innerHTML=${JSON.stringify(html)}})()`;
 }
 
