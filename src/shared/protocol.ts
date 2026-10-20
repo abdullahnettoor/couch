@@ -28,6 +28,7 @@ export const COMMAND_NAMES = [
   "subtitles",
   "seekBy",
   "seekTo",
+  "volSet",
   "typeOpen",
   "typeText",
   "typeSubmit",
@@ -37,7 +38,7 @@ export const COMMAND_NAMES = [
 export type CommandName = (typeof COMMAND_NAMES)[number];
 
 /** Commands only the Screen itself may send (mouse hover). Never in COMMAND_NAMES, so Remotes can't. */
-export type ScreenOnlyCommandName = "focusAt";
+export type ScreenOnlyCommandName = "focusAt" | "showControls";
 
 export interface CommandArgs {
   /** focusAt: the grid cell to focus */
@@ -45,6 +46,8 @@ export interface CommandArgs {
   c?: number;
   /** seekBy (±) and seekTo */
   seconds?: number;
+  /** volSet: 0-100 (clamped) */
+  percent?: number;
   /** typeText: the whole current text */
   text?: string;
 }
@@ -80,6 +83,8 @@ export interface ScreenState {
   query: string;
   player?: { path: string; pos: number; dur: number; paused: boolean };
   subtitlesOn: boolean;
+  /** Player controls: the dock is up, or only the video shows. */
+  controls: "hidden" | "dock";
   volume: number;
   /** The volume level indicator is on screen. */
   volumeShown?: boolean;

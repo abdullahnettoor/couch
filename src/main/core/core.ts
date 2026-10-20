@@ -27,6 +27,7 @@ import { nullThumbnails, type Thumbnails } from "../ports/thumbnails.ts";
 import { ACTIONS, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
 import { cleanTitle, hueFor, listFolder, rootEntries } from "./library.ts";
+import { DOCK_IDS, DOCK_LABELS, DOCK_ROW, type DockId } from "../../shared/player-dock.ts";
 import { History } from "./history.ts";
 
 const TILE_COLUMNS = 4;
@@ -49,6 +50,7 @@ const TOAST_MS = 3000;
 const IDLE_DISPLAY_MS = 30 * 60_000;
 const SKIP_SECONDS = 10;
 const OVERLAY_MS = 3000;
+const CONTROLS_MS = 4500;
 const SAVE_EVERY_MS = 5000;
 const MPV_MISSING = "Couch needs mpv to play videos. Install it with: brew install mpv";
 const VOLUME_STEP = 5;
@@ -63,6 +65,7 @@ export class Core {
     focus: {},
     query: "",
     subtitlesOn: true,
+    controls: "hidden",
     volume: 0,
     remotes: 0,
   };
@@ -84,7 +87,6 @@ export class Core {
   /** Where the playing video was started from; leaving playback returns there. */
   #playedFrom: View = "folder";
   #mpvMissing = false;
-  #overlayShown = false;
   #cancelOverlay: (() => void) | undefined;
   #cancelVolume: (() => void) | undefined;
   #subtitlesRaised = false;
@@ -243,6 +245,7 @@ export class Core {
         },
       ];
     }
+    if (this.#state.view === "player") return this.#dockGrid();
     if (!this.#isLibraryView()) return this.#grids.get(this.viewKey) ?? [];
     const lib = this.#library()!;
     if (lib.folders) {
@@ -354,7 +357,8 @@ export class Core {
     const startSeconds = this.#history.resumeAt(path);
     this.#state.player = { path, pos: startSeconds ?? 0, dur: 0, paused: false };
     this.#state.view = "player";
-    this.#showOverlay();
+    this.#state.focus.player = { r: DOCK_ROW, c: DOCK_IDS.indexOf("playpause") };
+    this.#showControls();
     this.#cancelNote?.();
     this.#resumeNote = undefined;
     if (startSeconds !== undefined) {
@@ -404,7 +408,7 @@ export class Core {
     this.#resumeNote = undefined;
     this.#history.save(p.path, p.pos, p.dur, this.#ports.clock.now(), ended);
     this.#state.player = undefined;
-    this.#overlayShown = false;
+    this.#state.controls = "hidden";
     this.#cancelOverlay?.();
     if (this.#playedFrom === "folder") {
       this.#focusEntry(p.path, ended);
@@ -454,10 +458,39 @@ export class Core {
       case "pause":
         if (p && p.paused !== event.paused) {
           p.paused = event.paused;
+          this.#showControls();
           this.#emit();
         }
         break;
     }
+  }
+
+  /** The dock's focusable items: one row; Up next stays out until ticket 020 enables it. */
+  #dockGrid(): GridItem[] {
+    return DOCK_IDS.flatMap((id, c) =>
+      id === "upnext"
+        ? []
+        : [
+            {
+              id,
+              r: DOCK_ROW,
+              c,
+              label: DOCK_LABELS[id],
+              action: `dock:${id}`,
+              initial: id === "playpause",
+            },
+          ],
+    );
+  }
+
+  #focusedDock(): DockId {
+    return (resolveFocus(this.#dockGrid(), this.#state.focus.player)?.id ?? "playpause") as DockId;
+  }
+
+  #stepDock(direction: "left" | "right"): void {
+    const grid = this.#dockGrid();
+    const next = moveFocus(grid, resolveFocus(grid, this.#state.focus.player)!, direction);
+    this.#state.focus.player = { r: next.r, c: next.c };
   }
 
   /** Commands while a video plays. Returns false for the ones handled like anywhere else. */
@@ -469,24 +502,65 @@ export class Core {
       const max = p.dur > 0 ? p.dur : Infinity;
       p.pos = Math.min(max, Math.max(0, seconds));
       quiet(player.seekTo(p.pos));
-      this.#showOverlay();
     };
-    switch (command.command) {
+    const togglePause = () => {
+      p.paused = !p.paused;
+      quiet(player.setPaused(p.paused));
+    };
+    const toggleSubtitles = () => {
+      this.#state.subtitlesOn = !this.#state.subtitlesOn;
+      this.#ports.store.write("playback", { subtitlesOn: this.#state.subtitlesOn });
+      quiet(player.setSubtitles(this.#state.subtitlesOn));
+    };
+    const name = command.command;
+    if (name === "back" || name === "home") {
+      this.#stopPlayback();
+      this.#endPlayback();
+      if (name === "home") this.#state.view = "home";
+      return true;
+    }
+    const dockWasUp = this.#state.controls === "dock";
+    this.#showControls();
+    switch (name) {
       case "left":
-        seekTo(p.pos - SKIP_SECONDS);
+      case "right": {
+        const sign = name === "right" ? 1 : -1;
+        const focused = this.#focusedDock();
+        if (!dockWasUp || focused === "bar") seekTo(p.pos + sign * SKIP_SECONDS);
+        else if (focused === "volume")
+          void this.#setVolume(this.#state.volume + sign * VOLUME_STEP);
+        else this.#stepDock(name);
         return true;
-      case "right":
-        seekTo(p.pos + SKIP_SECONDS);
-        return true;
+      }
       case "up":
-      case "down":
-        this.#showOverlay();
+      case "down": {
+        // Left/Right belong to the bar and the slider, so Up/Down step off them.
+        const focused = this.#focusedDock();
+        if (dockWasUp && (focused === "bar" || focused === "volume"))
+          this.#stepDock(name === "up" ? "left" : "right");
         return true;
+      }
       case "ok":
+        if (!dockWasUp) togglePause();
+        else
+          switch (this.#focusedDock()) {
+            case "playpause":
+            case "bar":
+              togglePause();
+              break;
+            case "back10":
+              seekTo(p.pos - SKIP_SECONDS);
+              break;
+            case "fwd10":
+              seekTo(p.pos + SKIP_SECONDS);
+              break;
+            case "subtitles":
+              toggleSubtitles();
+              break;
+          }
+        return true;
       case "playpause":
-        p.paused = !p.paused;
-        quiet(player.setPaused(p.paused));
-        this.#showOverlay();
+        togglePause();
         return true;
       case "seekBy":
         seekTo(p.pos + (command.args?.seconds ?? 0));
@@ -495,31 +569,24 @@ export class Core {
         seekTo(command.args?.seconds ?? 0);
         return true;
       case "subtitles":
-        this.#state.subtitlesOn = !this.#state.subtitlesOn;
-        this.#ports.store.write("playback", { subtitlesOn: this.#state.subtitlesOn });
-        quiet(player.setSubtitles(this.#state.subtitlesOn));
+        toggleSubtitles();
         return true;
-      case "back":
-        this.#stopPlayback();
-        this.#endPlayback();
-        return true;
-      case "home":
-        this.#stopPlayback();
-        this.#endPlayback();
-        this.#state.view = "home";
+      case "showControls":
         return true;
       default:
         return false;
     }
   }
 
-  #showOverlay(): void {
-    this.#overlayShown = true;
+  /** Bring the dock up and (re)start the countdown; while paused it stays up. */
+  #showControls(): void {
+    this.#state.controls = "dock";
     this.#cancelOverlay?.();
     this.#cancelOverlay = this.#ports.clock.setTimeout(() => {
-      this.#overlayShown = false;
+      if (this.#state.player?.paused) return;
+      this.#state.controls = "hidden";
       this.#emit();
-    }, OVERLAY_MS);
+    }, CONTROLS_MS);
   }
 
   /** What the renderer should draw over the video right now. */
@@ -528,7 +595,18 @@ export class Core {
     if (!p) return undefined;
     return {
       title: cleanTitle(basename(p.path)),
-      bar: this.#overlayShown ? { position: p.pos, duration: p.dur } : undefined,
+      controls: this.#state.controls,
+      dock:
+        this.#state.controls === "dock"
+          ? {
+              position: p.pos,
+              duration: p.dur,
+              subtitlesOn: this.#state.subtitlesOn,
+              level: this.#state.volume,
+              focusedId: this.#focusedDock(),
+              upNext: false,
+            }
+          : undefined,
       paused: p.paused,
       note: this.#resumeNote,
       volume: this.#state.volumeShown ? this.#state.volume : undefined,
@@ -607,10 +685,12 @@ export class Core {
   }
 
   handle(command: Command, from: Source): void {
-    if (command.command === "focusAt" && from !== "screen") return;
+    if ((command.command === "focusAt" || command.command === "showControls") && from !== "screen")
+      return;
     if (from !== "screen") this.#lastFrom = from;
     this.#ports.mac.wakeDisplay();
     this.#armIdle();
+    if (command.command === "showControls" && !this.#state.player) return;
     if (command.command === "focusAt") return this.#focusAt(command.args?.r, command.args?.c);
     if (this.#state.player && this.#playbackCommand(command)) {
       this.#emit();
@@ -640,7 +720,12 @@ export class Core {
         break;
       case "volUp":
       case "volDown":
-        void this.#nudgeVolume(command.command === "volUp" ? VOLUME_STEP : -VOLUME_STEP);
+        void this.#setVolume(
+          this.#state.volume + (command.command === "volUp" ? VOLUME_STEP : -VOLUME_STEP),
+        );
+        break;
+      case "volSet":
+        void this.#setVolume(command.args?.percent ?? this.#state.volume);
         break;
       case "typeOpen":
       case "typeText":
@@ -853,8 +938,8 @@ export class Core {
     this.#ports.youtube.showVolume(level);
   }
 
-  async #nudgeVolume(delta: number): Promise<void> {
-    const volume = Math.max(0, Math.min(100, this.#state.volume + delta));
+  async #setVolume(percent: number): Promise<void> {
+    const volume = Math.max(0, Math.min(100, Math.round(percent)));
     this.#state.volume = volume;
     this.#state.volumeShown = true;
     this.#cancelVolume?.();
@@ -904,7 +989,7 @@ export class Core {
   }
 
   #emit(): void {
-    const raised = this.#overlayShown && this.#state.player !== undefined;
+    const raised = this.#state.controls === "dock" && this.#state.player !== undefined;
     if (raised !== this.#subtitlesRaised) {
       this.#subtitlesRaised = raised;
       this.#ports.player.setSubtitlesRaised(raised);

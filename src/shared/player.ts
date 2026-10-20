@@ -27,8 +27,19 @@ export function formatTime(seconds: number): string {
 /** What the Screen overlay shows on top of the video, drawn by the Screen renderer. */
 export interface PlayerOverlay {
   title: string;
-  /** Present while the progress bar is shown. */
-  bar?: { position: number; duration: number };
+  controls: "hidden" | "dock";
+  /** Present while the dock is shown. */
+  dock?: {
+    position: number;
+    duration: number;
+    subtitlesOn: boolean;
+    /** Current volume 0-100, for the dock's slider. */
+    level: number;
+    /** Id of the focused dock item (a DockId). */
+    focusedId?: string;
+    /** Ticket 020: the Up next control is enabled. */
+    upNext: boolean;
+  };
   paused: boolean;
   /** A short note, e.g. "Resumed at 40:10". */
   note?: string;
