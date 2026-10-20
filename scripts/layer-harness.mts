@@ -98,16 +98,22 @@ void app.whenReady().then(async () => {
   win.setSize(1000, 600);
   await sleep(1200);
   await snap("moved-resized", true);
-  win.setFullScreen(true);
+  if (!process.env.SKIPFS) win.setFullScreen(true);
   await sleep(3000);
   await snap("fullscreen", true);
-  win.setFullScreen(false);
-  await sleep(3000);
+  if (!process.env.SKIPFS) {
+    const left = new Promise<void>((r) => win.once("leave-full-screen", () => r()));
+    win.setFullScreen(false);
+    await left;
+  }
+  win.focus();
+  await sleep(2000);
   await snap("windowed-again", true);
   addon.setVisible(id, false);
   if (OPT === "A") await web.executeJavaScript(`document.body.style.background='rgb(0,0,255)'`);
-  await sleep(800);
+  await sleep(1500);
   await snap("stopped", false);
+
   try {
     console.log(
       "ONSCREEN",
