@@ -1,0 +1,33 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #0b0b10;
+  color: #f2f2f5;
+  font-family: system-ui, sans-serif;
+}
+main {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  cursor: none;
+}
+h1 {
+  font-size: 6rem;
+  margin: 0;
+}
+p {
+  font-size: 1.6rem;
+  margin: 0;
+}
+.hint {
+  opacity: 0.5;
+}
+#notice {
+  background: #3a2a10;
+  padding: 1rem 2rem;
+  border-radius: 12px;
+}

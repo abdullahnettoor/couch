@@ -1,0 +1,28 @@
+{
+  "name": "couch",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main/index.mjs",
+  "scripts": {
+    "build": "vp build && vp pack",
+    "start": "vp run build && electron .",
+    "sample": "sh scripts/make-sample.sh",
+    "check": "vp check",
+    "test": "vp test run"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "electron": "^44.9.0",
+    "typescript": "~7.0.2",
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.14.0",
+      "onFail": "download"
+    }
+  }
+}
