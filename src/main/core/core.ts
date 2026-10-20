@@ -28,14 +28,7 @@ import type { Thumbnails } from "../ports/thumbnails.ts";
 import { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
 import { ACTIONS, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
-import {
-  cleanTitle,
-  episodeLine,
-  hueFor,
-  listFolder,
-  mosaicSources,
-  rootEntries,
-} from "./library.ts";
+import { presentation, hueFor, listFolder, mosaicSources, rootEntries } from "./library.ts";
 import type { UpNextItem } from "../../shared/protocol.ts";
 import { PlayerControls } from "./player-controls.ts";
 import { History } from "./history.ts";
@@ -67,10 +60,6 @@ const TYPING_HINT = "Typing works inside YouTube search";
 const YOUTUBE_NOTE = "Press Home on your phone to come back";
 
 /** The single source of truth: holds the Screen state and turns commands into new state. */
-function lineOf(path: string): { line?: string } {
-  const line = episodeLine(basename(path));
-  return line ? { line } : {};
-}
 
 export class Core {
   #ports: Ports;
@@ -276,8 +265,7 @@ export class Core {
 
   #continueEntries(): LibraryEntry[] {
     return this.#history.continueWatching().map((c) => {
-      const title = cleanTitle(basename(c.path));
-      const line = episodeLine(basename(c.path));
+      const { title, line } = presentation(c.path);
       return this.#decorate({
         kind: "video",
         path: c.path,
@@ -614,8 +602,7 @@ export class Core {
     const p = this.#state.player;
     if (!p) return undefined;
     return {
-      title: cleanTitle(basename(p.path)),
-      ...lineOf(p.path),
+      ...presentation(p.path),
       controls: this.#state.controls,
       dock:
         this.#state.controls !== "hidden" && this.#state.controls !== "next"
@@ -639,10 +626,10 @@ export class Core {
   #nextCard(): PlayerOverlay["next"] {
     const next = this.#controls.next;
     if (!next || this.#state.controls !== "next") return undefined;
-    const title = cleanTitle(basename(next.path));
+    const { title, line } = presentation(next.path);
     return {
       title,
-      ...lineOf(next.path),
+      ...(line ? { line } : {}),
       thumb: this.#thumbs.lookup(next.path),
       hue: hueFor(title),
       focusedId: this.#controls.focusedCard(),
@@ -653,10 +640,10 @@ export class Core {
     const playing = this.#state.player?.path;
     const tiles = this.#controls.upNext.map((e) => {
       const d = this.#decorate({ ...e });
-      const title = cleanTitle(basename(e.path));
+      const { title, line } = presentation(e.path);
       return {
         title,
-        ...lineOf(e.path),
+        ...(line ? { line } : {}),
         thumb: this.#thumbs.lookup(e.path),
         hue: hueFor(title),
         watched: d.watched === true,
@@ -685,8 +672,7 @@ export class Core {
       const key = this.#thumbKey(e.path);
       const progress = this.#history.progress(e.path);
       return {
-        title: cleanTitle(basename(e.path)),
-        ...lineOf(e.path),
+        ...presentation(e.path),
         ...(key ? { thumbKey: key } : {}),
         watched: this.#history.isWatched(e.path),
         playing: e.path === playing,
@@ -742,8 +728,7 @@ export class Core {
       ...(s.controls === "next" && this.#controls.next
         ? {
             next: {
-              title: cleanTitle(basename(this.#controls.next.path)),
-              ...lineOf(this.#controls.next.path),
+              ...presentation(this.#controls.next.path),
               ...(this.#thumbKey(this.#controls.next.path)
                 ? { thumbKey: this.#thumbKey(this.#controls.next.path) }
                 : {}),
@@ -755,8 +740,7 @@ export class Core {
       showSkip: s.view === "youtube",
       typing: s.typingBy === undefined ? "none" : s.typingBy === remote ? "you" : "other",
       nowPlaying: s.player && {
-        title: cleanTitle(basename(s.player.path)),
-        ...lineOf(s.player.path),
+        ...presentation(s.player.path),
         folder: basename(dirname(s.player.path)),
         position: s.player.pos,
         duration: s.player.dur,

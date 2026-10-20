@@ -119,6 +119,13 @@ export function episodeLine(fileName: string): string | undefined {
   return t.series ? `${t.series} · ${code}` : code;
 }
 
+/** What a video's tiles, overlay and phone show for it: its title and, for episodes, the "Series · S1 E1" line. */
+export function presentation(path: string): { title: string; line?: string } {
+  const file = basename(path);
+  const line = episodeLine(file);
+  return { title: cleanTitle(file), ...(line ? { line } : {}) };
+}
+
 /** A folder's name with the same release-tag cleanup as files. */
 export function cleanFolderName(name: string): string {
   return tidy(name) || name;
@@ -165,15 +172,9 @@ export function listFolder(path: string): LibraryEntry[] | undefined {
     .filter((e) => !isDir(path, e) && VIDEO_EXTENSIONS.includes(extname(e.name).toLowerCase()))
     .sort((a, b) => collator.compare(a.name, b.name))
     .map((e): LibraryEntry => {
-      const title = cleanTitle(e.name);
-      const line = episodeLine(e.name);
-      return {
-        kind: "video",
-        path: join(path, e.name),
-        title,
-        ...(line ? { line } : {}),
-        hue: hueFor(title),
-      };
+      const full = join(path, e.name);
+      const { title, line } = presentation(full);
+      return { kind: "video", path: full, title, ...(line ? { line } : {}), hue: hueFor(title) };
     });
   return [...folders, ...videos];
 }

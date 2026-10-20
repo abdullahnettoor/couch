@@ -1,10 +1,9 @@
-import { basename } from "node:path";
 import type { Command, GridItem, LibraryEntry, ScreenState } from "../../shared/protocol.ts";
 import { DOCK_IDS, DOCK_LABELS, DOCK_ROW, type DockId } from "../../shared/player-dock.ts";
 import type { NextCardId } from "../../shared/player.ts";
 import type { Clock } from "../ports/clock.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
-import { cleanTitle } from "./library.ts";
+import { presentation } from "./library.ts";
 
 const SKIP_SECONDS = 10;
 const VOLUME_STEP = 5;
@@ -147,7 +146,7 @@ export class PlayerControls {
       id: e.path,
       r: 0,
       c: i,
-      label: cleanTitle(basename(e.path)),
+      label: presentation(e.path).title,
       action: `upnext:${i}`,
     }));
     return [...tiles, ...dock];
