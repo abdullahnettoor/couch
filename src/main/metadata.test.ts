@@ -304,6 +304,27 @@ describe("Settings: Show and film details", () => {
     expect(core().details.settings().keyLabel).toBe("No key");
   });
 
+  test("a key being typed never leaks after another phone opens Credits", async () => {
+    await start("");
+    const a = await openDetails();
+    const b = await h!.connectPhone();
+    await a.press("ok");
+    for (let i = 0; i < 3; i++) await b.press("down");
+    await b.press("ok");
+    expect(h!.screen.last.state.view).toBe("credits");
+    await a.press({ command: "typeText", args: { text: OWN } });
+    await a.press("typeSubmit");
+    await a.press({ command: "typeText", args: { text: OWN } });
+    await b.press("back");
+    await a.press({ command: "typeText", args: { text: OWN } });
+    await a.press("typeSubmit");
+    await settle();
+    expect(core().details.settings().keyLabel).toBe("No key");
+    expect(h!.youtube.calls.filter((c) => c.call === "setSearchText")).toEqual([]);
+    const all = JSON.stringify([h!.screen.payloads, a.snapshots, b.snapshots, h!.youtube.calls]);
+    expect(all).not.toContain("abcd1234ownkey");
+  });
+
   test("neither key appears in a snapshot or payload", async () => {
     await start(BEARER, OWN);
     const phone = await openDetails();

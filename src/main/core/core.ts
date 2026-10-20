@@ -493,6 +493,7 @@ export class Core {
 
   #startKeyTyping(remote: RemoteId): void {
     this.#state.typingBy = remote;
+    this.#typingFor = "tmdbKey";
     this.#keyDraft = "";
   }
 
@@ -1331,11 +1332,13 @@ export class Core {
     const yt = this.#ports.youtube;
     const owner = this.#state.typingBy;
     if (this.#state.view === "details") return this.#typeKey(command, from);
+    if (owner !== undefined && this.#typingFor !== "search") return;
     switch (command.command) {
       case "typeOpen":
         if (this.#state.view !== "youtube") return this.#toast(TYPING_HINT);
         if (from === "screen" || (owner !== undefined && owner !== from)) return;
         this.#state.typingBy = from;
+        this.#typingFor = "search";
         this.#state.query = "";
         yt.openSearch();
         break;
@@ -1515,7 +1518,7 @@ export class Core {
       this.#ports.youtube.hide();
     }
     this.#state.view = view;
-    if (from === "details" && view !== "credits") {
+    if (from === "details") {
       this.#state.typingBy = undefined;
       this.#keyDraft = "";
     }
@@ -1560,6 +1563,7 @@ export class Core {
           this.#remotes.has(this.#lastFrom)
         ) {
           this.#state.typingBy = this.#lastFrom;
+          this.#typingFor = "search";
           this.#state.query = "";
         } else if (this.#state.typingBy !== undefined && this.#state.query) {
           this.#ports.youtube.setSearchText(this.#state.query);
