@@ -30,15 +30,34 @@
 .h-hero {
   position: absolute;
   left: calc(110 * var(--u));
-  top: calc(236 * var(--u));
+  bottom: calc(392 * var(--u));
   width: calc(920 * var(--u));
+}
+.h-hero .k {
+  font-size: calc(30 * var(--u));
+  font-weight: 600;
+  color: var(--t2);
+  margin-bottom: calc(14 * var(--u));
 }
 .h-hero h1 {
   font-size: calc(116 * var(--u));
-  line-height: 0.95;
+  line-height: 1.05;
   letter-spacing: -0.03em;
-  margin: 0 0 calc(24 * var(--u));
+  margin: 0 0 calc(20 * var(--u));
+  padding-bottom: calc(4 * var(--u));
   font-weight: 700;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.h-hero h1.s1 {
+  font-size: calc(92 * var(--u));
+}
+.h-hero h1.s2 {
+  font-size: calc(76 * var(--u));
 }
 .h-hero .m {
   font-size: calc(28 * var(--u));

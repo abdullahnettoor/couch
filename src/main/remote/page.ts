@@ -155,7 +155,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   }
   var key = fromUrl || (function () { try { return localStorage.getItem(KEY); } catch (e) { return null; } })() || "";
   var $ = function (id) { return document.getElementById(id); };
-  function icon(name) { return '<svg class="i" viewBox="0 0 24 24" aria-hidden="true">' + ICONS[name] + "</svg>"; }
+  function icon(name) { return '<svg class="i" viewBox="0 0 256 256" aria-hidden="true">' + ICONS[name] + "</svg>"; }
   function fill(root) {
     var els = root.querySelectorAll("[data-i]");
     for (var i = 0; i < els.length; i++) els[i].insertAdjacentHTML("afterbegin", icon(els[i].getAttribute("data-i")));
@@ -237,7 +237,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     if (np) {
       duration = np.duration;
       $("np-title").textContent = np.title;
-      $("np-folder").textContent = np.folder;
+      $("np-folder").textContent = np.line || np.folder;
       if (!dragging) showProgress(np.position);
       $("np-pp").innerHTML = icon(np.paused ? "play" : "pause");
       $("np-subs").classList.toggle("on", np.subtitlesOn);

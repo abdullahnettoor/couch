@@ -28,7 +28,14 @@ import type { Thumbnails } from "../ports/thumbnails.ts";
 import { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
 import { ACTIONS, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
-import { cleanTitle, hueFor, listFolder, mosaicSources, rootEntries } from "./library.ts";
+import {
+  cleanTitle,
+  episodeLine,
+  hueFor,
+  listFolder,
+  mosaicSources,
+  rootEntries,
+} from "./library.ts";
 import type { UpNextItem } from "../../shared/protocol.ts";
 import { PlayerControls } from "./player-controls.ts";
 import { History } from "./history.ts";
@@ -60,6 +67,11 @@ const TYPING_HINT = "Typing works inside YouTube search";
 const YOUTUBE_NOTE = "Press Home on your phone to come back";
 
 /** The single source of truth: holds the Screen state and turns commands into new state. */
+function lineOf(path: string): { line?: string } {
+  const line = episodeLine(basename(path));
+  return line ? { line } : {};
+}
+
 export class Core {
   #ports: Ports;
   #state: ScreenState = {
@@ -264,10 +276,12 @@ export class Core {
   #continueEntries(): LibraryEntry[] {
     return this.#history.continueWatching().map((c) => {
       const title = cleanTitle(basename(c.path));
+      const line = episodeLine(basename(c.path));
       return this.#decorate({
         kind: "video",
         path: c.path,
         title,
+        ...(line ? { line } : {}),
         hue: hueFor(title),
         folder: basename(dirname(c.path)),
         thumb: this.#thumbs.lookup(c.path),
@@ -580,6 +594,7 @@ export class Core {
     if (!p) return undefined;
     return {
       title: cleanTitle(basename(p.path)),
+      ...lineOf(p.path),
       controls: this.#state.controls,
       dock:
         this.#state.controls !== "hidden"
@@ -606,6 +621,7 @@ export class Core {
       const title = cleanTitle(basename(e.path));
       return {
         title,
+        ...lineOf(e.path),
         thumb: this.#thumbs.lookup(e.path),
         hue: hueFor(title),
         watched: d.watched === true,
@@ -635,6 +651,7 @@ export class Core {
       const progress = this.#history.progress(e.path);
       return {
         title: cleanTitle(basename(e.path)),
+        ...lineOf(e.path),
         ...(key ? { thumbKey: key } : {}),
         watched: this.#history.isWatched(e.path),
         playing: e.path === playing,
@@ -693,6 +710,7 @@ export class Core {
       typing: s.typingBy === undefined ? "none" : s.typingBy === remote ? "you" : "other",
       nowPlaying: s.player && {
         title: cleanTitle(basename(s.player.path)),
+        ...lineOf(s.player.path),
         folder: basename(dirname(s.player.path)),
         position: s.player.pos,
         duration: s.player.dur,

@@ -27,6 +27,7 @@ export function formatTime(seconds: number): string {
 /** One tile in the Up next row. */
 export interface UpNextTile {
   title: string;
+  line?: string;
   thumb?: string;
   hue: number;
   watched: boolean;
@@ -38,6 +39,7 @@ export interface UpNextTile {
 /** What the Screen overlay shows on top of the video, drawn by the Screen renderer. */
 export interface PlayerOverlay {
   title: string;
+  line?: string;
   controls: "hidden" | "dock" | "upnext";
   /** Present while the dock is shown. */
   dock?: {

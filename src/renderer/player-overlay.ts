@@ -85,7 +85,7 @@ const tileHtml = (t: UpNextTile, index: number) => {
     t.progress !== undefined
       ? `<div class="po-prog"><i style="width:${Math.round(t.progress * 100)}%"></i></div>`
       : "";
-  return `<button class="po-ep" data-ep="${index}"><div class="po-pic g-tile">${picture}${mark}${progress}</div><div class="po-cap">${escapeHtml(t.title)}</div></button>`;
+  return `<button class="po-ep" data-ep="${index}"><div class="po-pic g-tile">${picture}${mark}${progress}</div><div class="po-cap">${escapeHtml(t.title)}${t.line ? `<small>${escapeHtml(t.line)}</small>` : ""}</div></button>`;
 };
 let tilesKey = "";
 function renderUpNext(upNext: PlayerOverlay["upNext"]): void {
@@ -119,7 +119,13 @@ export function renderOverlay(overlay: PlayerOverlay | undefined): void {
   const d = overlay.dock;
   controlsUp = overlay.controls !== "hidden";
   el.classList.toggle("controls", controlsUp);
-  title.textContent = overlay.title;
+  title.replaceChildren();
+  if (overlay.line) {
+    const k = document.createElement("small");
+    k.textContent = overlay.line;
+    title.append(k);
+  }
+  title.append(overlay.title);
   note.textContent = overlay.note ?? "";
   note.classList.toggle("show", Boolean(overlay.note));
   pauseMark.classList.toggle("show", overlay.paused);

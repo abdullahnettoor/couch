@@ -1,5 +1,5 @@
 import { COLORS } from "../../shared/glass-tokens.ts";
-import { ICON_PATHS } from "../../shared/icons.ts";
+import { ICON_PATHS, ICON_VIEWBOX } from "../../shared/icons.ts";
 
 /**
  * Glass toast and volume level for the YouTube view, injected into the page.
@@ -33,7 +33,7 @@ css(d,{right:px(60),top:'50%',transform:'translateY(-50%)',width:px(80),height:p
 var n=document.createElement('span');n.textContent=${JSON.stringify(String(p))};css(n,{'font-weight':'700','font-variant-numeric':'tabular-nums'});
 var l=document.createElement('div');css(l,{width:px(44),flex:'1','border-radius':px(22),background:'rgba(255,255,255,.2)',position:'relative',overflow:'hidden'});
 var f=document.createElement('i');css(f,{position:'absolute',left:0,right:0,bottom:0,height:'${p}%',background:'#fff'});l.appendChild(f);
-var s=document.createElementNS(SVG,'svg');s.setAttribute('viewBox','0 0 24 24');css(s,{width:px(32),height:px(32),fill:'currentColor'});
+var s=document.createElementNS(SVG,'svg');s.setAttribute('viewBox',${JSON.stringify(ICON_VIEWBOX)});css(s,{width:px(32),height:px(32),fill:'currentColor'});
 ${JSON.stringify(SPEAKER_PATHS)}.forEach(function(v){var q=document.createElementNS(SVG,'path');q.setAttribute('d',v);s.appendChild(q)});
 d.appendChild(n);d.appendChild(l);d.appendChild(s);document.body.appendChild(d)})()`;
 }
