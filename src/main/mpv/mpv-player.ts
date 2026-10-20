@@ -43,6 +43,8 @@ export class MpvPlayer implements Player {
   private client: Promise<MpvIpcClient> | undefined;
   private dir: string | undefined;
   private disposing = false;
+  /** Remembered so a listener that subscribes after start() still learns mpv is missing. */
+  private missing = false;
 
   private options: MpvPlayerOptions;
 
@@ -140,6 +142,7 @@ export class MpvPlayer implements Player {
 
   onEvent(listener: (event: PlayerEvent) => void): () => void {
     this.listeners.add(listener);
+    if (this.missing) listener({ type: "missing" });
     return () => this.listeners.delete(listener);
   }
 
@@ -185,6 +188,7 @@ export class MpvPlayer implements Player {
   }
 
   private emit(event: PlayerEvent): void {
+    if (event.type === "missing") this.missing = true;
     for (const listener of this.listeners) listener(event);
   }
 

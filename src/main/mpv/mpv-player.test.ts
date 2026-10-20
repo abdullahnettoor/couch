@@ -33,6 +33,14 @@ test("emits `missing` when mpv can't be found", async () => {
   expect(events).toEqual([{ type: "missing" }]);
 });
 
+test("a listener added after start still hears that mpv is missing", async () => {
+  player = new MpvPlayer({ mpvPath: undefined });
+  await player.start();
+  const events: PlayerEvent[] = [];
+  player.onEvent((e) => events.push(e));
+  expect(events).toEqual([{ type: "missing" }]);
+});
+
 realMpv(
   "plays, pauses, seeks, reports position, ends, and quits cleanly",
   async () => {

@@ -1,6 +1,10 @@
+import type { CommandName } from "../../shared/protocol.ts";
+
 export type YouTubeKey = "up" | "down" | "left" | "right" | "ok" | "back";
 
 export type YouTubeEvent =
+  /** A key pressed on the Mac keyboard while YouTube has focus, already mapped to a command. */
+  | { type: "key"; command: CommandName }
   | { type: "loaded" }
   | { type: "failed" }
   /** The view navigated; `topLevel` is true on YouTube's home/browse screens. */
@@ -19,6 +23,8 @@ export interface YouTube {
   setSearchText(text: string): void;
   submitSearch(): void;
   playPause(): void;
+  /** Draws the volume level above the view, or removes it when undefined. */
+  showVolume(percent: number | undefined): void;
   restart(): void;
   onEvent(listener: (event: YouTubeEvent) => void): () => void;
 }

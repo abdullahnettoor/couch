@@ -57,6 +57,19 @@ export function render(payload: ScreenPayload): void {
       );
     }
   }
+  const card = payload.continueCard;
+  if (card?.progress) {
+    const focused = payload.focusedId === "continue" ? " focused" : "";
+    row.append(
+      el(
+        "div",
+        `continue-card${focused}`,
+        `<div class="k">Continue watching</div><div class="t">${escapeHtml(card.title)}</div>` +
+          `<div class="m">${escapeHtml(card.progress.left)} · ${escapeHtml(card.folder ?? "")}</div>` +
+          `<div class="bar"><i style="width:${Math.round(card.progress.fraction * 100)}%"></i></div>`,
+      ),
+    );
+  }
   view.append(status, row);
   if (payload.state.remotes === 0) {
     view.append(
@@ -66,19 +79,6 @@ export function render(payload: ScreenPayload): void {
         `<div class="qr">${qrSvg(payload.pairingUrl)}</div><div class="c">Scan to use your phone as a remote</div>`,
       ),
     );
-  }
-  const card = payload.continueCard;
-  if (card?.progress) {
-    const focused = payload.focusedId === "continue" ? " focused" : "";
-    const c = el(
-      "div",
-      `continue-card${focused}`,
-      `<div class="k">Continue watching</div><div class="t">${escapeHtml(card.title)}</div>` +
-        `<div class="m">${escapeHtml(card.progress.left)} · ${escapeHtml(card.folder ?? "")}</div>` +
-        `<div class="bar"><i style="width:${Math.round(card.progress.fraction * 100)}%"></i></div>`,
-    );
-    view.classList.add("has-continue");
-    view.append(c);
   }
   root.append(view);
 }

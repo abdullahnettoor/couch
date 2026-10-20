@@ -51,12 +51,12 @@ export class History {
     if (ended) {
       this.#items[path] = { duration, watched: true, at: now };
     } else {
-      if (!(duration > 0) || position < MIN_RECORD_SECONDS) return;
+      if (!(duration > 0)) return;
       const watched =
         position / duration >= WATCHED_FRACTION || duration - position <= WATCHED_REMAINING_SECONDS;
-      this.#items[path] = watched
-        ? { duration, watched: true, at: now }
-        : { position, duration, at: now };
+      if (watched) this.#items[path] = { duration, watched: true, at: now };
+      else if (position >= MIN_RECORD_SECONDS) this.#items[path] = { position, duration, at: now };
+      else return;
     }
     this.#store.write("history", { items: this.#items });
   }

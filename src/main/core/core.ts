@@ -92,6 +92,7 @@ export class Core {
   #cancelNote: (() => void) | undefined;
   #displayId: number | undefined;
   #unsubDisplays: () => void;
+  #shownYtVolume: number | undefined;
   #idle = false;
   #cancelIdle: (() => void) | undefined;
   #displayAwake: boolean | undefined;
@@ -222,10 +223,18 @@ export class Core {
       const base = this.#grids.get("home") ?? [];
       const first = base.length ? this.#continueEntries()[0] : undefined;
       if (!first) return base;
-      const row = Math.max(...base.map((i) => i.r)) + 1;
+      const apps = base.filter((i) => i.id !== "settings");
+      const row = apps.length ? apps[0]!.r : 1;
+      const col = Math.max(-1, ...apps.map((i) => i.c)) + 1;
       return [
         ...base,
-        { id: "continue", r: row, c: 0, label: first.title, action: `library:play:${first.path}` },
+        {
+          id: "continue",
+          r: row,
+          c: col,
+          label: first.title,
+          action: `library:play:${first.path}`,
+        },
       ];
     }
     if (!this.#isLibraryView()) return this.#grids.get(this.viewKey) ?? [];
@@ -798,6 +807,9 @@ export class Core {
         this.#ytFailed = true;
         this.#setView(this.#state.view === "youtube" ? "youtubeError" : this.#state.view);
         break;
+      case "key":
+        this.handle({ command: event.command }, "screen");
+        return;
       case "route":
         this.#ytTopLevel = event.topLevel;
         break;
@@ -810,12 +822,23 @@ export class Core {
         ) {
           this.#state.typingBy = this.#lastFrom;
           this.#state.query = "";
+        } else if (this.#state.typingBy !== undefined && this.#state.query) {
+          this.#ports.youtube.setSearchText(this.#state.query);
         }
         break;
       default:
         return;
     }
     this.#emit();
+  }
+
+  /** YouTube covers the Screen's own volume badge, so the port draws the level above it. */
+  #syncYouTubeVolume(): void {
+    const level =
+      this.#state.view === "youtube" && this.#state.volumeShown ? this.#state.volume : undefined;
+    if (level === this.#shownYtVolume) return;
+    this.#shownYtVolume = level;
+    this.#ports.youtube.showVolume(level);
   }
 
   async #nudgeVolume(delta: number): Promise<void> {
@@ -876,6 +899,7 @@ export class Core {
       this.#ports.player.setOverlay(overlay);
     }
     this.#syncDisplayAwake();
+    this.#syncYouTubeVolume();
     for (const l of [...this.#listeners]) l();
   }
 }

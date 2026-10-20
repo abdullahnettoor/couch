@@ -1,4 +1,5 @@
 import { BrowserWindow, WebContentsView, session } from "electron";
+import type { CommandName } from "../../shared/protocol.ts";
 import { applyCompatPatch } from "./youtube-compat.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "./youtube.ts";
 
@@ -14,6 +15,20 @@ const KEY_CODES: Record<YouTubeKey, string> = {
   right: "Right",
   ok: "Return",
   back: "Escape",
+};
+
+/** Mac keyboard keys that drive YouTube through the core, like on the Screen. */
+const KEYBOARD: Record<string, CommandName> = {
+  ArrowUp: "up",
+  ArrowDown: "down",
+  ArrowLeft: "left",
+  ArrowRight: "right",
+  Enter: "ok",
+  Escape: "back",
+  Backspace: "back",
+  h: "home",
+  H: "home",
+  " ": "playpause",
 };
 
 export const SEARCH_URL = "https://www.youtube.com/tv#/search";
@@ -37,6 +52,7 @@ export class ElectronYouTube implements YouTube {
   #listeners = new Set<(event: YouTubeEvent) => void>();
   #visible = false;
   #failed = false;
+  #sending = false;
 
   constructor(win: BrowserWindow) {
     this.#win = win;
@@ -67,9 +83,17 @@ export class ElectronYouTube implements YouTube {
       this.#failed = true;
       this.#emit({ type: "failed" });
     });
+    wc.on("before-input-event", (event, input) => {
+      if (this.#sending) return;
+      const command = KEYBOARD[input.key];
+      if (!command || input.control || input.meta || input.alt) return;
+      event.preventDefault();
+      if (input.type === "keyDown") this.#emit({ type: "key", command });
+    });
     const route = (_e: unknown, url: string) => {
       this.#emit({ type: "route", topLevel: isTopLevelUrl(url) });
-      if (isSearchUrl(url)) this.#emit({ type: "searchOpened" });
+      // Give the search screen a moment to draw before text is replayed into it.
+      if (isSearchUrl(url)) setTimeout(() => this.#emit({ type: "searchOpened" }), 400);
     };
     wc.on("did-navigate", route);
     wc.on("did-navigate-in-page", route);
@@ -118,6 +142,17 @@ export class ElectronYouTube implements YouTube {
       .catch(() => {});
   }
 
+  showVolume(percent: number | undefined): void {
+    const js =
+      percent === undefined
+        ? `var e=document.getElementById('couch-volume');if(e)e.remove()`
+        : `(function(){var d=document.getElementById('couch-volume');if(!d){d=document.createElement('div');d.id='couch-volume';` +
+          `d.style.cssText='position:fixed;right:48px;top:40px;z-index:2147483647;padding:10px 22px;border-radius:12px;` +
+          `background:rgba(20,18,16,.9);color:#f3ede4;font:600 26px system-ui;pointer-events:none';document.body.appendChild(d)}` +
+          `d.textContent='Volume ${Math.round(percent)}%'})()`;
+    void this.#view.webContents.executeJavaScript(js).catch(() => {});
+  }
+
   async #showNote(note: string): Promise<void> {
     const text = JSON.stringify(note);
     await this.#view.webContents
@@ -133,8 +168,13 @@ export class ElectronYouTube implements YouTube {
   sendKey(key: YouTubeKey): void {
     const keyCode = KEY_CODES[key];
     const wc = this.#view.webContents;
-    wc.sendInputEvent({ type: "keyDown", keyCode });
-    wc.sendInputEvent({ type: "keyUp", keyCode });
+    this.#sending = true;
+    try {
+      wc.sendInputEvent({ type: "keyDown", keyCode });
+      wc.sendInputEvent({ type: "keyUp", keyCode });
+    } finally {
+      this.#sending = false;
+    }
   }
 
   playPause(): void {
@@ -149,14 +189,17 @@ export class ElectronYouTube implements YouTube {
     void wc.loadURL(SEARCH_URL, { userAgent: COBALT_USER_AGENT }).catch(() => {});
   }
 
-  /** Makes YouTube's search box hold exactly `text`, firing the events its UI listens to. */
+  /**
+   * Replaces the search box text with trusted editing events (no page reads). Does nothing until
+   * the search screen is showing; the core replays the text when it reports `searchOpened`.
+   */
   setSearchText(text: string): void {
-    const js =
-      `(function(t){var el=document.querySelector('input[type=text],input:not([type]),input[type=search]')||document.activeElement;` +
-      `if(!el||el.tagName!=='INPUT')return;if(document.activeElement!==el)el.focus();` +
-      `var set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(el,t);` +
-      `el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}))})(${JSON.stringify(text)})`;
-    void this.#view.webContents.executeJavaScript(js).catch(() => {});
+    const wc = this.#view.webContents;
+    if (!isSearchUrl(wc.getURL()) || wc.isLoading()) return;
+    wc.focus();
+    wc.selectAll();
+    if (text) wc.insertText(text);
+    else this.sendKey("back");
   }
 
   submitSearch(): void {

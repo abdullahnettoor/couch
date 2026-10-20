@@ -73,6 +73,16 @@ describe("YouTube typing", () => {
     expect(calls("openSearch")).toHaveLength(0);
   });
 
+  test("text typed before the search screen is ready is replayed when it opens", async () => {
+    await a.press("typeOpen");
+    await a.press({ command: "typeText", args: { text: "kerala" } });
+    const before = calls("setSearchText").length;
+    h.youtube.emit({ type: "searchOpened" });
+    await a.settle();
+    expect(calls("setSearchText").length).toBe(before + 1);
+    expect(calls("setSearchText").at(-1)!.args[0]).toBe("kerala");
+  });
+
   test("search route auto-opens the sheet on the last commander", async () => {
     await b.press("ok");
     h.youtube.emit({ type: "searchOpened" });

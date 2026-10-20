@@ -332,10 +332,8 @@ body {
   background: #5ab4f2;
 }
 .continue-card {
-  position: absolute;
-  left: 6cqw;
-  bottom: 2cqw;
   width: 30cqw;
+  margin-bottom: 1.6cqw;
   box-sizing: border-box;
   padding: 1cqw 1.4cqw;
   border-radius: 1.2cqw;
@@ -358,7 +356,4 @@ body {
 .continue-card.focused {
   transform: scale(1.04);
   box-shadow: 0 0 0 0.3cqw var(--ink);
-}
-.home.has-continue .ha-row {
-  bottom: 11cqw;
 }

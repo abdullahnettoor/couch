@@ -100,6 +100,42 @@ describe("thresholds", () => {
     expect(screen().continueCard?.title).toBe("B Film (2002)");
   });
 
+  test("a short clip stopped near its end is watched, not resumable", async () => {
+    await start();
+    watchAndLeave(a(), 48, 50);
+    expect(screen().continueCard).toBeUndefined();
+    press("home");
+    focusOn("library");
+    press("ok");
+    focusOn(root);
+    press("ok");
+    focusOn(join(root, "Films"));
+    press("ok");
+    expect(screen().library!.entries.find((e) => e.path === a())!.watched).toBe(true);
+  });
+
+  test("a short clip stopped early is neither", async () => {
+    await start();
+    watchAndLeave(a(), 10, 50);
+    expect(screen().continueCard).toBeUndefined();
+    playFromLibrary(a(), 50);
+    expect(lastLoad()[1].startSeconds).toBeUndefined();
+  });
+
+  test("Continue watching shares Home's row with the apps, and Up reaches the gear", async () => {
+    await start();
+    watchAndLeave(a(), 600);
+    const items = screen().grid;
+    expect(items.find((i) => i.id === "continue")!.r).toBe(
+      items.find((i) => i.id === "library")!.r,
+    );
+    focusOn("library");
+    press("right");
+    expect(screen().focusedId).toBe("continue");
+    press("up");
+    expect(screen().focusedId).toBe("settings");
+  });
+
   test("watched tag shows on the tile and the video plays from the start", async () => {
     await start();
     watchAndLeave(a(), 7100);

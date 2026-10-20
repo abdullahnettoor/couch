@@ -95,6 +95,9 @@ export class FakeYouTube implements YouTube {
   playPause() {
     this.#record("playPause");
   }
+  showVolume(percent: number | undefined) {
+    this.#record("showVolume", percent);
+  }
   restart() {
     this.#record("restart");
   }

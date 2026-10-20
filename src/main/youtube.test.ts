@@ -45,6 +45,33 @@ describe("YouTube App", () => {
     expect(calls("sendKey")).toHaveLength(6);
   });
 
+  test("keys pressed inside YouTube go through the core, once each", async () => {
+    await openYouTube();
+    h.youtube.emit({ type: "key", command: "down" });
+    expect(calls("sendKey").map((c) => c.args[0])).toEqual(["down"]);
+    h.youtube.emit({ type: "route", topLevel: false });
+    h.youtube.emit({ type: "key", command: "back" });
+    expect(calls("sendKey").map((c) => c.args[0])).toEqual(["down", "back"]);
+    h.youtube.emit({ type: "key", command: "home" });
+    await phone.waitFor(() => phone.last?.view === "home");
+    expect(calls("hide")).toHaveLength(1);
+  });
+
+  test("keyboard Back at YouTube's top level goes Home", async () => {
+    await openYouTube();
+    h.youtube.emit({ type: "key", command: "back" });
+    await phone.waitFor(() => phone.last?.view === "home");
+  });
+
+  test("the volume level is shown over YouTube and cleared after 3 s", async () => {
+    await openYouTube();
+    const levels = () => calls("showVolume").map((c) => c.args[0]);
+    await phone.press("volUp");
+    expect(levels().at(-1)).toBe(55);
+    h.clock.advance(3100);
+    expect(levels().at(-1)).toBeUndefined();
+  });
+
   test("Home hides and pauses, goes Home, lets the display sleep; reopening shows it again", async () => {
     await openYouTube();
     const s = await phone.press("home");
