@@ -9,6 +9,9 @@ import { MpvPlayer } from "./mpv/mpv-player.ts";
 // Temporary (ticket 002): the real core and Remote arrive in later tickets.
 const SAMPLE = process.env.COUCH_SAMPLE ?? join(app.getAppPath(), ".dev", "sample.mkv");
 
+// Fixed name so app data lives in ~/Library/Application Support/Couch whichever way Couch is launched.
+app.setName("Couch");
+
 let win: BrowserWindow | undefined;
 let player: MpvPlayer | undefined;
 const status: ScreenStatus = { mpvMissing: false, playing: false, paused: false, position: 0 };
