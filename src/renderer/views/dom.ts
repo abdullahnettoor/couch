@@ -15,6 +15,12 @@ export function el(tag: string, className: string, html = ""): HTMLElement {
   return node;
 }
 
+/** Marks a node as a focusable grid item so mouse events can find it. */
+export function focusable<T extends HTMLElement>(node: T, id: string): T {
+  node.dataset.id = id;
+  return node;
+}
+
 /** A QR code as inline SVG markup. */
 export function qrSvg(text: string): string {
   const qr = QRCode.create(text, { errorCorrectionLevel: "M" });

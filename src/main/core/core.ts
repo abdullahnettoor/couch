@@ -602,9 +602,11 @@ export class Core {
   }
 
   handle(command: Command, from: Source): void {
+    if (command.command === "focusAt" && from !== "screen") return;
     if (from !== "screen") this.#lastFrom = from;
     this.#ports.mac.wakeDisplay();
     this.#armIdle();
+    if (command.command === "focusAt") return this.#focusAt(command.args?.r, command.args?.c);
     if (this.#state.player && this.#playbackCommand(command)) {
       this.#emit();
       return;
@@ -731,6 +733,14 @@ export class Core {
     if (!current) return;
     const next = moveFocus(grid, current, direction);
     this.#state.focus[this.viewKey] = { r: next.r, c: next.c };
+  }
+
+  #focusAt(r?: number, c?: number): void {
+    if (this.#state.view === "youtube" || this.#state.view === "player") return;
+    const item = this.#currentGrid().find((i) => i.r === r && i.c === c);
+    if (!item) return;
+    this.#state.focus[this.viewKey] = { r: item.r, c: item.c };
+    this.#emit();
   }
 
   #ok(): void {

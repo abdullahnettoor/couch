@@ -1,6 +1,6 @@
 import { HOME_ITEMS } from "../../shared/home-grid.ts";
 import type { ScreenPayload } from "../../shared/protocol.ts";
-import { el, qrSvg, root } from "./dom.ts";
+import { el, focusable, qrSvg, root } from "./dom.ts";
 
 export const ICONS: Record<string, string> = {
   youtube: '<svg viewBox="0 0 24 24"><path d="M9 7.5v9l7.5-4.5z" fill="currentColor"/></svg>',
@@ -46,13 +46,16 @@ export function render(payload: ScreenPayload): void {
   for (const item of HOME_ITEMS) {
     const focused = item.id === payload.focusedId ? " focused" : "";
     if (item.id === "settings") {
-      view.append(el("div", `gear${focused}`, ICONS.settings));
+      view.append(focusable(el("div", `gear${focused}`, ICONS.settings), item.id));
     } else {
       row.append(
-        el(
-          "div",
-          `ha-app${focused}`,
-          `<div class="app-icon ${item.id}-bg">${ICONS[item.id]}</div><div class="n">${item.label}</div>`,
+        focusable(
+          el(
+            "div",
+            `ha-app${focused}`,
+            `<div class="app-icon ${item.id}-bg">${ICONS[item.id]}</div><div class="n">${item.label}</div>`,
+          ),
+          item.id,
         ),
       );
     }
@@ -61,12 +64,15 @@ export function render(payload: ScreenPayload): void {
   if (card?.progress) {
     const focused = payload.focusedId === "continue" ? " focused" : "";
     row.append(
-      el(
-        "div",
-        `continue-card${focused}`,
-        `<div class="k">Continue watching</div><div class="t">${escapeHtml(card.title)}</div>` +
-          `<div class="m">${escapeHtml(card.progress.left)} · ${escapeHtml(card.folder ?? "")}</div>` +
-          `<div class="bar"><i style="width:${Math.round(card.progress.fraction * 100)}%"></i></div>`,
+      focusable(
+        el(
+          "div",
+          `continue-card${focused}`,
+          `<div class="k">Continue watching</div><div class="t">${escapeHtml(card.title)}</div>` +
+            `<div class="m">${escapeHtml(card.progress.left)} · ${escapeHtml(card.folder ?? "")}</div>` +
+            `<div class="bar"><i style="width:${Math.round(card.progress.fraction * 100)}%"></i></div>`,
+        ),
+        "continue",
       ),
     );
   }

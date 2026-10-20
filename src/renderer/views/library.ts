@@ -1,5 +1,5 @@
 import type { LibraryEntry, ScreenPayload } from "../../shared/protocol.ts";
-import { el, root } from "./dom.ts";
+import { el, focusable, root } from "./dom.ts";
 
 function escape(text: string): string {
   return text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -19,6 +19,7 @@ function tile(e: LibraryEntry, payload: ScreenPayload): HTMLElement {
     classes.join(" "),
     `${tag}<div class="t">${escape(e.title)}</div>${left}${bar}`,
   );
+  focusable(node, e.path);
   node.style.setProperty("--hue", String(e.hue));
   if (e.thumb) {
     node.style.backgroundImage = `url("${e.thumb}")`;

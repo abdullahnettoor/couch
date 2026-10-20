@@ -13,7 +13,10 @@ body {
   color: var(--ink);
   font-family: system-ui, sans-serif;
   overflow: hidden;
-  cursor: none;
+}
+body.idle,
+body.idle * {
+  cursor: none !important;
 }
 .view {
   position: fixed;

@@ -1,6 +1,6 @@
 import { YOUTUBE_ERROR_ITEMS } from "../../shared/youtube-grid.ts";
 import type { ScreenPayload } from "../../shared/protocol.ts";
-import { el, root } from "./dom.ts";
+import { el, focusable, root } from "./dom.ts";
 
 export function render(payload: ScreenPayload): void {
   root.replaceChildren();
@@ -10,7 +10,10 @@ export function render(payload: ScreenPayload): void {
   const list = el("div", "menu");
   for (const item of YOUTUBE_ERROR_ITEMS) {
     list.append(
-      el("div", `menu-item${item.id === payload.focusedId ? " focused" : ""}`, item.label),
+      focusable(
+        el("div", `menu-item${item.id === payload.focusedId ? " focused" : ""}`, item.label),
+        item.id,
+      ),
     );
   }
   view.append(list);

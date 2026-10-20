@@ -35,7 +35,13 @@ export const COMMAND_NAMES = [
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
 
+/** Commands only the Screen itself may send (mouse hover). Never in COMMAND_NAMES, so Remotes can't. */
+export type ScreenOnlyCommandName = "focusAt";
+
 export interface CommandArgs {
+  /** focusAt: the grid cell to focus */
+  r?: number;
+  c?: number;
   /** seekBy (±) and seekTo */
   seconds?: number;
   /** typeText: the whole current text */
@@ -44,7 +50,7 @@ export interface CommandArgs {
 
 /** What a Remote (or the Screen's keyboard) asks the core to do. */
 export interface Command {
-  command: CommandName;
+  command: CommandName | ScreenOnlyCommandName;
   args?: CommandArgs;
 }
 
