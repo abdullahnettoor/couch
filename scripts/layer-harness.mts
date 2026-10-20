@@ -32,7 +32,6 @@ app.whenReady().then(async () => {
     overlay = new WebContentsView({ webPreferences: {} });
     overlay.setBackgroundColor("#00000000");
     win.contentView.addChildView(overlay);
-    const fit = () => overlay!.setBounds({ x: 0, y: 0, ...win.getContentBounds() });
     const fit2 = () => {
       const [w, h] = win.getContentSize();
       overlay!.setBounds({ x: 0, y: 0, width: w, height: h });
