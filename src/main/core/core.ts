@@ -29,6 +29,7 @@ import { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
 import { ACTIONS, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
 import { MediaLibrary } from "./media-library.ts";
+import { libraryRows, tileAction } from "./library-rows.ts";
 import { presentation, hueFor, listFolder, mosaicSources, rootEntries } from "./library.ts";
 import type { UpNextItem } from "../../shared/protocol.ts";
 import { PlayerControls } from "./player-controls.ts";
@@ -116,7 +117,10 @@ export class Core {
     const lib = ports.store.read<{ folders?: unknown }>("library", {});
     this.#history = new History(ports.store);
     this.library = new MediaLibrary(ports.store, ports.clock);
-    this.library.onChange(() => this.#emit());
+    this.library.onChange(() => {
+      this.#keepLibraryFocus();
+      this.#emit();
+    });
     this.#controls = new PlayerControls(this.#state, {
       clock: ports.clock,
       playing: () => {
@@ -206,8 +210,12 @@ export class Core {
       case "library":
         return {
           heading: "Library",
-          entries: rootEntries(this.#libraryFolders).map((e) => this.#withMosaic(e)),
+          entries: rootEntries(this.#libraryFolders).map((e) => ({
+            ...this.#withMosaic(e),
+            feature: { kind: "Folder" as const, title: e.title },
+          })),
           continueWatching: this.#continueEntries(),
+          rows: this.#rows().rows,
           emptyText: "No folders yet. Add one in Settings on the Mac.",
         };
       case "folder":
@@ -221,6 +229,25 @@ export class Core {
       default:
         return undefined;
     }
+  }
+
+  /** The tile focused on the Library's first page, so rows that change under it don't move focus. */
+  #rootFocusId: string | undefined;
+
+  #keepLibraryFocus(): void {
+    if (this.#state.view !== "library" || !this.#rootFocusId) return;
+    const at = this.#currentGrid().find((i) => i.id === this.#rootFocusId);
+    if (at) this.#state.focus[this.viewKey] = { r: at.r, c: at.c };
+  }
+
+  #rows(): ReturnType<typeof libraryRows> {
+    return libraryRows({
+      library: this.library,
+      history: this.#history,
+      decorate: (e) => this.#decorate(e),
+      continueEntries: this.#continueEntries(),
+      thumb: (p) => this.#thumbs.urlFor(p),
+    });
   }
 
   /** A video entry with its watched tag or progress, from the history. */
@@ -255,11 +282,12 @@ export class Core {
       this.#rootKey = undefined;
       return;
     }
-    const key = this.#libraryFolders.join("\0");
+    const rows = this.#rows();
+    const key = [...this.#libraryFolders, "", ...rows.wanted].join("\0");
     if (this.#rootKey === key) return;
     this.#rootKey = key;
     this.#mosaics.clear();
-    const paths: string[] = [];
+    const paths: string[] = [...rows.wanted];
     for (const f of this.#libraryFolders) {
       if (!existsSync(f)) continue;
       const m = mosaicSources(f);
@@ -333,30 +361,27 @@ export class Core {
         })),
       ];
     }
-    const cont = lib.continueWatching ?? [];
     const tile = (e: LibraryEntry, r: number, c: number, initial: boolean): GridItem => ({
-      id: e.path,
+      id: e.id ?? e.path,
       r,
       c,
       label: e.title,
-      action: e.missing
-        ? "library:missing"
-        : e.kind === "folder"
-          ? `library:open:${e.path}`
-          : `library:play:${e.path}`,
+      action: tileAction(e),
       initial,
     });
-    // Row 0 is the top strip's gear, as on Home; tiles start on row 1.
-    const tiles = cont.length
-      ? [
-          ...cont.map((e, i) => tile(e, 1, i, i === 0)),
-          ...lib.entries.map((e, i) =>
-            tile(e, 2 + Math.floor(i / TILE_COLUMNS), i % TILE_COLUMNS, false),
-          ),
-        ]
-      : lib.entries.map((e, i) =>
-          tile(e, 1 + Math.floor(i / TILE_COLUMNS), i % TILE_COLUMNS, i === 0),
-        );
+    // Row 0 is the top strip's gear, as on Home; each page row is one grid row, Folders wrap below.
+    const rows = lib.rows ?? [];
+    const tiles = [
+      ...rows.flatMap((row, r) => row.entries.map((e, c) => tile(e, 1 + r, c, r === 0 && c === 0))),
+      ...lib.entries.map((e, i) =>
+        tile(
+          e,
+          1 + rows.length + Math.floor(i / TILE_COLUMNS),
+          i % TILE_COLUMNS,
+          rows.length === 0 && i === 0,
+        ),
+      ),
+    ];
     const gear: GridItem = {
       id: "settings",
       r: 0,
@@ -393,6 +418,7 @@ export class Core {
     else if (verb === "open") this.#openFolder(arg);
     else if (verb === "play") this.#play(arg);
     else if (verb === "playstart") this.#play(arg, true);
+    else if (verb === "show") this.#openShow(arg);
     else if (verb === "remove") this.#saveFolders(this.#libraryFolders.filter((f) => f !== arg));
     else if (verb === "add") {
       void this.#ports.mac
@@ -405,6 +431,12 @@ export class Core {
         .catch(() => {});
     } else return false;
     return true;
+  }
+
+  /** OK on a show tile. Until the show page (033) it opens the folder of the show's first episode. */
+  #openShow(id: string): void {
+    const first = this.library.show(id)?.seasons[0]?.episodes[0];
+    if (first) this.#openFolder(dirname(first.path));
   }
 
   /** Start a Library video full screen, resuming where it was left. */
@@ -477,6 +509,7 @@ export class Core {
       this.#state.view = this.#playedFrom;
     }
     if (toast) this.#toast(toast);
+    this.#keepLibraryFocus();
     this.#emit();
   }
 
@@ -698,6 +731,7 @@ export class Core {
     this.#syncRoot();
     const grid = this.#currentGrid();
     const focused = resolveFocus(grid, this.#state.focus[this.viewKey]);
+    if (this.#state.view === "library") this.#rootFocusId = focused?.id;
     const homeVideos = this.#continueEntries().slice(0, HOME_VIDEOS);
     return {
       library: this.#library(),

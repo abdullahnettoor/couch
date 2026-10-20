@@ -341,7 +341,7 @@ describe("leaving a video goes back to where it was started", () => {
     watchAndLeave(d(), 900);
     focusOn("library");
     press("ok");
-    focusOn(d());
+    focusOn(`continue:${d()}`);
     press("ok");
     press("back");
     expect(screen().state.view).toBe("library");

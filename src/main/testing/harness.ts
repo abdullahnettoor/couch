@@ -174,3 +174,14 @@ export async function startHarness(given?: Store): Promise<Harness> {
     },
   };
 }
+
+/** On the Library's first page, moves down to the Folders row (rows above it depend on what is indexed). */
+export async function focusFolders(h: Harness, phone: FakePhone): Promise<void> {
+  const onFolder = () => {
+    const last = h.screen.last;
+    return last.library?.entries.some((e) => e.path === last.focusedId) ?? false;
+  };
+  for (let i = 0; i < 12 && !onFolder() && h.screen.last.library?.rows?.length; i++) {
+    await phone.press("down");
+  }
+}

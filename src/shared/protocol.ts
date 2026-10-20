@@ -99,7 +99,9 @@ export interface ScreenState {
 
 /** A tile in the Library: a folder or a video file. */
 export interface LibraryEntry {
-  kind: "folder" | "video";
+  kind: "folder" | "video" | "show";
+  /** Unique tile id when the same item can appear in several rows; defaults to `path`. For a show, `path` is its id. */
+  id?: string;
   path: string;
   /** Folder name, or the cleaned file title. */
   title: string;
@@ -121,6 +123,17 @@ export interface LibraryEntry {
   progress?: { fraction: number; left: string };
   /** Name of the folder holding the video (Continue watching). */
   folder?: string;
+  /** What the Library's featured area shows while this tile is focused. */
+  feature?: { kind: "Show" | "Film" | "Folder"; title: string; sub?: string };
+}
+
+/** One row on the Library's first page. */
+export interface LibraryRow {
+  id: string;
+  title: string;
+  /** 2:3 posters (Shows, Films); otherwise 16:9 tiles. */
+  poster?: boolean;
+  entries: LibraryEntry[];
 }
 
 /** What the Library views draw; the core also builds their grids from it. */
@@ -134,6 +147,8 @@ export interface LibraryPayload {
   folders?: string[];
   /** The Library's first page: every in-progress video, newest first. */
   continueWatching?: LibraryEntry[];
+  /** The Library's first page: the rows above Folders, empty ones left out. `entries` are the Folders row. */
+  rows?: LibraryRow[];
 }
 
 /** Core → Screen renderer. */

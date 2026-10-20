@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 import { FileStore } from "./ports/store.ts";
-import { startHarness, type Harness, type FakePhone } from "./testing/harness.ts";
+import { focusFolders, startHarness, type Harness, type FakePhone } from "./testing/harness.ts";
 
 let root: string;
 let storeDir: string;
@@ -37,6 +37,7 @@ async function playEp(n: number) {
   phone = await h.connectPhone();
   await phone.press("right");
   await phone.press("ok");
+  await focusFolders(h, phone);
   await phone.press("ok");
   await phone.press("ok"); // Show
   for (let i = 1; i < n; i++) await phone.press("right");

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 import { listFolder } from "./core/library.ts";
 import { FileStore } from "./ports/store.ts";
-import { startHarness, type Harness } from "./testing/harness.ts";
+import { focusFolders, startHarness, type Harness } from "./testing/harness.ts";
 
 let root: string;
 let storeDir: string;
@@ -34,6 +34,7 @@ describe("Titles shown for files and folders", () => {
     const phone = await h.connectPhone();
     await phone.press("right");
     await phone.press("ok");
+    await focusFolders(h, phone);
     await phone.press("ok");
     await phone.press("ok"); // Cases
     const byName = new Map(
@@ -139,6 +140,7 @@ describe("Library through the Remote", () => {
     await phone.press("down");
     await phone.press("right"); // → Library
     await phone.press("ok");
+    await focusFolders(h, phone);
     return phone;
   }
   async function addFolder(phone: Awaited<ReturnType<typeof openLibrary>>, path: string) {
