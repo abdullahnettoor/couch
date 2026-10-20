@@ -16,9 +16,7 @@ function caption(e: LibraryEntry): string {
         : e.count === 0
           ? "Empty"
           : `${e.count} ${e.count === 1 ? "item" : "items"}`
-      : e.watched
-        ? "Watched"
-        : (e.progress?.left ?? "");
+      : [e.line, e.watched ? "Watched" : e.progress?.left].filter(Boolean).join(" · ");
   return `${escape(e.title)}${small ? `<small>${escape(small)}</small>` : ""}`;
 }
 

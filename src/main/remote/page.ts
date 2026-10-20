@@ -41,17 +41,20 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .k.hero { background:#fff; color:#000; }
   .k.txt { font-size:15px; }
   .k.on { background:#fff; color:#000; }
-  .vol .k:nth-child(2) { gap:2px; color:var(--t3); }
-  .vol .k:nth-child(2) svg { margin:0 4px; }
-  .volpill { justify-content:space-around; padding:0 4px; font-size:20px; }
-  .volpill button { width:38px; height:48px; display:grid; place-items:center; }
-  .volpill span { color:var(--t3); font-size:22px; display:grid; }
+  .skip { grid-template-columns:1fr 1fr; }
+  .vslider { margin-top:22px; height:56px; border-radius:28px; background:var(--glass); box-shadow:var(--glass-edge); backdrop-filter:blur(30px) saturate(1.6); -webkit-backdrop-filter:blur(30px) saturate(1.6); display:flex; align-items:center; padding:0 6px; }
+  .vslider button { width:44px; height:44px; flex:none; display:grid; place-items:center; font-size:22px; color:var(--t2); border-radius:22px; }
+  .vslider button:active { background:rgba(255,255,255,.14); }
+  .vtrack { flex:1; align-self:stretch; display:flex; align-items:center; touch-action:none; cursor:pointer; }
+  .vbar { flex:1; height:10px; border-radius:5px; background:rgba(255,255,255,.2); overflow:hidden; }
+  .vfill { height:100%; width:0; background:#fff; border-radius:5px; }
   .bottom { margin-top:auto; padding-top:22px; }
   .search { margin-top:18px; height:56px; border-radius:28px; background:var(--card); display:flex; align-items:center; gap:12px; padding:0 20px; color:var(--t3); font-size:17px; width:100%; }
   .search svg { font-size:22px; }
   .search.dim { opacity:.35; }
   .cw { margin-top:18px; display:flex; gap:14px; align-items:center; padding:10px; border-radius:20px; background:var(--card); width:100%; text-align:left; }
   .cw .pic { width:104px; height:58px; border-radius:10px; background:#3a3a3c center/cover; flex:none; }
+  .cw.nx { margin:10px 0 0; }
   .cw b { display:block; font-size:16px; }
   .cw span.l { font-size:13px; color:var(--t3); }
   .cw .txt { min-width:0; flex:1; }
@@ -69,7 +72,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .tr button { width:64px; height:64px; display:grid; place-items:center; border-radius:50%; }
   .tr button:active { background:rgba(255,255,255,.12); }
   .tr .pp { font-size:56px; }
-  .ex { display:grid; grid-template-columns:1.3fr 1fr 1fr; gap:10px; margin-top:10px; }
+  .ex { display:grid; grid-template-columns:1fr; gap:10px; margin-top:10px; }
   .ex .k { height:52px; border-radius:16px; font-size:22px; }
   .ex .k.txt { font-size:15px; }
   .upn { margin-top:16px; }
@@ -101,6 +104,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   <div class="np" id="np" hidden>
     <div class="art" id="np-art"></div>
     <h3 id="np-title"></h3><div class="f" id="np-folder"></div>
+    <button class="cw nx" id="nx" data-cmd="playNext" hidden><span class="pic" id="nx-pic"></span><span class="txt"><b id="nx-title"></b><span class="l" id="nx-line">Play next</span></span><span class="go" data-i="play"></span></button>
     <div class="seek" id="seek"><div class="bar"><div class="fill" id="np-fill"></div><div class="knob" id="np-knob"></div></div></div>
     <div class="tm"><span id="np-elapsed"></span><span id="np-remaining"></span></div>
     <div class="tr">
@@ -110,8 +114,6 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     </div>
     <div class="ex">
       <button class="k txt" data-cmd="subtitles" id="np-subs"><span data-i="cc" style="font-size:26px"></span>Subtitles</button>
-      <button class="k" data-cmd="volDown" aria-label="Volume down" data-i="minus"></button>
-      <button class="k" data-cmd="volUp" aria-label="Volume up" data-i="plus"></button>
     </div>
     <div class="upn" id="upn" hidden><div class="h">Up next</div><div class="list" id="upn-list"></div></div>
   </div>
@@ -122,14 +124,13 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     <button class="dir r" data-cmd="right" aria-label="Right" data-i="right"></button>
     <button class="ok" data-cmd="ok">OK</button>
   </div>
-  <div class="keys vol" id="vol" hidden>
-    <button class="k" data-cmd="volDown" aria-label="Volume down" data-i="minus"></button>
-    <div class="k" style="pointer-events:none;background:none;box-shadow:none" data-i="speaker"></div>
-    <button class="k" data-cmd="volUp" aria-label="Volume up" data-i="plus"></button>
+  <div class="vslider" id="vol">
+    <button data-cmd="volDown" aria-label="Volume down" data-i="minus"></button>
+    <div class="vtrack" id="vtrack" role="slider" aria-label="Volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="vbar"><div class="vfill" id="vfill"></div></div></div>
+    <button data-cmd="volUp" aria-label="Volume up" data-i="plus"></button>
   </div>
-  <div class="keys" id="skip" hidden>
+  <div class="keys skip" id="skip" hidden>
     <button class="k" data-cmd="seekBy" data-seconds="-10" aria-label="Back 10 seconds" data-i="back10"></button>
-    <div class="k volpill"><button data-cmd="volDown" aria-label="Volume down" data-i="minus"></button><span data-i="speaker"></span><button data-cmd="volUp" aria-label="Volume up" data-i="plus"></button></div>
     <button class="k" data-cmd="seekBy" data-seconds="10" aria-label="Forward 10 seconds" data-i="fwd10"></button>
   </div>
   <div class="other" id="other" hidden>Typing on another phone</div>
@@ -148,7 +149,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 <script>
 (function () {
   var ICONS = __ICONS__;
-  var ws = null, retry = 0, timer = null, open = false, duration = 0, dragging = false;
+  var ws = null, retry = 0, timer = null, open = false, duration = 0, dragging = false, volDragging = false, volSent = 0;
   var KEY = "couch-key";
   var fromUrl = new URLSearchParams(location.search).get("key");
   if (fromUrl) {
@@ -185,6 +186,11 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     $("np-knob").style.left = pct + "%";
     $("np-elapsed").textContent = fmt(pos);
     $("np-remaining").textContent = "-" + fmt(Math.max(0, duration - pos));
+  }
+
+  function showVolume(v) {
+    $("vfill").style.width = v + "%";
+    $("vtrack").setAttribute("aria-valuenow", String(Math.round(v)));
   }
 
   function renderUpNext(items) {
@@ -229,18 +235,24 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     }
     $("search").hidden = L !== "youtube" || !!np;
     $("search").classList.toggle("dim", !s.typeAvailable);
-    $("vol").hidden = !(L === "home" || L === "other") || !!np;
+    if (typeof s.volume === "number" && !volDragging) showVolume(s.volume);
     $("skip").hidden = !s.showSkip || !!np;
     if (np) {
       duration = np.duration;
       $("np-title").textContent = np.title;
-      $("np-folder").textContent = np.folder;
+      $("np-folder").textContent = np.line || np.folder;
       if (!dragging) showProgress(np.position);
       $("np-pp").innerHTML = icon(np.paused ? "play" : "pause");
       $("np-subs").classList.toggle("on", np.subtitlesOn);
       var playing = (s.upNext || []).filter(function (u) { return u.playing && u.thumbKey; })[0];
       $("np-art").style.backgroundImage = playing ? thumb(playing.thumbKey) : "none";
       renderUpNext(s.upNext);
+    }
+    $("nx").hidden = !s.next;
+    if (s.next) {
+      $("nx-title").textContent = s.next.title;
+      $("nx-line").textContent = s.next.line || "Play next";
+      $("nx-pic").style.backgroundImage = s.next.thumbKey ? thumb(s.next.thumbKey) : "none";
     }
     $("other").hidden = s.typing !== "other";
     var mine = s.typing === "you";
@@ -274,6 +286,31 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     sendArgs("seekTo", { seconds: Math.round(fracAt(e) * duration) });
   });
   seek.addEventListener("pointercancel", function () { dragging = false; });
+
+  var vtrack = $("vtrack");
+  function volAt(e) {
+    var r = vtrack.getBoundingClientRect();
+    return Math.round(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * 100);
+  }
+  function volMove(e, final) {
+    var v = volAt(e);
+    showVolume(v);
+    var now = Date.now();
+    if (final || now - volSent >= 80) { volSent = now; if (open) ws.send(JSON.stringify({ type: "command", command: "volSet", args: { percent: v } })); }
+  }
+  vtrack.addEventListener("pointerdown", function (e) {
+    if (!open) return;
+    volDragging = true;
+    vtrack.setPointerCapture(e.pointerId);
+    volMove(e, false);
+  });
+  vtrack.addEventListener("pointermove", function (e) { if (volDragging) volMove(e, false); });
+  vtrack.addEventListener("pointerup", function (e) {
+    if (!volDragging) return;
+    volDragging = false;
+    volMove(e, true);
+  });
+  vtrack.addEventListener("pointercancel", function () { volDragging = false; });
 
   function connect() {
     var proto = location.protocol === "https:" ? "wss:" : "ws:";

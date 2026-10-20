@@ -2,7 +2,13 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
-import { cleanTitle, listFolder } from "./core/library.ts";
+import {
+  cleanFolderName,
+  cleanTitle,
+  episodeLine,
+  listFolder,
+  parseTitle,
+} from "./core/library.ts";
 import { FileStore } from "./ports/store.ts";
 import { startHarness, type Harness } from "./testing/harness.ts";
 
@@ -13,8 +19,42 @@ describe("cleanTitle", () => {
     ["Ep 2.MKV", "Ep 2"],
     ["Home Movie.mov", "Home Movie"],
     ["Blade.Runner.2049.2017.WEB-DL.x265.mkv", "Blade Runner 2049 (2017)"],
-    ["Some.Show.S01E02.HDTV.mkv", "Some Show S01E02"],
+    ["Some.Show.S01E02.HDTV.mkv", "Episode 2"],
   ])("%s", (file, title) => expect(cleanTitle(file)).toBe(title));
+});
+
+describe("parseTitle", () => {
+  test.each([
+    [
+      "Arcane S01E01 Welcome to the Playground.mkv",
+      { series: "Arcane", season: 1, episode: 1, name: "Welcome to the Playground" },
+    ],
+    [
+      "Kung_Fu_Panda_The_Dragon_Knight_S01E04_720p_10bit_WEBRip_2CH_x265.mkv",
+      { series: "Kung Fu Panda The Dragon Knight", season: 1, episode: 4, name: "Episode 4" },
+    ],
+    ["Show.1x02.Name.mp4", { series: "Show", season: 1, episode: 2, name: "Name" }],
+    [
+      "Blue Eye Samurai S01E03 .mkv",
+      { series: "Blue Eye Samurai", season: 1, episode: 3, name: "Episode 3" },
+    ],
+    ["Show S02 E05 - Pilot.mkv", { series: "Show", season: 2, episode: 5, name: "Pilot" }],
+    ["Elemental.2023.1080p.mkv", { name: "Elemental (2023)" }],
+  ])("%s", (file, title) => expect(parseTitle(file)).toEqual(title));
+
+  test("episodeLine", () => {
+    expect(episodeLine("Arcane S01E01 Welcome.mkv")).toBe("Arcane · S1 E1");
+    expect(episodeLine("Elemental.2023.mkv")).toBeUndefined();
+  });
+});
+
+describe("folder names", () => {
+  test("release tags are cleaned", () => {
+    expect(cleanFolderName("Elemental (2023) [2160p] [4K] [WEB] [5.1] [YTS.MX]")).toBe(
+      "Elemental (2023)",
+    );
+    expect(cleanFolderName("Season 2")).toBe("Season 2");
+  });
 });
 
 let root: string;

@@ -412,6 +412,8 @@ describe("end of file", () => {
     position(3000);
     const before = loads().length;
     h.player.emit({ type: "ended", reason: "eof" });
+    expect(screen().state.controls).toBe("next");
+    press("back");
     expect(screen().state.view).toBe("folder");
     expect(screen().focusedId).toBe(b());
     expect(loads().length).toBe(before);
