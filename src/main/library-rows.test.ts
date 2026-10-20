@@ -219,6 +219,6 @@ describe("Library first page rows", () => {
     await phone.press("right");
     expect(featured()).toEqual({ kind: "Film", title: "Heat" });
     await focusOn(root);
-    expect(featured()).toEqual({ kind: "Folder", title: basename(root) });
+    expect(featured()).toEqual({ kind: "Folder", title: basename(root).replace("-", " ") });
   });
 });
