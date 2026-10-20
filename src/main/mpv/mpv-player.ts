@@ -123,6 +123,17 @@ export class MpvPlayer implements Player {
     }
   }
 
+  async setDisplay(name: string | undefined): Promise<void> {
+    if (!name) return;
+    this.options.screenName = name;
+    await this.send(["set_property", "fs-screen-name", name]);
+    const fs = await this.send(["get_property", "fullscreen"]);
+    if (fs === true) {
+      await this.send(["set_property", "fullscreen", false]);
+      await this.send(["set_property", "fullscreen", true]);
+    }
+  }
+
   async stop(): Promise<void> {
     await this.send(["stop"]);
   }

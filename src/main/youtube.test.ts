@@ -50,6 +50,7 @@ describe("YouTube App", () => {
     const s = await phone.press("home");
     expect(s.view).toBe("home");
     expect(calls("hide")).toHaveLength(1);
+    h.clock.advance(30 * 60_000);
     expect(awake()).toEqual([true, false]);
     await phone.press("ok");
     expect(calls("show")).toHaveLength(2);

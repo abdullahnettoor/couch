@@ -51,6 +51,12 @@ export class FakePlayer implements Player {
   stop() {
     return this.#record("stop");
   }
+  /** Set to make `setDisplay` reject, like mpv refusing to move. */
+  displayFails = false;
+  setDisplay(name: string | undefined) {
+    this.#record("setDisplay", name);
+    return this.displayFails ? Promise.reject(new Error("cannot move")) : Promise.resolve();
+  }
   onEvent(listener: (event: PlayerEvent) => void) {
     return this.#events.on(listener);
   }
@@ -128,6 +134,19 @@ export class FakeMac implements Mac {
   }
   listDisplays() {
     return this.displays;
+  }
+  #displayListeners = new Set<() => void>();
+  onDisplaysChanged(listener: () => void) {
+    this.#displayListeners.add(listener);
+    return () => void this.#displayListeners.delete(listener);
+  }
+  /** Change the connected displays and fire the change event. */
+  setDisplays(displays: DisplayInfo[]) {
+    this.displays = displays;
+    for (const l of [...this.#displayListeners]) l();
+  }
+  moveScreenTo(displayId: number) {
+    this.#record("moveScreenTo", displayId);
   }
   pickFolder() {
     this.#record("pickFolder");

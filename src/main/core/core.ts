@@ -14,6 +14,7 @@ import {
 import type { Player, PlayerEvent, PlayerOverlay } from "../../shared/player.ts";
 import type { Clock } from "../ports/clock.ts";
 import type { Mac } from "../ports/mac.ts";
+import { pickTargetDisplay } from "../display.ts";
 import type { YouTube, YouTubeEvent } from "../ports/youtube.ts";
 import { randomBytes } from "node:crypto";
 import type { Store } from "../ports/store.ts";
@@ -41,6 +42,7 @@ export interface Ports {
 export type Source = RemoteId | "screen";
 
 const TOAST_MS = 3000;
+const IDLE_DISPLAY_MS = 30 * 60_000;
 const SKIP_SECONDS = 10;
 const OVERLAY_MS = 3000;
 const SAVE_EVERY_MS = 5000;
@@ -88,6 +90,11 @@ export class Core {
   #cancelSaves: (() => void) | undefined;
   #resumeNote: string | undefined;
   #cancelNote: (() => void) | undefined;
+  #displayId: number | undefined;
+  #unsubDisplays: () => void;
+  #idle = false;
+  #cancelIdle: (() => void) | undefined;
+  #displayAwake: boolean | undefined;
 
   constructor(ports: Ports) {
     this.#ports = ports;
@@ -102,6 +109,10 @@ export class Core {
     this.#state.subtitlesOn = playback.subtitlesOn !== false;
     this.#unsubPlayer = ports.player.onEvent((event) => this.#onPlayerEvent(event));
     this.#scheduleMinute();
+    this.#displayId = pickTargetDisplay(ports.mac.listDisplays())?.id;
+    this.#unsubDisplays = ports.mac.onDisplaysChanged(() => this.#retarget());
+    this.#armIdle();
+    this.#syncDisplayAwake();
     this.#ytOff = ports.youtube.onEvent((event) => this.#onYouTube(event));
     void ports.mac
       .getVolume()
@@ -589,6 +600,8 @@ export class Core {
 
   handle(command: Command, from: Source): void {
     if (from !== "screen") this.#lastFrom = from;
+    this.#ports.mac.wakeDisplay();
+    this.#armIdle();
     if (this.#state.player && this.#playbackCommand(command)) {
       this.#emit();
       return;
@@ -656,8 +669,47 @@ export class Core {
     }
   }
 
+  /** ⌘Q and Settings → Quit: end playback (saving the position) and stop the player. */
+  beforeQuit(): void {
+    if (this.#state.player) {
+      this.#stopPlayback();
+      this.#endPlayback();
+    }
+  }
+
+  #armIdle(): void {
+    this.#cancelIdle?.();
+    this.#idle = false;
+    this.#cancelIdle = this.#ports.clock.setTimeout(() => {
+      this.#idle = true;
+      this.#syncDisplayAwake();
+    }, IDLE_DISPLAY_MS);
+  }
+
+  /** Hold the display awake while playing, in YouTube, or within 30 minutes of the last command. */
+  #syncDisplayAwake(): void {
+    const keep = !!this.#state.player || this.#state.view === "youtube" || !this.#idle;
+    if (keep === this.#displayAwake) return;
+    this.#displayAwake = keep;
+    this.#ports.mac.keepDisplayAwake(keep);
+  }
+
+  #retarget(): void {
+    const target = pickTargetDisplay(this.#ports.mac.listDisplays());
+    if (!target || target.id === this.#displayId) return;
+    this.#displayId = target.id;
+    this.#ports.mac.moveScreenTo(target.id);
+    this.#ports.player.setDisplay(target.label || undefined).catch(() => {
+      if (!this.#state.player) return;
+      this.#stopPlayback();
+      this.#endPlayback("Display changed, playback stopped");
+    });
+  }
+
   dispose(): void {
     this.#disposed = true;
+    this.#unsubDisplays();
+    this.#cancelIdle?.();
     this.#cancelToast?.();
     this.#cancelMinute?.();
     this.#cancelOverlay?.();
@@ -718,7 +770,6 @@ export class Core {
     if (from === "youtube") {
       this.#state.typingBy = undefined;
       this.#ports.youtube.hide();
-      this.#ports.mac.keepDisplayAwake(false);
     }
     this.#state.view = view;
   }
@@ -729,7 +780,6 @@ export class Core {
       return;
     }
     this.#setView("youtube");
-    this.#ports.mac.keepDisplayAwake(true);
     this.#ports.youtube.show(YOUTUBE_NOTE);
   }
 
@@ -825,6 +875,7 @@ export class Core {
       this.#lastOverlay = key;
       this.#ports.player.setOverlay(overlay);
     }
+    this.#syncDisplayAwake();
     for (const l of [...this.#listeners]) l();
   }
 }
