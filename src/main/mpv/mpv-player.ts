@@ -2,7 +2,8 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { LoadOptions, Player, PlayerEvent } from "../../shared/player.ts";
+import type { LoadOptions, Player, PlayerEvent, PlayerOverlay } from "../../shared/player.ts";
+import { overlayAss } from "./overlay.ts";
 import { MpvIpcClient, type MpvEvent } from "./ipc-client.ts";
 
 export interface MpvPlayerOptions {
@@ -28,6 +29,8 @@ export function buildMpvArgs(socketPath: string, screenName?: string): string[] 
     "--hwdec=auto",
     "--macos-app-activation-policy=accessory",
     "--keep-open=no",
+    "--slang=eng,en",
+    "--sub-auto=fuzzy",
   ];
   if (screenName) args.push(`--fs-screen-name=${screenName}`);
   return args;
@@ -84,6 +87,7 @@ export class MpvPlayer implements Player {
 
   async load(path: string, options: LoadOptions = {}): Promise<void> {
     const opts: Record<string, string> = {};
+    if (options.subtitles !== undefined) opts["sub-visibility"] = options.subtitles ? "yes" : "no";
     if (options.startSeconds) opts.start = String(options.startSeconds);
     await this.send(["loadfile", path, "replace", -1, opts]);
     await this.send(["set_property", "pause", false]);
@@ -99,6 +103,15 @@ export class MpvPlayer implements Player {
 
   async seekTo(seconds: number): Promise<void> {
     await this.send(["seek", seconds, "absolute"]);
+  }
+
+  async setSubtitles(visible: boolean): Promise<void> {
+    await this.send(["set_property", "sub-visibility", visible]);
+  }
+
+  setOverlay(overlay: PlayerOverlay | undefined): void {
+    const data = overlay ? overlayAss(overlay) : "";
+    this.send(["osd-overlay", 1, "ass-events", data, 1920, 1080]).catch(() => {});
   }
 
   async getPosition(): Promise<number | undefined> {

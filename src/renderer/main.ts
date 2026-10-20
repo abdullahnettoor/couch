@@ -30,6 +30,7 @@ window.addEventListener("keydown", (event) => {
 });
 
 const toast = document.getElementById("toast")!;
+const volume = document.getElementById("volume")!;
 const notice = document.getElementById("notice")!;
 
 window.couch.onScreen((payload) => {
@@ -38,6 +39,8 @@ window.couch.onScreen((payload) => {
     window.couch.reportGrid({ viewKey: payload.viewKey, items: view.grid });
   }
   view?.render(payload);
+  volume.textContent = `Volume ${payload.state.volume}%`;
+  volume.classList.toggle("show", Boolean(payload.state.volumeShown));
   toast.textContent = payload.state.toast ?? "";
   toast.classList.toggle("show", Boolean(payload.state.toast));
 });

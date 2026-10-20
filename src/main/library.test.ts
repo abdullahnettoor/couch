@@ -152,7 +152,9 @@ describe("Library through the Remote", () => {
     expect(inner.where).toBe("Season 1");
     expect(labels()).toEqual(["Ep 1"]);
     await phone.press("ok");
-    expect(h.screen.last.state.toast).toBe("Ep 1 is coming soon");
+    expect(h.screen.last.state.view).toBe("player");
+    await phone.press("back"); // stops playback, back in Season 1
+    expect(h.screen.last.state.view).toBe("folder");
 
     await phone.press("back");
     expect(h.screen.last.state.folderPath).toBe(join(root, "Shows"));

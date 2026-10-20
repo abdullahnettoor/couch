@@ -10,7 +10,7 @@ import {
   type ScreenPayload,
   type ScreenState,
 } from "../../shared/protocol.ts";
-import type { Player } from "../../shared/player.ts";
+import type { Player, PlayerEvent, PlayerOverlay } from "../../shared/player.ts";
 import type { Clock } from "../ports/clock.ts";
 import type { Mac } from "../ports/mac.ts";
 import type { YouTube } from "../ports/youtube.ts";
@@ -18,7 +18,7 @@ import { randomBytes } from "node:crypto";
 import type { Store } from "../ports/store.ts";
 import { ACTIONS, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
-import { listFolder, rootEntries } from "./library.ts";
+import { cleanTitle, listFolder, rootEntries } from "./library.ts";
 
 const TILE_COLUMNS = 4;
 const LIBRARY_VIEWS = ["library", "folder", "libraryFolders"];
@@ -35,6 +35,10 @@ export interface Ports {
 export type Source = RemoteId | "screen";
 
 const TOAST_MS = 3000;
+const SKIP_SECONDS = 10;
+const VOLUME_STEP = 5;
+const OVERLAY_MS = 3000;
+const MPV_MISSING = "Couch needs mpv to play videos. Install it with: brew install mpv";
 
 /** The single source of truth: holds the Screen state and turns commands into new state. */
 export class Core {
@@ -58,6 +62,12 @@ export class Core {
   #libraryFolders: string[];
   /** The open folder's contents, read fresh each time it is opened. */
   #listing: LibraryEntry[] = [];
+  #mpvMissing = false;
+  #overlayShown = false;
+  #cancelOverlay: (() => void) | undefined;
+  #cancelVolume: (() => void) | undefined;
+  #lastOverlay = "";
+  #unsubPlayer: () => void;
 
   constructor(ports: Ports) {
     this.#ports = ports;
@@ -67,6 +77,9 @@ export class Core {
       : [];
     const saved = ports.store.read<{ key?: string }>("pairing", {});
     this.#key = typeof saved.key === "string" && saved.key ? saved.key : this.#newKey();
+    const playback = ports.store.read<{ subtitlesOn?: unknown }>("playback", {});
+    this.#state.subtitlesOn = playback.subtitlesOn !== false;
+    this.#unsubPlayer = ports.player.onEvent((event) => this.#onPlayerEvent(event));
     this.#scheduleMinute();
     void ports.mac
       .getVolume()
@@ -186,6 +199,7 @@ export class Core {
     const arg = rest.join(":");
     if (verb === "missing") this.#toast("Connect the drive to see this folder");
     else if (verb === "open") this.#openFolder(arg);
+    else if (verb === "play") this.#play(arg);
     else if (verb === "remove") this.#saveFolders(this.#libraryFolders.filter((f) => f !== arg));
     else if (verb === "add") {
       void this.#ports.mac
@@ -198,6 +212,155 @@ export class Core {
         .catch(() => {});
     } else return false;
     return true;
+  }
+
+  /** Start a Library video full screen. Resume (ticket 008) hooks in here via `startSeconds`. */
+  #play(path: string): void {
+    if (this.#mpvMissing) return this.#toast(MPV_MISSING);
+    this.#state.player = { path, pos: 0, dur: 0, paused: false };
+    this.#state.view = "player";
+    this.#showOverlay();
+    this.#ports.player
+      .load(path, { subtitles: this.#state.subtitlesOn })
+      .catch(() => this.#endPlayback("Couldn't play this video"));
+  }
+
+  /** Leave playback for a view. Ticket 008 saves the position here (state.player still set). */
+  #endPlayback(toast?: string): void {
+    if (!this.#state.player) return;
+    this.#state.player = undefined;
+    this.#overlayShown = false;
+    this.#cancelOverlay?.();
+    this.#state.view = this.#state.folderPath ? "folder" : "library";
+    if (toast) this.#toast(toast);
+    this.#emit();
+  }
+
+  #stopPlayback(): void {
+    void this.#ports.player.stop().catch(() => {});
+  }
+
+  #onPlayerEvent(event: PlayerEvent): void {
+    const p = this.#state.player;
+    switch (event.type) {
+      case "missing":
+        this.#mpvMissing = true;
+        if (p) this.#endPlayback(MPV_MISSING);
+        break;
+      case "exited":
+        if (p) this.#endPlayback("mpv stopped unexpectedly");
+        break;
+      case "ended":
+        // Our own stops report "stop"; only a natural end or a failure leaves playback.
+        if (event.reason === "eof") this.#endPlayback();
+        else if (event.reason === "error") this.#endPlayback("Couldn't play this video");
+        break;
+      case "position": {
+        if (!p) break;
+        const changed = Math.floor(event.seconds) !== Math.floor(p.pos);
+        p.pos = event.seconds;
+        if (changed) this.#emit();
+        break;
+      }
+      case "duration":
+        if (p) {
+          p.dur = event.seconds;
+          this.#emit();
+        }
+        break;
+      case "pause":
+        if (p && p.paused !== event.paused) {
+          p.paused = event.paused;
+          this.#emit();
+        }
+        break;
+    }
+  }
+
+  /** Commands while a video plays. Returns false for the ones handled like anywhere else. */
+  #playbackCommand(command: Command): boolean {
+    const p = this.#state.player!;
+    const player = this.#ports.player;
+    const quiet = (promise: Promise<void>) => void promise.catch(() => {});
+    const seekTo = (seconds: number) => {
+      const max = p.dur > 0 ? p.dur : Infinity;
+      p.pos = Math.min(max, Math.max(0, seconds));
+      quiet(player.seekTo(p.pos));
+      this.#showOverlay();
+    };
+    switch (command.command) {
+      case "left":
+        seekTo(p.pos - SKIP_SECONDS);
+        return true;
+      case "right":
+        seekTo(p.pos + SKIP_SECONDS);
+        return true;
+      case "up":
+      case "down":
+        this.#showOverlay();
+        return true;
+      case "ok":
+      case "playpause":
+        p.paused = !p.paused;
+        quiet(player.setPaused(p.paused));
+        this.#showOverlay();
+        return true;
+      case "seekBy":
+        seekTo(p.pos + (command.args?.seconds ?? 0));
+        return true;
+      case "seekTo":
+        seekTo(command.args?.seconds ?? 0);
+        return true;
+      case "subtitles":
+        this.#state.subtitlesOn = !this.#state.subtitlesOn;
+        this.#ports.store.write("playback", { subtitlesOn: this.#state.subtitlesOn });
+        quiet(player.setSubtitles(this.#state.subtitlesOn));
+        return true;
+      case "back":
+        this.#stopPlayback();
+        this.#endPlayback();
+        return true;
+      case "home":
+        this.#stopPlayback();
+        this.#endPlayback();
+        this.#state.view = "home";
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  #showOverlay(): void {
+    this.#overlayShown = true;
+    this.#cancelOverlay?.();
+    this.#cancelOverlay = this.#ports.clock.setTimeout(() => {
+      this.#overlayShown = false;
+      this.#emit();
+    }, OVERLAY_MS);
+  }
+
+  #changeVolume(delta: number): void {
+    const volume = Math.min(100, Math.max(0, this.#state.volume + delta));
+    this.#state.volume = volume;
+    void this.#ports.mac.setVolume(volume).catch(() => {});
+    this.#state.volumeShown = true;
+    this.#cancelVolume?.();
+    this.#cancelVolume = this.#ports.clock.setTimeout(() => {
+      this.#state.volumeShown = false;
+      this.#emit();
+    }, OVERLAY_MS);
+  }
+
+  /** What mpv should draw over the video right now. */
+  #overlay(): PlayerOverlay | undefined {
+    const p = this.#state.player;
+    if (!p) return undefined;
+    return {
+      title: cleanTitle(basename(p.path)),
+      bar: this.#overlayShown ? { position: p.pos, duration: p.dur } : undefined,
+      paused: p.paused,
+      volume: this.#state.volumeShown ? this.#state.volume : undefined,
+    };
   }
 
   #saveFolders(folders: string[]): void {
@@ -229,6 +392,14 @@ export class Core {
       view: s.view,
       typeAvailable: s.view === "youtube",
       typing: s.typingBy === undefined ? "none" : s.typingBy === remote ? "you" : "other",
+      nowPlaying: s.player && {
+        title: cleanTitle(basename(s.player.path)),
+        folder: basename(dirname(s.player.path)),
+        position: s.player.pos,
+        duration: s.player.dur,
+        paused: s.player.paused,
+        subtitlesOn: s.subtitlesOn,
+      },
       volume: s.volume,
       remotes: s.remotes,
     };
@@ -260,6 +431,10 @@ export class Core {
   }
 
   handle(command: Command, _from: Source): void {
+    if (this.#state.player && this.#playbackCommand(command)) {
+      this.#emit();
+      return;
+    }
     switch (command.command) {
       case "up":
       case "down":
@@ -276,6 +451,12 @@ export class Core {
       case "home":
         this.#state.view = "home";
         break;
+      case "volUp":
+        this.#changeVolume(VOLUME_STEP);
+        break;
+      case "volDown":
+        this.#changeVolume(-VOLUME_STEP);
+        break;
       default:
         break;
     }
@@ -285,6 +466,9 @@ export class Core {
   dispose(): void {
     this.#cancelToast?.();
     this.#cancelMinute?.();
+    this.#cancelOverlay?.();
+    this.#cancelVolume?.();
+    this.#unsubPlayer();
     this.#listeners.clear();
   }
 
@@ -349,6 +533,12 @@ export class Core {
   }
 
   #emit(): void {
+    const overlay = this.#overlay();
+    const key = JSON.stringify(overlay ?? null);
+    if (key !== this.#lastOverlay) {
+      this.#lastOverlay = key;
+      this.#ports.player.setOverlay(overlay);
+    }
     for (const l of [...this.#listeners]) l();
   }
 }

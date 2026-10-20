@@ -1,0 +1,178 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
+import { FileStore } from "./ports/store.ts";
+import { startHarness, type Harness, type FakePhone } from "./testing/harness.ts";
+
+let root: string;
+let storeDir: string;
+let h: Harness;
+let phone: FakePhone;
+const video = () => join(root, "Movies", "Dune.2021.1080p.mkv");
+
+beforeEach(() => {
+  root = mkdtempSync(join(tmpdir(), "couch-play-"));
+  storeDir = mkdtempSync(join(tmpdir(), "couch-playstore-"));
+  mkdirSync(join(root, "Movies"));
+  writeFileSync(video(), "");
+});
+afterEach(async () => {
+  await h?.stop();
+  rmSync(root, { recursive: true, force: true });
+  rmSync(storeDir, { recursive: true, force: true });
+});
+
+async function start() {
+  const store = new FileStore(storeDir);
+  store.write("library", { folders: [root] });
+  h = await startHarness(store);
+  phone = await h.connectPhone();
+}
+
+/** Home → Library → root → Movies → the video, then OK. */
+async function playVideo() {
+  await phone.press("right");
+  await phone.press("ok"); // Library
+  await phone.press("ok"); // the library folder
+  await phone.press("ok"); // Movies folder
+  await phone.press("ok"); // Dune
+}
+const calls = (name: string) => h.player.calls.filter((c) => c.call === name);
+
+describe("playing a Library video", () => {
+  test("OK loads the right path and the phone switches to Now Playing", async () => {
+    await start();
+    await playVideo();
+    expect(calls("load")[0]!.args[0]).toBe(video());
+    expect(phone.last).toMatchObject({
+      view: "player",
+      nowPlaying: { title: "Dune (2021)", folder: "Movies", paused: false, subtitlesOn: true },
+    });
+  });
+
+  test("position, duration and pause events reach the phone about once a second", async () => {
+    await start();
+    await playVideo();
+    h.player.emit({ type: "duration", seconds: 600 });
+    h.player.emit({ type: "position", seconds: 12.2 });
+    await phone.settle();
+    expect(phone.last!.nowPlaying).toMatchObject({ position: 12.2, duration: 600 });
+    const n = phone.snapshots.length;
+    h.player.emit({ type: "position", seconds: 12.7 });
+    await phone.settle();
+    expect(phone.snapshots.length).toBe(n);
+    h.player.emit({ type: "pause", paused: true });
+    await phone.settle();
+    expect(phone.last!.nowPlaying!.paused).toBe(true);
+  });
+
+  test("seekBy, seekTo, OK and playpause reach the Player", async () => {
+    await start();
+    await playVideo();
+    h.player.emit({ type: "duration", seconds: 600 });
+    await phone.press({ command: "seekTo", args: { seconds: 300 } });
+    expect(calls("seekTo").at(-1)!.args).toEqual([300]);
+    await phone.press({ command: "seekBy", args: { seconds: -10 } });
+    expect(calls("seekTo").at(-1)!.args).toEqual([290]);
+    await phone.press("right");
+    await phone.press("left");
+    await phone.press("left");
+    expect(calls("seekTo").map((c) => c.args[0])).toEqual([300, 290, 300, 290, 280]);
+    await phone.press("ok");
+    expect(calls("setPaused").at(-1)!.args).toEqual([true]);
+    expect(h.player.overlay).toMatchObject({ paused: true, bar: { position: 280, duration: 600 } });
+    await phone.press("playpause");
+    expect(calls("setPaused").at(-1)!.args).toEqual([false]);
+  });
+
+  test("overlay shows on Up/Down and hides after a few seconds", async () => {
+    await start();
+    await playVideo();
+    h.clock.advance(3500);
+    expect(h.player.overlay!.bar).toBeUndefined();
+    await phone.press("up");
+    expect(h.player.overlay!.bar).toBeDefined();
+    h.clock.advance(3500);
+    expect(h.player.overlay!.bar).toBeUndefined();
+  });
+
+  test("the subtitles toggle reaches the Player and is remembered after a restart", async () => {
+    await start();
+    await playVideo();
+    await phone.press("subtitles");
+    expect(calls("setSubtitles").at(-1)!.args).toEqual([false]);
+    expect(phone.last!.nowPlaying!.subtitlesOn).toBe(false);
+    await h.stop();
+    h = await startHarness(new FileStore(storeDir));
+    phone = await h.connectPhone();
+    await playVideo();
+    expect(calls("load")[0]!.args[1]).toMatchObject({ subtitles: false });
+    expect(phone.last!.nowPlaying!.subtitlesOn).toBe(false);
+  });
+
+  test("volume reaches the Mac port, shows on the Screen and on every phone", async () => {
+    await start();
+    const other = await h.connectPhone();
+    await playVideo();
+    await phone.press("volUp");
+    expect(h.mac.calls.at(-1)).toEqual({ call: "setVolume", args: [55] });
+    await other.settle();
+    expect(other.last!.volume).toBe(55);
+    expect(h.screen.last.state.volumeShown).toBe(true);
+    expect(h.player.overlay!.volume).toBe(55);
+    await phone.press("volDown");
+    await phone.press("volDown");
+    expect(h.mac.volume).toBe(45);
+    h.clock.advance(3500);
+    expect(h.screen.last.state.volumeShown).toBe(false);
+  });
+
+  test("Back stops playback and returns to the folder", async () => {
+    await start();
+    await playVideo();
+    await phone.press("back");
+    expect(calls("stop")).toHaveLength(1);
+    expect(h.screen.last.state.view).toBe("folder");
+    expect(phone.last!.nowPlaying).toBeUndefined();
+    expect(h.player.overlay).toBeUndefined();
+    h.player.emit({ type: "ended", reason: "stop" });
+    expect(h.screen.last.state.view).toBe("folder");
+  });
+
+  test("Home stops playback and goes Home", async () => {
+    await start();
+    await playVideo();
+    await phone.press("home");
+    expect(calls("stop")).toHaveLength(1);
+    expect(h.screen.last.state.view).toBe("home");
+    expect(phone.last!.nowPlaying).toBeUndefined();
+  });
+
+  test("end of file returns to the folder", async () => {
+    await start();
+    await playVideo();
+    h.player.emit({ type: "ended", reason: "eof" });
+    await phone.settle();
+    expect(h.screen.last.state.view).toBe("folder");
+    expect(phone.last!.view).toBe("folder");
+  });
+
+  test("a stale stop event does not end the next video", async () => {
+    await start();
+    await playVideo();
+    await phone.press("back");
+    await phone.press("ok");
+    h.player.emit({ type: "ended", reason: "stop" });
+    expect(h.screen.last.state.view).toBe("player");
+  });
+
+  test("with mpv missing, OK shows the install message instead of playing", async () => {
+    await start();
+    h.player.emit({ type: "missing" });
+    await playVideo();
+    expect(calls("load")).toHaveLength(0);
+    expect(h.screen.last.state.view).toBe("folder");
+    expect(h.screen.last.state.toast).toContain("Couch needs mpv");
+  });
+});

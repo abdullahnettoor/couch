@@ -74,6 +74,8 @@ export interface ScreenState {
   player?: { path: string; pos: number; dur: number; paused: boolean };
   subtitlesOn: boolean;
   volume: number;
+  /** The volume level indicator is on screen. */
+  volumeShown?: boolean;
   remotes: number;
   toast?: string;
 }

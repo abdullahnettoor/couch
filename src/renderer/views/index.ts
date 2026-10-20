@@ -6,6 +6,7 @@ import * as addPhone from "./add-phone.ts";
 import * as home from "./home.ts";
 import * as library from "./library.ts";
 import * as libraryFolders from "./library-folders.ts";
+import * as player from "./player.ts";
 import * as settings from "./settings.ts";
 
 /** One entry per view: how to draw it and the grid it reports. Tickets add their own lines. */
@@ -17,4 +18,5 @@ export const VIEWS: Partial<Record<View, ViewModule & { grid?: GridItem[] }>> = 
   library: { ...library },
   folder: { ...library },
   libraryFolders: { ...libraryFolders },
+  player: { ...player },
 };

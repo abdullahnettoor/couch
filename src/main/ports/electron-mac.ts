@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { hostname } from "node:os";
 import { app, dialog, powerSaveBlocker, screen } from "electron";
 import type { Mac } from "./mac.ts";
@@ -17,8 +17,19 @@ export function createElectronMac(): Mac {
     return keep ? id : undefined;
   };
   return {
-    getVolume: () => Promise.resolve(0),
-    setVolume: () => Promise.resolve(),
+    getVolume: () =>
+      new Promise((resolve) =>
+        execFile("osascript", ["-e", "output volume of (get volume settings)"], (err, out) => {
+          const n = Number.parseInt(out, 10);
+          resolve(err || Number.isNaN(n) ? 0 : n);
+        }),
+      ),
+    setVolume: (percent) =>
+      new Promise((resolve) =>
+        execFile("osascript", ["-e", `set volume output volume ${Math.round(percent)}`], () =>
+          resolve(),
+        ),
+      ),
     keepAwake(keep) {
       awake = toggle(awake, keep, "prevent-app-suspension");
     },

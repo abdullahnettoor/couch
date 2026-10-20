@@ -34,6 +34,16 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .rbtn { height:60px; background:var(--surface-2); border-radius:18px; display:grid; place-items:center; transition: transform .12s; }
   .rbtn:active { transform:scale(.94); background:var(--surface-3); }
   .rbtn.primary { background:var(--ink); color:#16130f; }
+  .np { margin:0 auto 24px; width:100%; }
+  .np .t { font-size:20px; font-weight:600; text-align:center; }
+  .np .f { font-size:14px; color:var(--ink-3); text-align:center; margin-top:4px; }
+  .seek { margin:22px 0 6px; padding:12px 0; cursor:pointer; touch-action:none; }
+  .seek .track { height:8px; border-radius:4px; background:var(--surface-3); overflow:hidden; }
+  .seek .fill { height:100%; width:0; background:var(--lamp); }
+  .times { display:flex; justify-content:space-between; font-size:13px; color:var(--ink-3); margin-bottom:18px; }
+  .np .row { margin-bottom:12px; }
+  .np .rbtn { font-size:15px; font-weight:600; }
+  .np .rbtn.on { color:var(--lamp); }
   .type { margin-top:12px; width:100%; height:54px; border-radius:18px; background:var(--surface-2); color:var(--ink-2); font-size:15px; font-weight:500; }
 </style>
 </head>
@@ -43,7 +53,24 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 <div class="banner" id="banner" hidden>Can't reach Couch. Is the Mac awake and Couch open?</div>
 <div class="where" id="hint" hidden>Still nothing? Scan the QR code on the Screen again to pair this phone.</div>
 <main class="controls" id="controls">
-  <div class="dpad">
+  <div class="np" id="np" hidden>
+    <div class="t" id="np-title"></div>
+    <div class="f" id="np-folder"></div>
+    <div class="seek" id="seek"><div class="track"><div class="fill" id="np-fill"></div></div></div>
+    <div class="times"><span id="np-elapsed"></span><span id="np-remaining"></span></div>
+    <div class="row">
+      <button class="rbtn" data-cmd="seekBy" data-seconds="-10" aria-label="Back 10 seconds">−10 s</button>
+      <button class="rbtn primary" data-cmd="playpause" aria-label="Play or pause" id="np-pp">Pause</button>
+      <button class="rbtn" data-cmd="seekBy" data-seconds="10" aria-label="Forward 10 seconds">+10 s</button>
+    </div>
+    <div class="row">
+      <button class="rbtn" data-cmd="volDown" aria-label="Volume down">Vol −</button>
+      <button class="rbtn" data-cmd="subtitles" id="np-subs">Subtitles</button>
+      <button class="rbtn" data-cmd="volUp" aria-label="Volume up">Vol +</button>
+    </div>
+    <div class="times"><span></span><span id="np-vol"></span></div>
+  </div>
+  <div class="dpad" id="dpad">
     <button class="arrow up" data-cmd="up" aria-label="Up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg></button>
     <button class="arrow down" data-cmd="down" aria-label="Down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
     <button class="arrow left" data-cmd="left" aria-label="Left"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
@@ -82,7 +109,36 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     $("where").firstChild.nextSibling.textContent = s.where;
     $("count").textContent = s.remotes === 1 ? "1 phone" : s.remotes + " phones";
     $("type").disabled = !s.typeAvailable;
+    var np = s.nowPlaying;
+    $("np").hidden = !np;
+    $("dpad").hidden = !!np;
+    if (np) {
+      duration = np.duration;
+      $("np-title").textContent = np.title;
+      $("np-folder").textContent = np.folder;
+      $("np-fill").style.width = (np.duration > 0 ? Math.min(100, (np.position / np.duration) * 100) : 0) + "%";
+      $("np-elapsed").textContent = fmt(np.position);
+      $("np-remaining").textContent = "-" + fmt(Math.max(0, np.duration - np.position));
+      $("np-pp").textContent = np.paused ? "Play" : "Pause";
+      $("np-subs").textContent = np.subtitlesOn ? "Subtitles on" : "Subtitles off";
+      $("np-subs").classList.toggle("on", np.subtitlesOn);
+      $("np-vol").textContent = "Volume " + s.volume + "%";
+    }
   }
+
+  var duration = 0;
+  function fmt(t) {
+    t = Math.max(0, Math.floor(t));
+    var h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60;
+    return (h ? h + ":" + (m < 10 ? "0" : "") + m : m) + ":" + (sec < 10 ? "0" : "") + sec;
+  }
+
+  $("seek").addEventListener("click", function (e) {
+    if (!open || !(duration > 0)) return;
+    var r = this.getBoundingClientRect();
+    var frac = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    ws.send(JSON.stringify({ type: "command", command: "seekTo", args: { seconds: Math.round(frac * duration) } }));
+  });
 
   function connect() {
     var proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -104,7 +160,10 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     var el = e.target.closest ? e.target.closest("[data-cmd]") : null;
     if (!el || el.disabled || !open) return;
     if (navigator.vibrate) navigator.vibrate(12);
-    ws.send(JSON.stringify({ type: "command", command: el.getAttribute("data-cmd") }));
+    var msg = { type: "command", command: el.getAttribute("data-cmd") };
+    var secs = el.getAttribute("data-seconds");
+    if (secs) msg.args = { seconds: Number(secs) };
+    ws.send(JSON.stringify(msg));
   });
 
   setOnline(false);

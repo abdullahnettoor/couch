@@ -269,3 +269,20 @@ body {
   font-size: 2cqw;
   color: var(--ink-3);
 }
+
+.volume {
+  position: fixed;
+  top: 3cqw;
+  right: 3cqw;
+  padding: 0.8cqw 1.6cqw;
+  border-radius: 1cqw;
+  background: var(--surface-2, #26231f);
+  color: var(--ink, #f3ede4);
+  font-size: 1.8cqw;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+.volume.show {
+  opacity: 1;
+}
