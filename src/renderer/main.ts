@@ -6,6 +6,7 @@ import { renderHud } from "./hud.ts";
 import { renderOverlay } from "./player-overlay.ts";
 import "./style.css";
 import "./glass.css";
+import "./home.css";
 
 declare global {
   interface Window {

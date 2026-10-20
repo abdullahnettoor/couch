@@ -23,6 +23,7 @@ export const COMMAND_NAMES = [
   "back",
   "home",
   "playpause",
+  "resume",
   "volUp",
   "volDown",
   "subtitles",
@@ -131,6 +132,8 @@ export interface ScreenPayload {
   library?: LibraryPayload;
   /** Home's Continue watching card: the newest in-progress video. */
   continueCard?: LibraryEntry;
+  /** Home: up to three in-progress videos, newest first. */
+  homeVideos?: LibraryEntry[];
   /** The player overlay the renderer draws over the video; present while a video plays. */
   overlay?: PlayerOverlay;
   /** What the pairing QR code encodes. */
