@@ -5,7 +5,7 @@ export const MIN_RECORD_SECONDS = 60;
 export const WATCHED_FRACTION = 0.9;
 export const WATCHED_REMAINING_SECONDS = 120;
 
-interface Record_ {
+interface WatchEntry {
   /** Resume position; absent once watched. */
   position?: number;
   duration: number;
@@ -24,11 +24,11 @@ export interface InProgress {
 /** Where each Library video was left, per absolute file path, persisted in the Store. */
 export class History {
   #store: Store;
-  #items: Record<string, Record_>;
+  #items: Record<string, WatchEntry>;
 
   constructor(store: Store) {
     this.#store = store;
-    const saved = store.read<{ items?: Record<string, Record_> }>("history", {});
+    const saved = store.read<{ items?: Record<string, WatchEntry> }>("history", {});
     this.#items = saved.items && typeof saved.items === "object" ? saved.items : {};
   }
 

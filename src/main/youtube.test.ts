@@ -17,7 +17,7 @@ async function openYouTube() {
 }
 
 describe("YouTube App", () => {
-  test("OK on the tile shows YouTube with the Home note and keeps the display awake", async () => {
+  test("OK on the YouTube App shows YouTube with the Home note and keeps the display awake", async () => {
     const s = await phone.press("ok");
     expect(s.view).toBe("youtube");
     expect(s.where).toBe("YouTube");

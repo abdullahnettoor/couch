@@ -272,18 +272,9 @@ export class Core {
         ),
       ];
     }
-    return lib.entries.map((e, i) => ({
-      id: e.path,
-      r: Math.floor(i / TILE_COLUMNS),
-      c: i % TILE_COLUMNS,
-      label: e.title,
-      action: e.missing
-        ? "library:missing"
-        : e.kind === "folder"
-          ? `library:open:${e.path}`
-          : `library:play:${e.path}`,
-      initial: i === 0,
-    }));
+    return lib.entries.map((e, i) =>
+      tile(e, Math.floor(i / TILE_COLUMNS), i % TILE_COLUMNS, i === 0),
+    );
   }
 
   #openFolder(path: string): void {
@@ -747,7 +738,7 @@ export class Core {
     if (item.action === "back") return this.#back();
     if (this.#libraryAction(item.action)) return;
     const action = ACTIONS[item.action];
-    // Placeholder tiles until the Apps exist.
+    // Placeholder Apps until they exist.
     if (action) action(this.#actionContext());
     else this.#toast(`${item.label} is coming soon`);
   }

@@ -39,7 +39,7 @@ describe("Remote on Home", () => {
     expect(b.last?.remotes).toBe(2);
   });
 
-  test("arrows move focus between the tiles and up reaches the settings gear", async () => {
+  test("arrows move focus between the Apps and up reaches the settings gear", async () => {
     const phone = await h.connectPhone();
     expect(focused(h)).toBe("YouTube");
     await phone.press("right");

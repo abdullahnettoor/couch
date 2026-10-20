@@ -1,7 +1,8 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { accessSync, constants, existsSync, mkdirSync, renameSync, statSync } from "node:fs";
-import { delimiter, join } from "node:path";
+import { existsSync, mkdirSync, renameSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { findExecutable, type IsExecutable } from "../find-executable.ts";
 import { pathToFileURL } from "node:url";
 
 /** The Thumbnails port: a picture for a video file, made once and cached. */
@@ -25,22 +26,10 @@ export function thumbnailKey(path: string, size: number, mtimeMs: number): strin
 }
 
 export function findFfmpeg(
-  env: { PATH?: string } = process.env,
-  isExecutable: (p: string) => boolean = (p) => {
-    try {
-      accessSync(p, constants.X_OK);
-      return true;
-    } catch {
-      return false;
-    }
-  },
+  env?: { PATH?: string },
+  isExecutable?: IsExecutable,
 ): string | undefined {
-  const dirs = ["/opt/homebrew/bin", "/usr/local/bin", ...(env.PATH ?? "").split(delimiter)];
-  for (const dir of dirs.filter(Boolean)) {
-    const candidate = join(dir, "ffmpeg");
-    if (isExecutable(candidate)) return candidate;
-  }
-  return undefined;
+  return findExecutable("ffmpeg", env, isExecutable);
 }
 
 function run(bin: string, args: string[]): Promise<string> {
