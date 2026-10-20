@@ -92,6 +92,12 @@ export interface LibraryEntry {
   missing?: boolean;
   /** URL of a frame from the video, once it has been made. */
   thumb?: string;
+  /** Watched: past 90% or with 2 minutes or less left. */
+  watched?: boolean;
+  /** In progress: how far along and how long is left, e.g. "38 min left". */
+  progress?: { fraction: number; left: string };
+  /** Name of the folder holding the video (Continue watching). */
+  folder?: string;
 }
 
 /** What the Library views draw; the core also builds their grids from it. */
@@ -103,6 +109,8 @@ export interface LibraryPayload {
   emptyText?: string;
   /** Library folders settings page: the added folder paths. */
   folders?: string[];
+  /** The Library's first page: every in-progress video, newest first. */
+  continueWatching?: LibraryEntry[];
 }
 
 /** Core → Screen renderer. */
@@ -114,6 +122,8 @@ export interface ScreenPayload {
   focusedLabel?: string;
   /** Present for library, folder and libraryFolders. */
   library?: LibraryPayload;
+  /** Home's Continue watching card: the newest in-progress video. */
+  continueCard?: LibraryEntry;
   /** What the pairing QR code encodes. */
   pairingUrl: string;
   /** Epoch ms from the Clock port, for the Home clock. */

@@ -36,6 +36,9 @@ export function overlayAss(overlay: PlayerOverlay): string {
       String.raw`{\an3\pos(${W - MARGIN},985)\fs38${TEXT}}-${formatTime(Math.max(0, duration - position))}`,
     );
   }
+  if (overlay.note) {
+    lines.push(String.raw`{\an1\pos(${MARGIN},900)\fs44${TEXT}}${escapeAss(overlay.note)}`);
+  }
   if (overlay.paused) {
     lines.push(rect(900, 495, 40, 130, "FFFFFF"));
     lines.push(rect(980, 495, 40, 130, "FFFFFF"));

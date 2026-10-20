@@ -18,6 +18,8 @@ export interface PlayerOverlay {
   /** Present while the progress bar is shown. */
   bar?: { position: number; duration: number };
   paused: boolean;
+  /** A short note, e.g. "Resumed at 40:10". */
+  note?: string;
   /** Present while the volume level indicator is shown (0-100). */
   volume?: number;
 }

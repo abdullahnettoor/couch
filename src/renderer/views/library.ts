@@ -1,8 +1,31 @@
-import type { ScreenPayload } from "../../shared/protocol.ts";
+import type { LibraryEntry, ScreenPayload } from "../../shared/protocol.ts";
 import { el, root } from "./dom.ts";
 
 function escape(text: string): string {
   return text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
+function tile(e: LibraryEntry, payload: ScreenPayload): HTMLElement {
+  const classes = ["lib-tile", e.kind];
+  if (e.path === payload.focusedId) classes.push("focused");
+  if (e.missing) classes.push("missing");
+  const tag = e.watched ? '<div class="tag">Watched</div>' : "";
+  const left = e.progress ? `<div class="left">${escape(e.progress.left)}</div>` : "";
+  const bar = e.progress
+    ? `<div class="bar"><i style="width:${Math.round(e.progress.fraction * 100)}%"></i></div>`
+    : "";
+  const node = el(
+    "div",
+    classes.join(" "),
+    `${tag}<div class="t">${escape(e.title)}</div>${left}${bar}`,
+  );
+  node.style.setProperty("--hue", String(e.hue));
+  if (e.thumb) {
+    node.style.backgroundImage = `url("${e.thumb}")`;
+    node.classList.add("has-thumb");
+  }
+  if (e.missing) node.append(el("div", "note", "Drive not connected"));
+  return node;
 }
 
 /** Draws both the Library's first page and the inside of a folder. */
@@ -15,18 +38,15 @@ export function render(payload: ScreenPayload): void {
   if (lib.entries.length === 0) {
     view.append(el("div", "lib-empty", escape(lib.emptyText ?? "")));
   } else {
-    const grid = el("div", "lib-grid");
-    for (const e of lib.entries) {
-      const classes = ["lib-tile", e.kind];
-      if (e.path === payload.focusedId) classes.push("focused");
-      if (e.missing) classes.push("missing");
-      const tile = el("div", classes.join(" "), `<div class="t">${escape(e.title)}</div>`);
-      tile.style.setProperty("--hue", String(e.hue));
-      if (e.thumb) tile.style.backgroundImage = `url("${e.thumb}")`;
-      if (e.thumb) tile.classList.add("has-thumb");
-      if (e.missing) tile.append(el("div", "note", "Drive not connected"));
-      grid.append(tile);
+    const cont = lib.continueWatching ?? [];
+    if (cont.length) {
+      view.append(el("h2", "lib-sub", "Continue watching"));
+      const row = el("div", "lib-row");
+      for (const e of cont) row.append(tile(e, payload));
+      view.append(row);
     }
+    const grid = el("div", "lib-grid");
+    for (const e of lib.entries) grid.append(tile(e, payload));
     view.append(grid);
   }
   root.append(view);

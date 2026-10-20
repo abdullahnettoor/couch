@@ -1,0 +1,71 @@
+import { existsSync } from "node:fs";
+import type { Store } from "../ports/store.ts";
+
+export const MIN_RECORD_SECONDS = 60;
+export const WATCHED_FRACTION = 0.9;
+export const WATCHED_REMAINING_SECONDS = 120;
+
+interface Record_ {
+  /** Resume position; absent once watched. */
+  position?: number;
+  duration: number;
+  watched?: boolean;
+  /** Epoch ms of the last save. */
+  at: number;
+}
+
+export interface InProgress {
+  path: string;
+  position: number;
+  duration: number;
+  at: number;
+}
+
+/** Where each Library video was left, per absolute file path, persisted in the Store. */
+export class History {
+  #store: Store;
+  #items: Record<string, Record_>;
+
+  constructor(store: Store) {
+    this.#store = store;
+    const saved = store.read<{ items?: Record<string, Record_> }>("history", {});
+    this.#items = saved.items && typeof saved.items === "object" ? saved.items : {};
+  }
+
+  /** Where to resume, or undefined to play from the start. */
+  resumeAt(path: string): number | undefined {
+    return this.#items[path]?.position;
+  }
+
+  isWatched(path: string): boolean {
+    return this.#items[path]?.watched === true;
+  }
+
+  progress(path: string): { position: number; duration: number } | undefined {
+    const r = this.#items[path];
+    return r?.position === undefined ? undefined : { position: r.position, duration: r.duration };
+  }
+
+  /** Record where playback is. `ended` is a natural end of file. */
+  save(path: string, position: number, duration: number, now: number, ended = false): void {
+    if (ended) {
+      this.#items[path] = { duration, watched: true, at: now };
+    } else {
+      if (!(duration > 0) || position < MIN_RECORD_SECONDS) return;
+      const watched =
+        position / duration >= WATCHED_FRACTION || duration - position <= WATCHED_REMAINING_SECONDS;
+      this.#items[path] = watched
+        ? { duration, watched: true, at: now }
+        : { position, duration, at: now };
+    }
+    this.#store.write("history", { items: this.#items });
+  }
+
+  /** In-progress videos whose files still exist, newest first. */
+  continueWatching(): InProgress[] {
+    return Object.entries(this.#items)
+      .filter(([path, r]) => r.position !== undefined && existsSync(path))
+      .map(([path, r]) => ({ path, position: r.position!, duration: r.duration, at: r.at }))
+      .sort((a, b) => b.at - a.at);
+  }
+}

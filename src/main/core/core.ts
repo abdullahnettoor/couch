@@ -20,7 +20,9 @@ import type { Store } from "../ports/store.ts";
 import { nullThumbnails, type Thumbnails } from "../ports/thumbnails.ts";
 import { ACTIONS, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
-import { cleanTitle, listFolder, rootEntries } from "./library.ts";
+import { cleanTitle, hueFor, listFolder, rootEntries } from "./library.ts";
+import { History } from "./history.ts";
+import { formatTime } from "../mpv/overlay.ts";
 
 const TILE_COLUMNS = 4;
 const THUMBNAIL_JOBS = 2;
@@ -41,6 +43,7 @@ export type Source = RemoteId | "screen";
 const TOAST_MS = 3000;
 const SKIP_SECONDS = 10;
 const OVERLAY_MS = 3000;
+const SAVE_EVERY_MS = 5000;
 const MPV_MISSING = "Couch needs mpv to play videos. Install it with: brew install mpv";
 const VOLUME_STEP = 5;
 const TYPING_HINT = "Typing works inside YouTube search";
@@ -81,10 +84,15 @@ export class Core {
   #thumbQueue: LibraryEntry[] = [];
   #thumbRunning = 0;
   #disposed = false;
+  #history: History;
+  #cancelSaves: (() => void) | undefined;
+  #resumeNote: string | undefined;
+  #cancelNote: (() => void) | undefined;
 
   constructor(ports: Ports) {
     this.#ports = ports;
     const lib = ports.store.read<{ folders?: unknown }>("library", {});
+    this.#history = new History(ports.store);
     this.#libraryFolders = Array.isArray(lib.folders)
       ? lib.folders.filter((f): f is string => typeof f === "string")
       : [];
@@ -155,12 +163,13 @@ export class Core {
         return {
           heading: "Library",
           entries: rootEntries(this.#libraryFolders),
+          continueWatching: this.#continueEntries(),
           emptyText: "No folders yet. Add one in Settings on the Mac.",
         };
       case "folder":
         return {
           heading: basename(this.#state.folderPath ?? ""),
-          entries: this.#listing,
+          entries: this.#listing.map((e) => this.#decorate(e)),
           emptyText: "No videos in this folder.",
         };
       case "libraryFolders":
@@ -170,7 +179,44 @@ export class Core {
     }
   }
 
+  /** A video entry with its watched tag or progress, from the history. */
+  #decorate(entry: LibraryEntry): LibraryEntry {
+    if (entry.kind !== "video") return entry;
+    const progress = this.#history.progress(entry.path);
+    if (progress) {
+      const left = Math.max(1, Math.ceil((progress.duration - progress.position) / 60));
+      return {
+        ...entry,
+        progress: { fraction: progress.position / progress.duration, left: `${left} min left` },
+      };
+    }
+    return this.#history.isWatched(entry.path) ? { ...entry, watched: true } : entry;
+  }
+
+  #continueEntries(): LibraryEntry[] {
+    return this.#history.continueWatching().map((c) => {
+      const title = cleanTitle(basename(c.path));
+      return this.#decorate({
+        kind: "video",
+        path: c.path,
+        title,
+        hue: hueFor(title),
+        folder: basename(dirname(c.path)),
+      });
+    });
+  }
+
   #currentGrid(): GridItem[] {
+    if (this.#state.view === "home") {
+      const base = this.#grids.get("home") ?? [];
+      const first = base.length ? this.#continueEntries()[0] : undefined;
+      if (!first) return base;
+      const row = Math.max(...base.map((i) => i.r)) + 1;
+      return [
+        ...base,
+        { id: "continue", r: row, c: 0, label: first.title, action: `library:play:${first.path}` },
+      ];
+    }
     if (!this.#isLibraryView()) return this.#grids.get(this.viewKey) ?? [];
     const lib = this.#library()!;
     if (lib.folders) {
@@ -183,6 +229,27 @@ export class Core {
           label: f,
           action: `library:remove:${f}`,
         })),
+      ];
+    }
+    const cont = lib.continueWatching ?? [];
+    const tile = (e: LibraryEntry, r: number, c: number, initial: boolean): GridItem => ({
+      id: e.path,
+      r,
+      c,
+      label: e.title,
+      action: e.missing
+        ? "library:missing"
+        : e.kind === "folder"
+          ? `library:open:${e.path}`
+          : `library:play:${e.path}`,
+      initial,
+    });
+    if (cont.length) {
+      return [
+        ...cont.map((e, i) => tile(e, 0, i, i === 0)),
+        ...lib.entries.map((e, i) =>
+          tile(e, 1 + Math.floor(i / TILE_COLUMNS), i % TILE_COLUMNS, false),
+        ),
       ];
     }
     return lib.entries.map((e, i) => ({
@@ -261,20 +328,72 @@ export class Core {
     return true;
   }
 
-  /** Start a Library video full screen. Resume (ticket 008) hooks in here via `startSeconds`. */
+  /** Start a Library video full screen, resuming where it was left. */
   #play(path: string): void {
     if (this.#mpvMissing) return this.#toast(MPV_MISSING);
-    this.#state.player = { path, pos: 0, dur: 0, paused: false };
+    const dir = dirname(path);
+    if (this.#state.folderPath !== dir || this.#listing.length === 0) {
+      const entries = listFolder(dir);
+      if (entries) {
+        this.#listing = entries;
+        this.#queueThumbnails(entries);
+        this.#state.folderPath = dir;
+      }
+    }
+    this.#focusEntry(path);
+    const startSeconds = this.#history.resumeAt(path);
+    this.#state.player = { path, pos: startSeconds ?? 0, dur: 0, paused: false };
     this.#state.view = "player";
     this.#showOverlay();
+    this.#cancelNote?.();
+    this.#resumeNote = undefined;
+    if (startSeconds !== undefined) {
+      this.#resumeNote = `Resumed at ${formatTime(startSeconds)}`;
+      this.#cancelNote = this.#ports.clock.setTimeout(() => {
+        this.#resumeNote = undefined;
+        this.#emit();
+      }, OVERLAY_MS);
+    }
+    this.#cancelSaves?.();
+    this.#cancelSaves = this.#ports.clock.setInterval(
+      () => this.savePlayingPosition(),
+      SAVE_EVERY_MS,
+    );
     this.#ports.player
-      .load(path, { subtitles: this.#state.subtitlesOn })
+      .load(path, { subtitles: this.#state.subtitlesOn, startSeconds })
       .catch(() => this.#endPlayback("Couldn't play this video"));
   }
 
-  /** Leave playback for a view. Ticket 008 saves the position here (state.player still set). */
-  #endPlayback(toast?: string): void {
-    if (!this.#state.player) return;
+  /** Save where the playing video is (no-op when nothing plays). Also called on quit and display changes. */
+  savePlayingPosition(): void {
+    const p = this.#state.player;
+    if (p) this.#history.save(p.path, p.pos, p.dur, this.#ports.clock.now());
+  }
+
+  /** Focus a video's tile in the open folder, if listed. */
+  #focusEntry(path: string, next = false): void {
+    let index = this.#listing.findIndex((e) => e.path === path);
+    if (index === -1) return;
+    if (next) {
+      const after = this.#listing.slice(index + 1).findIndex((e) => e.kind === "video");
+      if (after !== -1) index += 1 + after;
+    }
+    this.#state.focus[`folder:${this.#state.folderPath}`] = {
+      r: Math.floor(index / TILE_COLUMNS),
+      c: index % TILE_COLUMNS,
+    };
+  }
+
+  /** Leave playback for a view, saving the position first. */
+  #endPlayback(toast?: string, ended = false): void {
+    const p = this.#state.player;
+    if (!p) return;
+    this.#cancelSaves?.();
+    this.#cancelSaves = undefined;
+    this.#cancelNote?.();
+    this.#resumeNote = undefined;
+    this.#history.save(p.path, p.pos, p.dur, this.#ports.clock.now(), ended);
+    this.#focusEntry(p.path, ended);
     this.#state.player = undefined;
     this.#overlayShown = false;
     this.#cancelOverlay?.();
@@ -299,7 +418,7 @@ export class Core {
         break;
       case "ended":
         // Our own stops report "stop"; only a natural end or a failure leaves playback.
-        if (event.reason === "eof") this.#endPlayback();
+        if (event.reason === "eof") this.#endPlayback(undefined, true);
         else if (event.reason === "error") this.#endPlayback("Couldn't play this video");
         break;
       case "position": {
@@ -394,6 +513,7 @@ export class Core {
       title: cleanTitle(basename(p.path)),
       bar: this.#overlayShown ? { position: p.pos, duration: p.dur } : undefined,
       paused: p.paused,
+      note: this.#resumeNote,
       volume: this.#state.volumeShown ? this.#state.volume : undefined,
     };
   }
@@ -409,6 +529,7 @@ export class Core {
     const focused = resolveFocus(grid, this.#state.focus[this.viewKey]);
     return {
       library: this.#library(),
+      continueCard: this.#continueEntries()[0],
       state: structuredClone(this.#state),
       viewKey: this.viewKey,
       grid,
@@ -540,6 +661,8 @@ export class Core {
     this.#cancelToast?.();
     this.#cancelMinute?.();
     this.#cancelOverlay?.();
+    this.#cancelSaves?.();
+    this.#cancelNote?.();
     this.#cancelVolume?.();
     this.#unsubPlayer();
     this.#ytOff();
@@ -576,7 +699,11 @@ export class Core {
     }
     if (this.#state.view === "folder") {
       const path = this.#state.folderPath ?? "";
-      if (this.#libraryFolders.includes(path)) this.#state.view = "library";
+      if (
+        this.#libraryFolders.includes(path) ||
+        !this.#libraryFolders.some((f) => path.startsWith(f))
+      )
+        this.#state.view = "library";
       else this.#openFolder(dirname(path));
       return;
     }
@@ -666,7 +793,10 @@ export class Core {
       },
       toast: (text) => this.#toast(text),
       forgetAllPhones: () => this.forgetAllPhones(),
-      quit: () => this.#ports.mac.quit(),
+      quit: () => {
+        this.savePlayingPosition();
+        this.#ports.mac.quit();
+      },
     };
   }
 

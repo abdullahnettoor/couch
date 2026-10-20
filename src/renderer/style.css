@@ -292,3 +292,73 @@ body {
 .volume.show {
   opacity: 1;
 }
+
+.lib-sub {
+  margin: 0 0 1cqw;
+  font-size: 1.6cqw;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.lib-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: calc(25% - 1.2cqw);
+  gap: 1.6cqw;
+  margin-bottom: 2.4cqw;
+  overflow: hidden;
+}
+.lib-tile .tag {
+  align-self: flex-start;
+  margin-bottom: auto;
+  padding: 0.2cqw 0.8cqw;
+  border-radius: 0.6cqw;
+  background: rgb(0 0 0 / 0.55);
+  font-size: 1.1cqw;
+}
+.lib-tile .left {
+  font-size: 1.2cqw;
+  color: var(--ink-3);
+}
+.bar {
+  height: 0.35cqw;
+  margin-top: 0.6cqw;
+  border-radius: 1cqw;
+  background: rgb(255 255 255 / 0.2);
+  overflow: hidden;
+}
+.bar i {
+  display: block;
+  height: 100%;
+  background: #5ab4f2;
+}
+.continue-card {
+  position: absolute;
+  left: 6cqw;
+  bottom: 2cqw;
+  width: 30cqw;
+  box-sizing: border-box;
+  padding: 1cqw 1.4cqw;
+  border-radius: 1.2cqw;
+  background: var(--surface);
+  transition:
+    transform 0.22s var(--ease),
+    box-shadow 0.22s var(--ease);
+}
+.continue-card .k {
+  font-size: 1cqw;
+  color: var(--ink-3);
+}
+.continue-card .t {
+  font-size: 1.6cqw;
+}
+.continue-card .m {
+  font-size: 1.2cqw;
+  color: var(--ink-3);
+}
+.continue-card.focused {
+  transform: scale(1.04);
+  box-shadow: 0 0 0 0.3cqw var(--ink);
+}
+.home.has-continue .ha-row {
+  bottom: 11cqw;
+}

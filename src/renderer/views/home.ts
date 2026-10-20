@@ -67,5 +67,22 @@ export function render(payload: ScreenPayload): void {
       ),
     );
   }
+  const card = payload.continueCard;
+  if (card?.progress) {
+    const focused = payload.focusedId === "continue" ? " focused" : "";
+    const c = el(
+      "div",
+      `continue-card${focused}`,
+      `<div class="k">Continue watching</div><div class="t">${escapeHtml(card.title)}</div>` +
+        `<div class="m">${escapeHtml(card.progress.left)} · ${escapeHtml(card.folder ?? "")}</div>` +
+        `<div class="bar"><i style="width:${Math.round(card.progress.fraction * 100)}%"></i></div>`,
+    );
+    view.classList.add("has-continue");
+    view.append(c);
+  }
   root.append(view);
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 }
