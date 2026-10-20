@@ -1,4 +1,9 @@
-import { formatTime, type PlayerOverlay, type UpNextTile } from "../shared/player.ts";
+import {
+  formatTime,
+  type NextCardId,
+  type PlayerOverlay,
+  type UpNextTile,
+} from "../shared/player.ts";
 import { DOCK_IDS, DOCK_LABELS, DOCK_ROW, type DockId } from "../shared/player-dock.ts";
 import { iconSvg, type IconName } from "../shared/icons.ts";
 import type { GlassRect } from "../shared/ipc.ts";
@@ -17,6 +22,7 @@ el.innerHTML = `
   <div class="po-pause glass">${iconSvg("pause")}</div>
   <div class="po-vol volhud glass"><span class="n num"></span><div class="lvl"><i></i></div>${iconSvg("speaker")}</div>
   <div class="po-shelf"><h3><span>Up next</span><span class="po-folder"></span></h3><div class="po-eps"><div class="po-strip"></div></div></div>
+  <div class="po-next"><div class="po-nx-pic"></div><div class="po-nx-body"><small>Up next</small><h3></h3><div class="po-nx-line"></div><div class="po-nx-btns"></div></div></div>
   <div class="po-peek">${iconSvg("down")}More episodes</div>
   <div class="po-dock glass"></div>`;
 document.body.append(el);
@@ -86,8 +92,35 @@ const tileHtml = (t: UpNextTile, index: number) => {
     t.progress !== undefined
       ? `<div class="po-prog"><i style="width:${Math.round(t.progress * 100)}%"></i></div>`
       : "";
-  return `<button class="po-ep" data-ep="${index}"><div class="po-pic g-tile">${picture}${mark}${progress}</div><div class="po-cap">${escapeHtml(t.title)}</div></button>`;
+  return `<button class="po-ep" data-ep="${index}"><div class="po-pic g-tile">${picture}${mark}${progress}</div><div class="po-cap">${escapeHtml(t.title)}${t.line ? `<small>${escapeHtml(t.line)}</small>` : ""}</div></button>`;
 };
+const nextCard = $(".po-next");
+const nextPic = $(".po-nx-pic");
+const nextTitle = nextCard.querySelector<HTMLElement>("h3")!;
+const nextLine = $(".po-nx-line");
+const NEXT_BUTTONS: [NextCardId, string, IconName | undefined][] = [
+  ["playnext", "Play", "play"],
+  ["backfolder", "Back to folder", undefined],
+];
+const nextButtons = NEXT_BUTTONS.map(([id, label, icon]) => {
+  const b = document.createElement("button");
+  b.className = "g-pill";
+  b.dataset.next = id;
+  b.innerHTML = icon ? iconSvg(icon) : "";
+  b.append(label);
+  return b;
+});
+$(".po-nx-btns").append(...nextButtons);
+function renderNext(next: PlayerOverlay["next"]): void {
+  nextCard.classList.toggle("show", Boolean(next));
+  if (!next) return;
+  nextTitle.textContent = next.title;
+  nextLine.textContent = next.line ?? "";
+  nextPic.innerHTML = next.thumb
+    ? `<img src="${escapeHtml(next.thumb)}" alt="">`
+    : `<div class="po-plain" style="--h:${next.hue}"></div>`;
+  for (const b of nextButtons) b.classList.toggle("focused", b.dataset.next === next.focusedId);
+}
 let tilesKey = "";
 function renderUpNext(upNext: PlayerOverlay["upNext"]): void {
   upNextRow.classList.toggle("show", Boolean(upNext));
@@ -118,9 +151,15 @@ export function renderOverlay(overlay: PlayerOverlay | undefined): void {
   el.hidden = !overlay;
   if (!overlay) return;
   const d = overlay.dock;
-  controlsUp = overlay.controls !== "hidden";
+  controlsUp = overlay.controls !== "hidden" && overlay.controls !== "next";
   el.classList.toggle("controls", controlsUp);
-  title.textContent = overlay.title;
+  title.replaceChildren();
+  if (overlay.line) {
+    const k = document.createElement("small");
+    k.textContent = overlay.line;
+    title.append(k);
+  }
+  title.append(overlay.title);
   note.textContent = overlay.note ?? "";
   note.classList.toggle("show", Boolean(overlay.note));
   pauseMark.classList.toggle("show", overlay.paused);
@@ -129,6 +168,7 @@ export function renderOverlay(overlay: PlayerOverlay | undefined): void {
   volFill.style.height = `${level}%`;
   vol.classList.toggle("show", overlay.volume !== undefined);
   renderUpNext(overlay.upNext);
+  renderNext(overlay.next);
   peek.classList.toggle("show", controlsUp && !overlay.upNext && Boolean(d?.upNext));
   if (!d) return;
   duration = d.duration;
@@ -156,6 +196,11 @@ const fractionOf = (event: MouseEvent, node: HTMLElement) => {
 
 el.addEventListener("click", (event) => {
   const target = event.target as Element;
+  const card = target.closest<HTMLElement>("[data-next]");
+  if (card) {
+    send({ command: card.dataset.next === "playnext" ? "playNext" : "back" });
+    return;
+  }
   const episode = target.closest<HTMLElement>("[data-ep]");
   if (episode) {
     send({ command: "playUpNext", args: { index: Number(episode.dataset.ep) } });
@@ -183,8 +228,13 @@ el.addEventListener("click", (event) => {
 });
 
 el.addEventListener("mouseover", (event) => {
-  const target = (event.target as Element).closest("[data-ep], [data-dock]");
+  const target = (event.target as Element).closest("[data-ep], [data-dock], [data-next]");
   if (!target) return;
+  if ((target as HTMLElement).dataset.next) {
+    const c = (target as HTMLElement).dataset.next === "playnext" ? 0 : 1;
+    send({ command: "focusAt", args: { r: 0, c } });
+    return;
+  }
   const episode = (target as HTMLElement).dataset.ep;
   if (episode !== undefined) send({ command: "focusAt", args: { r: 0, c: Number(episode) } });
   else {

@@ -52,19 +52,76 @@ const TAGS = new Set([
 
 const YEAR = /^(19|20)\d{2}$/;
 
-/** "The.Grand.Budapest.Hotel.2014.1080p.BluRay.x264.mkv" → "The Grand Budapest Hotel (2014)". */
-export function cleanTitle(fileName: string): string {
-  const ext = extname(fileName).toLowerCase();
-  const stem = VIDEO_EXTENSIONS.includes(ext) ? fileName.slice(0, -ext.length) : fileName;
-  const words = stem
+function words(text: string): string[] {
+  return text
     .replace(/[._()[\]{}]+/g, " ")
     .split(/\s+/)
     .filter(Boolean);
-  const cut = words.findIndex((w, i) => i > 0 && TAGS.has(w.toLowerCase()));
-  const kept = cut === -1 ? words : words.slice(0, cut);
+}
+
+function untagged(list: string[], from = 1): string[] {
+  const cut = list.findIndex((w, i) => i >= from && TAGS.has(w.toLowerCase()));
+  return cut === -1 ? list : list.slice(0, cut);
+}
+
+/** Release tags dropped, year kept in brackets: "The Grand Budapest Hotel (2014)". */
+function tidy(text: string): string {
+  const kept = untagged(words(text));
   const yearAt = kept.findLastIndex((w, i) => i > 0 && YEAR.test(w));
-  if (yearAt === -1) return kept.join(" ") || stem;
+  if (yearAt === -1) return kept.join(" ");
   return `${kept.slice(0, yearAt).join(" ")} (${kept[yearAt]})`;
+}
+
+/** A video's title. Episodes carry series, season and episode; `name` is what tiles and the player show. */
+export interface Title {
+  series?: string;
+  season?: number;
+  episode?: number;
+  /** The episode's name ("Episode N" when the file has none), or the whole cleaned title for non-episodes. */
+  name: string;
+}
+
+const EPISODE = /(?<![a-z0-9])(?:s(\d{1,2})[ ._-]*e(\d{1,3})|(\d{1,2})x(\d{2,3}))(?![a-z0-9])/i;
+
+/** "Arcane S01E01 Welcome to the Playground.mkv" → { series: "Arcane", season: 1, episode: 1, name: "Welcome to the Playground" }. */
+export function parseTitle(fileName: string): Title {
+  const ext = extname(fileName).toLowerCase();
+  const stem = VIDEO_EXTENSIONS.includes(ext) ? fileName.slice(0, -ext.length) : fileName;
+  const normal = stem.replace(/[._]+/g, " ");
+  const m = EPISODE.exec(normal);
+  if (m) {
+    const season = Number(m[1] ?? m[3]);
+    const episode = Number(m[2] ?? m[4]);
+    const series = tidy(normal.slice(0, m.index));
+    const name = untagged(words(normal.slice(m.index + m[0].length)), 0)
+      .join(" ")
+      .replace(/^[-–:\s]+|[-–:\s]+$/g, "");
+    return {
+      ...(series ? { series } : {}),
+      season,
+      episode,
+      name: name || `Episode ${episode}`,
+    };
+  }
+  return { name: tidy(stem) || stem };
+}
+
+/** "The.Grand.Budapest.Hotel.2014.1080p.BluRay.x264.mkv" → "The Grand Budapest Hotel (2014)"; episodes give their name. */
+export function cleanTitle(fileName: string): string {
+  return parseTitle(fileName).name;
+}
+
+/** "Arcane · S1 E1" for episodes; undefined for anything else. */
+export function episodeLine(fileName: string): string | undefined {
+  const t = parseTitle(fileName);
+  if (t.episode === undefined) return undefined;
+  const code = `S${t.season} E${t.episode}`;
+  return t.series ? `${t.series} · ${code}` : code;
+}
+
+/** A folder's name with the same release-tag cleanup as files. */
+export function cleanFolderName(name: string): string {
+  return tidy(name) || name;
 }
 
 /** A stable hue (0–359) for a tile's plain colour. */
@@ -101,7 +158,7 @@ export function listFolder(path: string): LibraryEntry[] | undefined {
     .map((e): LibraryEntry => ({
       kind: "folder",
       path: join(path, e.name),
-      title: e.name,
+      title: cleanFolderName(e.name),
       hue: hueFor(e.name),
     }));
   const videos = visible
@@ -109,7 +166,14 @@ export function listFolder(path: string): LibraryEntry[] | undefined {
     .sort((a, b) => collator.compare(a.name, b.name))
     .map((e): LibraryEntry => {
       const title = cleanTitle(e.name);
-      return { kind: "video", path: join(path, e.name), title, hue: hueFor(title) };
+      const line = episodeLine(e.name);
+      return {
+        kind: "video",
+        path: join(path, e.name),
+        title,
+        ...(line ? { line } : {}),
+        hue: hueFor(title),
+      };
     });
   return [...folders, ...videos];
 }
@@ -117,7 +181,7 @@ export function listFolder(path: string): LibraryEntry[] | undefined {
 /** The Library's first page: one tile per added folder; missing ones are flagged. */
 export function rootEntries(folders: string[]): LibraryEntry[] {
   return folders.map((path) => {
-    const title = basename(path) || path;
+    const title = cleanFolderName(basename(path) || path);
     return {
       kind: "folder",
       path,

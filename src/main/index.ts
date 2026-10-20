@@ -77,6 +77,8 @@ async function createScreen(): Promise<void> {
     title: "Couch",
     // Transparent so the video under the web contents shows through while a video plays.
     transparent: true,
+    titleBarStyle: "hiddenInset",
+    trafficLightPosition: { x: 14, y: 12 },
     backgroundColor: "#00000000",
     show: false,
     webPreferences: {
@@ -90,7 +92,16 @@ async function createScreen(): Promise<void> {
     // Native full screen in its own Space, with traffic lights on hover; the video is drawn inside this window.
     win?.setFullScreen(true);
   });
+  const syncChrome = (): void => {
+    const fullScreen = win?.isFullScreen() ?? false;
+    void win?.webContents.executeJavaScript(
+      `document.body.classList.toggle("windowed", ${!fullScreen})`,
+    );
+  };
+  win.on("enter-full-screen", syncChrome);
+  win.on("leave-full-screen", syncChrome);
   win.webContents.on("did-finish-load", () => {
+    syncChrome();
     publishMpv();
     publishScreen();
   });

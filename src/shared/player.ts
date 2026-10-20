@@ -24,9 +24,13 @@ export function formatTime(seconds: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 }
 
+/** The end-of-video card's two buttons. */
+export type NextCardId = "playnext" | "backfolder";
+
 /** One tile in the Up next row. */
 export interface UpNextTile {
   title: string;
+  line?: string;
   thumb?: string;
   hue: number;
   watched: boolean;
@@ -38,7 +42,8 @@ export interface UpNextTile {
 /** What the Screen overlay shows on top of the video, drawn by the Screen renderer. */
 export interface PlayerOverlay {
   title: string;
-  controls: "hidden" | "dock" | "upnext";
+  line?: string;
+  controls: "hidden" | "dock" | "upnext" | "next";
   /** Present while the dock is shown. */
   dock?: {
     position: number;
@@ -53,6 +58,8 @@ export interface PlayerOverlay {
   };
   /** Present while the Up next row shows. */
   upNext?: { tiles: UpNextTile[]; folder: string; focusedIndex?: number };
+  /** Present while the end-of-video card shows. */
+  next?: { title: string; line?: string; thumb?: string; hue: number; focusedId: NextCardId };
   paused: boolean;
   /** A short note, e.g. "Resumed at 40:10". */
   note?: string;
