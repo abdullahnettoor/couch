@@ -61,8 +61,8 @@ export class FakeYouTube implements YouTube {
   #record(call: string, ...args: unknown[]) {
     this.calls.push({ call, args });
   }
-  show() {
-    this.#record("show");
+  show(note?: string) {
+    this.#record("show", note);
   }
   hide() {
     this.#record("hide");

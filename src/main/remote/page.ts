@@ -19,6 +19,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .where b { color:var(--ink); font-weight:600; }
   .banner { margin:12px 6px 0; padding:10px 14px; border-radius:12px; background:#3a2a10; color:#f2d9a8; font-size:14px; }
   main { flex:1; display:flex; flex-direction:column; justify-content:center; }
+  [hidden] { display:none !important; }
   button { font:inherit; color:inherit; border:0; cursor:pointer; }
   button:disabled { opacity:.35; }
   .controls { transition: opacity .2s; }
@@ -55,6 +56,10 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     <button class="rbtn" data-cmd="home" aria-label="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/></svg></button>
     <button class="rbtn primary" data-cmd="playpause" aria-label="Play or pause"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5v14l9-7z" fill="currentColor" stroke="none"/><path d="M15 5v14M20 5v14"/></svg></button>
   </div>
+  <div class="row vol" id="vol" hidden style="margin-top:12px;grid-template-columns:1fr 1fr">
+    <button class="rbtn" data-cmd="volDown" aria-label="Volume down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+    <button class="rbtn" data-cmd="volUp" aria-label="Volume up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14M12 5v14"/></svg></button>
+  </div>
   <button class="type" id="type" data-cmd="typeOpen" disabled>Type</button>
 </main>
 <script>
@@ -82,6 +87,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     $("where").firstChild.nextSibling.textContent = s.where;
     $("count").textContent = s.remotes === 1 ? "1 phone" : s.remotes + " phones";
     $("type").disabled = !s.typeAvailable;
+    $("vol").hidden = !s.showVolume;
   }
 
   function connect() {
