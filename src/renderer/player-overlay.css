@@ -51,6 +51,14 @@ body.video-pending #volume {
     opacity 0.45s var(--ease),
     transform 0.5s var(--ease);
 }
+.po-title small,
+.po-cap small {
+  display: block;
+  font-size: 0.55em;
+  font-weight: 500;
+  opacity: 0.7;
+  letter-spacing: 0;
+}
 .controls .po-title {
   opacity: 1;
   transform: none;

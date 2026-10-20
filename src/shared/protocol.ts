@@ -102,6 +102,8 @@ export interface LibraryEntry {
   path: string;
   /** Folder name, or the cleaned file title. */
   title: string;
+  /** Episodes: "Arcane · S1 E1". */
+  line?: string;
   /** Plain tile colour derived from the title. */
   hue: number;
   /** Folder whose path doesn't exist (an unplugged drive). */
@@ -159,6 +161,7 @@ export interface ScreenPayload {
 /** One video in the Up next list as a phone sees it. */
 export interface UpNextItem {
   title: string;
+  line?: string;
   /** Cache key of the video's picture, when one exists (not a path). */
   thumbKey?: string;
   watched: boolean;
@@ -192,6 +195,7 @@ export interface RemoteSnapshot {
   typing: "none" | "you" | "other";
   nowPlaying?: {
     title: string;
+    line?: string;
     folder: string;
     position: number;
     duration: number;

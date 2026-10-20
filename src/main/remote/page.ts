@@ -233,7 +233,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     if (np) {
       duration = np.duration;
       $("np-title").textContent = np.title;
-      $("np-folder").textContent = np.folder;
+      $("np-folder").textContent = np.line || np.folder;
       if (!dragging) showProgress(np.position);
       $("np-pp").innerHTML = icon(np.paused ? "play" : "pause");
       $("np-subs").classList.toggle("on", np.subtitlesOn);

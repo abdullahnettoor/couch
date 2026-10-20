@@ -34,6 +34,13 @@ function appTile(id: string, label: string, focused: boolean): HTMLElement {
   );
 }
 
+/** Long titles drop one or two sizes before the two-line cut-off. */
+export function heroSize(title: string): string {
+  if (title.length <= 24) return "s0";
+  if (title.length <= 40) return "s1";
+  return "s2";
+}
+
 function filmTile(v: LibraryEntry, focused: boolean): HTMLElement {
   const tile = el("div", "g-tile h-film-art");
   tile.style.setProperty("--hue", String(v.hue));
@@ -46,7 +53,7 @@ function filmTile(v: LibraryEntry, focused: boolean): HTMLElement {
   const cap = el(
     "div",
     "g-cap",
-    `${escapeHtml(v.title)}<small class="num">${escapeHtml(v.progress?.left ?? "")}</small>`,
+    `${escapeHtml(v.title)}<small class="num">${escapeHtml(v.line ?? v.progress?.left ?? "")}</small>`,
   );
   const node = el("button", `h-app h-film${focused ? " focused" : ""}`);
   node.append(tile, cap);
@@ -100,7 +107,7 @@ export function render(payload: ScreenPayload): void {
       el(
         "div",
         "h-hero",
-        `<h1>${escapeHtml(hero.title)}</h1><div class="m num">${meta
+        `${hero.line ? `<div class="k">${escapeHtml(hero.line)}</div>` : ""}<h1 class="${heroSize(hero.title)}">${escapeHtml(hero.title)}</h1><div class="m num">${meta
           .map((t) => `<span>${t}</span>`)
           .join("<span>·</span>")}${
           hero.progress

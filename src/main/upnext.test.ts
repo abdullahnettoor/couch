@@ -58,11 +58,11 @@ describe("Up next", () => {
     await phone.press("down");
     expect(h.screen.last.state.controls).toBe("upnext");
     expect(overlay().upNext!.tiles.map((t) => [t.title, t.playing])).toEqual([
-      ["Show S01E01", true],
-      ["Show S01E02", false],
-      ["Show S01E03", false],
+      ["Episode 1", true],
+      ["Episode 2", false],
+      ["Episode 3", false],
     ]);
-    expect(focusedTitle()).toBe("Show S01E01");
+    expect(focusedTitle()).toBe("Episode 1");
     expect(overlay().dock!.upNext).toBe(true);
   });
 
@@ -70,7 +70,7 @@ describe("Up next", () => {
     await playE01();
     await phone.press("down");
     await phone.press("right");
-    expect(focusedTitle()).toBe("Show S01E02");
+    expect(focusedTitle()).toBe("Episode 2");
     expect(calls("seekTo")).toHaveLength(0);
     await phone.press("back");
     expect(h.screen.last.state.controls).toBe("dock");
@@ -88,7 +88,7 @@ describe("Up next", () => {
     expect(h.screen.last.state.controls).toBe("dock");
     await phone.press("ok");
     expect(h.screen.last.state.controls).toBe("upnext");
-    expect(focusedTitle()).toBe("Show S01E01");
+    expect(focusedTitle()).toBe("Episode 1");
   });
 
   test("subtitles are raised higher while the row shows", async () => {
@@ -148,7 +148,7 @@ describe("Up next", () => {
     await playE01();
     await phone.press("down");
     h.app.screenCommand({ command: "focusAt", args: { r: 0, c: 2 } });
-    expect(focusedTitle()).toBe("Show S01E03");
+    expect(focusedTitle()).toBe("Episode 3");
     h.app.screenCommand({ command: "focusAt", args: { r: 1, c: 5 } });
     expect(overlay().dock!.focusedId).toBe("subtitles");
     h.app.screenCommand({ command: "focusAt", args: { r: 0, c: 1 } });
@@ -231,9 +231,15 @@ describe("Up next from a phone", () => {
     h.thumbnails.cache.set(ep(2), "file:///cache/abc123.jpg");
     const snap = await phone.press("playpause");
     expect(snap.upNext).toEqual([
-      { title: "Show S01E01", watched: false, playing: true },
-      { title: "Show S01E02", thumbKey: "abc123", watched: false, playing: false },
-      { title: "Show S01E03", watched: false, playing: false },
+      { title: "Episode 1", line: "Show · S1 E1", watched: false, playing: true },
+      {
+        title: "Episode 2",
+        line: "Show · S1 E2",
+        thumbKey: "abc123",
+        watched: false,
+        playing: false,
+      },
+      { title: "Episode 3", line: "Show · S1 E3", watched: false, playing: false },
     ]);
     expect(JSON.stringify(snap)).not.toContain(root);
     await phone.press("back");
