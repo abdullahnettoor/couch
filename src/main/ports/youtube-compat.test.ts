@@ -53,6 +53,19 @@ describe("YouTube compat patch", () => {
     expect(logs[0]).toContain("boom");
   });
 
+  test("a patch that never answers gives up instead of blocking YouTube", async () => {
+    const logs: string[] = [];
+    const wc = {
+      debugger: {
+        isAttached: () => false,
+        attach: () => {},
+        sendCommand: () => new Promise<unknown>(() => {}),
+      },
+    };
+    expect(await applyCompatPatch(wc, { log: (m) => logs.push(m), timeoutMs: 20 })).toBe(false);
+    expect(logs[0]).toContain("no answer");
+  });
+
   test("env switch", () => {
     expect(compatEnabled({ COUCH_YOUTUBE_PATCH: "off" })).toBe(false);
     expect(compatEnabled({})).toBe(true);

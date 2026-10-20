@@ -98,15 +98,27 @@ export function compatEnabled(env: Record<string, string | undefined> = process.
  */
 export async function applyCompatPatch(
   wc: CompatContents,
-  opts: { enabled?: boolean; log?: (message: string) => void } = {},
+  opts: { enabled?: boolean; log?: (message: string) => void; timeoutMs?: number } = {},
 ): Promise<boolean> {
   const log = opts.log ?? ((m: string) => console.warn(m));
   if (!(opts.enabled ?? compatEnabled())) return false;
   try {
     if (!wc.debugger.isAttached()) wc.debugger.attach("1.3");
-    await wc.debugger.sendCommand("Page.addScriptToEvaluateOnNewDocument", {
-      source: COMPAT_SCRIPT,
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error("no answer from DevTools")),
+        opts.timeoutMs ?? 3000,
+      );
     });
+    try {
+      await Promise.race([
+        wc.debugger.sendCommand("Page.addScriptToEvaluateOnNewDocument", { source: COMPAT_SCRIPT }),
+        timeout,
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
     return true;
   } catch (error) {
     log(`[youtube] 4K compatibility patch failed, staying at 720p: ${String(error)}`);

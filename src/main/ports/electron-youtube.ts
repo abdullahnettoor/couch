@@ -1,5 +1,5 @@
 import { BrowserWindow, WebContentsView, session } from "electron";
-import type { CommandName } from "../../shared/protocol.ts";
+import { SCREEN_KEYS } from "../../shared/keyboard.ts";
 import { applyCompatPatch } from "./youtube-compat.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "./youtube.ts";
 
@@ -17,21 +17,16 @@ const KEY_CODES: Record<YouTubeKey, string> = {
   back: "Escape",
 };
 
-/** Mac keyboard keys that drive YouTube through the core, like on the Screen. */
-const KEYBOARD: Record<string, CommandName> = {
-  ArrowUp: "up",
-  ArrowDown: "down",
-  ArrowLeft: "left",
-  ArrowRight: "right",
-  Enter: "ok",
-  Escape: "back",
-  Backspace: "back",
-  h: "home",
-  H: "home",
-  " ": "playpause",
-};
-
 export const SEARCH_URL = "https://www.youtube.com/tv#/search";
+
+/** YouTube TV's own search deep link: it fills the search box and shows results for the text. */
+export function searchUrlFor(text: string): string {
+  const q = text.trim();
+  return q ? `${SEARCH_URL}?q=${encodeURIComponent(q)}` : SEARCH_URL;
+}
+
+/** Live text waits for a pause in typing so YouTube isn't asked for results on every letter. */
+const TYPING_SETTLE_MS = 350;
 
 export function isSearchUrl(url: string): boolean {
   return /#\/search\b/.test(url);
@@ -53,6 +48,9 @@ export class ElectronYouTube implements YouTube {
   #visible = false;
   #failed = false;
   #sending = false;
+  #inSearch = false;
+  #query = "";
+  #typingTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(win: BrowserWindow) {
     this.#win = win;
@@ -74,7 +72,7 @@ export class ElectronYouTube implements YouTube {
     const wc = this.#view.webContents;
     wc.setUserAgent(COBALT_USER_AGENT);
     wc.on("did-finish-load", () => {
-      if (this.#failed) return;
+      if (this.#failed || !wc.getURL().startsWith("https:")) return;
       this.#emit({ type: "loaded" });
       this.#emit({ type: "route", topLevel: isTopLevelUrl(wc.getURL()) });
     });
@@ -85,15 +83,18 @@ export class ElectronYouTube implements YouTube {
     });
     wc.on("before-input-event", (event, input) => {
       if (this.#sending) return;
-      const command = KEYBOARD[input.key];
+      const command = SCREEN_KEYS[input.key];
       if (!command || input.control || input.meta || input.alt) return;
       event.preventDefault();
       if (input.type === "keyDown") this.#emit({ type: "key", command });
     });
     const route = (_e: unknown, url: string) => {
+      if (!url.startsWith("https:")) return;
       this.#emit({ type: "route", topLevel: isTopLevelUrl(url) });
-      // Give the search screen a moment to draw before text is replayed into it.
-      if (isSearchUrl(url)) setTimeout(() => this.#emit({ type: "searchOpened" }), 400);
+      const entering = isSearchUrl(url) && !this.#inSearch;
+      this.#inSearch = isSearchUrl(url);
+      // Only arriving at search counts; Couch's own query updates also change the route.
+      if (entering) setTimeout(() => this.#emit({ type: "searchOpened" }), 400);
     };
     wc.on("did-navigate", route);
     wc.on("did-navigate-in-page", route);
@@ -101,7 +102,13 @@ export class ElectronYouTube implements YouTube {
 
   /** Starts loading in the background so opening YouTube is instant. */
   start(): void {
-    void applyCompatPatch(this.#view.webContents).then(() => this.#load());
+    const wc = this.#view.webContents;
+    // DevTools commands only answer once the view has a renderer, so give it a blank page first.
+    void wc
+      .loadURL("about:blank")
+      .catch(() => {})
+      .then(() => applyCompatPatch(wc))
+      .then(() => this.#load());
   }
 
   #load(): void {
@@ -184,26 +191,28 @@ export class ElectronYouTube implements YouTube {
   }
 
   openSearch(): void {
-    const wc = this.#view.webContents;
-    if (isSearchUrl(wc.getURL())) return;
-    void wc.loadURL(SEARCH_URL, { userAgent: COBALT_USER_AGENT }).catch(() => {});
+    this.#query = "";
+    if (!isSearchUrl(this.#view.webContents.getURL())) this.#goToSearch("");
   }
 
-  /**
-   * Replaces the search box text with trusted editing events (no page reads). Does nothing until
-   * the search screen is showing; the core replays the text when it reports `searchOpened`.
-   */
+  /** Mirrors the phone's text through YouTube's search link; no page content is read or edited. */
   setSearchText(text: string): void {
-    const wc = this.#view.webContents;
-    if (!isSearchUrl(wc.getURL()) || wc.isLoading()) return;
-    wc.focus();
-    wc.selectAll();
-    if (text) wc.insertText(text);
-    else this.sendKey("back");
+    this.#query = text;
+    clearTimeout(this.#typingTimer);
+    this.#typingTimer = setTimeout(() => this.#goToSearch(this.#query), TYPING_SETTLE_MS);
   }
 
   submitSearch(): void {
-    this.sendKey("ok");
+    clearTimeout(this.#typingTimer);
+    this.#goToSearch(this.#query);
+    this.#view.webContents.focus();
+  }
+
+  #goToSearch(text: string): void {
+    const wc = this.#view.webContents;
+    const url = searchUrlFor(text);
+    if (wc.getURL() === url) return;
+    void wc.loadURL(url, { userAgent: COBALT_USER_AGENT }).catch(() => {});
   }
 
   restart(): void {
