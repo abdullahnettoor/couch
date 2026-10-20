@@ -1,7 +1,7 @@
 import type { ScreenPayload } from "../../shared/protocol.ts";
 import { root } from "./dom.ts";
 
-/** The video and its overlay are drawn by mpv; the Screen just stays black behind it. */
+/** The video is drawn by mpv under this page and the overlay by player-overlay.ts; this view draws nothing. Black until the video shows. */
 export function render(_payload: ScreenPayload): void {
   root.replaceChildren();
 }

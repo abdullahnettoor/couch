@@ -2,6 +2,7 @@ import type { GridItem, ScreenPayload } from "../shared/protocol.ts";
 import type { CouchApi } from "../shared/ipc.ts";
 import { SCREEN_KEYS } from "../shared/keyboard.ts";
 import { VIEWS } from "./views/index.ts";
+import { renderOverlay } from "./player-overlay.ts";
 import "./style.css";
 
 declare global {
@@ -65,6 +66,11 @@ window.couch.onScreen((payload) => {
     window.couch.reportGrid({ viewKey: payload.viewKey, items: view.grid });
   }
   view?.render(payload);
+  // Transparent only once mpv reports a duration (the video is on screen); black before that.
+  const playing = payload.state.view === "player" && (payload.state.player?.dur ?? 0) > 0;
+  document.body.classList.toggle("video-visible", playing);
+  document.body.classList.toggle("video-pending", payload.state.view === "player" && !playing);
+  renderOverlay(payload.state.view === "player" ? payload.overlay : undefined);
   volume.textContent = `Volume ${payload.state.volume}%`;
   volume.classList.toggle("show", Boolean(payload.state.volumeShown));
   toast.textContent = payload.state.toast ?? "";

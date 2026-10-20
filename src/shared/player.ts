@@ -16,7 +16,15 @@ export interface LoadOptions {
   subtitles?: boolean;
 }
 
-/** What the Screen overlay shows on top of the video, drawn by the player itself. */
+export function formatTime(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = String(s % 60).padStart(2, "0");
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
+}
+
+/** What the Screen overlay shows on top of the video, drawn by the Screen renderer. */
 export interface PlayerOverlay {
   title: string;
   /** Present while the progress bar is shown. */
@@ -35,8 +43,8 @@ export interface Player {
   seekBy(seconds: number): Promise<void>;
   seekTo(seconds: number): Promise<void>;
   setSubtitles(visible: boolean): Promise<void>;
-  /** Draw (or with undefined, clear) the overlay on the video. */
-  setOverlay(overlay: PlayerOverlay | undefined): void;
+  /** Lift the subtitles (mpv draws them) clear of the overlay while it shows. */
+  setSubtitlesRaised(raised: boolean): void;
   getPosition(): Promise<number | undefined>;
   stop(): Promise<void>;
   /** Move the video to the named display, mid-playback if possible. Rejects when it cannot. */

@@ -11,7 +11,12 @@ import {
   type ScreenState,
   type View,
 } from "../../shared/protocol.ts";
-import type { Player, PlayerEvent, PlayerOverlay } from "../../shared/player.ts";
+import {
+  formatTime,
+  type Player,
+  type PlayerEvent,
+  type PlayerOverlay,
+} from "../../shared/player.ts";
 import type { Clock } from "../ports/clock.ts";
 import type { Mac } from "../ports/mac.ts";
 import { pickTargetDisplay } from "../display.ts";
@@ -23,7 +28,6 @@ import { ACTIONS, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
 import { cleanTitle, hueFor, listFolder, rootEntries } from "./library.ts";
 import { History } from "./history.ts";
-import { formatTime } from "../mpv/overlay.ts";
 
 const TILE_COLUMNS = 4;
 const THUMBNAIL_JOBS = 2;
@@ -83,7 +87,7 @@ export class Core {
   #overlayShown = false;
   #cancelOverlay: (() => void) | undefined;
   #cancelVolume: (() => void) | undefined;
-  #lastOverlay = "";
+  #subtitlesRaised = false;
   #unsubPlayer: () => void;
   #thumbQueue: LibraryEntry[] = [];
   #thumbRunning = 0;
@@ -518,7 +522,7 @@ export class Core {
     }, OVERLAY_MS);
   }
 
-  /** What mpv should draw over the video right now. */
+  /** What the renderer should draw over the video right now. */
   #overlay(): PlayerOverlay | undefined {
     const p = this.#state.player;
     if (!p) return undefined;
@@ -543,6 +547,7 @@ export class Core {
     return {
       library: this.#library(),
       continueCard: this.#continueEntries()[0],
+      overlay: this.#overlay(),
       state: structuredClone(this.#state),
       viewKey: this.viewKey,
       grid,
@@ -899,11 +904,10 @@ export class Core {
   }
 
   #emit(): void {
-    const overlay = this.#overlay();
-    const key = JSON.stringify(overlay ?? null);
-    if (key !== this.#lastOverlay) {
-      this.#lastOverlay = key;
-      this.#ports.player.setOverlay(overlay);
+    const raised = this.#overlayShown && this.#state.player !== undefined;
+    if (raised !== this.#subtitlesRaised) {
+      this.#subtitlesRaised = raised;
+      this.#ports.player.setSubtitlesRaised(raised);
     }
     this.#syncDisplayAwake();
     this.#syncYouTubeVolume();

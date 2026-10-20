@@ -153,6 +153,8 @@ static void onUpdate(void *ctx) {
 @end
 
 static std::map<int, MpvView *> views;
+// The video sits under the window's web contents so Couch's own UI (a transparent page) draws over it.
+static std::map<int, bool> below;
 static int nextId = 1;
 
 static napi_value fail(napi_env env, const std::string &msg) {
@@ -196,10 +198,11 @@ static napi_value Create(napi_env env, napi_callback_info info) {
   view.layer.opacity = 0;
   MpvLayer *layer = (MpvLayer *)view.layer;
   layer.mpv = mpv;
-  [parent addSubview:view positioned:NSWindowAbove relativeTo:nil];
   [layer display];
   int id = nextId++;
   views[id] = view;
+  below[id] = true;
+  [parent addSubview:view positioned:NSWindowBelow relativeTo:nil];
   napi_value out; napi_create_int32(env, id, &out);
   return out;
 }
@@ -212,12 +215,24 @@ static napi_value SetVisible(napi_env env, napi_callback_info info) {
   MpvView *v = views[id];
   if (v) {
     NSView *parent = v.superview;
-    [parent addSubview:v positioned:NSWindowAbove relativeTo:nil];
+    [parent addSubview:v positioned:(below[id] ? NSWindowBelow : NSWindowAbove) relativeTo:nil];
     [CATransaction begin]; [CATransaction setDisableActions:YES];
     v.layer.opacity = vis ? 1 : 0;
     [CATransaction commit];
     [v.layer setNeedsDisplay];
   }
+  return NULL;
+}
+
+// setPlacement(id, below: boolean): puts the video under (true) or over (false) the window's web contents.
+static napi_value SetPlacement(napi_env env, napi_callback_info info) {
+  size_t argc = 2; napi_value argv[2];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  int32_t id; bool b;
+  napi_get_value_int32(env, argv[0], &id); napi_get_value_bool(env, argv[1], &b);
+  below[id] = b;
+  MpvView *v = views[id];
+  if (v) [v.superview addSubview:v positioned:(b ? NSWindowBelow : NSWindowAbove) relativeTo:nil];
   return NULL;
 }
 
@@ -238,8 +253,9 @@ static napi_value Init(napi_env env, napi_value exports) {
   napi_property_descriptor d[] = {
     {"create", 0, Create, 0, 0, 0, napi_default, 0},
     {"setVisible", 0, SetVisible, 0, 0, 0, napi_default, 0},
+    {"setPlacement", 0, SetPlacement, 0, 0, 0, napi_default, 0},
     {"destroy", 0, Destroy, 0, 0, 0, napi_default, 0}};
-  napi_define_properties(env, exports, 3, d);
+  napi_define_properties(env, exports, 4, d);
   return exports;
 }
 NAPI_MODULE(NODE_GYP_MODULE_NAME, Init)
