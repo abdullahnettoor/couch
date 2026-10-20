@@ -16,7 +16,18 @@ const check = (name: string, ok: boolean, extra = "") => {
 };
 // dock rect in CSS px; a red crisp box sits inside it
 const R = { x: 200, y: 450, w: 600, h: 120, r: 40 };
-const html = `<body style="margin:0;background:transparent"><div style="position:fixed;left:${R.x}px;top:${R.y}px;width:${R.w}px;height:${R.h}px;border-radius:${R.r}px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.3)"></div><div style="position:fixed;left:${R.x + 20}px;top:${R.y + 40}px;width:40px;height:40px;background:rgb(255,0,0)"></div></body>`;
+const EXTRA = {
+  pause: { x: 880, y: 150, w: 150, h: 150, r: 75 },
+  volume: { x: 1100, y: 150, w: 80, h: 380, r: 40 },
+  card: { x: 200, y: 40, w: 560, h: 300, r: 60 },
+};
+const extraHtml = Object.values(EXTRA)
+  .map(
+    (e) =>
+      `<div style="position:fixed;left:${e.x}px;top:${e.y}px;width:${e.w}px;height:${e.h}px;border-radius:${e.r}px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.3)"></div><div style="position:fixed;left:${e.x + e.w / 2 - 10}px;top:${e.y + e.h / 2 - 10}px;width:20px;height:20px;background:rgb(255,0,0)"></div>`,
+  )
+  .join("");
+const html = `<body style="margin:0;background:transparent">${extraHtml}<div style="position:fixed;left:${R.x}px;top:${R.y}px;width:${R.w}px;height:${R.h}px;border-radius:${R.r}px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.3)"></div><div style="position:fixed;left:${R.x + 20}px;top:${R.y + 40}px;width:40px;height:40px;background:rgb(255,0,0)"></div></body>`;
 void app.whenReady().then(async () => {
   const win = new BrowserWindow({
     width: 1280,
@@ -26,6 +37,7 @@ void app.whenReady().then(async () => {
     transparent: true,
     backgroundColor: "#00000000",
   });
+  win.setAlwaysOnTop(true, "floating");
   await win.loadURL(`data:text/html,${encodeURIComponent(html)}`);
   const sock = join(mkdtempSync(join(tmpdir(), "glass-")), "mpv.sock");
   const id = addon.create(win.getNativeWindowHandle(), {
@@ -81,8 +93,27 @@ void app.whenReady().then(async () => {
     );
     const outside = sharp(Math.round((R.x + 200) * sx), Math.round((R.x + 500) * sx), 300);
     const red = at(Math.round((R.x + 40) * sx), R.y + 60);
+    const sharpV = (x: number, y0: number, y1: number) => {
+      let m = 0,
+        prev = at(x, y0);
+      for (let y = y0 + 1; y < y1; y++) {
+        const p = at(x, y);
+        m = Math.max(
+          m,
+          Math.abs(p[0] - prev[0]) + Math.abs(p[1] - prev[1]) + Math.abs(p[2] - prev[2]),
+        );
+        prev = p;
+      }
+      return m;
+    };
+    const extras = {
+      pause: sharp(EXTRA.pause.x + 25, EXTRA.pause.x + 125, EXTRA.pause.y + 105),
+      volume: sharpV(EXTRA.volume.x + 20, EXTRA.volume.y + 40, EXTRA.volume.y + 340),
+      card: sharp(EXTRA.card.x + 60, EXTRA.card.x + 500, EXTRA.card.y + 60),
+      red: at(EXTRA.card.x + 280, EXTRA.card.y + 150),
+    };
     console.log(label, { region: region.toFixed(1), outside: outside.toFixed(1), red });
-    return { region, outside, red };
+    return { region, outside, red, extras };
   };
   const rect = () => addon.setGlass(id, 0, R.x, R.y, R.w, R.h, R.r, 1);
   console.log("color", addon.getColor(id));
@@ -104,6 +135,26 @@ void app.whenReady().then(async () => {
   win.setPosition(300, 200);
   win.setSize(1280, 720);
   await sleep(1000);
+  const slots = Object.values(EXTRA);
+  slots.forEach((e, i) => addon.setGlass(id, i + 1, e.x, e.y, e.w, e.h, e.r, 1));
+  await sleep(800);
+  const many = grab("many");
+  for (const k of ["pause", "volume", "card"] as const)
+    check(
+      `${k} glass blurs video`,
+      many.extras[k] < off.extras[k] * 0.5,
+      `${many.extras[k].toFixed(1)} vs ${off.extras[k].toFixed(1)}`,
+    );
+  check("card content crisp on top", many.extras.red[0] > 200 && many.extras.red[1] < 60);
+  slots.forEach((e, i) => addon.setGlass(id, i + 1, e.x, e.y, e.w, e.h, e.r, 0));
+  await sleep(800);
+  const manyGone = grab("many-gone");
+  for (const k of ["pause", "volume", "card"] as const)
+    check(
+      `${k}: no leftover glass`,
+      manyGone.extras[k] > many.extras[k] * 2,
+      manyGone.extras[k].toFixed(1),
+    );
   const mv = grab("moved");
   check("moved: still blurred", mv.region < mv.outside * 0.5);
   win.setFullScreen(true);

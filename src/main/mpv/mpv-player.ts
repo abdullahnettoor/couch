@@ -57,6 +57,8 @@ export function buildMpvArgs(socketPath: string): string[] {
 }
 
 /** One long-lived mpv core (embedded in Couch, or a child process), controlled through its local IPC socket. */
+const MAX_GLASS_SLOTS = 16;
+
 export class MpvPlayer implements Player {
   private listeners = new Set<(event: PlayerEvent) => void>();
   private child: ChildProcess | undefined;
@@ -121,9 +123,12 @@ export class MpvPlayer implements Player {
   /** Native glass panels behind the web contents; slots missing from `rects` are hidden. */
   setGlass(rects: GlassRect[]): void {
     if (!this.embedded?.nativeGlass) return;
-    for (let slot = 0; slot < 2; slot++)
+    const count = Math.min(Math.max(rects.length, this.glassSlots), MAX_GLASS_SLOTS);
+    for (let slot = 0; slot < count; slot++)
       this.embedded.setGlass?.(slot, rects[slot] ?? { x: 0, y: 0, w: 0, h: 0, r: 0, alpha: 0 });
+    this.glassSlots = Math.min(rects.length, MAX_GLASS_SLOTS);
   }
+  private glassSlots = 0;
 
   /** The video's main colour (0-255 RGB), sampled by the add-on about once a second. */
   videoColor(): [number, number, number] | null {

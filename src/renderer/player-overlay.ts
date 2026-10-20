@@ -22,7 +22,7 @@ el.innerHTML = `
   <div class="po-pause glass">${iconSvg("pause")}</div>
   <div class="po-vol volhud glass"><span class="n num"></span><div class="lvl"><i></i></div>${iconSvg("speaker")}</div>
   <div class="po-shelf"><h3><span>Up next</span><span class="po-folder"></span></h3><div class="po-eps"><div class="po-strip"></div></div></div>
-  <div class="po-next"><div class="po-nx-pic"></div><div class="po-nx-body"><small>Up next</small><h3></h3><div class="po-nx-line"></div><div class="po-nx-btns"></div></div></div>
+  <div class="po-next"><div class="po-nx-card glass"><div class="po-nx-pic"></div><div class="po-nx-body"><small>Up next</small><h3></h3><div class="po-nx-line"></div><div class="po-nx-btns"></div></div></div></div>
   <div class="po-peek">${iconSvg("down")}More episodes</div>
   <div class="po-dock glass"></div>`;
 document.body.append(el);
@@ -268,46 +268,67 @@ window.addEventListener("mousemove", () => {
   send({ command: "showControls" });
 });
 
-/** Native glass behind the dock and the Up next row: follows their rectangle and fade, frame by frame. */
-const glassPanels = [dock, upNextRow];
+/** Every glass element over the video gets a native glass slot (its index here), tracked frame by frame while visible. */
+const glassPanels = [
+  dock,
+  upNextRow,
+  $(".po-pause"),
+  $(".po-vol"),
+  $(".po-note"),
+  $(".po-tip"),
+  $(".po-nx-card"),
+];
 let lastGlass = "";
 let glassRunning = false;
-function reportGlass(): void {
-  const rects: GlassRect[] = el.hidden
-    ? []
-    : glassPanels.map((node) => {
-        const style = getComputedStyle(node);
-        const box = node.getBoundingClientRect();
-        return {
-          x: Math.round(box.left),
-          y: Math.round(box.top),
-          w: Math.round(box.width),
-          h: Math.round(box.height),
-          r: parseFloat(style.borderTopLeftRadius) || 0,
-          alpha: Number(style.opacity),
-        };
-      });
+/** Opacity of a node including every ancestor's, 0 when not displayed. */
+function effectiveOpacity(node: HTMLElement): number {
+  let alpha = 1;
+  for (let n: HTMLElement | null = node; n && n !== document.body; n = n.parentElement) {
+    const style = getComputedStyle(n);
+    if (style.display === "none") return 0;
+    alpha *= Number(style.opacity);
+  }
+  return alpha;
+}
+function glassRects(): GlassRect[] {
+  return glassPanels.map((node) => {
+    const alpha = effectiveOpacity(node);
+    if (alpha < 0.01) return { x: 0, y: 0, w: 0, h: 0, r: 0, alpha: 0 };
+    const box = node.getBoundingClientRect();
+    const radius = getComputedStyle(node).borderTopLeftRadius;
+    const r = radius.endsWith("%")
+      ? (parseFloat(radius) / 100) * Math.min(box.width, box.height)
+      : parseFloat(radius) || 0;
+    return {
+      x: Math.round(box.left),
+      y: Math.round(box.top),
+      w: Math.round(box.width),
+      h: Math.round(box.height),
+      r: Math.min(r, box.width / 2, box.height / 2),
+      alpha,
+    };
+  });
+}
+function reportGlass(): GlassRect[] {
+  const rects = el.hidden ? [] : glassRects();
   const key = JSON.stringify(rects);
   if (key !== lastGlass) {
     lastGlass = key;
     window.couch.reportGlass(rects);
   }
+  return rects;
 }
 function glassLoop(): void {
-  reportGlass();
-  if (el.hidden || !nativeGlass || !glassPanelsVisible()) {
+  const rects = reportGlass();
+  const visible =
+    el.classList.contains("controls") ||
+    el.querySelector(".show") !== null ||
+    rects.some((rect) => rect.alpha > 0);
+  if (el.hidden || !nativeGlass || !visible) {
     glassRunning = false;
     return;
   }
   requestAnimationFrame(glassLoop);
-}
-/** True while a panel is meant to show, or is still fading out. */
-function glassPanelsVisible(): boolean {
-  return (
-    el.classList.contains("controls") ||
-    upNextRow.classList.contains("show") ||
-    glassPanels.some((node) => Number(getComputedStyle(node).opacity) > 0)
-  );
 }
 let nativeGlass = false;
 export function setNativeGlass(on: boolean): void {
@@ -322,11 +343,7 @@ function startGlassLoop(): void {
 new MutationObserver(() => {
   if (el.hidden) reportGlass();
   startGlassLoop();
-}).observe(el, { attributes: true, attributeFilter: ["hidden", "class"] });
-new MutationObserver(startGlassLoop).observe(upNextRow, {
-  attributes: true,
-  attributeFilter: ["class"],
-});
+}).observe(el, { attributes: true, attributeFilter: ["hidden", "class"], subtree: true });
 window.addEventListener("resize", reportGlass);
 
 export function setVideoTint(css: string | undefined): void {

@@ -67,9 +67,12 @@ function onPlayerEvent(event: PlayerEvent): void {
 
 async function createScreen(): Promise<void> {
   const displays = screen.getAllDisplays();
-  const target = pickTargetDisplay(
-    displays.map((d) => ({ id: d.id, label: d.label, internal: d.internal })),
-  );
+  const choices = displays.map((d) => ({ id: d.id, label: d.label, internal: d.internal }));
+  // COUCH_DISPLAY=internal pins Couch to the built-in screen (testing while a TV or monitor is in use).
+  const target =
+    process.env.COUCH_DISPLAY === "internal"
+      ? (choices.find((d) => d.internal) ?? pickTargetDisplay(choices))
+      : pickTargetDisplay(choices);
   const display = displays.find((d) => d.id === target?.id) ?? screen.getPrimaryDisplay();
 
   win = new BrowserWindow({
