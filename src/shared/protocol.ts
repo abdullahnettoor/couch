@@ -108,6 +108,10 @@ export interface LibraryEntry {
   missing?: boolean;
   /** URL of a frame from the video, once it has been made. */
   thumb?: string;
+  /** Folders: URLs of up to four frames from videos inside, those already made. */
+  mosaic?: string[];
+  /** Folders: how many videos and subfolders are directly inside. */
+  count?: number;
   /** Watched: past 90% or with 2 minutes or less left. */
   watched?: boolean;
   /** In progress: how far along and how long is left, e.g. "38 min left". */
