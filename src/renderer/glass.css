@@ -350,3 +350,126 @@ svg.i {
 .split-list .g-pill {
   margin-left: calc(32 * var(--u));
 }
+
+/* ---- Library and folders ---- */
+.lib-head {
+  position: absolute;
+  left: calc(96 * var(--u));
+  top: calc(64 * var(--u));
+  font-size: calc(56 * var(--u));
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.lib-head small {
+  display: block;
+  margin-bottom: calc(6 * var(--u));
+  font-size: calc(24 * var(--u));
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--t3);
+}
+.lib-body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(190 * var(--u));
+  bottom: 0;
+  padding: calc(30 * var(--u)) calc(96 * var(--u)) calc(90 * var(--u));
+  overflow: hidden;
+}
+.lib-rowh {
+  margin: 0 0 calc(22 * var(--u));
+  font-size: calc(30 * var(--u));
+  font-weight: 700;
+}
+.lib-shelf,
+.lib-grid {
+  display: grid;
+  grid-template-columns: repeat(4, calc(384 * var(--u)));
+  gap: calc(54 * var(--u)) calc(40 * var(--u));
+}
+.lib-shelf {
+  margin-bottom: calc(60 * var(--u));
+}
+.lib-card {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+}
+.lib-card .g-tile {
+  height: calc(216 * var(--u));
+  border-radius: calc(18 * var(--u));
+  background: #1c1c1e;
+}
+.lib-card .g-cap small {
+  display: block;
+  margin-top: calc(4 * var(--u));
+  font-size: calc(20 * var(--u));
+  font-weight: 500;
+  color: var(--t3);
+}
+.lib-card.missing .g-tile {
+  opacity: 0.4;
+}
+.lib-cover,
+.lib-plain {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.lib-plain {
+  background: hsl(var(--hue, 0) 25% 22%);
+}
+.lib-card .lib-plain:not([style]) {
+  background: #2c2c2e;
+}
+.lib-mosaic {
+  display: grid;
+  grid-template: 1fr 1fr / 1fr 1fr;
+  gap: 3px;
+  width: 100%;
+  height: 100%;
+}
+.lib-mosaic.one {
+  grid-template: 1fr / 1fr;
+}
+.lib-mosaic img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.lib-prog {
+  position: absolute;
+  left: calc(18 * var(--u));
+  right: calc(18 * var(--u));
+  bottom: calc(16 * var(--u));
+  height: calc(6 * var(--u));
+  border-radius: calc(3 * var(--u));
+  background: rgba(255, 255, 255, 0.3);
+  overflow: hidden;
+}
+.lib-prog i {
+  display: block;
+  height: 100%;
+  background: #fff;
+}
+.lib-badge {
+  position: absolute;
+  right: calc(14 * var(--u));
+  top: calc(14 * var(--u));
+  padding: calc(6 * var(--u)) calc(12 * var(--u));
+  border-radius: calc(10 * var(--u));
+  font-size: calc(18 * var(--u));
+  font-weight: 600;
+  background: rgba(30, 30, 32, 0.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+}
+.lib-empty {
+  font-size: calc(30 * var(--u));
+  color: var(--t3);
+}

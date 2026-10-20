@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { dirname, basename } from "node:path";
 import {
   VIEW_LABELS,
@@ -26,7 +27,7 @@ import type { Store } from "../ports/store.ts";
 import { nullThumbnails, type Thumbnails } from "../ports/thumbnails.ts";
 import { ACTIONS, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
-import { cleanTitle, hueFor, listFolder, rootEntries } from "./library.ts";
+import { cleanTitle, hueFor, listFolder, mosaicSources, rootEntries } from "./library.ts";
 import { History } from "./history.ts";
 
 const TILE_COLUMNS = 4;
@@ -89,7 +90,11 @@ export class Core {
   #cancelVolume: (() => void) | undefined;
   #subtitlesRaised = false;
   #unsubPlayer: () => void;
-  #thumbQueue: LibraryEntry[] = [];
+  #thumbQueue: string[] = [];
+  #thumbUrls = new Map<string, string>();
+  #thumbBusy = new Set<string>();
+  #mosaics = new Map<string, { sources: string[]; count: number }>();
+  #rootKey: string | undefined;
   #thumbRunning = 0;
   #disposed = false;
   #history: History;
@@ -180,14 +185,14 @@ export class Core {
       case "library":
         return {
           heading: "Library",
-          entries: rootEntries(this.#libraryFolders),
+          entries: rootEntries(this.#libraryFolders).map((e) => this.#withMosaic(e)),
           continueWatching: this.#continueEntries(),
           emptyText: "No folders yet. Add one in Settings on the Mac.",
         };
       case "folder":
         return {
           heading: basename(this.#state.folderPath ?? ""),
-          entries: this.#listing.map((e) => this.#decorate(e)),
+          entries: this.#listing.map((e) => this.#withMosaic(this.#decorate(e))),
           emptyText: "No videos in this folder.",
         };
       case "libraryFolders":
@@ -209,6 +214,38 @@ export class Core {
       };
     }
     return this.#history.isWatched(entry.path) ? { ...entry, watched: true } : entry;
+  }
+
+  /** A video's picture, or a folder's mosaic and count, from what has been made so far. */
+  #withMosaic(entry: LibraryEntry): LibraryEntry {
+    if (entry.kind === "video") {
+      const thumb = this.#thumbUrls.get(entry.path);
+      return thumb ? { ...entry, thumb } : entry;
+    }
+    const m = this.#mosaics.get(entry.path);
+    if (!m || entry.missing) return entry;
+    const mosaic = m.sources.flatMap((p) => this.#thumbUrls.get(p) ?? []);
+    return { ...entry, count: m.count, ...(mosaic.length ? { mosaic } : {}) };
+  }
+
+  /** On arriving at the Library's first page, finds each folder's mosaic sources and queues their pictures. */
+  #syncRoot(): void {
+    if (this.#state.view !== "library") {
+      this.#rootKey = undefined;
+      return;
+    }
+    const key = this.#libraryFolders.join("\0");
+    if (this.#rootKey === key) return;
+    this.#rootKey = key;
+    this.#mosaics.clear();
+    const paths: string[] = [];
+    for (const f of this.#libraryFolders) {
+      if (!existsSync(f)) continue;
+      const m = mosaicSources(f);
+      this.#mosaics.set(f, m);
+      paths.push(...m.sources);
+    }
+    this.#queueThumbnails(paths);
   }
 
   #continueEntries(): LibraryEntry[] {
@@ -287,20 +324,28 @@ export class Core {
     const entries = listFolder(path);
     if (!entries) return this.#toast("Connect the drive to see this folder");
     this.#listing = entries;
-    this.#queueThumbnails(entries);
+    this.#mosaics.clear();
+    const paths = entries.filter((e) => e.kind === "video").map((e) => e.path);
+    for (const e of entries) {
+      if (e.kind !== "folder") continue;
+      const m = mosaicSources(e.path);
+      this.#mosaics.set(e.path, m);
+      paths.push(...m.sources);
+    }
+    this.#queueThumbnails(paths);
     this.#state.folderPath = path;
     this.#state.view = "folder";
   }
 
   /** Cached pictures appear at once; the rest are made in the background, a couple at a time. */
-  #queueThumbnails(entries: LibraryEntry[]): void {
+  #queueThumbnails(paths: string[]): void {
     const thumbs = this.#ports.thumbnails ?? nullThumbnails;
     this.#thumbQueue = [];
-    for (const e of entries) {
-      if (e.kind !== "video") continue;
-      const url = thumbs.cached(e.path);
-      if (url) e.thumb = url;
-      else this.#thumbQueue.push(e);
+    for (const path of new Set(paths)) {
+      if (this.#thumbUrls.has(path) || this.#thumbBusy.has(path)) continue;
+      const url = thumbs.cached(path);
+      if (url) this.#thumbUrls.set(path, url);
+      else this.#thumbQueue.push(path);
     }
     this.#pumpThumbnails();
   }
@@ -308,15 +353,17 @@ export class Core {
   #pumpThumbnails(): void {
     const thumbs = this.#ports.thumbnails ?? nullThumbnails;
     while (!this.#disposed && this.#thumbRunning < THUMBNAIL_JOBS && this.#thumbQueue.length) {
-      const entry = this.#thumbQueue.shift()!;
+      const path = this.#thumbQueue.shift()!;
       this.#thumbRunning++;
+      this.#thumbBusy.add(path);
       void thumbs
-        .make(entry.path)
+        .make(path)
         .catch(() => undefined)
         .then((url) => {
           this.#thumbRunning--;
-          if (url && !this.#disposed && this.#listing.includes(entry)) {
-            entry.thumb = url;
+          this.#thumbBusy.delete(path);
+          if (url && !this.#disposed) {
+            this.#thumbUrls.set(path, url);
             this.#emit();
           }
           this.#pumpThumbnails();
@@ -542,6 +589,7 @@ export class Core {
 
   /** Everything the Screen renderer needs to draw. */
   screen(): ScreenPayload {
+    this.#syncRoot();
     const grid = this.#currentGrid();
     const focused = resolveFocus(grid, this.#state.focus[this.viewKey]);
     return {

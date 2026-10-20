@@ -94,6 +94,54 @@ describe("thumbnails through the Remote", () => {
   });
 });
 
+describe("folder mosaics", () => {
+  let h: Harness;
+  afterEach(() => h?.stop());
+
+  async function openLibrary() {
+    h = await startHarness(new FileStore(storeDir));
+    h.app.screenCommand({ command: "home" });
+    const phone = await h.connectPhone();
+    h.mac.folderPick = root;
+    await phone.press("up");
+    await phone.press("ok");
+    for (let i = 0; i < 2; i++) await phone.press("down");
+    await phone.press("ok");
+    await phone.press("ok");
+    await phone.settle();
+    await phone.press("home");
+    await phone.press("down");
+    await phone.press("right");
+    await phone.press("ok");
+    return phone;
+  }
+  const rootEntry = () => h.screen.last.library!.entries[0]!;
+
+  test("a folder carries up to four thumbnail URLs from its videos, filling in", async () => {
+    for (const n of ["a", "b", "c", "d", "e"]) writeFileSync(join(root, `${n}.mkv`), "");
+    const phone = await openLibrary();
+    expect(rootEntry().mosaic).toBeUndefined();
+    const focus = h.screen.last.focusedId;
+    h.thumbnails.finish(join(root, "a.mkv"));
+    await phone.settle();
+    expect(rootEntry().mosaic).toHaveLength(1);
+    for (const n of ["b", "c", "d", "e"]) {
+      h.thumbnails.finish(join(root, `${n}.mkv`));
+      await phone.settle();
+    }
+    expect(rootEntry().mosaic).toHaveLength(4);
+    expect(rootEntry().mosaic![0]).toContain("a.mkv");
+    expect(h.screen.last.focusedId).toBe(focus);
+  });
+
+  test("an empty folder gets no mosaic and queues nothing", async () => {
+    await openLibrary();
+    expect(rootEntry().mosaic).toBeUndefined();
+    expect(rootEntry().count).toBe(0);
+    expect(h.thumbnails.started).toEqual([]);
+  });
+});
+
 const ffmpeg = findFfmpeg();
 describe.skipIf(!ffmpeg)("FfmpegThumbnails (real ffmpeg)", () => {
   function video(file: string, color: string) {

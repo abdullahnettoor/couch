@@ -127,3 +127,16 @@ export function rootEntries(folders: string[]): LibraryEntry[] {
     };
   });
 }
+
+/** Up to `max` video paths from inside a folder (its own videos first, then one level down), and how many entries it holds. */
+export function mosaicSources(path: string, max = 4): { sources: string[]; count: number } {
+  const entries = listFolder(path);
+  if (!entries) return { sources: [], count: 0 };
+  const sources = entries.filter((e) => e.kind === "video").map((e) => e.path);
+  for (const sub of entries) {
+    if (sources.length >= max) break;
+    if (sub.kind !== "folder") continue;
+    for (const e of listFolder(sub.path) ?? []) if (e.kind === "video") sources.push(e.path);
+  }
+  return { sources: sources.slice(0, max), count: entries.length };
+}
