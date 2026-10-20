@@ -2,6 +2,7 @@ import type { Clock } from "../ports/clock.ts";
 import {
   MetadataError,
   type Candidate,
+  type Details,
   type EpisodeDetails,
   type Metadata,
   type MetadataKind,
@@ -335,20 +336,7 @@ export class MetadataService {
         : (existing?.seasons ?? []).map((s) => s.number);
       const d = await this.#call(() => this.#port.details(key.value, item.kind, id, seasons));
       if (stale()) return;
-      this.#save(item.id, {
-        state: "matched",
-        triedAt: this.#clock.now(),
-        ...(existing?.fixed ? { fixed: true } : {}),
-        tmdbId: d.id,
-        name: d.name,
-        year: d.year,
-        endYear: d.endYear,
-        ongoing: d.ongoing,
-        overview: d.overview,
-        posterPath: d.posterPath,
-        backdropPath: d.backdropPath,
-        seasons: d.seasons,
-      });
+      this.#save(item.id, this.#matched(d, existing?.fixed === true));
       await this.#downloadImages(item.id);
     } catch (error) {
       if (stale()) return;
@@ -366,6 +354,23 @@ export class MetadataService {
       if (existing?.state === "matched") return;
       this.#save(item.id, { state: "failed", triedAt: this.#clock.now() });
     }
+  }
+
+  #matched(d: Details, fixed: boolean): Entry {
+    return {
+      state: "matched",
+      triedAt: this.#clock.now(),
+      ...(fixed ? { fixed: true } : {}),
+      tmdbId: d.id,
+      name: d.name,
+      year: d.year,
+      endYear: d.endYear,
+      ongoing: d.ongoing,
+      overview: d.overview,
+      posterPath: d.posterPath,
+      backdropPath: d.backdropPath,
+      seasons: d.seasons,
+    };
   }
 
   #staleCheck(id: string): () => boolean {
@@ -463,20 +468,7 @@ export class MetadataService {
         this.#port.details(key.value, item.kind, choice, item.seasons),
       );
       if (stale()) return;
-      this.#save(id, {
-        state: "matched",
-        triedAt: this.#clock.now(),
-        fixed: true,
-        tmdbId: d.id,
-        name: d.name,
-        year: d.year,
-        endYear: d.endYear,
-        ongoing: d.ongoing,
-        overview: d.overview,
-        posterPath: d.posterPath,
-        backdropPath: d.backdropPath,
-        seasons: d.seasons,
-      });
+      this.#save(id, this.#matched(d, true));
       await this.#downloadImages(id);
     } catch {
       if (stale()) return;
