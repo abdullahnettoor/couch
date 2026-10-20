@@ -25,3 +25,4 @@ dist-ssr
 .dev
 out
 .debug/
+native/mpv-embed/*.node
