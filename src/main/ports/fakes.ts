@@ -122,6 +122,9 @@ export class FakeMac implements Mac {
     this.#record("pickFolder");
     return Promise.resolve(this.folderPick);
   }
+  localName() {
+    return "test-mac.local";
+  }
   quit() {
     this.#record("quit");
   }

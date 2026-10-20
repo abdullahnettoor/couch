@@ -48,7 +48,15 @@ export async function startRemoteServer(
       res.writeHead(404).end();
     }
   });
-  const wss = new WebSocketServer({ server: http, path: "/ws" });
+  const wss = new WebSocketServer({ noServer: true });
+  http.on("upgrade", (req, socket, head) => {
+    const url = new URL(req.url ?? "/", "http://localhost");
+    if (url.pathname !== "/ws" || !core.acceptsKey(url.searchParams.get("key"))) {
+      socket.end("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
+      return;
+    }
+    wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
+  });
   const sockets = new Map<WebSocket, string>();
   let nextId = 1;
 
@@ -58,6 +66,10 @@ export async function startRemoteServer(
     }
   };
   const unsubscribe = core.onChange(sendSnapshots);
+  const unsubscribeForget = core.onForget(() => {
+    for (const ws of sockets.keys()) ws.terminate();
+    sockets.clear();
+  });
 
   wss.on("connection", (ws) => {
     const id = `remote-${nextId++}`;
@@ -78,10 +90,14 @@ export async function startRemoteServer(
     http.listen(options.port, options.host, resolve);
   });
 
+  const port = (http.address() as AddressInfo).port;
+  core.setPort(port);
+
   return {
-    port: (http.address() as AddressInfo).port,
+    port,
     async close() {
       unsubscribe();
+      unsubscribeForget();
       for (const ws of sockets.keys()) ws.terminate();
       await new Promise<void>((resolve) => wss.close(() => resolve()));
       await new Promise<void>((resolve) => {

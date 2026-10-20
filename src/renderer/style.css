@@ -159,3 +159,66 @@ body {
   border-radius: 12px;
   font-size: 1.4vw;
 }
+.qr-card {
+  position: absolute;
+  right: 6cqw;
+  bottom: 7cqw;
+  width: 12cqw;
+  font-size: 1cqw;
+  color: var(--ink-3);
+  text-align: center;
+}
+.qr svg {
+  display: block;
+  width: 100%;
+  border-radius: 0.8cqw;
+}
+.qr-card .c {
+  margin-top: 0.8cqw;
+}
+.page {
+  padding: 6cqw;
+  box-sizing: border-box;
+}
+.page-title {
+  margin: 0 0 3cqw;
+  font-size: 4cqw;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 1cqw;
+  width: 36cqw;
+}
+.menu-item {
+  padding: 1.4cqw 2cqw;
+  border-radius: 1.2cqw;
+  background: var(--surface);
+  font-size: 1.8cqw;
+  color: var(--ink-2);
+  transition:
+    transform 0.22s var(--ease),
+    background-color 0.22s;
+}
+.menu-item.focused {
+  background: var(--ink);
+  color: #16130f;
+  transform: scale(1.03);
+}
+.qr-big {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2cqw;
+  font-size: 1.5cqw;
+  color: var(--ink-2);
+}
+.qr-big .qr {
+  width: 24cqw;
+}
+.qr-big p {
+  margin: 0;
+  max-width: 36cqw;
+}

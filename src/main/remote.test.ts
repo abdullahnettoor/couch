@@ -72,6 +72,7 @@ describe("Remote on Home", () => {
 
   test("the Screen's keyboard and a phone produce identical results", async () => {
     const phone = await h.connectPhone();
+    h.clock.advance(3500);
     const sequence = ["right", "up", "down", "left", "ok", "home"] as const;
     const viaPhone: unknown[] = [];
     for (const command of sequence) {

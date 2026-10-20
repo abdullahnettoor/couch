@@ -8,6 +8,7 @@ import { pickTargetDisplay } from "./display.ts";
 import { systemClock } from "./ports/clock.ts";
 import { createElectronMac } from "./ports/electron-mac.ts";
 import { nullYouTube } from "./ports/null-youtube.ts";
+import { FileStore } from "./ports/store.ts";
 import { findMpv } from "./mpv/find-mpv.ts";
 import { MpvPlayer } from "./mpv/mpv-player.ts";
 
@@ -99,6 +100,7 @@ async function createScreen(): Promise<void> {
     youtube: nullYouTube,
     mac,
     clock: systemClock,
+    store: new FileStore(app.getPath("userData")),
     port: REMOTE_PORT,
   });
   couch.onScreen(publishScreen);

@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+import { hostname } from "node:os";
 import { app, dialog, powerSaveBlocker, screen } from "electron";
 import type { Mac } from "./mac.ts";
 
@@ -29,6 +31,15 @@ export function createElectronMac(): Mac {
     async pickFolder() {
       const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });
       return result.canceled ? undefined : result.filePaths[0];
+    },
+    localName() {
+      try {
+        const name = execFileSync("scutil", ["--get", "LocalHostName"], {
+          encoding: "utf8",
+        }).trim();
+        if (name) return `${name}.local`;
+      } catch {}
+      return `${hostname().replace(/\.local$/, "")}.local`;
     },
     quit: () => app.quit(),
   };

@@ -14,5 +14,7 @@ export interface Mac {
   listDisplays(): DisplayInfo[];
   /** Resolves to the chosen folder, or undefined when cancelled. */
   pickFolder(): Promise<string | undefined>;
+  /** The Mac's Bonjour name, e.g. "Living-Room-Mac.local". */
+  localName(): string;
   quit(): void;
 }

@@ -84,6 +84,8 @@ export interface ScreenPayload {
   grid: GridItem[];
   focusedId?: string;
   focusedLabel?: string;
+  /** What the pairing QR code encodes. */
+  pairingUrl: string;
   /** Epoch ms from the Clock port, for the Home clock. */
   now: number;
 }

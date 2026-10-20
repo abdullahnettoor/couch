@@ -41,6 +41,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 <div class="top"><span class="who"><span class="dot"></span><span id="status">Connecting…</span></span><span id="count"></span></div>
 <div class="where" id="where"></div>
 <div class="banner" id="banner" hidden>Can't reach Couch. Is the Mac awake and Couch open?</div>
+<div class="where" id="hint" hidden>Still nothing? Scan the QR code on the Screen again to pair this phone.</div>
 <main class="controls" id="controls">
   <div class="dpad">
     <button class="arrow up" data-cmd="up" aria-label="Up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg></button>
@@ -59,12 +60,20 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 <script>
 (function () {
   var ws = null, retry = 0, timer = null, open = false;
+  var KEY = "couch-key";
+  var fromUrl = new URLSearchParams(location.search).get("key");
+  if (fromUrl) {
+    try { localStorage.setItem(KEY, fromUrl); } catch (e) {}
+    history.replaceState(null, "", location.pathname);
+  }
+  var key = fromUrl || (function () { try { return localStorage.getItem(KEY); } catch (e) { return null; } })() || "";
   var $ = function (id) { return document.getElementById(id); };
 
   function setOnline(on) {
     open = on;
     document.body.classList.toggle("off", !on);
     $("banner").hidden = on;
+    $("hint").hidden = on || retry < 3;
     $("status").textContent = on ? "Connected" : "Offline";
   }
 
@@ -77,7 +86,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 
   function connect() {
     var proto = location.protocol === "https:" ? "wss:" : "ws:";
-    ws = new WebSocket(proto + "//" + location.host + "/ws");
+    ws = new WebSocket(proto + "//" + location.host + "/ws?key=" + encodeURIComponent(key));
     ws.onopen = function () { retry = 0; setOnline(true); };
     ws.onmessage = function (e) {
       var msg = JSON.parse(e.data);
