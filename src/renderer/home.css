@@ -179,15 +179,21 @@
   position: absolute;
   right: calc(96 * var(--u));
   bottom: calc(84 * var(--u));
-  width: calc(190 * var(--u));
+  width: calc(220 * var(--u));
+  padding: calc(15 * var(--u));
+  box-sizing: border-box;
+  border-radius: calc(28 * var(--u));
+  background: var(--glass);
+  backdrop-filter: blur(60px) saturate(1.8);
+  box-shadow: var(--glass-edge);
   font-size: calc(20 * var(--u));
-  color: var(--t3);
+  color: var(--t2);
   text-align: center;
 }
 .h-qr .qr svg {
   display: block;
   width: 100%;
-  border-radius: calc(14 * var(--u));
+  border-radius: calc(16 * var(--u));
 }
 .h-qr .c {
   margin-top: calc(12 * var(--u));

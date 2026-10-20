@@ -201,6 +201,35 @@ describe("Library through the Remote", () => {
     expect(h.screen.last.state.toast).toBe("Connect the drive to see this folder");
   });
 
+  test("opening a folder focuses its first tile; coming back restores the last focus", async () => {
+    mkdirSync(join(root, "Shows", "Season 1"), { recursive: true });
+    for (const f of ["a.mkv", "b.mkv", "c.mkv"]) touch(join("Shows", "Season 1", f));
+    touch(join("Shows", "z.mkv"));
+    h = await startHarness(store());
+    const phone = await openLibrary();
+    await addFolder(phone, join(root, "Shows"));
+    await openLibrary(phone);
+    await phone.press("ok"); // Shows
+    expect(h.screen.last.focusedLabel).toBe("Season 1");
+    await phone.press("right");
+    expect(h.screen.last.focusedLabel).toBe("z");
+    await phone.press("left");
+    await phone.press("ok"); // Season 1
+    expect(h.screen.last.focusedLabel).toBe("a");
+    await phone.press("right");
+    await phone.press("right");
+    expect(h.screen.last.focusedLabel).toBe("c");
+    await phone.press("back");
+    expect(h.screen.last.focusedLabel).toBe("Season 1");
+    await phone.press("right");
+    await phone.press("back");
+    await phone.press("ok"); // Shows again
+    expect(h.screen.last.focusedLabel).toBe("z");
+    await phone.press("left");
+    await phone.press("ok");
+    expect(h.screen.last.focusedLabel).toBe("c");
+  });
+
   test("nested folders, Back steps out, re-read on open, On the Screen name", async () => {
     mkdirSync(join(root, "Shows", "Season 1"), { recursive: true });
     writeFileSync(join(root, "Shows", "Season 1", "Ep.1.mkv"), "");
