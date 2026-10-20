@@ -259,6 +259,27 @@ describe("keys", () => {
     expect((error as Error).message).not.toContain("v3secretkey");
   });
 
+  test("the adapter reads a show's first and last air year and whether it still runs", async () => {
+    const tmdb = new TmdbMetadata(storeDir, () =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            name: "X",
+            first_air_date: "2005-03-01",
+            last_air_date: "2008-07-02",
+            in_production: false,
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    expect(await tmdb.details("v3key", "show", 1, [])).toMatchObject({
+      year: 2005,
+      endYear: 2008,
+      ongoing: false,
+    });
+  });
+
   test("a revoked project key falls back to frames and shows the Settings hint", async () => {
     const store = new FileStore(storeDir);
     store.write("library", { folders: [root] });

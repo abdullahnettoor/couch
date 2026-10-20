@@ -31,6 +31,8 @@ interface Entry {
   tmdbId?: number;
   name?: string;
   year?: number;
+  endYear?: number;
+  ongoing?: boolean;
   overview?: string;
   posterPath?: string;
   backdropPath?: string;
@@ -50,6 +52,8 @@ export interface TitleDetails {
   tmdbId: number;
   name: string;
   year?: number;
+  /** "2021", "2021–2024" or "2021–" (still running). */
+  years?: string;
   overview?: string;
   poster?: string;
   backdrop?: string;
@@ -77,6 +81,13 @@ export interface DetailsSettings {
 
 interface Doc {
   items: Record<string, Entry>;
+}
+
+/** "2005–2008", "2021–" (still running), or one year. */
+export function yearsLabel(year?: number, endYear?: number, ongoing?: boolean): string | undefined {
+  if (!year) return undefined;
+  if (ongoing) return `${year}–`;
+  return endYear && endYear !== year ? `${year}–${endYear}` : String(year);
 }
 
 function normalise(text: string): string {
@@ -331,6 +342,8 @@ export class MetadataService {
         tmdbId: d.id,
         name: d.name,
         year: d.year,
+        endYear: d.endYear,
+        ongoing: d.ongoing,
         overview: d.overview,
         posterPath: d.posterPath,
         backdropPath: d.backdropPath,
@@ -389,6 +402,9 @@ export class MetadataService {
       tmdbId: e.tmdbId,
       name: e.name ?? "",
       ...(e.year ? { year: e.year } : {}),
+      ...(yearsLabel(e.year, e.endYear, e.ongoing)
+        ? { years: yearsLabel(e.year, e.endYear, e.ongoing) }
+        : {}),
       ...(e.overview ? { overview: e.overview } : {}),
       poster: image("poster", e.posterPath),
       backdrop: image("backdrop", e.backdropPath),
@@ -454,6 +470,8 @@ export class MetadataService {
         tmdbId: d.id,
         name: d.name,
         year: d.year,
+        endYear: d.endYear,
+        ongoing: d.ongoing,
         overview: d.overview,
         posterPath: d.posterPath,
         backdropPath: d.backdropPath,

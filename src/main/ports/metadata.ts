@@ -30,6 +30,10 @@ export interface Details {
   id: number;
   name: string;
   year?: number;
+  /** Shows: the year of the last episode aired. */
+  endYear?: number;
+  /** Shows: still in production, so the range is open ("2021–"). */
+  ongoing?: boolean;
   overview?: string;
   posterPath?: string;
   backdropPath?: string;

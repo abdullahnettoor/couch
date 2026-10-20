@@ -27,7 +27,7 @@ afterEach(async () => {
   rmSync(storeDir, { recursive: true, force: true });
 });
 
-async function start(opts: { key?: boolean; watched?: boolean } = {}) {
+async function start(opts: { key?: boolean; watched?: boolean; ongoing?: boolean } = {}) {
   const store = new FileStore(storeDir);
   store.write("library", { folders: [root] });
   if (opts.watched) {
@@ -46,6 +46,8 @@ async function start(opts: { key?: boolean; watched?: boolean } = {}) {
     id: 94605,
     name: "Arcane",
     year: 2021,
+    endYear: 2024,
+    ...(opts.ongoing ? { ongoing: true } : {}),
     overview: "Piltover.",
     posterPath: "/arcane.jpg",
     backdropPath: "/arcane-bd.jpg",
@@ -60,6 +62,14 @@ async function start(opts: { key?: boolean; watched?: boolean } = {}) {
         })),
       },
     ],
+  });
+  h.metadata.detailsById.set(335797, {
+    id: 335797,
+    name: "Sing",
+    year: 2017,
+    overview: "Koala.",
+    posterPath: "/sing.jpg",
+    seasons: [],
   });
   await h.app.core.library.settled();
   await h.app.core.details.settled();
@@ -98,6 +108,25 @@ describe("TMDB art in payloads", () => {
     expect(next.thumb).toBe("file:///tmdb/still/still2.jpg");
     expect(next.title).toBe("Name 2");
     expect(tile("recent", "show:arcane").thumb).toBe("file:///tmdb/backdrop/arcane-bd.jpg");
+  });
+
+  test("years: a show's range and a film's TMDB year beat the folder's", async () => {
+    await start({ key: true });
+    expect(tile("shows", "show:arcane").feature?.sub).toBe("2021–2024 · 1 season");
+    expect(tile("films", sing()).feature?.sub).toBe("2017");
+    await focusId("shows:show:arcane");
+    await phone.press("ok");
+    expect(screen().show!.meta).toEqual(["2021–2024", "1 season", "3 episodes"]);
+  });
+
+  test("years: a running show's range is open", async () => {
+    await start({ key: true, ongoing: true });
+    expect(tile("shows", "show:arcane").feature?.sub).toBe("2021– · 1 season");
+  });
+
+  test("years: without details the folder's year is used", async () => {
+    await start();
+    expect(tile("films", sing()).feature?.sub).toBe("2016");
   });
 
   test("show page: poster, overview, backdrop, episode names, overviews and stills", async () => {

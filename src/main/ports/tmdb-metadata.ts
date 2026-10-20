@@ -28,6 +28,8 @@ interface Raw {
   name?: string;
   title?: string;
   first_air_date?: string;
+  last_air_date?: string;
+  in_production?: boolean;
   release_date?: string;
   overview?: string;
   poster_path?: string | null;
@@ -125,6 +127,9 @@ export class TmdbMetadata implements Metadata {
       id,
       name: (kind === "show" ? raw.name : raw.title) ?? "",
       year: year(kind === "show" ? raw.first_air_date : raw.release_date),
+      ...(kind === "show"
+        ? { endYear: year(raw.last_air_date), ongoing: raw.in_production === true }
+        : {}),
       overview: raw.overview || undefined,
       posterPath: raw.poster_path ?? undefined,
       backdropPath: raw.backdrop_path ?? undefined,

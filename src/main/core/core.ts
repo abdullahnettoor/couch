@@ -1151,7 +1151,7 @@ export class Core {
         id: show.id,
         name: show.name,
         meta: [
-          ...(show.year ? [String(show.year)] : []),
+          ...((d?.years ?? show.year) ? [d?.years ?? String(show.year)] : []),
           plural(show.seasons.length, "season"),
           plural(show.episodeCount, "episode"),
         ],

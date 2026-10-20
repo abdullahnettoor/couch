@@ -31,9 +31,11 @@ export function showStatus(show: Show, history: WatchState): string {
 
 function showFeature(
   show: Show,
-  d?: { overview?: string; backdrop?: string },
+  d?: { overview?: string; backdrop?: string; years?: string },
 ): NonNullable<LibraryEntry["feature"]> {
-  const sub = [show.year, plural(show.seasons.length, "season")].filter(Boolean).join(" · ");
+  const sub = [d?.years ?? show.year, plural(show.seasons.length, "season")]
+    .filter(Boolean)
+    .join(" · ");
   return {
     kind: "Show",
     title: show.name,
@@ -99,7 +101,7 @@ export function libraryRows(ctx: RowsContext): { rows: LibraryRow[]; wanted: str
       feature: {
         kind: "Film",
         title: title,
-        ...(film.year ? { sub: String(film.year) } : {}),
+        ...((d?.years ?? film.year) ? { sub: d?.years ?? String(film.year) } : {}),
         ...(d?.overview ? { overview: d.overview } : {}),
         ...(d?.backdrop ? { backdrop: d.backdrop } : {}),
       },
@@ -122,7 +124,7 @@ export function libraryRows(ctx: RowsContext): { rows: LibraryRow[]; wanted: str
         : {
             kind: "Film",
             title,
-            ...(film?.year ? { sub: String(film.year) } : {}),
+            ...((d?.years ?? film?.year) ? { sub: d?.years ?? String(film?.year) } : {}),
             ...(d?.overview ? { overview: d.overview } : {}),
             ...(d?.backdrop ? { backdrop: d.backdrop } : {}),
           },
