@@ -102,6 +102,7 @@ describe("Settings", () => {
     expect(h.screen.last.grid.map((i) => i.label)).toEqual([
       "Add a phone",
       "Forget all phones",
+      "Restart YouTube",
       "Quit Couch",
     ]);
   });
@@ -125,6 +126,7 @@ describe("Settings", () => {
 
   test("Quit Couch quits", async () => {
     const phone = await openSettings();
+    await phone.press("down");
     await phone.press("down");
     await phone.press("down");
     await phone.press("ok");

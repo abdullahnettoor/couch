@@ -1,6 +1,7 @@
 import { WebSocket } from "ws";
 import { HOME_ITEMS } from "../../shared/home-grid.ts";
 import { ADD_PHONE_ITEMS, SETTINGS_ITEMS } from "../../shared/settings-grid.ts";
+import { YOUTUBE_ERROR_ITEMS } from "../../shared/youtube-grid.ts";
 import type { Command, GridItem, RemoteSnapshot, ScreenPayload } from "../../shared/protocol.ts";
 import { startApp, type CouchApp } from "../app.ts";
 import { MemoryStore, type Store } from "../ports/store.ts";
@@ -77,6 +78,7 @@ const DEFAULT_GRIDS: Record<string, GridItem[]> = {
   home: HOME_ITEMS,
   settings: SETTINGS_ITEMS,
   addPhone: ADD_PHONE_ITEMS,
+  youtubeError: YOUTUBE_ERROR_ITEMS,
 };
 
 /**

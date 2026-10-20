@@ -5,6 +5,9 @@ export interface ActionContext {
   open(view: View): void;
   toast(text: string): void;
   forgetAllPhones(): void;
+  openYouTube(): void;
+  retryYouTube(): void;
+  restartYouTube(): void;
   quit(): void;
 }
 
@@ -16,6 +19,12 @@ export type ActionHandler = (ctx: ActionContext) => void;
  */
 const homeActions: Record<string, ActionHandler> = {
   "open:settings": (ctx) => ctx.open("settings"),
+  "open:youtube": (ctx) => ctx.openYouTube(),
+};
+
+const youtubeActions: Record<string, ActionHandler> = {
+  "youtube:retry": (ctx) => ctx.retryYouTube(),
+  "settings:restart-youtube": (ctx) => ctx.restartYouTube(),
 };
 
 const settingsActions: Record<string, ActionHandler> = {
@@ -27,10 +36,12 @@ const settingsActions: Record<string, ActionHandler> = {
 export const ACTIONS: Record<string, ActionHandler> = {
   ...homeActions,
   ...settingsActions,
+  ...youtubeActions,
 };
 
 /** Where Back goes from each view. A view with no entry ignores Back. */
 export const BACK_TARGETS: Partial<Record<View, View>> = {
   settings: "home",
   addPhone: "settings",
+  youtubeError: "home",
 };

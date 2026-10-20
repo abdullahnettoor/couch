@@ -106,6 +106,8 @@ export interface RemoteSnapshot {
     paused: boolean;
     subtitlesOn: boolean;
   };
+  /** The Remote shows its volume −/+ pair (YouTube). */
+  showVolume: boolean;
   volume: number;
   remotes: number;
 }

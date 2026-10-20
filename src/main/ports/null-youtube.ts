@@ -1,6 +1,6 @@
 import type { YouTube } from "./youtube.ts";
 
-/** Stand-in until the YouTube view exists (ticket 005). */
+/** Stand-in for tests and runs without a window. */
 export const nullYouTube: YouTube = {
   show() {},
   hide() {},

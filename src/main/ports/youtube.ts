@@ -3,12 +3,14 @@ export type YouTubeKey = "up" | "down" | "left" | "right" | "ok" | "back";
 export type YouTubeEvent =
   | { type: "loaded" }
   | { type: "failed" }
-  | { type: "topLevel" }
+  /** The view navigated; `topLevel` is true on YouTube's home/browse screens. */
+  | { type: "route"; topLevel: boolean }
   | { type: "searchOpened" };
 
 /** The YouTube port: the YouTube TV view in production, a fake in tests. */
 export interface YouTube {
-  show(): void;
+  /** Shows the view full screen. `note` is a short message overlaid for a few seconds. */
+  show(note?: string): void;
   /** Hides the view and pauses playback; it stays loaded. */
   hide(): void;
   sendKey(key: YouTubeKey): void;
