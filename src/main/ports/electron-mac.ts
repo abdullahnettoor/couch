@@ -1,6 +1,6 @@
-import { execFile, execFileSync } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import { hostname } from "node:os";
-import { app, dialog, powerSaveBlocker, screen } from "electron";
+import { app, BrowserWindow, dialog, powerSaveBlocker, screen } from "electron";
 import type { Mac } from "./mac.ts";
 
 function osascript(script: string): Promise<string> {
@@ -12,7 +12,10 @@ function osascript(script: string): Promise<string> {
 }
 
 /** Electron-backed Mac port. Display wake arrives with the ticket that needs it. */
-export function createElectronMac(): Mac {
+export function createElectronMac(
+  getWindow: () => BrowserWindow | undefined = () => undefined,
+): Mac {
+  let lastWake = 0;
   let awake: number | undefined;
   let displayAwake: number | undefined;
   const toggle = (
@@ -37,7 +40,32 @@ export function createElectronMac(): Mac {
     keepDisplayAwake(keep) {
       displayAwake = toggle(displayAwake, keep, "prevent-display-sleep");
     },
-    wakeDisplay() {},
+    wakeDisplay() {
+      const now = Date.now();
+      if (now - lastWake < 5000) return;
+      lastWake = now;
+      try {
+        spawn("caffeinate", ["-u", "-t", "2"], { stdio: "ignore", detached: true }).unref();
+      } catch {}
+    },
+    onDisplaysChanged(listener) {
+      screen.on("display-added", listener);
+      screen.on("display-removed", listener);
+      screen.on("display-metrics-changed", listener);
+      return () => {
+        screen.removeListener("display-added", listener);
+        screen.removeListener("display-removed", listener);
+        screen.removeListener("display-metrics-changed", listener);
+      };
+    },
+    moveScreenTo(displayId) {
+      const win = getWindow();
+      const display = screen.getAllDisplays().find((d) => d.id === displayId);
+      if (!win || win.isDestroyed() || !display) return;
+      win.setSimpleFullScreen(false);
+      win.setBounds(display.bounds);
+      win.setSimpleFullScreen(true);
+    },
     listDisplays: () =>
       screen.getAllDisplays().map((d) => ({ id: d.id, label: d.label, internal: d.internal })),
     async pickFolder() {

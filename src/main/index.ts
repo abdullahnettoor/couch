@@ -94,7 +94,7 @@ async function createScreen(): Promise<void> {
   });
   player.onEvent(onPlayerEvent);
   await player.start();
-  const mac = createElectronMac();
+  const mac = createElectronMac(() => win);
   const youtube = new ElectronYouTube(win);
   mac.keepAwake(true);
   couch = await startApp({
@@ -121,6 +121,7 @@ app.on("before-quit", (event) => {
   if (quitting || !player) return;
   event.preventDefault();
   quitting = true;
+  couch?.core.beforeQuit();
   void Promise.all([player.dispose(), couch?.stop()]).finally(() => app.quit());
 });
 

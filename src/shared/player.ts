@@ -33,6 +33,8 @@ export interface Player {
   setOverlay(overlay: PlayerOverlay | undefined): void;
   getPosition(): Promise<number | undefined>;
   stop(): Promise<void>;
+  /** Move the video to the named display, mid-playback if possible. Rejects when it cannot. */
+  setDisplay(name: string | undefined): Promise<void>;
   onEvent(listener: (event: PlayerEvent) => void): () => void;
   dispose(): Promise<void>;
 }
