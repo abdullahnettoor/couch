@@ -4,6 +4,7 @@ import {
   VIEW_LABELS,
   type LibraryEntry,
   type LibraryPayload,
+  type ShowEpisode,
   type Command,
   type GridItem,
   type RemoteId,
@@ -34,6 +35,8 @@ import { presentation, hueFor, listFolder, mosaicSources, rootEntries } from "./
 import type { UpNextItem } from "../../shared/protocol.ts";
 import { PlayerControls } from "./player-controls.ts";
 import { History } from "./history.ts";
+import { EXTRAS_TAB, allEpisodes, primaryFor, tabIds, tabOf } from "./show-page.ts";
+import type { MatchOption } from "./metadata-service.ts";
 import { MetadataService } from "./metadata-service.ts";
 import { nullMetadata, type Metadata } from "../ports/metadata.ts";
 
@@ -368,6 +371,8 @@ export class Core {
     }
     if (this.#state.view === "player") return this.#controls.grid();
     if (this.#state.view === "details") return this.#detailsGrid();
+    if (this.#state.view === "show") return this.#showGrid();
+    if (this.#state.view === "fixMatch") return this.#fixGrid();
     if (this.#state.view === "credits")
       return [{ id: "done", r: 0, c: 0, label: "Done", action: "back", initial: true }];
     if (!this.#isLibraryView()) return this.#grids.get(this.viewKey) ?? [];
@@ -482,6 +487,240 @@ export class Core {
     this.#state.view = "folder";
   }
 
+  /** OK on a show tile: the show page, focused on the episode its primary button plays. */
+  #openShow(id: string): void {
+    const show = this.library.show(id);
+    if (!show) return;
+    this.#state.showId = id;
+    const primary = primaryFor(show, this.#history);
+    if (primary) this.#focusShowEpisode(primary.episode.path);
+    else this.#state.showTab = tabIds(show)[0];
+    this.#setView("show");
+    this.#wantShowPictures();
+  }
+
+  /** Back on the show page after playback: focus the episode played, or the next one after an end. */
+  #returnToShow(path: string, ended: boolean): void {
+    const show = this.library.show(this.#state.showId!);
+    if (!show) {
+      this.#state.view = "library";
+      return;
+    }
+    const next = ended ? this.library.nextEpisode(path) : undefined;
+    this.#focusShowEpisode(next?.path ?? path);
+    this.#state.view = "show";
+    this.#wantShowPictures();
+  }
+
+  /** Select the episode's season tab and focus its row. */
+  #focusShowEpisode(path: string): void {
+    const show = this.#state.showId ? this.library.show(this.#state.showId) : undefined;
+    const episode = show && allEpisodes(show).find((e) => e.path === path);
+    if (!show || !episode) return;
+    const tab = tabOf(episode);
+    this.#state.showTab = tab;
+    const index = show.seasons.find((se) => String(se.number) === tab)!.episodes.indexOf(episode);
+    this.#state.focus[`show:${show.id}`] = { r: 1 + index, c: 1 + tabIds(show).indexOf(tab) };
+  }
+
+  /** The episodes (or extras) listed under the selected tab. */
+  #showList(show: NonNullable<ReturnType<MediaLibrary["show"]>>): ShowEpisode[] {
+    const tab = this.#state.showTab;
+    const decorate = (e: ShowEpisode, path: string): ShowEpisode => {
+      const thumb = this.#thumbs.urlFor(path);
+      const progress = this.#history.progress(path);
+      const left = progress
+        ? Math.max(1, Math.ceil((progress.duration - progress.position) / 60))
+        : 0;
+      return {
+        ...e,
+        ...(thumb ? { thumb } : {}),
+        ...(progress
+          ? {
+              progress: {
+                fraction: progress.position / progress.duration,
+                left: `${left} min left`,
+              },
+            }
+          : this.#history.isWatched(path)
+            ? { watched: true }
+            : {}),
+      };
+    };
+    if (tab === EXTRAS_TAB) {
+      return show.extras.map((x) =>
+        decorate(
+          {
+            id: x.path,
+            title: x.title,
+            hue: hueFor(x.title),
+            ...(x.missing ? { missing: true } : {}),
+          },
+          x.path,
+        ),
+      );
+    }
+    const season = show.seasons.find((se) => String(se.number) === tab) ?? show.seasons[0];
+    return (season?.episodes ?? []).map((e) =>
+      decorate(
+        {
+          id: e.path,
+          number: e.episode,
+          title: presentation(e.path).title,
+          hue: hueFor(show.name),
+          ...(e.missing ? { missing: true } : {}),
+        },
+        e.path,
+      ),
+    );
+  }
+
+  #wantShowPictures(): void {
+    const show = this.#state.showId ? this.library.show(this.#state.showId) : undefined;
+    if (!show) return;
+    const primary = primaryFor(show, this.#history)?.episode.path;
+    this.#thumbs.want([...(primary ? [primary] : []), ...this.#showList(show).map((e) => e.id)]);
+  }
+
+  #canFix(): boolean {
+    const d = this.details.settings();
+    return d.enabled && d.keyLabel !== "No key";
+  }
+
+  #showGrid(): GridItem[] {
+    const show = this.#state.showId ? this.library.show(this.#state.showId) : undefined;
+    if (!show) return [];
+    const tabs = tabIds(show);
+    const selected = Math.max(0, tabs.indexOf(this.#state.showTab ?? ""));
+    const primary = primaryFor(show, this.#history);
+    const grid: GridItem[] = [
+      { id: "play", r: 0, c: 0, label: primary?.label ?? "Play", action: "show:play" },
+      ...tabs.map((t, i) => ({
+        id: `tab:${t}`,
+        r: 0,
+        c: 1 + i,
+        label: t === EXTRAS_TAB ? "Extras" : `Season ${t}`,
+        action: `show:tab:${t}`,
+      })),
+      ...this.#showList(show).map((e, i) => ({
+        id: e.id,
+        r: 1 + i,
+        c: 1 + selected,
+        label: e.title,
+        action: `library:play:${e.id}`,
+      })),
+    ];
+    if (this.#canFix())
+      grid.push({ id: "fix", r: 1, c: 0, label: "Fix match", action: "show:fix" });
+    const first = grid.find((i) => i.id === primary?.episode.path) ?? grid[0];
+    if (first) first.initial = true;
+    return grid;
+  }
+
+  #fixOptions: MatchOption[] | undefined;
+
+  #fixGrid(): GridItem[] {
+    const options = this.#fixOptions ?? [];
+    return [
+      ...options.map((o, i) => ({
+        id: `cand:${o.tmdbId}`,
+        r: i,
+        c: 0,
+        label: o.name,
+        action: `fix:${o.tmdbId}`,
+        initial: i === 0,
+      })),
+      {
+        id: "frames",
+        r: options.length,
+        c: 0,
+        label: "Use video frames",
+        action: "fix:frames",
+        initial: options.length === 0,
+      },
+    ];
+  }
+
+  #showAction(action: string): boolean {
+    const [ns, verb, ...rest] = action.split(":");
+    const arg = rest.join(":");
+    if (ns === "fix") {
+      this.#applyFix(verb === "frames" ? "frames" : Number(verb));
+      return true;
+    }
+    if (ns !== "show") return false;
+    const show = this.#state.showId ? this.library.show(this.#state.showId) : undefined;
+    if (!show) return true;
+    if (verb === "play") {
+      const primary = primaryFor(show, this.#history);
+      if (primary) this.#play(primary.episode.path, primary.fromStart);
+    } else if (verb === "tab") {
+      this.#state.showTab = arg;
+      this.#wantShowPictures();
+      const list = this.#showList(show);
+      const c = 1 + tabIds(show).indexOf(arg);
+      if (list.length) this.#state.focus[this.viewKey] = { r: 1, c };
+    } else if (verb === "fix") {
+      this.#openFixMatch(show.id);
+    }
+    return true;
+  }
+
+  #openFixMatch(id: string): void {
+    this.#fixOptions = undefined;
+    delete this.#state.focus.fixMatch;
+    this.#state.view = "fixMatch";
+    void this.details.candidates(id).then((options) => {
+      if (this.#state.view !== "fixMatch" || this.#state.showId !== id) return;
+      this.#fixOptions = options;
+      this.#emit();
+    });
+  }
+
+  #applyFix(choice: number | "frames"): void {
+    const id = this.#state.showId;
+    if (!id) return;
+    this.#state.view = "show";
+    this.#toast(choice === "frames" ? "Using video frames" : "Fixing the match");
+    void this.details.fixMatch(id, choice).then(() => this.#emit());
+  }
+
+  /** After a move or hover onto a season tab, the list below follows. */
+  #syncShowTab(): void {
+    if (this.#state.view !== "show") return;
+    const focused = resolveFocus(this.#currentGrid(), this.#state.focus[this.viewKey]);
+    if (focused?.id.startsWith("tab:")) {
+      const tab = focused.id.slice(4);
+      if (tab !== this.#state.showTab) {
+        this.#state.showTab = tab;
+        this.#wantShowPictures();
+      }
+    }
+  }
+
+  #moveShow(direction: "up" | "down" | "left" | "right"): void {
+    const grid = this.#currentGrid();
+    const current = resolveFocus(grid, this.#state.focus[this.viewKey]);
+    if (!current) return;
+    const set = (i: GridItem) => (this.#state.focus[this.viewKey] = { r: i.r, c: i.c });
+    const buttons = grid.filter((i) => i.c === 0);
+    if (current.c === 0) {
+      if (direction === "right") {
+        const primary = grid.find((i) => i.initial && i.c > 0);
+        const target =
+          primary ?? grid.find((i) => i.c > 0 && i.r >= 1) ?? grid.find((i) => i.c > 0);
+        if (target) set(target);
+      } else if (direction !== "left") {
+        set(moveFocus(buttons, current, direction));
+      }
+      return;
+    }
+    const next = moveFocus(grid, current, direction);
+    if (direction === "left" && (next === current || current.r >= 1)) {
+      set(grid.find((i) => i.id === "play")!);
+    } else set(next);
+  }
+
   #libraryAction(action: string): boolean {
     if (!action.startsWith("library:")) return false;
     const [, verb, ...rest] = action.split(":");
@@ -503,12 +742,6 @@ export class Core {
         .catch(() => {});
     } else return false;
     return true;
-  }
-
-  /** OK on a show tile. Until the show page (033) it opens the folder of the show's first episode. */
-  #openShow(id: string): void {
-    const first = this.library.show(id)?.seasons[0]?.episodes[0];
-    if (first) this.#openFolder(dirname(first.path));
   }
 
   /** Start a Library video full screen, resuming where it was left. */
@@ -588,8 +821,10 @@ export class Core {
     if (this.#playedFrom === "folder") {
       this.#focusEntry(p.path, ended);
       this.#state.view = this.#state.folderPath ? "folder" : "library";
+    } else if (this.#playedFrom === "show" && this.#state.showId) {
+      this.#returnToShow(p.path, ended);
     } else {
-      this.#state.view = this.#playedFrom;
+      this.#state.view = this.#playedFrom === "show" ? "library" : this.#playedFrom;
     }
     if (toast) this.#toast(toast);
     this.#keepLibraryFocus();
@@ -821,6 +1056,8 @@ export class Core {
     const homeVideos = this.#continueEntries().slice(0, HOME_VIDEOS);
     return {
       library: this.#library(),
+      ...(this.#state.view === "show" ? this.#showPayload() : {}),
+      ...(this.#state.view === "fixMatch" ? this.#fixPayload() : {}),
       ...(this.#state.view === "details" ||
       this.#state.view === "settings" ||
       this.#state.view === "credits"
@@ -840,12 +1077,63 @@ export class Core {
     };
   }
 
+  #showPayload(): Pick<ScreenPayload, "show"> {
+    const show = this.#state.showId ? this.library.show(this.#state.showId) : undefined;
+    if (!show) return {};
+    const primary = primaryFor(show, this.#history);
+    const tabs = tabIds(show);
+    const selected = tabs.includes(this.#state.showTab ?? "") ? this.#state.showTab : tabs[0];
+    const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+    const backdrop = primary && this.#thumbs.urlFor(primary.episode.path);
+    return {
+      show: {
+        id: show.id,
+        name: show.name,
+        meta: [
+          ...(show.year ? [String(show.year)] : []),
+          plural(show.seasons.length, "season"),
+          plural(show.episodeCount, "episode"),
+        ],
+        primary: primary?.label ?? "Play",
+        ...(backdrop ? { backdrop } : {}),
+        tabs: tabs.map((t) => ({
+          id: t,
+          label: t === EXTRAS_TAB ? "Extras" : `Season ${t}`,
+          selected: t === selected,
+        })),
+        episodes: this.#showList(show),
+        canFix: this.#canFix(),
+      },
+    };
+  }
+
+  #fixPayload(): Pick<ScreenPayload, "fixMatch"> {
+    const show = this.#state.showId ? this.library.show(this.#state.showId) : undefined;
+    return {
+      fixMatch: {
+        name: show?.name ?? "",
+        loading: this.#fixOptions === undefined,
+        options: (this.#fixOptions ?? []).map((o) => ({
+          id: `cand:${o.tmdbId}`,
+          name: o.name,
+          ...(o.year ? { year: o.year } : {}),
+          ...(o.poster ? { poster: o.poster } : {}),
+        })),
+      },
+    };
+  }
+
   snapshot(remote: RemoteId): RemoteSnapshot {
     const s = this.#state;
     const card = s.view === "home" ? this.#continueEntries()[0] : undefined;
     return {
       type: "snapshot",
-      where: s.view === "folder" ? basename(s.folderPath ?? "") : VIEW_LABELS[s.view],
+      where:
+        s.view === "folder"
+          ? basename(s.folderPath ?? "")
+          : s.view === "show"
+            ? (this.library.show(s.showId ?? "")?.name ?? VIEW_LABELS.show)
+            : VIEW_LABELS[s.view],
       view: s.view,
       layout: s.view === "home" || s.view === "youtube" || s.view === "player" ? s.view : "other",
       ...(card
@@ -1088,6 +1376,11 @@ export class Core {
     const current = resolveFocus(grid, this.#state.focus[this.viewKey]);
     if (this.#state.view === "youtube") return this.#ports.youtube.sendKey(direction);
     if (!current) return;
+    if (this.#state.view === "show") {
+      this.#moveShow(direction);
+      this.#syncShowTab();
+      return;
+    }
     const next = moveFocus(grid, current, direction);
     this.#state.focus[this.viewKey] = { r: next.r, c: next.c };
   }
@@ -1098,6 +1391,7 @@ export class Core {
     const item = this.#currentGrid().find((i) => i.r === r && i.c === c);
     if (!item) return;
     this.#state.focus[this.viewKey] = { r: item.r, c: item.c };
+    this.#syncShowTab();
     this.#controls.cardActivity();
     this.#emit();
   }
@@ -1108,7 +1402,12 @@ export class Core {
     const item = resolveFocus(grid, this.#state.focus[this.viewKey]);
     if (!item) return;
     if (item.action === "back") return this.#back();
-    if (this.#libraryAction(item.action) || this.#detailsAction(item.action)) return;
+    if (
+      this.#libraryAction(item.action) ||
+      this.#detailsAction(item.action) ||
+      this.#showAction(item.action)
+    )
+      return;
     const action = ACTIONS[item.action];
     // Placeholder Apps until they exist.
     if (action) action(this.#actionContext());
@@ -1131,8 +1430,13 @@ export class Core {
       else this.#openFolder(dirname(path));
       return;
     }
+    if (this.#state.view === "fixMatch") {
+      this.#state.view = "show";
+      return;
+    }
     const target = BACK_TARGETS[this.#state.view];
     if (target) this.#setView(target);
+    this.#keepLibraryFocus();
   }
 
   /** Changes view; leaving YouTube hides it (pausing playback) and lets the display sleep again. */

@@ -14,7 +14,9 @@ export type View =
   | "addPhone"
   | "libraryFolders"
   | "details"
-  | "credits";
+  | "credits"
+  | "show"
+  | "fixMatch";
 
 export const COMMAND_NAMES = [
   "up",
@@ -86,6 +88,9 @@ export interface ScreenState {
   /** Focused cell per view key, e.g. "home" or "folder:<path>". */
   focus: Record<string, { r: number; c: number }>;
   folderPath?: string;
+  /** The open show page's show id, and its selected tab ("1", "2", … or "extras"). */
+  showId?: string;
+  showTab?: string;
   typingBy?: RemoteId;
   query: string;
   player?: { path: string; pos: number; dur: number; paused: boolean };
@@ -153,6 +158,43 @@ export interface LibraryPayload {
   rows?: LibraryRow[];
 }
 
+/** One row of the show page's episode list (or an extra). */
+export interface ShowEpisode {
+  /** The file path; also the grid id. */
+  id: string;
+  /** Episode number; absent for extras. */
+  number?: number;
+  title: string;
+  thumb?: string;
+  hue: number;
+  watched?: boolean;
+  progress?: { fraction: number; left: string };
+  missing?: boolean;
+}
+
+/** What the show page draws: details on the left, season tabs and the episode list on the right. */
+export interface ShowPagePayload {
+  id: string;
+  name: string;
+  /** "2021", "2 seasons", "18 episodes" … */
+  meta: string[];
+  /** The primary button, e.g. "Resume S1 E4". */
+  primary: string;
+  /** A frame from the episode the primary button plays. */
+  backdrop?: string;
+  tabs: { id: string; label: string; selected: boolean }[];
+  episodes: ShowEpisode[];
+  /** Fix match is offered (details are on and a key exists). */
+  canFix: boolean;
+}
+
+/** Fix match: the top TMDB results for a show or film, or still loading. */
+export interface FixMatchPayload {
+  name: string;
+  loading: boolean;
+  options: { id: string; name: string; year?: number; poster?: string }[];
+}
+
 /** Core → Screen renderer. */
 export interface ScreenPayload {
   state: ScreenState;
@@ -164,6 +206,10 @@ export interface ScreenPayload {
   details?: { keyLabel: string; hasOwnKey: boolean; enabled: boolean; hint?: string };
   /** Present for library, folder and libraryFolders. */
   library?: LibraryPayload;
+  /** Present on the show page. */
+  show?: ShowPagePayload;
+  /** Present on the Fix match list. */
+  fixMatch?: FixMatchPayload;
   /** Home's Continue watching card: the newest in-progress video. */
   continueCard?: LibraryEntry;
   /** Home: up to three in-progress videos, newest first. */
@@ -248,4 +294,6 @@ export const VIEW_LABELS: Record<View, string> = {
   libraryFolders: "Library folders",
   details: "Show and film details",
   credits: "Credits",
+  show: "Show",
+  fixMatch: "Fix match",
 };

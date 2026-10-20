@@ -151,12 +151,12 @@ describe("Library first page rows", () => {
     expect(focusedId()).toBe(root);
   });
 
-  test("OK on a show tile opens its first folder for now", async () => {
+  test("OK on a show tile opens the show page", async () => {
     seed();
     await start();
     await phone.press("ok");
-    expect(h.screen.last.state.view).toBe("folder");
-    expect(h.screen.last.state.folderPath).toBe(at("Arcane", "Season 1"));
+    expect(h.screen.last.state.view).toBe("show");
+    expect(h.screen.last.state.showId).toBe("show:arcane");
   });
 
   test("OK on a film resumes it; OK on an episode in Next up plays it", async () => {

@@ -51,4 +51,5 @@ export const BACK_TARGETS: Partial<Record<View, View>> = {
   details: "settings",
   credits: "details",
   library: "home",
+  show: "library",
 };
