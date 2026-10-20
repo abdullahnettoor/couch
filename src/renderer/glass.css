@@ -614,9 +614,6 @@ body.windowed {
   overflow: hidden;
   background: #000;
 }
-.sh-page .tb-gear {
-  display: none;
-}
 .sh-bg {
   position: absolute;
   inset: 0;
@@ -833,6 +830,7 @@ body.windowed {
   overflow: hidden;
 }
 .sh-art {
+  background: rgba(255, 255, 255, 0.06);
   width: calc(300 * var(--u));
   height: calc(450 * var(--u));
   border-radius: calc(20 * var(--u));
@@ -862,6 +860,9 @@ body.windowed {
   line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+.sh-side.has-art .sh-ov {
+  min-height: calc(22 * 1.45 * 4 * var(--u));
 }
 .sh-side.has-art .sh-acts {
   margin-top: calc(28 * var(--u));

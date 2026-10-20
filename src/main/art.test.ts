@@ -119,6 +119,20 @@ describe("TMDB art in payloads", () => {
     expect(screen().show!.meta).toEqual(["2021–2024", "1 season", "3 episodes"]);
   });
 
+  test("show page reserves the poster space while details are expected, not for frames", async () => {
+    await start({ key: true });
+    await focusId("shows:show:arcane");
+    await phone.press("ok");
+    expect(screen().show!.artExpected).toBe(true);
+    await h.app.core.details.fixMatch(screen().show!.id, "frames");
+    await phone.press("home");
+    await focusId("library");
+    await phone.press("ok");
+    await focusId("shows:show:arcane");
+    await phone.press("ok");
+    expect(screen().show!.artExpected).toBe(false);
+  });
+
   test("years: a running show's range is open", async () => {
     await start({ key: true, ongoing: true });
     expect(tile("shows", "show:arcane").feature?.sub).toBe("2021– · 1 season");

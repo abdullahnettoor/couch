@@ -131,6 +131,23 @@ describe("Show page primary button", () => {
   });
 });
 
+describe("Show page top strip", () => {
+  test("Up from the tabs or the primary button reaches the gear; OK opens Settings", async () => {
+    await start();
+    await openArcane();
+    await focusId("play");
+    await phone.press("up");
+    expect(focusedId()).toBe("settings");
+    await phone.press("down");
+    expect(focusedId()).toBe("play");
+    await focusId("tab:1");
+    await phone.press("up");
+    expect(focusedId()).toBe("settings");
+    await phone.press("ok");
+    expect(screen().state.view).toBe("settings");
+  });
+});
+
 describe("Season tabs and the list", () => {
   test("tabs in order with Extras last; focusing a tab switches the list", async () => {
     await start();

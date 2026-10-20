@@ -626,6 +626,7 @@ export class Core {
     const selected = Math.max(0, tabs.indexOf(this.#state.showTab ?? ""));
     const primary = primaryFor(show, this.#history);
     const grid: GridItem[] = [
+      { id: "settings", r: -1, c: 0, label: "Settings", action: "open:settings" },
       { id: "play", r: 0, c: 0, label: primary?.label ?? "Play", action: "show:play" },
       ...tabs.map((t, i) => ({
         id: `tab:${t}`,
@@ -1166,6 +1167,7 @@ export class Core {
         })),
         episodes: this.#showList(show),
         canFix: this.#canFix(),
+        artExpected: this.#canFix() && !this.details.usesFrames(show.id),
       },
     };
   }

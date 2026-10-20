@@ -62,12 +62,15 @@ export function render(payload: ScreenPayload): void {
   const p = shown;
   p.bg.style.backgroundImage = show.backdrop ? `url("${show.backdrop}")` : "";
 
-  p.side.classList.toggle("has-art", Boolean(show.poster));
+  const reserved = Boolean(show.poster) || show.artExpected;
+  p.side.classList.toggle("has-art", reserved);
   p.side.replaceChildren(
-    ...(show.poster ? [el("div", "sh-art", `<img src="${escape(show.poster)}" alt="">`)] : []),
+    ...(reserved
+      ? [el("div", "sh-art", show.poster ? `<img src="${escape(show.poster)}" alt="">` : "")]
+      : []),
     el("h1", "", escape(show.name)),
     el("div", "sh-meta", show.meta.map((m) => `<span>${escape(m)}</span>`).join("<i>·</i>")),
-    ...(show.overview ? [el("p", "sh-ov", escape(show.overview))] : []),
+    ...(show.overview || reserved ? [el("p", "sh-ov", escape(show.overview ?? ""))] : []),
     el("div", "sh-acts"),
   );
   const acts = p.side.querySelector(".sh-acts")!;

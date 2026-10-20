@@ -205,6 +205,8 @@ export interface ShowPagePayload {
   episodes: ShowEpisode[];
   /** Fix match is offered (details are on and a key exists). */
   canFix: boolean;
+  /** Details are on and this title uses them, so the poster space is kept even before the art arrives. */
+  artExpected: boolean;
 }
 
 /** Fix match: the top TMDB results for a show or film, or still loading. */
