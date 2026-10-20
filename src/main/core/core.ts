@@ -935,6 +935,7 @@ export class Core {
     const item = this.#currentGrid().find((i) => i.r === r && i.c === c);
     if (!item) return;
     this.#state.focus[this.viewKey] = { r: item.r, c: item.c };
+    this.#controls.cardActivity();
     this.#emit();
   }
 

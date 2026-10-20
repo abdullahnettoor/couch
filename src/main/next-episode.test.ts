@@ -60,7 +60,7 @@ describe("Play next episode", () => {
     expect(snap.next!.title).toBe("Episode 2");
   });
 
-  test("OK plays the next path, and the first video is marked watched", async () => {
+  test("OK plays the next path, and the first video is marked watched in the folder", async () => {
     await playEp(1);
     eof();
     await phone.press("ok");
@@ -68,10 +68,8 @@ describe("Play next episode", () => {
     expect(state().view).toBe("player");
     expect(state().controls).toBe("dock");
     expect(overlay().next).toBeUndefined();
-    const items = store.read<{ items: Record<string, { watched?: boolean }> }>("history", {
-      items: {},
-    }).items;
-    expect(items[ep(1)]!.watched).toBe(true);
+    await phone.press("back"); // stops the second video, back in the folder
+    expect(h.screen.last.library!.entries.find((e) => e.path === ep(1))!.watched).toBe(true);
   });
 
   test("the phone's playNext plays it; Back afterwards still returns to the folder", async () => {
@@ -84,7 +82,7 @@ describe("Play next episode", () => {
     expect(state().view).toBe("folder");
   });
 
-  test("Back leaves without playing, focused on the next video", async () => {
+  test("Back returns to where the video was started, without playing, focused on the next video", async () => {
     await playEp(1);
     eof();
     await phone.press("back");
@@ -103,7 +101,7 @@ describe("Play next episode", () => {
     expect(state().view).toBe("folder");
   });
 
-  test("Home leaves to Home", async () => {
+  test("Home always means Home, even from the card", async () => {
     await playEp(1);
     eof();
     await phone.press("home");
@@ -111,7 +109,7 @@ describe("Play next episode", () => {
     expect(loads()).toEqual([ep(1)]);
   });
 
-  test("15 s with no input leaves without playing", async () => {
+  test("15 s with no input returns to where the video was started, without playing", async () => {
     await playEp(1);
     eof();
     h.clock.advance(14_000);
@@ -119,6 +117,32 @@ describe("Play next episode", () => {
     h.clock.advance(1_500);
     expect(state().view).toBe("folder");
     expect(loads()).toEqual([ep(1)]);
+  });
+
+  test("the 15 s count restarts on any input: navigation, volume and mouse focus", async () => {
+    await playEp(1);
+    eof();
+    h.clock.advance(10_000);
+    await phone.press("right");
+    h.clock.advance(10_000);
+    expect(state().controls).toBe("next");
+    await phone.press("volUp");
+    h.clock.advance(10_000);
+    expect(state().controls).toBe("next");
+    h.app.screenCommand({ command: "focusAt", args: { r: 0, c: 0 } });
+    h.clock.advance(10_000);
+    expect(state().controls).toBe("next");
+    h.clock.advance(6_000);
+    expect(state().view).toBe("folder");
+    expect(loads()).toEqual([ep(1)]);
+  });
+
+  test("volume commands, including volSet, work while the card shows", async () => {
+    await playEp(1);
+    eof();
+    await phone.press({ command: "volSet", args: { percent: 33 } });
+    expect(h.mac.calls.at(-1)).toEqual({ call: "setVolume", args: [33] });
+    expect(state().controls).toBe("next");
   });
 
   test("the last video in a folder leaves straight away", async () => {

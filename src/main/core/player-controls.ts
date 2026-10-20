@@ -80,8 +80,18 @@ export class PlayerControls {
     this.#cancelTimer?.();
     this.#state.controls = "next";
     this.#state.focus.player = { r: 0, c: 0 };
-    this.#cancelCard = this.#host.clock.setTimeout(() => this.#host.leave(), NEXT_CARD_MS);
+    this.#armCard();
     return true;
+  }
+
+  /** Input on the card: the 15 s of inactivity start over. */
+  cardActivity(): void {
+    if (this.#state.controls === "next") this.#armCard();
+  }
+
+  #armCard(): void {
+    this.#cancelCard?.();
+    this.#cancelCard = this.#host.clock.setTimeout(() => this.#host.leave(), NEXT_CARD_MS);
   }
 
   focusedCard(): NextCardId {
@@ -236,6 +246,7 @@ export class PlayerControls {
   }
 
   #cardCommand(name: Command["command"]): boolean {
+    this.#armCard();
     switch (name) {
       case "left":
       case "right":
@@ -247,6 +258,7 @@ export class PlayerControls {
         return true;
       case "volUp":
       case "volDown":
+      case "volSet":
         return false;
       default:
         return true;
