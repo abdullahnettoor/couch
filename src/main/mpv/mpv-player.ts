@@ -7,6 +7,7 @@ import { MpvIpcClient, type MpvEvent } from "./ipc-client.ts";
 
 /** Bottom margin (mpv OSD pixels) that keeps subtitles above the overlay bar, and mpv's default. */
 const RAISED_SUB_MARGIN = 110;
+const UP_NEXT_SUB_MARGIN = 340;
 const DEFAULT_SUB_MARGIN = 22;
 
 export interface EmbeddedMpv {
@@ -141,11 +142,11 @@ export class MpvPlayer implements Player {
     await this.send(["set_property", "sub-visibility", visible]);
   }
 
-  setSubtitlesRaised(raised: boolean): void {
+  setSubtitlesRaised(raised: boolean, aboveUpNext = false): void {
     this.send([
       "set_property",
       "sub-margin-y",
-      raised ? RAISED_SUB_MARGIN : DEFAULT_SUB_MARGIN,
+      raised ? (aboveUpNext ? UP_NEXT_SUB_MARGIN : RAISED_SUB_MARGIN) : DEFAULT_SUB_MARGIN,
     ]).catch(() => {});
   }
 

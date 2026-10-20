@@ -30,6 +30,7 @@ export const COMMAND_NAMES = [
   "seekBy",
   "seekTo",
   "volSet",
+  "playUpNext",
   "typeOpen",
   "typeText",
   "typeSubmit",
@@ -49,6 +50,8 @@ export interface CommandArgs {
   seconds?: number;
   /** volSet: 0-100 (clamped) */
   percent?: number;
+  /** playUpNext: position in the Up next list */
+  index?: number;
   /** typeText: the whole current text */
   text?: string;
 }
@@ -85,7 +88,7 @@ export interface ScreenState {
   player?: { path: string; pos: number; dur: number; paused: boolean };
   subtitlesOn: boolean;
   /** Player controls: the dock is up, or only the video shows. */
-  controls: "hidden" | "dock";
+  controls: "hidden" | "dock" | "upnext";
   volume: number;
   /** The volume level indicator is on screen. */
   volumeShown?: boolean;
@@ -147,6 +150,15 @@ export interface ScreenPayload {
   now: number;
 }
 
+/** One video in the Up next list as a phone sees it. */
+export interface UpNextItem {
+  title: string;
+  /** Cache key of the video's picture, when one exists (not a path). */
+  thumbKey?: string;
+  watched: boolean;
+  playing: boolean;
+}
+
 /** Mac → every phone: sent whole after every change. */
 export interface RemoteSnapshot {
   type: "snapshot";
@@ -163,6 +175,8 @@ export interface RemoteSnapshot {
     paused: boolean;
     subtitlesOn: boolean;
   };
+  /** The playing Library video's folder, while a video plays (and has company). */
+  upNext?: UpNextItem[];
   /** The Remote shows its volume −/+ pair (YouTube). */
   showVolume: boolean;
   /** The Remote shows its −10 s / +10 s pair (YouTube). */

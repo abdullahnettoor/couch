@@ -1,4 +1,4 @@
-import { formatTime, type PlayerOverlay } from "../shared/player.ts";
+import { formatTime, type PlayerOverlay, type UpNextTile } from "../shared/player.ts";
 import { DOCK_IDS, DOCK_LABELS, type DockId } from "../shared/player-dock.ts";
 import { iconSvg, type IconName } from "../shared/icons.ts";
 import type { Command } from "../shared/protocol.ts";
@@ -15,6 +15,8 @@ el.innerHTML = `
   </div>
   <div class="po-pause glass">${iconSvg("pause")}</div>
   <div class="po-vol volhud glass"><span class="n num"></span><div class="lvl"><i></i></div>${iconSvg("speaker")}</div>
+  <div class="po-shelf"><h3><span>Up next</span><span class="po-folder"></span></h3><div class="po-eps"><div class="po-strip"></div></div></div>
+  <div class="po-peek">${iconSvg("down")}More episodes</div>
   <div class="po-dock glass"></div>`;
 document.body.append(el);
 
@@ -26,6 +28,10 @@ const vol = $(".po-vol");
 const volNumber = vol.querySelector<HTMLElement>(".n")!;
 const volFill = vol.querySelector<HTMLElement>(".lvl i")!;
 const dock = $(".po-dock");
+const upNextRow = $(".po-shelf");
+const folderName = $(".po-folder");
+const strip = $(".po-strip");
+const peek = $(".po-peek");
 
 const BUTTON_ICONS: Partial<Record<DockId, IconName>> = {
   back10: "back10",
@@ -64,6 +70,44 @@ const volTrack = parts.volume.querySelector<HTMLElement>(".po-track")!;
 const volSliderFill = volTrack.querySelector<HTMLElement>(".po-fill")!;
 dock.append(...DOCK_IDS.map((id) => parts[id]));
 
+const escapeHtml = (text: string) =>
+  text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+const tileHtml = (t: UpNextTile, index: number) => {
+  const picture = t.thumb
+    ? `<img src="${escapeHtml(t.thumb)}" alt="">`
+    : `<div class="po-plain" style="--h:${t.hue}"></div>`;
+  const mark = t.playing
+    ? `<span class="po-now">Now playing</span>`
+    : t.watched
+      ? `<span class="po-watched">Watched</span>`
+      : "";
+  const progress =
+    t.progress !== undefined
+      ? `<div class="po-prog"><i style="width:${Math.round(t.progress * 100)}%"></i></div>`
+      : "";
+  return `<button class="po-ep" data-ep="${index}"><div class="po-pic">${picture}${mark}${progress}</div><div class="po-cap">${escapeHtml(t.title)}</div></button>`;
+};
+let tilesKey = "";
+function renderUpNext(upNext: PlayerOverlay["upNext"]): void {
+  upNextRow.classList.toggle("show", Boolean(upNext));
+  if (!upNext) return;
+  folderName.textContent = upNext.folder;
+  const key = JSON.stringify(upNext.tiles);
+  if (key !== tilesKey) {
+    tilesKey = key;
+    strip.innerHTML = upNext.tiles.map(tileHtml).join("");
+  }
+  const tilesEls = [...strip.children];
+  tilesEls.forEach((node, i) => node.classList.toggle("focused", i === upNext.focusedIndex));
+  const focused = tilesEls[upNext.focusedIndex ?? -1] as HTMLElement | undefined;
+  const view = strip.parentElement!;
+  if (focused) {
+    const max = Math.max(0, strip.scrollWidth - view.clientWidth);
+    const want = focused.offsetLeft + focused.offsetWidth / 2 - view.clientWidth / 2;
+    strip.style.transform = `translateX(${-Math.min(max, Math.max(0, want))}px)`;
+  }
+}
+
 let duration = 0;
 let controlsUp = false;
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
@@ -73,7 +117,7 @@ export function renderOverlay(overlay: PlayerOverlay | undefined): void {
   el.hidden = !overlay;
   if (!overlay) return;
   const d = overlay.dock;
-  controlsUp = overlay.controls === "dock";
+  controlsUp = overlay.controls !== "hidden";
   el.classList.toggle("controls", controlsUp);
   title.textContent = overlay.title;
   note.textContent = overlay.note ?? "";
@@ -83,6 +127,8 @@ export function renderOverlay(overlay: PlayerOverlay | undefined): void {
   volNumber.textContent = String(level);
   volFill.style.height = `${level}%`;
   vol.classList.toggle("show", overlay.volume !== undefined);
+  renderUpNext(overlay.upNext);
+  peek.classList.toggle("show", controlsUp && !overlay.upNext && Boolean(d?.upNext));
   if (!d) return;
   duration = d.duration;
   const frac = d.duration > 0 ? clamp01(d.position / d.duration) : 0;
@@ -109,12 +155,18 @@ const fractionOf = (event: MouseEvent, node: HTMLElement) => {
 
 el.addEventListener("click", (event) => {
   const target = event.target as Element;
+  const episode = target.closest<HTMLElement>("[data-ep]");
+  if (episode) {
+    send({ command: "playUpNext", args: { index: Number(episode.dataset.ep) } });
+    return;
+  }
   const id = target.closest<HTMLElement>("[data-dock]")?.dataset.dock as DockId | undefined;
   if (!id) {
     if (!target.closest(".po-dock")) send({ command: "playpause" });
     return;
   }
-  if (id === "playpause") send({ command: "playpause" });
+  if (id === "upnext") send({ command: "down" });
+  else if (id === "playpause") send({ command: "playpause" });
   else if (id === "back10") send({ command: "seekBy", args: { seconds: -10 } });
   else if (id === "fwd10") send({ command: "seekBy", args: { seconds: 10 } });
   else if (id === "subtitles") send({ command: "subtitles" });

@@ -41,8 +41,8 @@ export class FakePlayer implements Player {
   setSubtitles(visible: boolean) {
     return this.#record("setSubtitles", visible);
   }
-  setSubtitlesRaised(raised: boolean) {
-    void this.#record("setSubtitlesRaised", raised);
+  setSubtitlesRaised(raised: boolean, aboveUpNext = false) {
+    void this.#record("setSubtitlesRaised", raised, aboveUpNext);
   }
   getPosition() {
     return Promise.resolve(this.position);

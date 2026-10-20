@@ -245,3 +245,146 @@ body.video-pending #volume {
 .po-vslider.focused {
   box-shadow: 0 0 0 calc(3 * var(--u)) rgba(255, 255, 255, 0.5);
 }
+
+/* Up next: a row of 16:9 tiles above the dock */
+.po-shelf {
+  position: absolute;
+  left: calc(180 * var(--u));
+  right: calc(180 * var(--u));
+  bottom: calc(212 * var(--u));
+  opacity: 0;
+  transform: translateY(calc(30 * var(--u)));
+  transition:
+    opacity 0.45s var(--ease),
+    transform 0.55s var(--ease);
+  pointer-events: none;
+}
+.po-shelf.show {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.po-shelf h3 {
+  margin: 0 0 calc(18 * var(--u));
+  font-size: calc(26 * var(--u));
+  font-weight: 700;
+  display: flex;
+  justify-content: space-between;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.6);
+}
+.po-shelf h3 span + span {
+  color: var(--t2);
+  font-weight: 600;
+}
+.po-eps {
+  overflow: hidden;
+  padding: calc(30 * var(--u));
+  margin: calc(-30 * var(--u));
+  margin-bottom: calc(-50 * var(--u));
+  padding-bottom: calc(50 * var(--u));
+}
+.po-strip {
+  display: flex;
+  gap: calc(28 * var(--u));
+  transition: transform 0.45s var(--ease);
+}
+.po-ep {
+  width: calc(300 * var(--u));
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.po-pic {
+  position: relative;
+  height: calc(169 * var(--u));
+  border-radius: calc(16 * var(--u));
+  overflow: hidden;
+  background: #222;
+  box-shadow: 0 calc(10 * var(--u)) calc(30 * var(--u)) rgba(0, 0, 0, 0.35);
+  transition:
+    transform 0.38s var(--ease),
+    box-shadow 0.38s var(--ease);
+}
+.po-pic img,
+.po-plain {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.po-plain {
+  background: hsl(var(--h), 18%, 22%);
+}
+.po-ep.focused .po-pic,
+.po-ep:hover .po-pic {
+  transform: scale(1.09) translateY(calc(-6 * var(--u)));
+  box-shadow:
+    0 0 0 calc(3 * var(--u)) #fff,
+    0 calc(36 * var(--u)) calc(60 * var(--u)) rgba(0, 0, 0, 0.6);
+}
+.po-now,
+.po-watched {
+  position: absolute;
+  left: calc(12 * var(--u));
+  top: calc(12 * var(--u));
+  padding: calc(5 * var(--u)) calc(11 * var(--u));
+  border-radius: calc(9 * var(--u));
+  font-size: calc(17 * var(--u));
+  font-weight: 700;
+  background: #fff;
+  color: #000;
+}
+.po-watched {
+  background: rgba(0, 0, 0, 0.55);
+  color: var(--t1);
+}
+.po-prog {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(6 * var(--u));
+  background: rgba(255, 255, 255, 0.25);
+}
+.po-prog i {
+  display: block;
+  height: 100%;
+  background: #fff;
+}
+.po-cap {
+  margin-top: calc(14 * var(--u));
+  font-size: calc(22 * var(--u));
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.po-peek {
+  position: absolute;
+  left: 50%;
+  bottom: calc(186 * var(--u));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: calc(10 * var(--u));
+  font-size: calc(22 * var(--u));
+  font-weight: 600;
+  color: var(--t2);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.7);
+  opacity: 0;
+  transition: opacity 0.4s;
+  pointer-events: none;
+}
+.po-peek.show {
+  opacity: 1;
+}
+.po-peek svg {
+  width: calc(26 * var(--u));
+  height: calc(26 * var(--u));
+}

@@ -24,10 +24,21 @@ export function formatTime(seconds: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 }
 
+/** One tile in the Up next row. */
+export interface UpNextTile {
+  title: string;
+  thumb?: string;
+  hue: number;
+  watched: boolean;
+  playing: boolean;
+  /** 0-1 while partly watched. */
+  progress?: number;
+}
+
 /** What the Screen overlay shows on top of the video, drawn by the Screen renderer. */
 export interface PlayerOverlay {
   title: string;
-  controls: "hidden" | "dock";
+  controls: "hidden" | "dock" | "upnext";
   /** Present while the dock is shown. */
   dock?: {
     position: number;
@@ -40,6 +51,8 @@ export interface PlayerOverlay {
     /** Ticket 020: the Up next control is enabled. */
     upNext: boolean;
   };
+  /** Present while the Up next row shows. */
+  upNext?: { tiles: UpNextTile[]; folder: string; focusedIndex?: number };
   paused: boolean;
   /** A short note, e.g. "Resumed at 40:10". */
   note?: string;
@@ -55,7 +68,7 @@ export interface Player {
   seekTo(seconds: number): Promise<void>;
   setSubtitles(visible: boolean): Promise<void>;
   /** Lift the subtitles (mpv draws them) clear of the overlay while it shows. */
-  setSubtitlesRaised(raised: boolean): void;
+  setSubtitlesRaised(raised: boolean, aboveUpNext?: boolean): void;
   getPosition(): Promise<number | undefined>;
   stop(): Promise<void>;
   /** Move the video to the named display, mid-playback if possible. Rejects when it cannot. */
