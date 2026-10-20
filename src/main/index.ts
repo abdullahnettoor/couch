@@ -13,6 +13,9 @@ import { MpvPlayer } from "./mpv/mpv-player.ts";
 
 const REMOTE_PORT = Number(process.env.COUCH_PORT ?? 4747);
 
+// Fixed name so app data lives in ~/Library/Application Support/Couch whichever way Couch is launched.
+app.setName("Couch");
+
 let win: BrowserWindow | undefined;
 let player: MpvPlayer | undefined;
 let couch: CouchApp | undefined;

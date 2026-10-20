@@ -7,6 +7,7 @@
   "scripts": {
     "build": "vp build && vp pack",
     "start": "vp run build && electron .",
+    "package": "vp run build && node scripts/package.mjs",
     "sample": "sh scripts/make-sample.sh",
     "check": "vp check",
     "test": "vp test run"
@@ -15,6 +16,7 @@
     "ws": "^8.22.0"
   },
   "devDependencies": {
+    "@electron/packager": "^20.3.0",
     "@types/node": "^26.6.5",
     "@types/ws": "^8.18.2",
     "electron": "^44.9.0",
