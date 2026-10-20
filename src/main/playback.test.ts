@@ -81,7 +81,10 @@ describe("playing a Library video", () => {
     expect(calls("seekTo").map((c) => c.args[0])).toEqual([300, 290, 300, 290, 280]);
     await phone.press("ok");
     expect(calls("setPaused").at(-1)!.args).toEqual([true]);
-    expect(h.player.overlay).toMatchObject({ paused: true, bar: { position: 280, duration: 600 } });
+    expect(h.screen.last.overlay).toMatchObject({
+      paused: true,
+      bar: { position: 280, duration: 600 },
+    });
     await phone.press("playpause");
     expect(calls("setPaused").at(-1)!.args).toEqual([false]);
   });
@@ -90,11 +93,24 @@ describe("playing a Library video", () => {
     await start();
     await playVideo();
     h.clock.advance(3500);
-    expect(h.player.overlay!.bar).toBeUndefined();
+    expect(h.screen.last.overlay!.bar).toBeUndefined();
     await phone.press("up");
-    expect(h.player.overlay!.bar).toBeDefined();
+    expect(h.screen.last.overlay!.bar).toBeDefined();
     h.clock.advance(3500);
-    expect(h.player.overlay!.bar).toBeUndefined();
+    expect(h.screen.last.overlay!.bar).toBeUndefined();
+  });
+
+  test("subtitles are raised while the overlay shows and lowered when it hides", async () => {
+    await start();
+    await playVideo();
+    const raised = () => calls("setSubtitlesRaised").map((c) => c.args[0]);
+    expect(raised().at(-1)).toBe(true);
+    h.clock.advance(3500);
+    expect(raised().at(-1)).toBe(false);
+    await phone.press("up");
+    expect(raised().at(-1)).toBe(true);
+    await phone.press("back");
+    expect(raised().at(-1)).toBe(false);
   });
 
   test("the subtitles toggle reaches the Player and is remembered after a restart", async () => {
@@ -120,7 +136,7 @@ describe("playing a Library video", () => {
     await other.settle();
     expect(other.last!.volume).toBe(55);
     expect(h.screen.last.state.volumeShown).toBe(true);
-    expect(h.player.overlay!.volume).toBe(55);
+    expect(h.screen.last.overlay!.volume).toBe(55);
     await phone.press("volDown");
     await phone.press("volDown");
     expect(h.mac.volume).toBe(45);
@@ -135,7 +151,7 @@ describe("playing a Library video", () => {
     expect(calls("stop")).toHaveLength(1);
     expect(h.screen.last.state.view).toBe("folder");
     expect(phone.last!.nowPlaying).toBeUndefined();
-    expect(h.player.overlay).toBeUndefined();
+    expect(h.screen.last.overlay).toBeUndefined();
     h.player.emit({ type: "ended", reason: "stop" });
     expect(h.screen.last.state.view).toBe("folder");
   });

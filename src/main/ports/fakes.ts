@@ -1,5 +1,5 @@
 import type { Thumbnails } from "./thumbnails.ts";
-import type { LoadOptions, Player, PlayerEvent, PlayerOverlay } from "../../shared/player.ts";
+import type { LoadOptions, Player, PlayerEvent } from "../../shared/player.ts";
 import type { Clock } from "./clock.ts";
 import type { DisplayInfo, Mac } from "./mac.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "./youtube.ts";
@@ -41,9 +41,8 @@ export class FakePlayer implements Player {
   setSubtitles(visible: boolean) {
     return this.#record("setSubtitles", visible);
   }
-  overlay: PlayerOverlay | undefined;
-  setOverlay(overlay: PlayerOverlay | undefined) {
-    this.overlay = overlay;
+  setSubtitlesRaised(raised: boolean) {
+    void this.#record("setSubtitlesRaised", raised);
   }
   getPosition() {
     return Promise.resolve(this.position);

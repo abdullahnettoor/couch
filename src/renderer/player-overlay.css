@@ -1,0 +1,89 @@
+/* While a video plays the window is transparent so the video behind it shows through. */
+html:has(body.video-visible),
+body.video-visible {
+  background: transparent;
+}
+html:has(body.video-pending),
+body.video-pending {
+  background: #000;
+}
+body.video-visible #volume {
+  display: none;
+}
+#player-overlay {
+  position: fixed;
+  inset: 0;
+  container-type: size;
+  pointer-events: none;
+  color: #fff;
+  font-family: system-ui, sans-serif;
+  text-shadow:
+    0 0 6px #000,
+    0 0 2px #000;
+}
+#player-overlay[hidden] {
+  display: none;
+}
+.po-title {
+  position: absolute;
+  left: 4.7cqw;
+  top: 4.5cqh;
+  font-size: 4.4cqh;
+}
+.po-bar,
+.po-vol-bar {
+  position: absolute;
+  height: 0.75cqh;
+  background: rgba(255, 255, 255, 0.63);
+}
+.po-bar {
+  left: 4.7cqw;
+  right: 4.7cqw;
+  top: 92.6cqh;
+}
+.po-vol-bar {
+  right: 4.7cqw;
+  width: 15.6cqw;
+  top: 11.6cqh;
+}
+.po-fill {
+  height: 100%;
+  background: #f2b45a;
+}
+.po-elapsed,
+.po-remaining {
+  position: absolute;
+  bottom: 8.4cqh;
+  font-size: 3.2cqh;
+}
+.po-elapsed {
+  left: 4.7cqw;
+}
+.po-remaining {
+  right: 4.7cqw;
+}
+.po-note {
+  position: absolute;
+  left: 4.7cqw;
+  bottom: 16.7cqh;
+  font-size: 3.7cqh;
+}
+.po-vol {
+  position: absolute;
+  right: 4.7cqw;
+  top: 4.5cqh;
+  font-size: 3.7cqh;
+}
+.po-pause {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  gap: 4cqh;
+}
+.po-pause i {
+  width: 3.7cqh;
+  height: 12cqh;
+  background: #fff;
+}

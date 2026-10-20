@@ -2,9 +2,12 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { LoadOptions, Player, PlayerEvent, PlayerOverlay } from "../../shared/player.ts";
-import { overlayAss } from "./overlay.ts";
+import type { LoadOptions, Player, PlayerEvent } from "../../shared/player.ts";
 import { MpvIpcClient, type MpvEvent } from "./ipc-client.ts";
+
+/** Bottom margin (mpv OSD pixels) that keeps subtitles above the overlay bar, and mpv's default. */
+const RAISED_SUB_MARGIN = 110;
+const DEFAULT_SUB_MARGIN = 22;
 
 export interface EmbeddedMpv {
   setVisible(visible: boolean): void;
@@ -138,9 +141,12 @@ export class MpvPlayer implements Player {
     await this.send(["set_property", "sub-visibility", visible]);
   }
 
-  setOverlay(overlay: PlayerOverlay | undefined): void {
-    const data = overlay ? overlayAss(overlay) : "";
-    this.send(["osd-overlay", 1, "ass-events", data, 1920, 1080]).catch(() => {});
+  setSubtitlesRaised(raised: boolean): void {
+    this.send([
+      "set_property",
+      "sub-margin-y",
+      raised ? RAISED_SUB_MARGIN : DEFAULT_SUB_MARGIN,
+    ]).catch(() => {});
   }
 
   async getPosition(): Promise<number | undefined> {

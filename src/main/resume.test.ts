@@ -225,9 +225,9 @@ describe("resuming", () => {
     focusOn(a());
     press("ok");
     expect(lastLoad()[1].startSeconds).toBe(2410);
-    expect(h.player.overlay?.note).toBe("Resumed at 40:10");
+    expect(h.screen.last.overlay?.note).toBe("Resumed at 40:10");
     h.clock.advance(3100);
-    expect(h.player.overlay?.note).toBeUndefined();
+    expect(h.screen.last.overlay?.note).toBeUndefined();
   });
 
   test("Home's card resumes the newest video", async () => {

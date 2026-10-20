@@ -1,4 +1,5 @@
 /** Remote protocol and the state shapes shared by the core, the Remote page and the Screen renderer. */
+import type { PlayerOverlay } from "./player.ts";
 
 export type RemoteId = string;
 
@@ -130,6 +131,8 @@ export interface ScreenPayload {
   library?: LibraryPayload;
   /** Home's Continue watching card: the newest in-progress video. */
   continueCard?: LibraryEntry;
+  /** The player overlay the renderer draws over the video; present while a video plays. */
+  overlay?: PlayerOverlay;
   /** What the pairing QR code encodes. */
   pairingUrl: string;
   /** Epoch ms from the Clock port, for the Home clock. */

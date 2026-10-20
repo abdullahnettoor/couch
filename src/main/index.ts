@@ -71,7 +71,9 @@ async function createScreen(): Promise<void> {
   win = new BrowserWindow({
     ...display.bounds,
     title: "Couch",
-    backgroundColor: "#000000",
+    // Transparent so the video under the web contents shows through while a video plays.
+    transparent: true,
+    backgroundColor: "#00000000",
     show: false,
     webPreferences: {
       preload: join(import.meta.dirname, "../preload/index.cjs"),
