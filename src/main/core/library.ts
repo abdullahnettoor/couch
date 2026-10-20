@@ -138,14 +138,15 @@ export function plainTitle(fileName: string): string {
 
 /** "The.Grand.Budapest.Hotel.2014.1080p.BluRay.x264.mkv" → "The Grand Budapest Hotel (2014)"; episodes give their name. */
 export function cleanTitle(fileName: string): string {
-  return parseTitle(fileName).name;
+  const t = parseTitle(fileName);
+  return t.episode !== undefined && t.season === undefined ? plainTitle(fileName) : t.name;
 }
 
 /** "Arcane · S1 E1" for episodes; undefined for anything else. */
 export function episodeLine(fileName: string): string | undefined {
   const t = parseTitle(fileName);
-  if (t.episode === undefined) return undefined;
-  const code = t.season === undefined ? `E${t.episode}` : `S${t.season} E${t.episode}`;
+  if (t.episode === undefined || t.season === undefined) return undefined;
+  const code = `S${t.season} E${t.episode}`;
   return t.series ? `${t.series} · ${code}` : code;
 }
 
