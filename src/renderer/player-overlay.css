@@ -389,17 +389,22 @@ body.video-pending #volume {
 .po-dock.glass {
   background: var(--dock-tint, var(--glass-strong));
 }
-/* Without native glass the Up next row gets the dock's material, so tiles stay readable over bright video. */
-html:not(.native-glass) .po-shelf {
+.po-shelf {
   box-sizing: border-box;
   padding: calc(28 * var(--u)) calc(34 * var(--u)) calc(22 * var(--u));
   border-radius: calc(44 * var(--u));
+}
+/* Without native glass the Up next row gets the dock's material, so tiles stay readable over bright video. */
+html:not(.native-glass) .po-shelf {
   background: var(--dock-tint, var(--glass-strong));
   box-shadow: var(--glass-edge);
 }
 .native-glass .po-dock.glass {
   background: rgba(20, 20, 24, 0.1);
   backdrop-filter: none;
+  box-shadow: var(--glass-edge);
+}
+.native-glass .po-shelf {
   box-shadow: var(--glass-edge);
 }
 
