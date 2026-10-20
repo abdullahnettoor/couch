@@ -5,8 +5,6 @@ import type { PlayerEvent } from "../../shared/player.ts";
 import { findMpv } from "./find-mpv.ts";
 import { buildMpvArgs, MpvPlayer } from "./mpv-player.ts";
 
-type MpvTestHandle = { send(args: unknown[]): Promise<unknown> };
-
 const mpvPath = findMpv();
 const sample = ".dev/sample.mkv";
 const realMpv = mpvPath && existsSync(sample) ? test : test.skip;
@@ -17,14 +15,24 @@ afterEach(async () => {
   player = undefined;
 });
 
-test("builds flags for a full-screen, chrome-free, Space-free mpv without a forced window", () => {
-  const args = buildMpvArgs("/tmp/x.sock", "LG TV");
+test("builds headless options with the IPC socket and no window flags", () => {
+  const args = buildMpvArgs("/tmp/x.sock");
   expect(args).toContain("--idle=yes");
-  expect(args).toContain("--no-native-fs");
   expect(args).toContain("--input-ipc-server=/tmp/x.sock");
-  expect(args).toContain("--fs-screen-name=LG TV");
-  expect(args).toContain("--macos-app-activation-policy=accessory");
-  expect(args.some((a) => a.startsWith("--force-window"))).toBe(false);
+  expect(args.some((a) => a.startsWith("--fs") || a.startsWith("--force-window"))).toBe(false);
+});
+
+test("emits `missing` when libmpv can't be loaded for embedding", async () => {
+  player = new MpvPlayer({
+    mpvPath: undefined,
+    embed: () => {
+      throw new Error("libmpv not found");
+    },
+  });
+  const events: PlayerEvent[] = [];
+  player.onEvent((e) => events.push(e));
+  await player.start();
+  expect(events).toEqual([{ type: "missing" }]);
 });
 
 test("emits `missing` when mpv can't be found", async () => {
@@ -42,31 +50,6 @@ test("a listener added after start still hears that mpv is missing", async () =>
   player.onEvent((e) => events.push(e));
   expect(events).toEqual([{ type: "missing" }]);
 });
-
-realMpv(
-  "the video window keeps full screen and hands the Screen's keys to Couch",
-  async () => {
-    player = new MpvPlayer({ mpvPath, extraArgs: ["--vo=null", "--ao=null"] });
-    const events: PlayerEvent[] = [];
-    player.onEvent((e) => events.push(e));
-    await player.start();
-    await player.load(sample);
-    await new Promise((r) => setTimeout(r, 400));
-    const mpv = (args: unknown[]) => (player as unknown as MpvTestHandle).send(args);
-    for (const key of ["ESC", "f", "q", "BS", "MBTN_LEFT_DBL"]) await mpv(["keypress", key]);
-    for (const key of ["LEFT", "ENTER", "h"]) await mpv(["keypress", key]);
-    await new Promise((r) => setTimeout(r, 300));
-    expect(player.running).toBe(true);
-    expect(await mpv(["get_property", "fullscreen"])).toBe(true);
-    expect(events.filter((e) => e.type === "key")).toEqual([
-      { type: "key", command: "back" },
-      { type: "key", command: "left" },
-      { type: "key", command: "ok" },
-      { type: "key", command: "home" },
-    ]);
-  },
-  10000,
-);
 
 realMpv(
   "plays, pauses, seeks, reports position, ends, and quits cleanly",

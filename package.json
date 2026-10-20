@@ -5,6 +5,7 @@
   "type": "module",
   "main": "dist/main/index.mjs",
   "scripts": {
+    "build:native": "sh native/mpv-embed/build.sh",
     "build": "vp build && vp pack",
     "start": "vp run build && electron .",
     "package": "vp run build && node scripts/package.mjs",

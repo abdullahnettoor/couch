@@ -11,7 +11,7 @@ import { createElectronMac } from "./ports/electron-mac.ts";
 import { ElectronYouTube } from "./ports/electron-youtube.ts";
 import { FileStore } from "./ports/store.ts";
 import { FfmpegThumbnails } from "./ports/thumbnails.ts";
-import { findMpv } from "./mpv/find-mpv.ts";
+import { createEmbedFactory } from "./mpv/embed-addon.ts";
 import { MpvPlayer } from "./mpv/mpv-player.ts";
 
 const REMOTE_PORT = Number(process.env.COUCH_PORT ?? 4747);
@@ -81,7 +81,7 @@ async function createScreen(): Promise<void> {
   });
   win.once("ready-to-show", () => {
     win?.show();
-    // Native full screen in its own Space, with traffic lights on hover; mpv covers it while playing.
+    // Native full screen in its own Space, with traffic lights on hover; the video is drawn inside this window.
     win?.setFullScreen(true);
   });
   win.webContents.on("did-finish-load", () => {
@@ -91,9 +91,9 @@ async function createScreen(): Promise<void> {
   await win.loadFile(join(import.meta.dirname, "../renderer/index.html"));
 
   player = new MpvPlayer({
-    mpvPath: process.env.COUCH_FORCE_NO_MPV ? undefined : findMpv(),
-    screenName: display.label || undefined,
-    // mpv's window opens on the active Space, so make that Couch's before every video.
+    mpvPath: undefined,
+    embed: process.env.COUCH_FORCE_NO_MPV ? undefined : createEmbedFactory(() => win),
+    // Bring Couch (and its full-screen Space) forward so the video is seen.
     beforeLoad: () => (win ? revealScreen(win) : Promise.resolve()),
   });
   player.onEvent(onPlayerEvent);

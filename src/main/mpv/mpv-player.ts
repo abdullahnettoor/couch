@@ -1,82 +1,57 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { LoadOptions, Player, PlayerEvent, PlayerOverlay } from "../../shared/player.ts";
-import type { CommandName } from "../../shared/protocol.ts";
 import { overlayAss } from "./overlay.ts";
 import { MpvIpcClient, type MpvEvent } from "./ipc-client.ts";
+
+export interface EmbeddedMpv {
+  setVisible(visible: boolean): void;
+  destroy(): void;
+}
+export type EmbedFactory = (options: Record<string, string>) => EmbeddedMpv;
 
 export interface MpvPlayerOptions {
   /** Absolute path to mpv, or undefined when it could not be found. */
   mpvPath: string | undefined;
-  /** Display name for mpv's --fs-screen-name (Electron's display.label). */
-  screenName?: string;
-  /** Extra mpv arguments (tests use --vo=null --ao=null). */
+  /** Extra mpv arguments for the spawned (headless) mpv; tests use --vo=null --ao=null. */
   extraArgs?: string[];
-  /** Runs before each video loads; the Screen uses it to bring its Space forward. */
+  /**
+   * Creates an in-process mpv core drawing inside Couch's window. Without it, mpv is spawned as
+   * a separate headless process (tests). Throws when libmpv can't be loaded.
+   */
+  embed?: EmbedFactory;
+  /** Runs before each video loads. */
   beforeLoad?: () => Promise<void>;
 }
 
-/**
- * The only keys mpv's window answers to while it has focus: the Screen's keys, handed to Couch.
- * mpv's own bindings stay off so nothing (Esc, F, Q, double-click, dragging) can leave full
- * screen, move the window or quit mpv behind Couch's back.
- */
-const WINDOW_KEYS: Record<string, CommandName> = {
-  UP: "up",
-  DOWN: "down",
-  LEFT: "left",
-  RIGHT: "right",
-  ENTER: "ok",
-  KP_ENTER: "ok",
-  ESC: "back",
-  h: "home",
-  H: "home",
-  SPACE: "playpause",
-};
-const KEY_MESSAGE = "couch-key";
-
-export function windowInputConf(): string {
-  return Object.entries(WINDOW_KEYS)
-    .map(([key, command]) => `${key} script-message ${KEY_MESSAGE} ${command}`)
-    .join("\n");
+/** Options for an mpv core that draws into Couch's window (embedded) or runs headless (tests). */
+export function buildMpvOptions(socketPath: string): Record<string, string> {
+  return {
+    config: "no",
+    "input-default-bindings": "no",
+    "input-builtin-bindings": "no",
+    idle: "yes",
+    "input-ipc-server": socketPath,
+    osc: "no",
+    "osd-level": "0",
+    hwdec: "auto",
+    "keep-open": "no",
+    slang: "eng,en",
+    "sub-auto": "fuzzy",
+  };
 }
 
-export function buildMpvArgs(
-  socketPath: string,
-  screenName?: string,
-  inputConf?: string,
-): string[] {
-  const args = [
-    "--no-config",
-    "--input-default-bindings=no",
-    "--input-builtin-bindings=no",
-    "--input-builtin-dragging=no",
-    "--window-dragging=no",
-    "--idle=yes",
-    `--input-ipc-server=${socketPath}`,
-    "--fs",
-    "--no-native-fs",
-    "--no-border",
-    "--osc=no",
-    "--osd-level=0",
-    "--cursor-autohide=always",
-    "--hwdec=auto",
-    "--macos-app-activation-policy=accessory",
-    "--keep-open=no",
-    "--slang=eng,en",
-    "--sub-auto=fuzzy",
-  ];
-  if (inputConf) args.push(`--input-conf=${inputConf}`);
-  if (screenName) args.push(`--fs-screen-name=${screenName}`);
-  return args;
+export function buildMpvArgs(socketPath: string): string[] {
+  return Object.entries(buildMpvOptions(socketPath)).map(([k, v]) => `--${k}=${v}`);
 }
 
-/** One long-lived mpv child process, controlled only through its local IPC socket. */
+/** One long-lived mpv core (embedded in Couch, or a child process), controlled through its local IPC socket. */
 export class MpvPlayer implements Player {
   private listeners = new Set<(event: PlayerEvent) => void>();
   private child: ChildProcess | undefined;
+  private embedded: EmbeddedMpv | undefined;
   private client: Promise<MpvIpcClient> | undefined;
   private dir: string | undefined;
   private disposing = false;
@@ -89,31 +64,35 @@ export class MpvPlayer implements Player {
     this.options = options;
   }
 
-  /** Starts mpv idle. Emits `missing` when mpv isn't installed, `exited` if it dies. */
+  /** Starts mpv idle. Emits `missing` when mpv isn't available, `exited` if it dies. */
   async start(): Promise<void> {
-    const { mpvPath, screenName, extraArgs = [] } = this.options;
-    if (!mpvPath) {
+    const { mpvPath, extraArgs = [], embed } = this.options;
+    if (!embed && !mpvPath) {
       this.emit({ type: "missing" });
       return;
     }
     this.dir = mkdtempSync(join(tmpdir(), "couch-mpv-"));
     const socketPath = join(this.dir, "mpv.sock");
-    const inputConf = join(this.dir, "input.conf");
-    writeFileSync(inputConf, windowInputConf());
-    const child = spawn(
-      mpvPath,
-      [...buildMpvArgs(socketPath, screenName, inputConf), ...extraArgs],
-      {
+    if (embed) {
+      try {
+        this.embedded = embed(buildMpvOptions(socketPath));
+      } catch {
+        this.cleanupDir();
+        this.emit({ type: "missing" });
+        return;
+      }
+    } else {
+      const child = spawn(mpvPath!, [...buildMpvArgs(socketPath), ...extraArgs], {
         stdio: "ignore",
-      },
-    );
-    this.child = child;
-    child.on("error", () => this.emit({ type: "missing" }));
-    child.on("exit", () => {
-      this.child = undefined;
-      this.cleanupDir();
-      if (!this.disposing) this.emit({ type: "exited" });
-    });
+      });
+      this.child = child;
+      child.on("error", () => this.emit({ type: "missing" }));
+      child.on("exit", () => {
+        this.child = undefined;
+        this.cleanupDir();
+        if (!this.disposing) this.emit({ type: "exited" });
+      });
+    }
     this.client = MpvIpcClient.connect(socketPath, { timeoutMs: 8000 });
     try {
       const client = await this.client;
@@ -131,7 +110,7 @@ export class MpvPlayer implements Player {
   }
 
   get running(): boolean {
-    return this.child !== undefined;
+    return this.child !== undefined || this.embedded !== undefined;
   }
 
   async load(path: string, options: LoadOptions = {}): Promise<void> {
@@ -173,16 +152,8 @@ export class MpvPlayer implements Player {
     }
   }
 
-  async setDisplay(name: string | undefined): Promise<void> {
-    if (!name) return;
-    this.options.screenName = name;
-    await this.send(["set_property", "fs-screen-name", name]);
-    const fs = await this.send(["get_property", "fullscreen"]);
-    if (fs === true) {
-      await this.send(["set_property", "fullscreen", false]);
-      await this.send(["set_property", "fullscreen", true]);
-    }
-  }
+  /** The video lives in Couch's window, which moves itself; nothing to do. */
+  async setDisplay(_name: string | undefined): Promise<void> {}
 
   async stop(): Promise<void> {
     await this.send(["stop"]);
@@ -194,9 +165,16 @@ export class MpvPlayer implements Player {
     return () => this.listeners.delete(listener);
   }
 
-  /** Quits mpv and waits for the process to exit so no orphan is left behind. */
+  /** Destroys the embedded core, or quits the child and waits for it so no orphan is left. */
   async dispose(): Promise<void> {
     this.disposing = true;
+    if (this.embedded) {
+      (await this.client?.catch(() => undefined))?.close();
+      this.embedded.destroy();
+      this.embedded = undefined;
+      this.cleanupDir();
+      return;
+    }
     const child = this.child;
     if (child) {
       const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
@@ -228,12 +206,11 @@ export class MpvPlayer implements Player {
         this.emit({ type: "pause", paused: e.data });
       else if (e.name === "duration" && typeof e.data === "number")
         this.emit({ type: "duration", seconds: e.data });
-    } else if (e.event === "client-message") {
-      const [name, command] = Array.isArray(e.args) ? e.args : [];
-      if (name === KEY_MESSAGE && Object.values(WINDOW_KEYS).includes(command))
-        this.emit({ type: "key", command });
+    } else if (e.event === "file-loaded") {
+      this.embedded?.setVisible(true);
     } else if (e.event === "end-file") {
       const reason = e.reason === "eof" ? "eof" : e.reason === "error" ? "error" : "stop";
+      this.embedded?.setVisible(false);
       if (e.reason === "quit") return;
       this.emit({ type: "ended", reason });
     }
