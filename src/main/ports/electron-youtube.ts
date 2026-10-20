@@ -15,6 +15,12 @@ const KEY_CODES: Record<YouTubeKey, string> = {
   back: "Escape",
 };
 
+export const SEARCH_URL = "https://www.youtube.com/tv#/search";
+
+export function isSearchUrl(url: string): boolean {
+  return /#\/search\b/.test(url);
+}
+
 /** YouTube's home and browse screens; anything else (watch, search, settings...) is deeper. */
 export function isTopLevelUrl(url: string): boolean {
   const hash = url.includes("#") ? url.slice(url.indexOf("#")) : "";
@@ -60,8 +66,10 @@ export class ElectronYouTube implements YouTube {
       this.#failed = true;
       this.#emit({ type: "failed" });
     });
-    const route = (_e: unknown, url: string) =>
+    const route = (_e: unknown, url: string) => {
       this.#emit({ type: "route", topLevel: isTopLevelUrl(url) });
+      if (isSearchUrl(url)) this.#emit({ type: "searchOpened" });
+    };
     wc.on("did-navigate", route);
     wc.on("did-navigate-in-page", route);
   }
@@ -134,9 +142,25 @@ export class ElectronYouTube implements YouTube {
     wc.sendInputEvent({ type: "keyUp", keyCode: "MediaPlayPause" });
   }
 
-  // Typing arrives with ticket 010.
-  setSearchText(_text: string): void {}
-  submitSearch(): void {}
+  openSearch(): void {
+    const wc = this.#view.webContents;
+    if (isSearchUrl(wc.getURL())) return;
+    void wc.loadURL(SEARCH_URL, { userAgent: COBALT_USER_AGENT }).catch(() => {});
+  }
+
+  /** Makes YouTube's search box hold exactly `text`, firing the events its UI listens to. */
+  setSearchText(text: string): void {
+    const js =
+      `(function(t){var el=document.querySelector('input[type=text],input:not([type]),input[type=search]')||document.activeElement;` +
+      `if(!el||el.tagName!=='INPUT')return;if(document.activeElement!==el)el.focus();` +
+      `var set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(el,t);` +
+      `el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}))})(${JSON.stringify(text)})`;
+    void this.#view.webContents.executeJavaScript(js).catch(() => {});
+  }
+
+  submitSearch(): void {
+    this.sendKey("ok");
+  }
 
   restart(): void {
     this.#load();

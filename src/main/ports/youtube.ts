@@ -14,6 +14,8 @@ export interface YouTube {
   /** Hides the view and pauses playback; it stays loaded. */
   hide(): void;
   sendKey(key: YouTubeKey): void;
+  /** Moves YouTube to its search screen if it is not there already. */
+  openSearch(): void;
   setSearchText(text: string): void;
   submitSearch(): void;
   playPause(): void;
