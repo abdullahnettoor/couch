@@ -116,6 +116,8 @@ export class Core {
   readonly details: MetadataService;
   /** A TMDB key being typed on a phone. Kept out of the Screen state and snapshots. */
   #keyDraft = "";
+  /** What the phone currently typing is typing into. */
+  #typingFor: "search" | "tmdbKey" | undefined;
   #cancelSaves: (() => void) | undefined;
   #resumeNote: string | undefined;
   #cancelNote: (() => void) | undefined;
