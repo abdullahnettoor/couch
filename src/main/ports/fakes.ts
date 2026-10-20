@@ -1,3 +1,4 @@
+import type { Thumbnails } from "./thumbnails.ts";
 import type { LoadOptions, Player, PlayerEvent, PlayerOverlay } from "../../shared/player.ts";
 import type { Clock } from "./clock.ts";
 import type { DisplayInfo, Mac } from "./mac.ts";
@@ -67,8 +68,8 @@ export class FakeYouTube implements YouTube {
   #record(call: string, ...args: unknown[]) {
     this.calls.push({ call, args });
   }
-  show() {
-    this.#record("show");
+  show(note?: string) {
+    this.#record("show", note);
   }
   hide() {
     this.#record("hide");
@@ -170,5 +171,35 @@ export class FakeClock implements Clock {
       next.fn();
     }
     this.#now = target;
+  }
+}
+
+/** Scripted thumbnails: `make` waits until a test calls `finish` (or `fail`) for that path. */
+export class FakeThumbnails implements Thumbnails {
+  cache = new Map<string, string>();
+  started: string[] = [];
+  #pending = new Map<string, (url: string | undefined) => void>();
+  inFlight = 0;
+  maxInFlight = 0;
+  cached(path: string) {
+    return this.cache.get(path);
+  }
+  make(path: string) {
+    this.started.push(path);
+    this.inFlight++;
+    this.maxInFlight = Math.max(this.maxInFlight, this.inFlight);
+    return new Promise<string | undefined>((resolve) => {
+      this.#pending.set(path, (url) => {
+        this.inFlight--;
+        if (url) this.cache.set(path, url);
+        resolve(url);
+      });
+    });
+  }
+  finish(path: string) {
+    this.#pending.get(path)?.(`file:///thumbs/${encodeURIComponent(path)}.jpg`);
+  }
+  fail(path: string) {
+    this.#pending.get(path)?.(undefined);
   }
 }

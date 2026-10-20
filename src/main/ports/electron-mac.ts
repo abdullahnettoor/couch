@@ -3,7 +3,15 @@ import { hostname } from "node:os";
 import { app, dialog, powerSaveBlocker, screen } from "electron";
 import type { Mac } from "./mac.ts";
 
-/** Electron-backed Mac port. Volume and display wake arrive with the tickets that need them. */
+function osascript(script: string): Promise<string> {
+  return new Promise((resolve, reject) =>
+    execFile("osascript", ["-e", script], (error, stdout) =>
+      error ? reject(error) : resolve(stdout.trim()),
+    ),
+  );
+}
+
+/** Electron-backed Mac port. Display wake arrives with the ticket that needs it. */
 export function createElectronMac(): Mac {
   let awake: number | undefined;
   let displayAwake: number | undefined;
@@ -18,17 +26,10 @@ export function createElectronMac(): Mac {
   };
   return {
     getVolume: () =>
-      new Promise((resolve) =>
-        execFile("osascript", ["-e", "output volume of (get volume settings)"], (err, out) => {
-          const n = Number.parseInt(out, 10);
-          resolve(err || Number.isNaN(n) ? 0 : n);
-        }),
-      ),
+      osascript("output volume of (get volume settings)").then((out) => Number(out) || 0),
     setVolume: (percent) =>
-      new Promise((resolve) =>
-        execFile("osascript", ["-e", `set volume output volume ${Math.round(percent)}`], () =>
-          resolve(),
-        ),
+      osascript(`set volume output volume ${Math.round(Math.max(0, Math.min(100, percent)))}`).then(
+        () => {},
       ),
     keepAwake(keep) {
       awake = toggle(awake, keep, "prevent-app-suspension");

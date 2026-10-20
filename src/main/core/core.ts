@@ -9,18 +9,21 @@ import {
   type RemoteSnapshot,
   type ScreenPayload,
   type ScreenState,
+  type View,
 } from "../../shared/protocol.ts";
 import type { Player, PlayerEvent, PlayerOverlay } from "../../shared/player.ts";
 import type { Clock } from "../ports/clock.ts";
 import type { Mac } from "../ports/mac.ts";
-import type { YouTube } from "../ports/youtube.ts";
+import type { YouTube, YouTubeEvent } from "../ports/youtube.ts";
 import { randomBytes } from "node:crypto";
 import type { Store } from "../ports/store.ts";
+import { nullThumbnails, type Thumbnails } from "../ports/thumbnails.ts";
 import { ACTIONS, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
 import { cleanTitle, listFolder, rootEntries } from "./library.ts";
 
 const TILE_COLUMNS = 4;
+const THUMBNAIL_JOBS = 2;
 const LIBRARY_VIEWS = ["library", "folder", "libraryFolders"];
 
 export interface Ports {
@@ -29,6 +32,7 @@ export interface Ports {
   mac: Mac;
   clock: Clock;
   store: Store;
+  thumbnails?: Thumbnails;
 }
 
 /** Who sent a command: a connected phone, or the Screen's own keyboard. */
@@ -36,9 +40,10 @@ export type Source = RemoteId | "screen";
 
 const TOAST_MS = 3000;
 const SKIP_SECONDS = 10;
-const VOLUME_STEP = 5;
 const OVERLAY_MS = 3000;
 const MPV_MISSING = "Couch needs mpv to play videos. Install it with: brew install mpv";
+const VOLUME_STEP = 5;
+const YOUTUBE_NOTE = "Press Home on your phone to come back";
 
 /** The single source of truth: holds the Screen state and turns commands into new state. */
 export class Core {
@@ -59,6 +64,9 @@ export class Core {
   #key: string;
   #port = 0;
   #forgetListeners = new Set<() => void>();
+  #ytFailed = false;
+  #ytTopLevel = true;
+  #ytOff: () => void;
   #libraryFolders: string[];
   /** The open folder's contents, read fresh each time it is opened. */
   #listing: LibraryEntry[] = [];
@@ -68,6 +76,9 @@ export class Core {
   #cancelVolume: (() => void) | undefined;
   #lastOverlay = "";
   #unsubPlayer: () => void;
+  #thumbQueue: LibraryEntry[] = [];
+  #thumbRunning = 0;
+  #disposed = false;
 
   constructor(ports: Ports) {
     this.#ports = ports;
@@ -81,6 +92,7 @@ export class Core {
     this.#state.subtitlesOn = playback.subtitlesOn !== false;
     this.#unsubPlayer = ports.player.onEvent((event) => this.#onPlayerEvent(event));
     this.#scheduleMinute();
+    this.#ytOff = ports.youtube.onEvent((event) => this.#onYouTube(event));
     void ports.mac
       .getVolume()
       .then((volume) => {
@@ -121,7 +133,7 @@ export class Core {
     this.#state.remotes = 0;
     this.#state.typingBy = undefined;
     for (const l of [...this.#forgetListeners]) l();
-    this.#state.view = "addPhone";
+    this.#setView("addPhone");
     this.#emit();
   }
 
@@ -189,8 +201,41 @@ export class Core {
     const entries = listFolder(path);
     if (!entries) return this.#toast("Connect the drive to see this folder");
     this.#listing = entries;
+    this.#queueThumbnails(entries);
     this.#state.folderPath = path;
     this.#state.view = "folder";
+  }
+
+  /** Cached pictures appear at once; the rest are made in the background, a couple at a time. */
+  #queueThumbnails(entries: LibraryEntry[]): void {
+    const thumbs = this.#ports.thumbnails ?? nullThumbnails;
+    this.#thumbQueue = [];
+    for (const e of entries) {
+      if (e.kind !== "video") continue;
+      const url = thumbs.cached(e.path);
+      if (url) e.thumb = url;
+      else this.#thumbQueue.push(e);
+    }
+    this.#pumpThumbnails();
+  }
+
+  #pumpThumbnails(): void {
+    const thumbs = this.#ports.thumbnails ?? nullThumbnails;
+    while (!this.#disposed && this.#thumbRunning < THUMBNAIL_JOBS && this.#thumbQueue.length) {
+      const entry = this.#thumbQueue.shift()!;
+      this.#thumbRunning++;
+      void thumbs
+        .make(entry.path)
+        .catch(() => undefined)
+        .then((url) => {
+          this.#thumbRunning--;
+          if (url && !this.#disposed && this.#listing.includes(entry)) {
+            entry.thumb = url;
+            this.#emit();
+          }
+          this.#pumpThumbnails();
+        });
+    }
   }
 
   #libraryAction(action: string): boolean {
@@ -339,18 +384,6 @@ export class Core {
     }, OVERLAY_MS);
   }
 
-  #changeVolume(delta: number): void {
-    const volume = Math.min(100, Math.max(0, this.#state.volume + delta));
-    this.#state.volume = volume;
-    void this.#ports.mac.setVolume(volume).catch(() => {});
-    this.#state.volumeShown = true;
-    this.#cancelVolume?.();
-    this.#cancelVolume = this.#ports.clock.setTimeout(() => {
-      this.#state.volumeShown = false;
-      this.#emit();
-    }, OVERLAY_MS);
-  }
-
   /** What mpv should draw over the video right now. */
   #overlay(): PlayerOverlay | undefined {
     const p = this.#state.player;
@@ -391,6 +424,7 @@ export class Core {
       where: s.view === "folder" ? basename(s.folderPath ?? "") : VIEW_LABELS[s.view],
       view: s.view,
       typeAvailable: s.view === "youtube",
+      showVolume: s.view === "youtube",
       typing: s.typingBy === undefined ? "none" : s.typingBy === remote ? "you" : "other",
       nowPlaying: s.player && {
         title: cleanTitle(basename(s.player.path)),
@@ -449,13 +483,14 @@ export class Core {
         this.#back();
         break;
       case "home":
-        this.#state.view = "home";
+        this.#setView("home");
+        break;
+      case "playpause":
+        if (this.#state.view === "youtube") this.#ports.youtube.playPause();
         break;
       case "volUp":
-        this.#changeVolume(VOLUME_STEP);
-        break;
       case "volDown":
-        this.#changeVolume(-VOLUME_STEP);
+        void this.#nudgeVolume(command.command === "volUp" ? VOLUME_STEP : -VOLUME_STEP);
         break;
       default:
         break;
@@ -464,23 +499,27 @@ export class Core {
   }
 
   dispose(): void {
+    this.#disposed = true;
     this.#cancelToast?.();
     this.#cancelMinute?.();
     this.#cancelOverlay?.();
     this.#cancelVolume?.();
     this.#unsubPlayer();
+    this.#ytOff();
     this.#listeners.clear();
   }
 
   #move(direction: "up" | "down" | "left" | "right"): void {
     const grid = this.#currentGrid();
     const current = resolveFocus(grid, this.#state.focus[this.viewKey]);
+    if (this.#state.view === "youtube") return this.#ports.youtube.sendKey(direction);
     if (!current) return;
     const next = moveFocus(grid, current, direction);
     this.#state.focus[this.viewKey] = { r: next.r, c: next.c };
   }
 
   #ok(): void {
+    if (this.#state.view === "youtube") return this.#ports.youtube.sendKey("ok");
     const grid = this.#currentGrid();
     const item = resolveFocus(grid, this.#state.focus[this.viewKey]);
     if (!item) return;
@@ -493,6 +532,11 @@ export class Core {
   }
 
   #back(): void {
+    if (this.#state.view === "youtube") {
+      if (this.#ytTopLevel) this.#setView("home");
+      else this.#ports.youtube.sendKey("back");
+      return;
+    }
     if (this.#state.view === "folder") {
       const path = this.#state.folderPath ?? "";
       if (this.#libraryFolders.includes(path)) this.#state.view = "library";
@@ -500,13 +544,76 @@ export class Core {
       return;
     }
     const target = BACK_TARGETS[this.#state.view];
-    if (target) this.#state.view = target;
+    if (target) this.#setView(target);
+  }
+
+  /** Changes view; leaving YouTube hides it (pausing playback) and lets the display sleep again. */
+  #setView(view: View): void {
+    const from = this.#state.view;
+    if (from === view) return;
+    if (from === "youtube") {
+      this.#ports.youtube.hide();
+      this.#ports.mac.keepDisplayAwake(false);
+    }
+    this.#state.view = view;
+  }
+
+  #openYouTube(): void {
+    if (this.#ytFailed) {
+      this.#setView("youtubeError");
+      return;
+    }
+    this.#setView("youtube");
+    this.#ports.mac.keepDisplayAwake(true);
+    this.#ports.youtube.show(YOUTUBE_NOTE);
+  }
+
+  #retryYouTube(): void {
+    this.#ytFailed = false;
+    this.#ports.youtube.restart();
+    this.#openYouTube();
+  }
+
+  #onYouTube(event: YouTubeEvent): void {
+    switch (event.type) {
+      case "loaded":
+        this.#ytFailed = false;
+        break;
+      case "failed":
+        this.#ytFailed = true;
+        this.#setView(this.#state.view === "youtube" ? "youtubeError" : this.#state.view);
+        break;
+      case "route":
+        this.#ytTopLevel = event.topLevel;
+        break;
+      default:
+        return;
+    }
+    this.#emit();
+  }
+
+  async #nudgeVolume(delta: number): Promise<void> {
+    const volume = Math.max(0, Math.min(100, this.#state.volume + delta));
+    this.#state.volume = volume;
+    this.#state.volumeShown = true;
+    this.#cancelVolume?.();
+    this.#cancelVolume = this.#ports.clock.setTimeout(() => {
+      this.#state.volumeShown = false;
+      this.#emit();
+    }, OVERLAY_MS);
+    this.#emit();
+    await this.#ports.mac.setVolume(volume).catch(() => {});
   }
 
   #actionContext(): ActionContext {
     return {
-      open: (view) => {
-        this.#state.view = view;
+      open: (view) => this.#setView(view),
+      openYouTube: () => this.#openYouTube(),
+      retryYouTube: () => this.#retryYouTube(),
+      restartYouTube: () => {
+        this.#ytFailed = false;
+        this.#ports.youtube.restart();
+        this.#toast("Restarting YouTube");
       },
       toast: (text) => this.#toast(text),
       forgetAllPhones: () => this.forgetAllPhones(),

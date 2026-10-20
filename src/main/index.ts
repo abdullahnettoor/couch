@@ -7,8 +7,9 @@ import { startApp, type CouchApp } from "./app.ts";
 import { pickTargetDisplay } from "./display.ts";
 import { systemClock } from "./ports/clock.ts";
 import { createElectronMac } from "./ports/electron-mac.ts";
-import { nullYouTube } from "./ports/null-youtube.ts";
+import { ElectronYouTube } from "./ports/electron-youtube.ts";
 import { FileStore } from "./ports/store.ts";
+import { FfmpegThumbnails } from "./ports/thumbnails.ts";
 import { findMpv } from "./mpv/find-mpv.ts";
 import { MpvPlayer } from "./mpv/mpv-player.ts";
 
@@ -94,16 +95,19 @@ async function createScreen(): Promise<void> {
   player.onEvent(onPlayerEvent);
   await player.start();
   const mac = createElectronMac();
+  const youtube = new ElectronYouTube(win);
   mac.keepAwake(true);
   couch = await startApp({
     player,
-    youtube: nullYouTube,
+    youtube,
     mac,
     clock: systemClock,
     store: new FileStore(app.getPath("userData")),
+    thumbnails: new FfmpegThumbnails(join(app.getPath("userData"), "thumbnails")),
     port: REMOTE_PORT,
   });
   couch.onScreen(publishScreen);
+  youtube.start();
   publishScreen();
 }
 

@@ -103,6 +103,7 @@ describe("Settings", () => {
       "Add a phone",
       "Forget all phones",
       "Library folders",
+      "Restart YouTube",
       "Quit Couch",
     ]);
   });
@@ -126,9 +127,7 @@ describe("Settings", () => {
 
   test("Quit Couch quits", async () => {
     const phone = await openSettings();
-    await phone.press("down");
-    await phone.press("down");
-    await phone.press("down");
+    for (let i = 0; i < 4; i++) await phone.press("down");
     await phone.press("ok");
     expect(h.mac.calls.some((c) => c.call === "quit")).toBe(true);
   });
