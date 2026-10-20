@@ -69,9 +69,9 @@ async function createScreen(): Promise<void> {
 
   win = new BrowserWindow({
     ...display.bounds,
+    title: "Couch",
     backgroundColor: "#000000",
     show: false,
-    frame: false,
     webPreferences: {
       preload: join(import.meta.dirname, "../preload/index.cjs"),
       contextIsolation: true,
@@ -80,7 +80,8 @@ async function createScreen(): Promise<void> {
   });
   win.once("ready-to-show", () => {
     win?.show();
-    win?.setSimpleFullScreen(true);
+    // Native full screen in its own Space, with traffic lights on hover; mpv covers it while playing.
+    win?.setFullScreen(true);
   });
   win.webContents.on("did-finish-load", () => {
     publishMpv();

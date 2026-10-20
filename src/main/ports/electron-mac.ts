@@ -62,9 +62,13 @@ export function createElectronMac(
       const win = getWindow();
       const display = screen.getAllDisplays().find((d) => d.id === displayId);
       if (!win || win.isDestroyed() || !display) return;
-      win.setSimpleFullScreen(false);
-      win.setBounds(display.bounds);
-      win.setSimpleFullScreen(true);
+      // Native full screen can't be moved: leave it, move, then come back (only if it was on).
+      if (!win.isFullScreen()) return win.setBounds(display.bounds);
+      win.once("leave-full-screen", () => {
+        win.setBounds(display.bounds);
+        win.setFullScreen(true);
+      });
+      win.setFullScreen(false);
     },
     listDisplays: () =>
       screen.getAllDisplays().map((d) => ({ id: d.id, label: d.label, internal: d.internal })),
