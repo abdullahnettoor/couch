@@ -110,7 +110,7 @@ static void onUpdate(void *ctx) {
       {MPV_RENDER_PARAM_ADVANCED_CONTROL, &adv},
       {MPV_RENDER_PARAM_INVALID, NULL}};
     mpv_render_context *rc = NULL;
-    if (api.render_create(&rc, self.mpv, params) < 0) return;
+    int e = api.render_create(&rc, self.mpv, params); if (e < 0) return;
     self.render = rc;
     api.render_set_cb(rc, onUpdate, (__bridge void *)self);
   }
@@ -197,7 +197,7 @@ static napi_value Create(napi_env env, napi_callback_info info) {
   MpvLayer *layer = (MpvLayer *)view.layer;
   layer.mpv = mpv;
   [parent addSubview:view positioned:NSWindowAbove relativeTo:nil];
-  [layer setNeedsDisplay];
+  [layer display];
   int id = nextId++;
   views[id] = view;
   napi_value out; napi_create_int32(env, id, &out);
