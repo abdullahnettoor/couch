@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
@@ -32,9 +32,12 @@ describe("login item (real files, fake launchctl)", () => {
   beforeEach(() => {
     home = mkdtempSync(join(tmpdir(), "couch-login-"));
     loaded = undefined;
+    PROGRAM = join(home, "Couch.app/Contents/Resources/couch-listener");
+    mkdirSync(join(PROGRAM, ".."), { recursive: true });
+    writeFileSync(PROGRAM, "");
   });
   afterEach(() => rmSync(home, { recursive: true, force: true }));
-  const PROGRAM = "/Apps/Couch.app/Contents/Resources/couch-listener";
+  let PROGRAM: string;
   const LAUNCH = "open -a '/Apps/Couch.app'";
   const make = (program: string | undefined) =>
     createLoginItem({ home, uid: 501, program, launch: LAUNCH, exec });
@@ -73,6 +76,26 @@ describe("login item (real files, fake launchctl)", () => {
     expect(loaded).toBeUndefined();
     expect(existsSync(item.plistPath)).toBe(false);
     expect(await item.state()).toEqual({ available: false, on: false });
+  });
+});
+
+describe("login item without a bundled listener", () => {
+  test("a development copy of Electron renamed to Couch has no listener binary: unavailable, nothing written", async () => {
+    const home = mkdtempSync(join(tmpdir(), "couch-login-"));
+    const calls: string[][] = [];
+    const exec: Exec = async (_f, args) => (calls.push(args), { ok: true });
+    const item = createLoginItem({
+      home,
+      uid: 501,
+      program: join(home, "Couch.app/Contents/Resources/couch-listener"),
+      launch: "open -a x",
+      exec,
+    });
+    expect(await item.state()).toEqual({ available: false, on: false });
+    await item.set(true);
+    expect(existsSync(item.plistPath)).toBe(false);
+    expect(calls).toEqual([]);
+    rmSync(home, { recursive: true, force: true });
   });
 });
 

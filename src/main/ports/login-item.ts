@@ -1,11 +1,11 @@
 import { execFile } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 export const LISTENER_LABEL = "local.couch.listener";
 
 export interface ListenerLoginItem {
-  /** False outside an installed Couch.app (development). */
+  /** False outside an installed Couch.app, or when its listener binary is missing (development). */
   available: boolean;
   on: boolean;
 }
@@ -67,14 +67,15 @@ export function createLoginItem(o: LoginItemOptions) {
   const plist = join(o.home, "Library", "LaunchAgents", `${label}.plist`);
   const log = join(o.home, "Library", "Logs", "Couch", "listener.log");
   const domain = `gui/${o.uid}`;
+  const installed = () => !!o.program && existsSync(o.program);
   return {
     plistPath: plist,
     async state(): Promise<ListenerLoginItem> {
-      if (!o.program) return { available: false, on: false };
+      if (!installed()) return { available: false, on: false };
       return { available: true, on: (await exec("launchctl", ["print", `${domain}/${label}`])).ok };
     },
     async set(on: boolean): Promise<void> {
-      if (!o.program) return;
+      if (!o.program || !installed()) return;
       if (on) {
         mkdirSync(dirname(plist), { recursive: true });
         mkdirSync(dirname(log), { recursive: true });
