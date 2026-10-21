@@ -294,7 +294,10 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   }
 
   var failTimer = null;
+  var pstate = "on";
   function setPower(state, failed) {
+    if (state === "on" && pstate === "on") return;
+    pstate = state;
     clearTimeout(failTimer);
     var off = state === "off", starting = state === "starting";
     $("pw").hidden = !(off || starting);

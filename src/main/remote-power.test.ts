@@ -150,6 +150,7 @@ describe("Remote page power states", () => {
     expect(page.els.get("pw")!.hidden).toBe(true);
     expect(page.els.get("confirm")!.hidden).toBe(true);
     page.tap("pbtn");
+    page.send(page.snapshot);
     expect(page.els.get("confirm")!.hidden).toBe(false);
     expect(page.sent).toEqual([]);
     page.tap("confirm-cancel");
