@@ -13,10 +13,9 @@ import { FileStore } from "./ports/store.ts";
 import { FfmpegThumbnails } from "./ports/thumbnails.ts";
 import { TmdbMetadata } from "./ports/tmdb-metadata.ts";
 import { PROJECT_TMDB_KEY } from "./ports/project-key.ts";
+import { chooseBinding, liveListener } from "./listener.ts";
 import { createEmbedFactory } from "./mpv/embed-addon.ts";
 import { MpvPlayer } from "./mpv/mpv-player.ts";
-
-const REMOTE_PORT = Number(process.env.COUCH_PORT ?? 4747);
 
 // Fixed name so app data lives in ~/Library/Application Support/Couch whichever way Couch is launched.
 app.setName("Couch");
@@ -129,18 +128,21 @@ async function createScreen(): Promise<void> {
   const mac = createElectronMac(() => win);
   const youtube = new ElectronYouTube(win);
   mac.keepAwake(true);
+  const store = new FileStore(app.getPath("userData"));
+  const listener = await liveListener(store);
   couch = await startApp({
     player,
     youtube,
     mac,
     clock: systemClock,
-    store: new FileStore(app.getPath("userData")),
+    store,
     thumbnails: new FfmpegThumbnails(join(app.getPath("userData"), "thumbnails")),
     thumbnailDir: join(app.getPath("userData"), "thumbnails"),
     iconDir: join(import.meta.dirname, "../renderer"),
     metadata: new TmdbMetadata(join(app.getPath("userData"), "thumbnails")),
     tmdbProjectKey: PROJECT_TMDB_KEY,
-    port: REMOTE_PORT,
+    ...chooseBinding(listener, process.env),
+    listener: listener && { publicPort: listener.publicPort, token: listener.token },
   });
   couch.onScreen(publishScreen);
   youtube.start();

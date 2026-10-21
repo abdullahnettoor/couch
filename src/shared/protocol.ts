@@ -43,6 +43,7 @@ export const COMMAND_NAMES = [
   "typeSubmit",
   "typeCancel",
   "menu",
+  "power",
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
