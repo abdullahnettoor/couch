@@ -2,7 +2,7 @@ import type { GridItem, LibraryEntry } from "../../shared/protocol.ts";
 
 /**
  * Home's grid: gear (row 0); Resume / From start (row 1) only while a film card is focused or was
- * last focused; the App row (row 2) with YouTube first. With nothing in progress it is the plain base.
+ * last focused; the App row (row 2) in the App list's order. With nothing in progress it is the plain base.
  */
 export function homeGrid(
   base: GridItem[],

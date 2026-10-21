@@ -48,7 +48,7 @@ const bare = (title: string) => title.replace(/\s*\(\d{4}\)$/, "");
 
 /**
  * The Library search view: the live query typed on a phone, result rows (Shows, Films, Episodes),
- * their grid and payload. The query lives here, not in the Screen state, and never reaches YouTube.
+ * their grid and payload. The query lives here, not in the Screen state, and never reaches an App.
  */
 export class LibrarySearchView {
   #state: ScreenState;

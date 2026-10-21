@@ -6,8 +6,8 @@ export type RemoteId = string;
 
 export type View =
   | "home"
-  | "youtube"
-  | "youtubeError"
+  | "app"
+  | "appError"
   | "library"
   | "folder"
   | "player"
@@ -103,6 +103,8 @@ export interface ScreenState {
   /** The open show page's show id, and its selected tab ("1", "2", … or "extras"). */
   showId?: string;
   showTab?: string;
+  /** The front web App's id, while the view is "app" or "appError". */
+  app?: string;
   typingBy?: RemoteId;
   query: string;
   player?: { path: string; pos: number; dur: number; paused: boolean };
@@ -320,7 +322,7 @@ export interface UpNextItem {
 }
 
 /** Which control layout the Remote shows. */
-export type RemoteLayout = "home" | "youtube" | "player" | "librarySearch" | "other";
+export type RemoteLayout = "home" | "app" | "player" | "librarySearch" | "other";
 
 /** Home's Continue watching shortcut on the Remote. */
 export interface RemoteContinueCard {
@@ -345,9 +347,9 @@ export interface RemoteSnapshot {
   confirm?: Confirmation;
   /** A show or film tile is focused and details are on: the phone offers Fix match (command `menu`). */
   fixAvailable?: boolean;
-  /** The Type button's label when it isn't YouTube search. */
+  /** The Type button's label when it isn't a search. */
   typeLabel?: string;
-  /** The typing sheet's placeholder, when it isn't YouTube search. */
+  /** The typing sheet's placeholder, when it isn't a search. */
   typePlaceholder?: string;
   /** The text the typing sheet starts with (the Library search keeps its query). */
   typeSeed?: string;
@@ -368,9 +370,9 @@ export interface RemoteSnapshot {
   };
   /** The playing Library video's folder, while a video plays (and has company). */
   upNext?: UpNextItem[];
-  /** The Remote shows its volume −/+ pair (YouTube). */
+  /** The Remote shows its volume −/+ pair (a web App). */
   showVolume: boolean;
-  /** The Remote shows its −10 s / +10 s pair (YouTube). */
+  /** The Remote shows its −10 s / +10 s pair (a web App). */
   showSkip: boolean;
   volume: number;
   remotes: number;
@@ -378,8 +380,8 @@ export interface RemoteSnapshot {
 
 export const VIEW_LABELS: Record<View, string> = {
   home: "Home",
-  youtube: "YouTube",
-  youtubeError: "YouTube",
+  app: "App",
+  appError: "App",
   library: "Library",
   folder: "Library",
   player: "Now Playing",

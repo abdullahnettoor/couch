@@ -19,7 +19,7 @@ async function openYouTube() {
 describe("YouTube App", () => {
   test("OK on the YouTube App shows YouTube with the Home note and keeps the display awake", async () => {
     const s = await phone.press("ok");
-    expect(s.view).toBe("youtube");
+    expect(s.view).toBe("app");
     expect(s.where).toBe("YouTube");
     expect(calls("show")).toHaveLength(1);
     expect(calls("show")[0].args[0]).toBe("Press Home on your phone to come back");
@@ -61,7 +61,7 @@ describe("YouTube App", () => {
     await openYouTube();
     h.youtube.emit({ type: "key", command: "back" });
     await phone.waitFor(() => phone.last?.confirm?.title === "Leave YouTube?");
-    expect(phone.last?.view).toBe("youtube");
+    expect(phone.last?.view).toBe("app");
   });
 
   test("the volume level is shown over YouTube and cleared after 3 s", async () => {
@@ -89,7 +89,7 @@ describe("YouTube App", () => {
   test("Back at YouTube's home asks first; deeper Back is forwarded", async () => {
     await openYouTube();
     h.youtube.emit({ type: "route", home: false });
-    expect((await phone.press("back")).view).toBe("youtube");
+    expect((await phone.press("back")).view).toBe("app");
     expect(calls("sendKey").at(-1)?.args[0]).toBe("back");
     h.youtube.emit({ type: "route", home: true });
     await phone.press("back");
@@ -102,12 +102,12 @@ describe("YouTube App", () => {
   test("a load failure shows Couch's own screen; OK retries", async () => {
     await openYouTube();
     h.youtube.emit({ type: "failed" });
-    await phone.waitFor(() => phone.last?.view === "youtubeError");
-    expect(h.screen.last.state.view).toBe("youtubeError");
+    await phone.waitFor(() => phone.last?.view === "appError");
+    expect(h.screen.last.state.view).toBe("appError");
     expect(h.screen.last.focusedLabel).toBe("Try again");
     expect(calls("hide")).toHaveLength(1);
     const s = await phone.press("ok");
-    expect(s.view).toBe("youtube");
+    expect(s.view).toBe("app");
     expect(calls("restart")).toHaveLength(1);
     expect(calls("show")).toHaveLength(2);
   });
@@ -115,7 +115,7 @@ describe("YouTube App", () => {
   test("opening YouTube after a failure shows the error screen; Back goes Home", async () => {
     h.youtube.emit({ type: "failed" });
     const s = await phone.press("ok");
-    expect(s.view).toBe("youtubeError");
+    expect(s.view).toBe("appError");
     expect(calls("show")).toHaveLength(0);
     expect((await phone.press("back")).view).toBe("home");
   });

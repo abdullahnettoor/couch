@@ -12,11 +12,11 @@ A household (no profiles, no logins) watching a monitor in the living room, driv
 
 ## Product Purpose
 
-Couch makes a MacBook plus monitor feel like the home screen of a modern smart TV, for exactly two things: YouTube (YouTube's own TV interface) and the household's own video folders (the Library). Success: "From the couch, using only my phone, I can open YouTube, search, and play a video. I can also open a Library folder, play a file, and resume it later from where I stopped."
+Couch makes a MacBook plus monitor feel like the home screen of a modern smart TV, for YouTube (YouTube's own TV interface), the household's own video folders (the Library) and other Apps that join the App list. Add-ons can change one web App's page (spec 055). Success: "From the couch, using only my phone, I can open YouTube, search, and play a video. I can also open a Library folder, play a file, and resume it later from where I stopped."
 
 ## Positioning
 
-A personal, TV-like shell for one household's YouTube and local files, controlled from any phone by scanning a QR code; no media-centre database or accounts. Kodi was tried and rejected as dated and technical.
+A personal, TV-like shell for one household's YouTube, local files and other Apps, controlled from any phone by scanning a QR code; no media-centre database or accounts. Kodi was tried and rejected as dated and technical.
 
 ## Operating Context
 
@@ -26,7 +26,7 @@ A personal, TV-like shell for one household's YouTube and local files, controlle
 
 ## Capabilities and Constraints
 
-- Surfaces: Home (clock, greeting, Apps row of YouTube and Library, one Continue watching card, Settings gear), Library (folders, subfolders, videos, Continue watching row), Player (title, progress, transport, subtitles, volume), Settings (Add a phone, Forget all phones, Library folders, Restart YouTube, Quit Couch), the phone Remote (D-pad, Back/Home/Play-Pause, Type, volume, YouTube skip buttons, Now Playing).
+- Surfaces: Home (clock, greeting, Apps row built from the App list: YouTube and Library, one Continue watching card, Settings gear), Library (folders, subfolders, videos, Continue watching row), Player (title, progress, transport, subtitles, volume), Settings (Add a phone, Forget all phones, Library folders, Restart YouTube, Quit Couch), the phone Remote (D-pad, Back/Home/Play-Pause, Type, volume, YouTube skip buttons, Now Playing).
 - Focus is grid-based and owned by the core; the Screen must always show clearly where focus is.
 - Library tiles show a frame from the video (or a colour from the title until it's ready), a cleaned title, progress and "Watched".
 - Show and film details come from TMDB (a built-in project key in release builds, or the household's own key); Couch works fully without them.

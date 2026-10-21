@@ -1,3 +1,4 @@
+import { APP_ENTRIES, RESTART_APP } from "../main/apps/index.ts";
 import type { GridItem } from "./protocol.ts";
 
 type SettingsItem = Omit<GridItem, "r" | "c">;
@@ -10,7 +11,11 @@ const ITEMS: SettingsItem[] = [
   { id: "details", label: "Show and film details", action: "settings:details" },
   { id: "sound", label: "Sound output", action: "settings:sound" },
   { id: "listener", label: "Start Couch Listener at login", action: "settings:listener" },
-  { id: "restart-youtube", label: "Restart YouTube", action: "settings:restart-youtube" },
+  ...APP_ENTRIES.filter((app) => app.web).map((app) => ({
+    id: `restart-${app.id}`,
+    label: `Restart ${app.label}`,
+    action: `${RESTART_APP}${app.id}`,
+  })),
   { id: "quit", label: "Quit Couch", action: "settings:quit" },
 ];
 

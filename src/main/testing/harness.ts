@@ -1,7 +1,10 @@
 import { WebSocket } from "ws";
-import { HOME_ITEMS } from "../../shared/home-grid.ts";
+import { HOME_ITEMS, homeItems } from "../../shared/home-grid.ts";
 import { ADD_PHONE_ITEMS, SETTINGS_ITEMS } from "../../shared/settings-grid.ts";
-import { YOUTUBE_ERROR_ITEMS } from "../../shared/youtube-grid.ts";
+import { APP_ERROR_ITEMS } from "../../shared/app-grid.ts";
+import { YouTubeApp } from "../apps/youtube/youtube-app.ts";
+import type { App } from "../apps/app.ts";
+import { APP_ENTRIES, type AppEntry } from "../apps/index.ts";
 import type { Command, GridItem, RemoteSnapshot, ScreenPayload } from "../../shared/protocol.ts";
 import { startApp, type AppOptions, type CouchApp } from "../app.ts";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -88,7 +91,7 @@ const DEFAULT_GRIDS: Record<string, GridItem[]> = {
   home: HOME_ITEMS,
   settings: SETTINGS_ITEMS,
   addPhone: ADD_PHONE_ITEMS,
-  youtubeError: YOUTUBE_ERROR_ITEMS,
+  appError: APP_ERROR_ITEMS,
 };
 
 /**
@@ -146,6 +149,8 @@ export async function startHarness(
     /** Passed to startApp: lets the listener toggle move the Remote server (fast, fake sleeps). */
     frontdoor?: AppOptions["frontdoorSetup"];
     metadata?: (fake: FakeMetadata) => void;
+    /** More web Apps next to YouTube, each with the entry Home shows for it. */
+    apps?: Array<{ entry: AppEntry; app: App }>;
   } = {},
 ): Promise<Harness> {
   const tmp = given ? undefined : mkdtempSync(join(tmpdir(), "couch-store-"));
@@ -174,7 +179,7 @@ export async function startHarness(
     },
     frontdoorSetup: options.frontdoor,
     player,
-    youtube,
+    apps: [new YouTubeApp(youtube, clock), ...(options.apps ?? []).map((a) => a.app)],
     mac,
     clock,
     store,
@@ -187,7 +192,10 @@ export async function startHarness(
     port: 0,
     host: "127.0.0.1",
   });
-  const screen = new FakeScreen(app);
+  const screen = new FakeScreen(app, {
+    ...DEFAULT_GRIDS,
+    home: homeItems([...APP_ENTRIES, ...(options.apps ?? []).map((a) => a.entry)]),
+  });
   const phones: FakePhone[] = [];
   return {
     app,

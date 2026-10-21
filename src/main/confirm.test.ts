@@ -26,7 +26,7 @@ describe("Back inside YouTube", () => {
   test("Back on a Short or a watch page goes back inside YouTube", async () => {
     await openYouTube();
     route(false);
-    expect((await phone.press("back")).view).toBe("youtube");
+    expect((await phone.press("back")).view).toBe("app");
     expect(keys()).toEqual(["back"]);
     expect(calls("hide")).toHaveLength(0);
     expect(h.screen.last.state.confirm).toBeUndefined();
@@ -36,7 +36,7 @@ describe("Back inside YouTube", () => {
     await openYouTube();
     route(true);
     const s = await phone.press("back");
-    expect(s.view).toBe("youtube");
+    expect(s.view).toBe("app");
     expect(s.confirm).toEqual({
       title: "Leave YouTube?",
       buttons: ["Stay", "Go to Home"],
@@ -52,12 +52,12 @@ describe("Back inside YouTube", () => {
     route(true);
     await phone.press("back");
     let s = await phone.press("ok");
-    expect(s.view).toBe("youtube");
+    expect(s.view).toBe("app");
     expect(s.confirm).toBeUndefined();
     expect(lastConfirm()).toBeUndefined();
     await phone.press("back");
     s = await phone.press("back");
-    expect(s.view).toBe("youtube");
+    expect(s.view).toBe("app");
     expect(s.confirm).toBeUndefined();
   });
 

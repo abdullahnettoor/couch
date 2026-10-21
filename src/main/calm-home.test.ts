@@ -105,7 +105,7 @@ describe("ambient mode", () => {
     await start(false);
     press("ok");
     h.clock.advance(5 * MIN);
-    expect(screen().state.view).toBe("youtube");
+    expect(screen().state.view).toBe("app");
     expect(screen().ambient).toBe(false);
   });
 

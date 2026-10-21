@@ -51,8 +51,8 @@ describe("layout hint", () => {
     await focusOn("youtube");
     await press("ok");
     await phone.settle();
-    expect(phone.last!.view).toBe("youtube");
-    expect(phone.last!.layout).toBe("youtube");
+    expect(phone.last!.view).toBe("app");
+    expect(phone.last!.layout).toBe("app");
   });
 });
 

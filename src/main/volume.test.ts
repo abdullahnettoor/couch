@@ -24,7 +24,7 @@ afterEach(async () => {
 describe("phone volume slider", () => {
   test.each([
     ["home", async () => {}],
-    ["youtube", async (p: { press: (c: "ok") => Promise<unknown> }) => void (await p.press("ok"))],
+    ["app", async (p: { press: (c: "ok") => Promise<unknown> }) => void (await p.press("ok"))],
   ] as const)(
     "volSet in the %s layout reaches Couch's volume and every phone",
     async (layout, go) => {

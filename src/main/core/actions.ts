@@ -1,3 +1,4 @@
+import { OPEN_APP, RESTART_APP } from "../apps/index.ts";
 import type { View } from "../../shared/protocol.ts";
 
 /** What an action handler may do to the core. */
@@ -5,9 +6,9 @@ export interface ActionContext {
   open(view: View): void;
   toast(text: string): void;
   forgetAllPhones(): void;
-  openYouTube(): void;
-  retryYouTube(): void;
-  restartYouTube(): void;
+  openApp(id: string): void;
+  retryApp(): void;
+  restartApp(id: string): void;
   toggleListener(): void;
   quit(): void;
 }
@@ -21,13 +22,19 @@ export type ActionHandler = (ctx: ActionContext) => void;
 const homeActions: Record<string, ActionHandler> = {
   "open:settings": (ctx) => ctx.open("settings"),
   "open:library": (ctx) => ctx.open("library"),
-  "open:youtube": (ctx) => ctx.openYouTube(),
 };
 
-const youtubeActions: Record<string, ActionHandler> = {
-  "youtube:retry": (ctx) => ctx.retryYouTube(),
-  "settings:restart-youtube": (ctx) => ctx.restartYouTube(),
+const appActions: Record<string, ActionHandler> = {
+  "app:retry": (ctx) => ctx.retryApp(),
 };
+
+/** `app:open:<id>` and `app:restart:<id>` for any App. */
+function appAction(action: string): ActionHandler | undefined {
+  if (action.startsWith(OPEN_APP)) return (ctx) => ctx.openApp(action.slice(OPEN_APP.length));
+  if (action.startsWith(RESTART_APP))
+    return (ctx) => ctx.restartApp(action.slice(RESTART_APP.length));
+  return undefined;
+}
 
 const settingsActions: Record<string, ActionHandler> = {
   "settings:add-phone": (ctx) => ctx.open("addPhone"),
@@ -42,14 +49,18 @@ const settingsActions: Record<string, ActionHandler> = {
 export const ACTIONS: Record<string, ActionHandler> = {
   ...homeActions,
   ...settingsActions,
-  ...youtubeActions,
+  ...appActions,
 };
+
+export function actionFor(action: string): ActionHandler | undefined {
+  return ACTIONS[action] ?? appAction(action);
+}
 
 /** Where Back goes from each view. A view with no entry ignores Back. */
 export const BACK_TARGETS: Partial<Record<View, View>> = {
   settings: "home",
   addPhone: "settings",
-  youtubeError: "home",
+  appError: "home",
   libraryFolders: "settings",
   details: "settings",
   soundOutput: "settings",

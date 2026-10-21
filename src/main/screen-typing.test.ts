@@ -277,7 +277,7 @@ describe("Screen typing: YouTube", () => {
   beforeEach(() => {
     key("home");
     key("ok");
-    expect(screen().state.view).toBe("youtube");
+    expect(screen().state.view).toBe("app");
   });
 
   test("⌘F or / opens Couch's typing path; typed text reaches setSearchText; Enter submits", () => {

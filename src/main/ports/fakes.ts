@@ -12,6 +12,8 @@ import type { Clock } from "./clock.ts";
 import type { DisplayInfo, Mac, OutputDevice } from "./mac.ts";
 import { RouteTracker, type PageState } from "./youtube-route.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "./youtube.ts";
+import type { App, AppEvent, AppKey } from "../apps/app.ts";
+import type { Confirmation } from "../../shared/protocol.ts";
 
 function emitter<E>() {
   const listeners = new Set<(event: E) => void>();
@@ -161,6 +163,91 @@ export class FakeYouTube implements YouTube {
     return this.#events.on(listener);
   }
   emit(event: YouTubeEvent) {
+    this.#events.emit(event);
+  }
+}
+
+/** A second web App that is not YouTube: records what core tells it. `atHome` is what its Back answers. */
+export class FakeWebApp implements App {
+  readonly calls: Array<{ call: string; args: unknown[] }> = [];
+  #events = emitter<AppEvent>();
+  atHome = true;
+  /** Whether the App can find the output it is asked for. */
+  outputFound = true;
+  outputName: string | undefined;
+  volume: number | undefined;
+  readonly id: string;
+  readonly label: string;
+  readonly options: { typeLabel?: string; showVolume?: boolean; showSkip?: boolean };
+  constructor(
+    id: string,
+    label: string,
+    options: { typeLabel?: string; showVolume?: boolean; showSkip?: boolean } = {},
+  ) {
+    this.id = id;
+    this.label = label;
+    this.options = options;
+  }
+  get typeLabel() {
+    return this.options.typeLabel ?? `Search ${this.label}`;
+  }
+  get showVolume() {
+    return this.options.showVolume ?? false;
+  }
+  get showSkip() {
+    return this.options.showSkip ?? false;
+  }
+  #record(call: string, ...args: unknown[]) {
+    this.calls.push({ call, args });
+  }
+  show(note?: string) {
+    this.#record("show", note);
+  }
+  hide() {
+    this.#record("hide");
+  }
+  sendKey(key: AppKey) {
+    this.#record("sendKey", key);
+  }
+  back() {
+    this.#record("back");
+    return this.atHome ? ("leave" as const) : ("handled" as const);
+  }
+  submitSearch(text: string) {
+    this.#record("submitSearch", text);
+  }
+  showSearchBar(text: string | undefined) {
+    this.#record("showSearchBar", text);
+  }
+  captureText(on: boolean) {
+    this.#record("captureText", on);
+  }
+  playPause() {
+    this.#record("playPause");
+  }
+  seekBy(seconds: number) {
+    this.#record("seekBy", seconds);
+  }
+  drawVolume(percent: number | undefined) {
+    this.#record("drawVolume", percent);
+  }
+  showConfirm(confirm: Confirmation | undefined) {
+    this.#record("showConfirm", confirm);
+  }
+  setVolume(percent: number) {
+    this.volume = percent;
+  }
+  setOutputDevice(name: string | undefined) {
+    this.outputName = name;
+    return Promise.resolve(this.outputFound);
+  }
+  restart() {
+    this.#record("restart");
+  }
+  onEvent(listener: (event: AppEvent) => void) {
+    return this.#events.on(listener);
+  }
+  emit(event: AppEvent) {
     this.#events.emit(event);
   }
 }

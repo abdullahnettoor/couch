@@ -24,12 +24,12 @@ import {
 import type { Clock } from "../ports/clock.ts";
 import type { Mac } from "../ports/mac.ts";
 import { pickTargetDisplay } from "../display.ts";
-import type { YouTube, YouTubeEvent } from "../ports/youtube.ts";
+import type { App, AppEvent } from "../apps/app.ts";
 import { randomBytes } from "node:crypto";
 import type { Store } from "../ports/store.ts";
 import type { Thumbnails } from "../ports/thumbnails.ts";
 import { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
-import { ACTIONS, BACK_TARGETS, type ActionContext } from "./actions.ts";
+import { actionFor, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
 import { MediaLibrary } from "./media-library.ts";
 import { artFor, type PathArt } from "./art.ts";
@@ -54,7 +54,7 @@ const HOME_VIDEOS = 3;
 const TILE_COLUMNS = 4;
 const LIBRARY_VIEWS = ["library", "folder", "libraryFolders"];
 /** Views where a phone's Search button opens the Library search. */
-const TYPING_VIEW = { search: "youtube", tmdbKey: "details", librarySearch: "librarySearch" };
+const TYPING_VIEW = { search: "app", tmdbKey: "details", librarySearch: "librarySearch" };
 type Purpose = keyof typeof TYPING_VIEW;
 const SCREEN_ONLY = ["focusAt", "showControls", "find", "screenKey"];
 const NAV = ["up", "down", "left", "right"];
@@ -64,7 +64,8 @@ const SEARCH_FROM: View[] = ["library", "folder", "show", "librarySearch"];
 
 export interface Ports {
   player: Player;
-  youtube: YouTube;
+  /** The web Apps Home can open (see `apps/index.ts` for their entries). */
+  apps: App[];
   mac: Mac;
   clock: Clock;
   store: Store;
@@ -93,10 +94,7 @@ const OVERLAY_MS = 3000;
 const SAVE_EVERY_MS = 5000;
 const MPV_MISSING = "Couch needs mpv to play videos. Install it with: brew install mpv";
 const VOLUME_STEP = 5;
-/** A Back sent to YouTube that changed no route within this long counts as already at home. */
-const YT_BACK_SETTLE_MS = 800;
-const TYPING_HINT = "Typing works inside YouTube search";
-const YOUTUBE_NOTE = "Press Home on your phone to come back";
+const APP_NOTE = "Press Home on your phone to come back";
 
 /** The single source of truth: holds the Screen state and turns commands into new state. */
 
@@ -120,15 +118,16 @@ export class Core {
   #port = 0;
   #listener: { publicPort: number; token: string } | undefined;
   #forgetListeners = new Set<() => void>();
-  #ytFailed = false;
+  #apps = new Map<string, App>();
+  /** Apps that failed to load and have not loaded since. */
+  #appsFailed = new Set<string>();
   #lastFrom: RemoteId | undefined;
-  #ytHome = true;
-  #ytShorts = false;
-  /** Back was sent to YouTube at this time and no route change has followed. */
-  #ytBackAt: number | undefined;
-  #shownYtConfirm: Confirmation | undefined;
+  /** What each App was last told to draw over itself. */
+  #shown = new Map<string, { volume?: number; confirm?: Confirmation; bar?: string }>();
   #confirmAnswers: [() => void, () => void] | undefined;
-  #ytOff: () => void;
+  /** The question core asked on behalf of an App's Back ("Leave <label>?"). */
+  #leaveConfirm: Confirmation | undefined;
+  #appsOff: Array<() => void> = [];
   #libraryFolders: string[];
   /** The open folder's contents, read fresh each time it is opened. */
   #listing: LibraryEntry[] = [];
@@ -160,14 +159,12 @@ export class Core {
   #typingFor: Purpose | undefined;
   /** Who sent the command being handled. */
   #source: Source = "screen";
-  #capturing = false;
+  #capturing: App | undefined;
   #cancelSaves: (() => void) | undefined;
   #resumeNote: string | undefined;
   #cancelNote: (() => void) | undefined;
   #displayId: number | undefined;
   #unsubDisplays: () => void;
-  #shownYtVolume: number | undefined;
-  #shownYtBar: string | undefined;
   #idle = false;
   #cancelIdle: (() => void) | undefined;
   #displayAwake: boolean | undefined;
@@ -235,7 +232,7 @@ export class Core {
       store: ports.store,
       mac: ports.mac,
       player: ports.player,
-      youtube: ports.youtube,
+      sinks: ports.apps,
       toast: (text) => this.#toast(text),
       changed: () => this.#emit(),
     });
@@ -290,7 +287,15 @@ export class Core {
     this.#armIdle();
     this.#armAmbient();
     this.#syncDisplayAwake();
-    this.#ytOff = ports.youtube.onEvent((event) => this.#onYouTube(event));
+    for (const app of ports.apps) {
+      this.#apps.set(app.id, app);
+      this.#appsOff.push(app.onEvent((event) => this.#onApp(app, event)));
+    }
+  }
+
+  /** The App the Screen is showing, if any. */
+  #front(): App | undefined {
+    return this.#state.view === "app" ? this.#apps.get(this.#state.app ?? "") : undefined;
   }
 
   #newKey(): string {
@@ -1024,6 +1029,7 @@ export class Core {
     const s = this.#state;
     const card = s.view === "home" ? this.#continueEntries()[0] : undefined;
     const searchable = SEARCH_FROM.includes(s.view);
+    const front = this.#front();
     const searching = s.typingBy === remote && this.#typingFor === "librarySearch";
     return {
       type: "snapshot",
@@ -1034,13 +1040,12 @@ export class Core {
             ? basename(s.folderPath ?? "")
             : s.view === "show"
               ? (this.library.show(s.showId ?? "")?.name ?? VIEW_LABELS.show)
-              : VIEW_LABELS[s.view],
+              : s.view === "app" || s.view === "appError"
+                ? (this.#apps.get(s.app ?? "")?.label ?? VIEW_LABELS[s.view])
+                : VIEW_LABELS[s.view],
       view: s.view,
       layout:
-        s.view === "home" ||
-        s.view === "youtube" ||
-        s.view === "player" ||
-        s.view === "librarySearch"
+        s.view === "home" || s.view === "app" || s.view === "player" || s.view === "librarySearch"
           ? s.view
           : "other",
       ...(card
@@ -1063,15 +1068,16 @@ export class Core {
           }
         : {}),
       ...(s.confirm ? { confirm: s.confirm } : {}),
-      typeAvailable: s.view === "youtube" || s.view === "details" || searchable,
+      typeAvailable: s.view === "app" || s.view === "details" || searchable,
       ...(this.#show.fixTarget() ? { fixAvailable: true } : {}),
       ...(s.view === "details" ? { typeLabel: "Type TMDB key" } : {}),
       ...(searchable ? { typeLabel: "Search Library" } : {}),
+      ...(front ? { typeLabel: front.typeLabel } : {}),
       ...(searching
         ? { typePlaceholder: "Search your Library", typeSeed: this.#search.query }
         : {}),
-      showVolume: s.view === "youtube",
-      showSkip: s.view === "youtube",
+      showVolume: front?.showVolume ?? false,
+      showSkip: front?.showSkip ?? false,
       typing:
         s.typingBy === undefined
           ? "none"
@@ -1178,10 +1184,10 @@ export class Core {
         break;
       }
       case "playpause":
-        if (this.#state.view === "youtube") this.#ports.youtube.playPause();
+        this.#front()?.playPause();
         break;
       case "seekBy":
-        if (this.#state.view === "youtube") this.#ports.youtube.seekBy(command.args?.seconds ?? 0);
+        this.#front()?.seekBy(command.args?.seconds ?? 0);
         break;
       case "volUp":
       case "volDown":
@@ -1206,7 +1212,7 @@ export class Core {
 
   /** What a typing session started now would be typing into: decided by the view it opens in. */
   #purposeFor(view: View): Purpose | undefined {
-    if (view === "youtube") return "search";
+    if (view === "app") return "search";
     if (view === "details") return "tmdbKey";
     return SEARCH_FROM.includes(view) ? "librarySearch" : undefined;
   }
@@ -1222,8 +1228,7 @@ export class Core {
   #find(): void {
     const view = this.#state.view;
     if (this.#purposeFor(view) === "tmdbKey" || this.#state.typingBy === "screen") return;
-    if (view === "youtube" || SEARCH_FROM.includes(view))
-      this.#type({ command: "typeOpen" }, "screen");
+    if (view === "app" || SEARCH_FROM.includes(view)) this.#type({ command: "typeOpen" }, "screen");
   }
 
   /** A printable key on the Library's first page opens search with it already typed. */
@@ -1261,10 +1266,10 @@ export class Core {
     if (item?.id === "field") this.#search.action("search:field", "screen");
   }
 
-  /** An edit of YouTube search text typed on the Mac keyboard while Couch captures it. */
+  /** An edit of App search text typed on the Mac keyboard while Couch captures it. */
   #onEdit(edit: TextEdit): void {
     if (this.#state.typingBy !== "screen" || this.#typingFor !== "search") return;
-    if (this.#state.view !== "youtube") return;
+    if (this.#state.view !== "app") return;
     if ("done" in edit) {
       this.#type({ command: edit.done === "submit" ? "typeSubmit" : "typeCancel" }, "screen");
       return;
@@ -1272,22 +1277,24 @@ export class Core {
     this.#state.query = applyEdit(this.#state.query, edit);
   }
 
-  /** Mac-keyboard text for YouTube is captured only while the Screen owns a search session. */
+  /** Mac-keyboard text for an App is captured only while the Screen owns a search session. */
   #syncCapture(): void {
-    const on =
-      this.#state.view === "youtube" &&
-      this.#state.typingBy === "screen" &&
-      this.#typingFor === "search";
-    if (on === this.#capturing) return;
-    this.#capturing = on;
-    this.#ports.youtube.captureText(on);
+    const front = this.#front();
+    const app =
+      front && this.#state.typingBy === "screen" && this.#typingFor === "search"
+        ? front
+        : undefined;
+    if (app === this.#capturing) return;
+    this.#capturing?.captureText(false);
+    this.#capturing = app;
+    app?.captureText(true);
   }
 
   #type(command: Command, from: Source): void {
     const owner = this.#state.typingBy;
     if (command.command === "typeOpen") {
       const purpose = this.#purposeFor(this.#state.view);
-      if (!purpose) return this.#toast(TYPING_HINT);
+      if (!purpose) return this.#toast(this.#typingHint());
       // The latest of a phone and the Screen to open takes over; one phone can't take from another.
       if (owner !== undefined && owner !== from && from !== "screen" && owner !== "screen") return;
       if (owner !== undefined && owner !== from) this.#endTyping();
@@ -1297,8 +1304,12 @@ export class Core {
     this.#typeFor(this.#typingFor, command, from);
   }
 
+  #typingHint(): string {
+    const names = [...this.#apps.values()].map((a) => `${a.label} search`);
+    return `Typing works inside ${names.join(" or ")}`;
+  }
+
   #typeFor(purpose: Purpose, command: Command, from: Source): void {
-    const yt = this.#ports.youtube;
     const owner = this.#state.typingBy;
     if (purpose === "tmdbKey") return this.#detailsPage.typeKey(command, from);
     if (purpose === "librarySearch") return this.#search.type(command, from);
@@ -1315,7 +1326,7 @@ export class Core {
         break;
       case "typeSubmit":
         if (owner !== from) return;
-        if (this.#state.query.trim()) yt.submitSearch(this.#state.query);
+        if (this.#state.query.trim()) this.#front()?.submitSearch(this.#state.query);
         this.#state.typingBy = undefined;
         break;
       case "typeCancel":
@@ -1421,9 +1432,9 @@ export class Core {
     }, IDLE_DISPLAY_MS);
   }
 
-  /** Hold the display awake while playing, in YouTube, or within 30 minutes of the last command. */
+  /** Hold the display awake while playing, in an App, or within 30 minutes of the last command. */
   #syncDisplayAwake(): void {
-    const keep = !!this.#state.player || this.#state.view === "youtube" || !this.#idle;
+    const keep = !!this.#state.player || this.#state.view === "app" || !this.#idle;
     if (keep === this.#displayAwake) return;
     this.#displayAwake = keep;
     this.#ports.mac.keepDisplayAwake(keep);
@@ -1456,14 +1467,15 @@ export class Core {
     this.#cancelNote?.();
     this.#cancelVolume?.();
     this.#unsubPlayer();
-    this.#ytOff();
+    for (const off of this.#appsOff) off();
     this.#listeners.clear();
   }
 
   #move(direction: "up" | "down" | "left" | "right"): void {
     const grid = this.#currentGrid();
     const current = resolveFocus(grid, this.#state.focus[this.viewKey]);
-    if (this.#state.view === "youtube") return this.#ports.youtube.sendKey(direction);
+    const front = this.#front();
+    if (front) return front.sendKey(direction);
     if (!current) return;
     if (this.#state.view === "show") {
       this.#show.move(direction);
@@ -1475,7 +1487,7 @@ export class Core {
   }
 
   #focusAt(r?: number, c?: number): void {
-    if (this.#state.view === "youtube") return;
+    if (this.#state.view === "app") return;
     if (this.#state.view === "player" && this.#state.controls === "hidden") return;
     const item = this.#currentGrid().find((i) => i.r === r && i.c === c);
     if (!item) return;
@@ -1486,7 +1498,8 @@ export class Core {
   }
 
   #ok(): void {
-    if (this.#state.view === "youtube") return this.#ports.youtube.sendKey("ok");
+    const front = this.#front();
+    if (front) return front.sendKey("ok");
     const grid = this.#currentGrid();
     const item = resolveFocus(grid, this.#state.focus[this.viewKey]);
     if (!item) return;
@@ -1499,27 +1512,23 @@ export class Core {
       this.#show.action(item.action)
     )
       return;
-    const action = ACTIONS[item.action];
+    const action = actionFor(item.action);
     // Placeholder Apps until they exist.
     if (action) action(this.#actionContext());
     else this.#toast(`${item.label} is coming soon`);
   }
 
   #back(): void {
-    if (this.#state.view === "youtube") {
-      const now = this.#ports.clock.now();
-      const stuck = this.#ytBackAt !== undefined && now - this.#ytBackAt >= YT_BACK_SETTLE_MS;
-      if (this.#ytHome || stuck) {
-        this.#ytBackAt = undefined;
+    const front = this.#front();
+    if (front) {
+      if (front.back() === "leave") {
         this.#ask(
-          "Leave YouTube?",
+          `Leave ${front.label}?`,
           ["Stay", "Go to Home"],
           [() => {}, () => this.#setView("home")],
         );
-        return;
+        this.#leaveConfirm = this.#state.confirm;
       }
-      this.#ytBackAt = now;
-      this.#ports.youtube.sendKey("back");
       return;
     }
     if (this.#state.view === "folder") {
@@ -1550,7 +1559,7 @@ export class Core {
     this.#keepLibraryFocus();
   }
 
-  /** Changes view; leaving YouTube hides it (pausing playback) and lets the display sleep again. */
+  /** Changes view; leaving an App hides it (pausing playback) and lets the display sleep again. */
   #setView(view: View): void {
     const from = this.#state.view;
     if (view === "home") {
@@ -1560,11 +1569,12 @@ export class Core {
       this.#homeFilm = undefined;
     }
     if (from === view) return;
-    if (from === "youtube") {
-      if (this.#state.confirm?.title === "Leave YouTube?") this.#dismissConfirm();
+    if (from === "app") {
+      if (this.#leaveConfirm && this.#state.confirm === this.#leaveConfirm) this.#dismissConfirm();
       this.#state.typingBy = undefined;
-      this.#ports.youtube.hide();
+      this.#apps.get(this.#state.app ?? "")?.hide();
     }
+    if (view !== "app" && view !== "appError") delete this.#state.app;
     this.#state.view = view;
     this.#ambient = false;
     this.#armAmbient();
@@ -1574,59 +1584,61 @@ export class Core {
     if (view === "settings") void this.refreshLoginItem();
   }
 
-  #openYouTube(): void {
-    if (this.#ytFailed) {
-      this.#setView("youtubeError");
+  #openApp(id: string): void {
+    const app = this.#apps.get(id);
+    if (!app) return;
+    this.#state.app = id;
+    if (this.#appsFailed.has(id)) {
+      this.#setView("appError");
       return;
     }
-    this.#setView("youtube");
-    this.#ports.youtube.show(YOUTUBE_NOTE);
+    this.#setView("app");
+    app.show(APP_NOTE);
   }
 
-  #retryYouTube(): void {
-    this.#ytFailed = false;
-    this.#ports.youtube.restart();
-    this.#openYouTube();
+  #retryApp(): void {
+    const id = this.#state.app;
+    const app = this.#apps.get(id ?? "");
+    if (!id || !app) return;
+    this.#appsFailed.delete(id);
+    app.restart();
+    this.#openApp(id);
   }
 
-  #onYouTube(event: YouTubeEvent): void {
+  #restartApp(id: string): void {
+    const app = this.#apps.get(id);
+    if (!app) return;
+    this.#appsFailed.delete(id);
+    app.restart();
+    this.#toast(`Restarting ${app.label}`);
+  }
+
+  #onApp(app: App, event: AppEvent): void {
+    const front = this.#state.app === app.id;
     switch (event.type) {
       case "loaded":
-        this.#ytFailed = false;
+        this.#appsFailed.delete(app.id);
         break;
       case "failed":
-        this.#ytFailed = true;
-        this.#setView(this.#state.view === "youtube" ? "youtubeError" : this.#state.view);
+        this.#appsFailed.add(app.id);
+        if (this.#state.view === "app" && front) this.#setView("appError");
         break;
       case "key":
         this.handle({ command: event.command }, "screen");
         return;
       case "find":
-        if (this.#state.view === "youtube") this.handle({ command: "find" }, "screen");
+        if (this.#state.view === "app" && front) this.handle({ command: "find" }, "screen");
         return;
       case "edit":
-        this.#onEdit(event.edit);
-        break;
-      case "route":
-        this.#ytHome = event.home;
-        // YouTube's Back out of a Short leaves its guide open; close that too, back to where the Short began.
-        if (
-          this.#ytShorts &&
-          event.shorts === false &&
-          event.guideOpen &&
-          this.#ytBackAt !== undefined
-        ) {
-          this.#ytBackAt = this.#ports.clock.now();
-          this.#ports.youtube.sendKey("back");
-        } else this.#ytBackAt = undefined;
-        this.#ytShorts = event.shorts === true;
+        if (front) this.#onEdit(event.edit);
         break;
       case "output":
-        this.#sound.youtubeOutput(event.name, event.ok);
+        this.#sound.appOutput(app.id, event.name, event.ok);
         return;
       case "searchOpened":
         if (
-          this.#state.view === "youtube" &&
+          this.#state.view === "app" &&
+          front &&
           this.#state.typingBy === undefined &&
           this.#lastFrom !== undefined &&
           this.#remotes.has(this.#lastFrom)
@@ -1642,35 +1654,32 @@ export class Core {
     this.#emit();
   }
 
-  /** YouTube covers the Screen's own volume badge, so the port draws the level above it. */
-  #syncYouTubeVolume(): void {
-    const level =
-      this.#state.view === "youtube" && this.#state.volumeShown ? this.#state.volume : undefined;
-    if (level === this.#shownYtVolume) return;
-    this.#shownYtVolume = level;
-    this.#ports.youtube.showVolume(level);
-  }
-
-  /** YouTube covers the Screen, so over it the port draws the question. */
-  #syncYouTubeConfirm(): void {
-    const c = this.#state.view === "youtube" ? this.#state.confirm : undefined;
-    if (c?.title === this.#shownYtConfirm?.title && c?.focus === this.#shownYtConfirm?.focus)
-      return;
-    this.#shownYtConfirm = c && { ...c };
-    this.#ports.youtube.showConfirm(c && { ...c });
-  }
-
-  /** The floating search bar draws over YouTube only while a search session types for it. */
-  #syncYouTubeBar(): void {
-    const text =
-      this.#state.view === "youtube" &&
-      this.#state.typingBy !== undefined &&
-      this.#typingFor === "search"
-        ? this.#state.query
-        : undefined;
-    if (text === this.#shownYtBar) return;
-    this.#shownYtBar = text;
-    this.#ports.youtube.showSearchBar(text);
+  /** An App covers the Screen, so what Couch draws over it (volume, question, search bar) goes through the App. */
+  #syncApps(): void {
+    const front = this.#front();
+    for (const app of this.#apps.values()) {
+      const shown = this.#shown.get(app.id) ?? {};
+      const on = app === front;
+      const volume = on && this.#state.volumeShown ? this.#state.volume : undefined;
+      if (volume !== shown.volume) {
+        shown.volume = volume;
+        app.drawVolume(volume);
+      }
+      const c = on ? this.#state.confirm : undefined;
+      if (c?.title !== shown.confirm?.title || c?.focus !== shown.confirm?.focus) {
+        shown.confirm = c && { ...c };
+        app.showConfirm(c && { ...c });
+      }
+      const bar =
+        on && this.#state.typingBy !== undefined && this.#typingFor === "search"
+          ? this.#state.query
+          : undefined;
+      if (bar !== shown.bar) {
+        shown.bar = bar;
+        app.showSearchBar(bar);
+      }
+      this.#shown.set(app.id, shown);
+    }
   }
 
   #setVolume(percent: number): void {
@@ -1689,13 +1698,9 @@ export class Core {
   #actionContext(): ActionContext {
     return {
       open: (view) => this.#setView(view),
-      openYouTube: () => this.#openYouTube(),
-      retryYouTube: () => this.#retryYouTube(),
-      restartYouTube: () => {
-        this.#ytFailed = false;
-        this.#ports.youtube.restart();
-        this.#toast("Restarting YouTube");
-      },
+      openApp: (id) => this.#openApp(id),
+      retryApp: () => this.#retryApp(),
+      restartApp: (id) => this.#restartApp(id),
       toast: (text) => this.#toast(text),
       forgetAllPhones: () => this.forgetAllPhones(),
       toggleListener: () => void this.#toggleListener(),
@@ -1770,9 +1775,7 @@ export class Core {
       this.#ports.player.setSubtitlesRaised(raised, this.#state.controls === "upnext");
     }
     this.#syncDisplayAwake();
-    this.#syncYouTubeVolume();
-    this.#syncYouTubeBar();
-    this.#syncYouTubeConfirm();
+    this.#syncApps();
     this.#syncCapture();
     for (const l of [...this.#listeners]) l();
   }

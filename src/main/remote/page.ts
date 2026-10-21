@@ -127,7 +127,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 <main id="controls">
   <button class="cw" id="cw" data-cmd="resume" hidden><span class="pic" id="cw-pic"></span><span class="txt"><b id="cw-title"></b><span class="l" id="cw-left"></span></span><span class="go" data-i="play"></span></button>
   <button class="search" id="fixbtn" data-cmd="menu" hidden><span id="fix-label">Fix match</span></button>
-  <button class="search" id="search" data-cmd="typeOpen" hidden><span data-i="search"></span><span id="search-label">Search YouTube</span></button>
+  <button class="search" id="search" data-cmd="typeOpen" hidden><span data-i="search"></span><span id="search-label">Search</span></button>
   <div class="np" id="np" hidden>
     <div class="art" id="np-art"></div>
     <h3 id="np-title"></h3><div class="f" id="np-folder"></div><div class="f" id="np-genres" hidden></div>
@@ -169,7 +169,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 </main>
 <div class="sheet" id="sheet" hidden>
   <form id="form" autocomplete="off">
-    <input id="text" type="text" enterkeyhint="search" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Search YouTube">
+    <input id="text" type="text" enterkeyhint="search" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Search">
     <div class="btns"><button type="button" class="k txt" id="cancel">Cancel</button><button type="submit" class="k hero txt">Search</button></div>
   </form>
 </div>
@@ -261,8 +261,8 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       $("cw-pic").style.backgroundImage = s.continueCard.thumbKey ? thumb(s.continueCard.thumbKey) : "none";
     }
     $("fixbtn").hidden = !s.fixAvailable || !!np;
-    $("search").hidden = (L !== "youtube" && !(s.typeLabel && s.typeAvailable)) || !!np;
-    $("search-label").textContent = s.typeLabel || "Search YouTube";
+    $("search").hidden = !(s.typeLabel && s.typeAvailable) || !!np;
+    $("search-label").textContent = s.typeLabel || "Search";
     $("search").classList.toggle("dim", !s.typeAvailable);
     if (typeof s.volume === "number" && !volDragging) showVolume(s.volume);
     $("skip").hidden = !s.showSkip || !!np;

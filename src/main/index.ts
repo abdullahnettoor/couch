@@ -9,6 +9,7 @@ import { revealScreen } from "./reveal.ts";
 import { systemClock } from "./ports/clock.ts";
 import { createElectronMac } from "./ports/electron-mac.ts";
 import { ElectronYouTube } from "./ports/electron-youtube.ts";
+import { YouTubeApp } from "./apps/youtube/youtube-app.ts";
 import { FileStore } from "./ports/store.ts";
 import { FfmpegThumbnails } from "./ports/thumbnails.ts";
 import { TmdbMetadata } from "./ports/tmdb-metadata.ts";
@@ -131,6 +132,7 @@ async function createScreen(): Promise<void> {
     onChanged: (listener) => player!.onAudioDevicesChanged(listener),
   });
   const youtube = new ElectronYouTube(win);
+  const youtubeApp = new YouTubeApp(youtube, systemClock);
   mac.keepAwake(true);
   const store = new FileStore(app.getPath("userData"));
   const listener = await detectListener({
@@ -139,7 +141,7 @@ async function createScreen(): Promise<void> {
   });
   couch = await startApp({
     player,
-    youtube,
+    apps: [youtubeApp],
     mac,
     clock: systemClock,
     store,

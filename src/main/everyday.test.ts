@@ -60,7 +60,7 @@ describe("display sleep", () => {
 
   test("YouTube never lets the display sleep", async () => {
     await phone.press("ok"); // first Home item is YouTube
-    expect(h.screen.last.state.view).toBe("youtube");
+    expect(h.screen.last.state.view).toBe("app");
     h.clock.advance(60 * MIN);
     expect(awake().at(-1)).toBe(true);
   });

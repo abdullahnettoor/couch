@@ -264,7 +264,7 @@ describe("Library search", () => {
       expect(screen().state.view).toBe("home");
       await focusId("youtube");
       await phone.press("ok");
-      expect(screen().state.view).toBe("youtube");
+      expect(screen().state.view).toBe("app");
       await phone.press("typeOpen");
       expect(phone.last!.typing).toBe("you");
       await type("cats");

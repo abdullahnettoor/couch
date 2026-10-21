@@ -2,7 +2,7 @@ import type { GridItem, SoundPayload } from "../../shared/protocol.ts";
 import type { Player } from "../../shared/player.ts";
 import type { Mac, OutputDevice } from "../ports/mac.ts";
 import type { Store } from "../ports/store.ts";
-import type { YouTube } from "../ports/youtube.ts";
+import type { SoundSink } from "../apps/app.ts";
 
 const DEFAULT_VOLUME = 60;
 const PICK = "sound:pick:";
@@ -11,7 +11,8 @@ export interface SoundOutputHost {
   store: Store;
   mac: Mac;
   player: Player;
-  youtube: YouTube;
+  /** The web Apps that play sound; mpv is the `player`. */
+  sinks: SoundSink[];
   toast(text: string): void;
   changed(): void;
 }
@@ -28,7 +29,7 @@ function isDevice(value: unknown): value is OutputDevice {
 
 /**
  * Couch's own volume and the "Sound output" setting. The volume lives here and in mpv and the
- * YouTube view; the Mac's own volume and default output are never touched.
+ * web Apps; the Mac's own volume and default output are never touched.
  */
 export class SoundOutput {
   #h: SoundOutputHost;
@@ -42,9 +43,9 @@ export class SoundOutput {
   #mpvPending: string | undefined | null = null;
   /** The device each part last failed to reach (so a failure is said once). */
   #mpvFailed: string | undefined;
-  #youtubeFailed: string | undefined;
-  /** The UID YouTube was last asked for. */
-  #youtubeUid: string | undefined;
+  /** Per web App: the device it last failed to reach, and the UID it was last asked for. */
+  #failed = new Map<string, string>();
+  #asked = new Map<string, string | undefined>();
   #off: () => void;
   #disposed = false;
 
@@ -71,10 +72,10 @@ export class SoundOutput {
     this.applyVolume();
   }
 
-  /** Pushes the volume to mpv and the YouTube view (also before each video, in case mpv restarted). */
+  /** Pushes the volume to mpv and every web App (also before each video, in case mpv restarted). */
   applyVolume(): void {
     this.#h.player.setVolume(this.#volume).catch(() => {});
-    this.#h.youtube.setVolume(this.#volume);
+    for (const sink of this.#h.sinks) sink.setVolume(this.#volume);
   }
 
   /** The chosen device when it is connected; otherwise System default. */
@@ -104,16 +105,17 @@ export class SoundOutput {
     this.#h.changed();
   }
 
-  /** Points mpv and YouTube at the effective device. `retry` asks YouTube to look again even for the same device. */
+  /** Points mpv and the web Apps at the effective device. `retry` asks them to look again even for the same device. */
   #apply(retry: boolean): void {
     const target = this.#effective();
     if (this.#mpvUid !== target?.uid) void this.#applyMpv(target);
-    if (retry || this.#youtubeUid !== target?.uid) {
-      this.#youtubeUid = target?.uid;
-      void this.#h.youtube
+    for (const sink of this.#h.sinks) {
+      if (!retry && this.#asked.has(sink.id) && this.#asked.get(sink.id) === target?.uid) continue;
+      this.#asked.set(sink.id, target?.uid);
+      void sink
         .setOutputDevice(target?.name)
-        .then((ok) => this.#youtubeResult(target?.name, ok))
-        .catch(() => this.#youtubeResult(target?.name, false));
+        .then((ok) => this.#sinkResult(sink, target?.name, ok))
+        .catch(() => this.#sinkResult(sink, target?.name, false));
     }
   }
 
@@ -140,28 +142,29 @@ export class SoundOutput {
     }
   }
 
-  /** The view reports whether it found the output named `name` (also called when it looks again later). */
-  youtubeOutput(name: string | undefined, ok: boolean): void {
-    this.#youtubeResult(name, ok);
+  /** A web App reports whether it found the output named `name` (also called when it looks again later). */
+  appOutput(id: string, name: string | undefined, ok: boolean): void {
+    const sink = this.#h.sinks.find((s) => s.id === id);
+    if (sink) this.#sinkResult(sink, name, ok);
   }
 
-  #youtubeResult(name: string | undefined, ok: boolean): void {
+  #sinkResult(sink: SoundSink, name: string | undefined, ok: boolean): void {
     const target = this.#effective();
     if (this.#disposed || !target || target.name !== name) return;
     if (ok) {
-      this.#youtubeFailed = undefined;
+      this.#failed.delete(sink.id);
       return;
     }
-    if (this.#youtubeFailed === target.uid) return;
-    this.#youtubeFailed = target.uid;
-    this.#h.toast(`YouTube can't play to ${target.name} · using System default`);
+    if (this.#failed.get(sink.id) === target.uid) return;
+    this.#failed.set(sink.id, target.uid);
+    this.#h.toast(`${sink.label} can't play to ${target.name} · using System default`);
     this.#h.changed();
   }
 
   #choose(device: OutputDevice | undefined): void {
     this.#chosen = device;
     this.#save();
-    this.#youtubeFailed = undefined;
+    this.#failed.clear();
     this.#mpvFailed = undefined;
     this.#mpvUid = null;
     this.#apply(true);
