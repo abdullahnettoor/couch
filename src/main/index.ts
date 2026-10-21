@@ -126,7 +126,10 @@ async function createScreen(): Promise<void> {
     if (player?.nativeGlass || !win || win.isDestroyed()) return;
     win.webContents.send(Channel.tint, player?.videoColor() ?? null);
   }, 1000).unref();
-  const mac = createElectronMac(() => win);
+  const mac = createElectronMac(() => win, {
+    list: () => player!.listAudioDevices(),
+    onChanged: (listener) => player!.onAudioDevicesChanged(listener),
+  });
   const youtube = new ElectronYouTube(win);
   mac.keepAwake(true);
   const store = new FileStore(app.getPath("userData"));

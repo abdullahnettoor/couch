@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { OutputDevice } from "../ports/mac.ts";
 import type { GlassRect } from "../../shared/ipc.ts";
 import type { LoadOptions, Player, PlayerEvent } from "../../shared/player.ts";
 import { MpvIpcClient, type MpvEvent } from "./ipc-client.ts";
@@ -59,6 +60,18 @@ export function buildMpvArgs(socketPath: string): string[] {
 /** One long-lived mpv core (embedded in Couch, or a child process), controlled through its local IPC socket. */
 const MAX_GLASS_SLOTS = 16;
 
+/** The CoreAudio entries of mpv's `audio-device-list` property (`coreaudio/<UID>`, description is the name). */
+export function parseAudioDeviceList(data: unknown): OutputDevice[] {
+  if (!Array.isArray(data)) return [];
+  const devices: OutputDevice[] = [];
+  for (const d of data as Array<{ name?: unknown; description?: unknown }>) {
+    if (typeof d?.name !== "string" || typeof d.description !== "string") continue;
+    if (d.name.startsWith("coreaudio/"))
+      devices.push({ uid: d.name.slice("coreaudio/".length), name: d.description });
+  }
+  return devices;
+}
+
 export class MpvPlayer implements Player {
   private listeners = new Set<(event: PlayerEvent) => void>();
   private child: ChildProcess | undefined;
@@ -111,6 +124,7 @@ export class MpvPlayer implements Player {
       await client.command(["observe_property", 1, "time-pos"]);
       await client.command(["observe_property", 2, "pause"]);
       await client.command(["observe_property", 3, "duration"]);
+      await client.command(["observe_property", 4, "audio-device-list"]);
     } catch {
       // child exit handler reports the failure
     }
@@ -240,8 +254,26 @@ export class MpvPlayer implements Player {
     return (await this.client).command(args);
   }
 
+  /** The Mac's outputs as the running mpv core sees them; undefined when there is no core to ask. */
+  async listAudioDevices(): Promise<OutputDevice[] | undefined> {
+    try {
+      return parseAudioDeviceList(await this.send(["get_property", "audio-device-list"]));
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Calls back when mpv's core sees the list of outputs change (CoreAudio hotplug; no polling, no processes). */
+  onAudioDevicesChanged(listener: () => void): () => void {
+    this.audioListeners.add(listener);
+    return () => this.audioListeners.delete(listener);
+  }
+  private audioListeners = new Set<() => void>();
+
   private onMpvEvent(e: MpvEvent): void {
-    if (e.event === "property-change") {
+    if (e.event === "property-change" && e.name === "audio-device-list") {
+      for (const l of [...this.audioListeners]) l();
+    } else if (e.event === "property-change") {
       if (typeof e.data !== "number" && typeof e.data !== "boolean") return;
       if (e.name === "time-pos" && typeof e.data === "number")
         this.emit({ type: "position", seconds: e.data });

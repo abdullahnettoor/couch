@@ -4,13 +4,14 @@ import { dirname, join } from "node:path";
 import { createLoginItem } from "./login-item.ts";
 import { app, BrowserWindow, dialog, powerSaveBlocker, screen, systemPreferences } from "electron";
 import type { Mac } from "./mac.ts";
-import { createOutputDevices } from "./output-devices.ts";
+import { createOutputDevices, type OutputDeviceSource } from "./output-devices.ts";
 
 /** Electron-backed Mac port. Display wake arrives with the ticket that needs it. */
 export function createElectronMac(
   getWindow: () => BrowserWindow | undefined = () => undefined,
+  outputSource?: OutputDeviceSource,
 ): Mac {
-  const outputs = createOutputDevices();
+  const outputs = createOutputDevices(outputSource);
   let lastWake = 0;
   let awake: number | undefined;
   let displayAwake: number | undefined;

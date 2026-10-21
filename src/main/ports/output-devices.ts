@@ -20,48 +20,42 @@ function listWithMpv(mpv: string): Promise<OutputDevice[]> {
   );
 }
 
-const POLL_MS = 5000;
+/** Where the output list comes from: the running mpv core, which also says when it changes. */
+export interface OutputDeviceSource {
+  list(): Promise<OutputDevice[] | undefined>;
+  onChanged(listener: () => void): () => void;
+}
 
 /**
- * Lists the Mac's outputs with their CoreAudio UIDs by asking mpv (read-only: nothing is opened or
- * changed). CoreAudio change events aren't exposed to Electron, so changes are found by polling
- * while somebody listens.
+ * Lists the Mac's outputs with their CoreAudio UIDs (read-only: nothing is opened or changed).
+ * Nothing polls: the running mpv core reports hotplug; without a core the list is read once, on demand,
+ * by a short `mpv --audio-device=help`.
  */
-export function createOutputDevices(list: () => Promise<OutputDevice[]> = defaultList): {
+export function createOutputDevices(source?: OutputDeviceSource): {
   list(): Promise<OutputDevice[]>;
   onChanged(listener: () => void): () => void;
 } {
-  const listeners = new Set<() => void>();
-  let timer: ReturnType<typeof setInterval> | undefined;
   let last = "";
-  const poll = () => {
-    list()
-      .then((devices) => {
-        const key = JSON.stringify(devices);
-        if (key === last) return;
-        const first = last === "";
-        last = key;
-        if (!first) for (const l of [...listeners]) l();
-      })
-      .catch(() => {});
+  const remember = (devices: OutputDevice[]) => {
+    last = JSON.stringify(devices);
+    return devices;
   };
+  const read = async () => (await source?.list()) ?? (await defaultList());
+  const list = async () => remember(await read());
   return {
-    list: () =>
-      list().then((devices) => {
-        last = JSON.stringify(devices);
-        return devices;
-      }),
+    list,
     onChanged(listener) {
-      listeners.add(listener);
-      timer ??= setInterval(poll, POLL_MS);
-      timer.unref();
-      return () => {
-        listeners.delete(listener);
-        if (listeners.size === 0 && timer) {
-          clearInterval(timer);
-          timer = undefined;
-        }
-      };
+      if (!source) return () => {};
+      return source.onChanged(() => {
+        // mpv notifies on any change of its device list; the callers only want real changes.
+        void read()
+          .then((devices) => {
+            if (JSON.stringify(devices) === last) return;
+            remember(devices);
+            listener();
+          })
+          .catch(() => {});
+      });
     },
   };
 }
