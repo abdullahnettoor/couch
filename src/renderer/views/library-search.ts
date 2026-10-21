@@ -31,7 +31,7 @@ export function render(payload: ScreenPayload): void {
   const field = focusable(
     el(
       "div",
-      `ls-field glass${payload.focusedId === "field" ? " focused" : ""}`,
+      `ls-field g-pill glass${payload.focusedId === "field" ? " focused" : ""}`,
       `${iconSvg("search")}<span class="q${search.query ? "" : " ph"}">${
         search.query ? escape(search.query) : "Search your Library"
       }</span>${search.typing ? `<i class="caret"></i>` : ""}`,

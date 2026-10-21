@@ -134,7 +134,7 @@ describe("Library filter chips", () => {
     expect(genreChips).toHaveLength(8);
   });
 
-  test("without details only Shows and Films appear", async () => {
+  test("without details only All, Shows and Films appear", async () => {
     await start(undefined);
     expect(chips()).toEqual(["All", "Shows", "Films"]);
     expect(rowIds()).not.toContain("auto:genre:Drama");

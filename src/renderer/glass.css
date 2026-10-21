@@ -547,18 +547,30 @@ svg.i {
 }
 .lf-chips {
   position: absolute;
-  left: calc(96 * var(--u));
-  right: calc(96 * var(--u));
+  left: 0;
+  right: 0;
   top: calc(520 * var(--u));
-  display: flex;
-  gap: calc(16 * var(--u));
   overflow: hidden;
   white-space: nowrap;
   padding: calc(8 * var(--u)) 0;
   z-index: 2;
+  mask-image: linear-gradient(
+    90deg,
+    transparent,
+    #000 calc(60 * var(--u)),
+    #000 calc(100% - 60 * var(--u)),
+    transparent
+  );
+}
+.lf-chiptrack {
+  display: flex;
+  gap: calc(16 * var(--u));
+  width: max-content;
+  padding: 0 calc(96 * var(--u)) calc(4 * var(--u));
 }
 .lf-chip {
   flex: none;
+  height: auto;
   padding: calc(14 * var(--u)) calc(34 * var(--u));
   border: 0;
   border-radius: calc(40 * var(--u));
@@ -567,18 +579,14 @@ svg.i {
   font-weight: 600;
   color: var(--t2);
   background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: none;
   transition:
     transform 0.2s var(--ease),
     background 0.2s var(--ease);
 }
-.lf-chip.on {
+.lf-chip.on:not(.focused) {
   color: #fff;
   background: rgba(255, 255, 255, 0.3);
-}
-.lf-chip.focused {
-  color: #000;
-  background: #fff;
-  transform: scale(1.06);
 }
 .lf-body {
   top: calc(620 * var(--u));
@@ -964,11 +972,6 @@ body.windowed .topbar [data-id] {
   margin-left: calc(-14 * var(--u));
   background: #fff;
   animation: ls-blink 1s steps(2, start) infinite;
-}
-.ls-field.focused {
-  background: #fff;
-  color: #000;
-  box-shadow: 0 calc(18 * var(--u)) calc(40 * var(--u)) rgba(0, 0, 0, 0.5);
 }
 .ls-field.focused svg,
 .ls-field.focused .ph {

@@ -137,6 +137,26 @@ let backdrop: HTMLElement | undefined;
 let backdropKey = "";
 const shelfScroll = new Map<string, number>();
 let bodyScroll: number | undefined;
+let chipScroll = 0;
+
+/** Slides the chip row so the focused chip is fully visible, clear of the edge fades. */
+function scrollChips(row: HTMLElement, track: HTMLElement): void {
+  const chip = track.querySelector<HTMLElement>(".focused");
+  const edge = 96 * (window.innerWidth / 1920);
+  let left = chipScroll;
+  if (chip) {
+    const { offsetLeft: from, offsetWidth: width } = chip;
+    if (from - edge < left) left = from - edge;
+    else if (from + width + edge > left + row.clientWidth)
+      left = from + width + edge - row.clientWidth;
+  }
+  left = Math.max(0, Math.min(left, track.scrollWidth - row.clientWidth));
+  track.style.transform = `translateX(${-chipScroll}px)`;
+  void track.offsetHeight;
+  track.style.transition = "transform 0.45s var(--ease)";
+  track.style.transform = `translateX(${-left}px)`;
+  chipScroll = left;
+}
 
 function focusedEntry(payload: ScreenPayload): { e?: LibraryEntry; poster: boolean } {
   const lib = payload.library!;
@@ -183,12 +203,14 @@ function renderRoot(payload: ScreenPayload): void {
   );
   const body = el("div", "lib-body lf-body");
   const chips = lib.chips?.length ? el("div", "lf-chips") : undefined;
+  const chipTrack = el("div", "lf-chiptrack");
+  chips?.append(chipTrack);
   for (const c of lib.chips ?? [])
-    chips!.append(
+    chipTrack.append(
       focusable(
         el(
           "button",
-          `lf-chip${c.active ? " on" : ""}${payload.focusedId === `chip:${c.key}` ? " focused" : ""}`,
+          `g-pill lf-chip${c.active ? " on" : ""}${payload.focusedId === `chip:${c.key}` ? " focused" : ""}`,
           escape(c.label),
         ),
         `chip:${c.key}`,
@@ -217,6 +239,8 @@ function renderRoot(payload: ScreenPayload): void {
     body.append(block);
   }
   firstPage.replaceChildren(backdrop!, featured, ...(chips ? [chips] : []), body, topbar(payload));
+
+  if (chips) scrollChips(chips, chipTrack);
 
   // Scroll after attaching so offsets exist: the focused row to the top, and the tile inside its shelf.
   const card_ = body.querySelector<HTMLElement>(".lib-card.focused");
