@@ -79,6 +79,7 @@ describe("YouTube App", () => {
     expect(calls("hide")).toHaveLength(1);
     h.clock.advance(30 * 60_000);
     expect(awake()).toEqual([true, false]);
+    await phone.press("ok"); // Home had gone ambient: the first press only wakes it
     await phone.press("ok");
     expect(calls("show")).toHaveLength(2);
     expect(calls("restart")).toHaveLength(0);

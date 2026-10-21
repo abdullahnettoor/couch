@@ -1,7 +1,8 @@
 import { HOME_ITEMS } from "../../shared/home-grid.ts";
+import { clockParts } from "../../shared/clock-format.ts";
 import { iconSvg } from "../../shared/icons.ts";
 import type { LibraryEntry, ScreenPayload } from "../../shared/protocol.ts";
-import { el, focusable, qrSvg, root } from "./dom.ts";
+import { el, focusable, genreLabels, qrSvg, root } from "./dom.ts";
 import { glassPill, topbar } from "./glass.ts";
 
 const YOUTUBE_MARK =
@@ -85,6 +86,33 @@ function syncBackdrop(videos: LibraryEntry[], hero: LibraryEntry | undefined): v
   }
 }
 
+/** Layers that outlive a render so state changes can cross-fade. */
+let ambientBg: HTMLElement | undefined;
+let clockEl: HTMLElement | undefined;
+let heroEl: HTMLElement | undefined;
+let chrome: HTMLElement | undefined;
+
+function heroHtml(hero: LibraryEntry, focused: (id: string) => boolean): HTMLElement[] {
+  const meta = [hero.folder, hero.progress?.left].filter(Boolean).map((t) => escapeHtml(t!));
+  const text = el(
+    "div",
+    "h-text",
+    `${hero.line ? `<div class="k">${escapeHtml(hero.line)}</div>` : ""}${genreLabels(hero.genres)}<h1 class="${heroSize(hero.title)}">${escapeHtml(hero.title)}</h1>${
+      hero.overview ? `<p class="ov">${escapeHtml(hero.overview)}</p>` : ""
+    }<div class="m num">${meta.map((t) => `<span>${t}</span>`).join("<span>·</span>")}${
+      hero.progress
+        ? `<span class="h-bar"><i style="width:${Math.round(hero.progress.fraction * 100)}%"></i></span>`
+        : ""
+    }</div>`,
+  );
+  const acts = el("div", "h-acts");
+  acts.append(
+    glassPill("resume", "Resume", focused("resume"), "play"),
+    glassPill("fromstart", "From start", focused("fromstart"), "restart"),
+  );
+  return [text, acts];
+}
+
 export function render(payload: ScreenPayload): void {
   const date = new Date(payload.now);
   const videos = payload.homeVideos ?? [];
@@ -92,53 +120,38 @@ export function render(payload: ScreenPayload): void {
   if (!view || root.firstElementChild !== view) {
     view = el("div", "screen-glass home");
     bg = el("div", "h-bg");
+    ambientBg = el("div", "h-drift");
+    clockEl = el("div", "h-clock");
+    heroEl = el("div", "h-hero");
+    chrome = el("div", "h-chrome");
     bgKey = "";
     root.replaceChildren(view);
+    view.append(ambientBg, bg, clockEl, heroEl, chrome);
   }
   syncBackdrop(videos, hero);
   const focused = (id: string) => payload.focusedId === id;
-  const parts: HTMLElement[] = [bg!, topbar(payload)];
-  const row = el("div", "h-row");
-  const apps = HOME_ITEMS.filter((i) => i.id !== "settings");
+  view.classList.toggle("empty", videos.length === 0);
+  view.classList.toggle("film", !!hero);
+  view.classList.toggle("ambient", !!payload.ambient);
+  bg!.classList.toggle("on", !!hero);
+  heroEl!.classList.toggle("on", !!hero);
+  clockEl!.classList.toggle("on", !hero);
+  // The last hero stays drawn while it fades out.
+  if (hero) heroEl!.replaceChildren(...heroHtml(hero, focused));
+  else for (const b of heroEl!.querySelectorAll("[data-id]")) b.classList.remove("focused");
+  const { time, suffix } = clockParts(payload.now, payload.timeFormat);
+  clockEl!.innerHTML =
+    `<div class="t num">${time}${suffix ? `<small>${suffix}</small>` : ""}</div>` +
+    `<div class="d">${greeting(date)} · ${date.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" })}</div>`;
 
-  if (hero) {
-    view.classList.remove("empty");
-    const meta = [hero.folder, hero.progress?.left].filter(Boolean).map((t) => escapeHtml(t!));
-    parts.push(
-      el(
-        "div",
-        "h-hero",
-        `${hero.line ? `<div class="k">${escapeHtml(hero.line)}</div>` : ""}<h1 class="${heroSize(hero.title)}">${escapeHtml(hero.title)}</h1>${
-          hero.overview ? `<p class="ov">${escapeHtml(hero.overview)}</p>` : ""
-        }<div class="m num">${meta.map((t) => `<span>${t}</span>`).join("<span>·</span>")}${
-          hero.progress
-            ? `<span class="h-bar"><i style="width:${Math.round(hero.progress.fraction * 100)}%"></i></span>`
-            : ""
-        }</div>`,
-      ),
-    );
-    const acts = el("div", "h-acts");
-    acts.append(
-      glassPill("resume", "Resume", focused("resume"), "play"),
-      glassPill("fromstart", "From start", focused("fromstart"), "restart"),
-    );
-    parts[parts.length - 1]!.append(acts);
-    for (const app of apps) row.append(appTile(app.id, app.label, focused(app.id)));
+  const row = el("div", "h-row");
+  for (const app of HOME_ITEMS.filter((i) => i.id !== "settings"))
+    row.append(appTile(app.id, app.label, focused(app.id)));
+  if (videos.length) {
     row.append(el("div", "h-divider"));
     for (const v of videos) row.append(filmTile(v, focused(v.path)));
-  } else {
-    view.classList.add("empty");
-    parts.push(
-      el(
-        "div",
-        "h-clock",
-        `<div class="t num">${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).replace(/\s?[AP]M/i, "")}</div>` +
-          `<div class="d">${greeting(date)} · ${date.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" })}</div>`,
-      ),
-    );
-    for (const app of apps) row.append(appTile(app.id, app.label, focused(app.id)));
   }
-  parts.push(row);
+  const parts: HTMLElement[] = [topbar(payload), row];
   if (payload.state.remotes === 0) {
     parts.push(
       el(
@@ -148,5 +161,5 @@ export function render(payload: ScreenPayload): void {
       ),
     );
   }
-  view.replaceChildren(...parts);
+  chrome!.replaceChildren(...parts);
 }

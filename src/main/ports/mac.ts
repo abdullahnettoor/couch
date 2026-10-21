@@ -20,5 +20,9 @@ export interface Mac {
   pickFolder(): Promise<string | undefined>;
   /** The Mac's Bonjour name, e.g. "Living-Room-Mac.local". */
   localName(): string;
+  /** How the Mac shows times of day: "12" (9:41 PM) or "24" (21:41). */
+  timeFormat(): "12" | "24";
+  /** Calls back when the Mac's 12/24-hour setting may have changed. */
+  onTimeFormatChanged(listener: () => void): () => void;
   quit(): void;
 }

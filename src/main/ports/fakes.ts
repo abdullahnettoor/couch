@@ -158,6 +158,20 @@ export class FakeMac implements Mac {
     this.displays = displays;
     for (const l of [...this.#displayListeners]) l();
   }
+  format: "12" | "24" = "12";
+  #formatListeners = new Set<() => void>();
+  timeFormat() {
+    return this.format;
+  }
+  onTimeFormatChanged(listener: () => void) {
+    this.#formatListeners.add(listener);
+    return () => void this.#formatListeners.delete(listener);
+  }
+  /** Flip the Mac's 12/24-hour setting and fire the change event. */
+  setTimeFormat(format: "12" | "24") {
+    this.format = format;
+    for (const l of [...this.#formatListeners]) l();
+  }
   moveScreenTo(displayId: number) {
     this.#record("moveScreenTo", displayId);
   }

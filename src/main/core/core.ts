@@ -40,6 +40,8 @@ import { History } from "./history.ts";
 import { ShowView } from "./show-view.ts";
 import { DetailsPage } from "./details-page.ts";
 import { LibrarySearchView } from "./library-search-view.ts";
+import { AMBIENT_MS, filmAfterFocus, homeGrid } from "./home-view.ts";
+import type { TimeFormat } from "../../shared/clock-format.ts";
 import { MetadataService } from "./metadata-service.ts";
 import { nullMetadata, type Metadata } from "../ports/metadata.ts";
 
@@ -247,10 +249,13 @@ export class Core {
     const playback = ports.store.read<{ subtitlesOn?: unknown }>("playback", {});
     this.#state.subtitlesOn = playback.subtitlesOn !== false;
     this.#unsubPlayer = ports.player.onEvent((event) => this.#onPlayerEvent(event));
+    this.#timeFormat = ports.mac.timeFormat();
+    this.#offTimeFormat = ports.mac.onTimeFormatChanged(() => this.#readTimeFormat());
     this.#scheduleMinute();
     this.#displayId = pickTargetDisplay(ports.mac.listDisplays())?.id;
     this.#unsubDisplays = ports.mac.onDisplaysChanged(() => this.#retarget());
     this.#armIdle();
+    this.#armAmbient();
     this.#syncDisplayAwake();
     this.#ytOff = ports.youtube.onEvent((event) => this.#onYouTube(event));
     void ports.mac
@@ -346,6 +351,12 @@ export class Core {
 
   /** The tile focused on the Library's first page, so rows that change under it don't move focus. */
   #rootFocusId: string | undefined;
+  /** Home: the film card whose backdrop shows (focused, or last focused while Resume / From start has focus). */
+  #homeFilm: string | undefined;
+  #ambient = false;
+  #cancelAmbient: (() => void) | undefined;
+  #timeFormat: TimeFormat = "12";
+  #offTimeFormat: (() => void) | undefined;
   /** The last tile focused on the Library's first page; the featured area keeps showing it while a chip or icon has focus. */
   #lastTile: string | undefined;
 
@@ -473,6 +484,7 @@ export class Core {
         folder: basename(dirname(c.path)),
         thumb,
         ...(details?.backdrop ? { backdrop: details.backdrop } : {}),
+        ...(details?.genres?.length ? { genres: topGenres(details) } : {}),
         ...((episode?.overview ?? details?.overview)
           ? { overview: episode?.overview ?? details?.overview }
           : {}),
@@ -484,35 +496,20 @@ export class Core {
     if (this.#state.view === "home") {
       const base = this.#grids.get("home") ?? [];
       const videos = base.length ? this.#continueEntries().slice(0, HOME_VIDEOS) : [];
-      const newest = videos[0];
-      if (!newest) return base;
-      const apps = base.filter((i) => i.id !== "settings");
-      return [
-        ...base.filter((i) => i.id === "settings"),
-        {
-          id: "resume",
-          r: 1,
-          c: 0,
-          label: `Resume ${newest.title}`,
-          action: `library:play:${newest.path}`,
-          initial: true,
-        },
-        {
-          id: "fromstart",
-          r: 1,
-          c: 1,
-          label: `${newest.title} from start`,
-          action: `library:playstart:${newest.path}`,
-        },
-        ...apps.map((i) => ({ ...i, r: 2, initial: false })),
-        ...videos.map((v, i) => ({
-          id: v.path,
-          r: 2,
-          c: apps.length + i,
-          label: v.title,
-          action: `library:play:${v.path}`,
-        })),
-      ];
+      const gridFor = () =>
+        homeGrid(
+          base,
+          videos,
+          videos.find((v) => v.path === this.#homeFilm),
+        );
+      let grid = gridFor();
+      this.#homeFilm = filmAfterFocus(
+        resolveFocus(grid, this.#state.focus.home)?.id,
+        videos,
+        this.#homeFilm,
+      );
+      grid = gridFor();
+      return grid;
     }
     if (this.#state.view === "player") return this.#controls.grid();
     if (this.#state.view === "details") return this.#detailsPage.grid();
@@ -714,10 +711,22 @@ export class Core {
       this.#show.returnTo(p.path, ended);
     } else {
       this.#state.view = this.#playedFrom === "show" ? "library" : this.#playedFrom;
+      if (this.#state.view === "home") this.#focusHomeCard(p.path);
     }
     if (toast) this.#toast(toast);
     this.#keepLibraryFocus();
     this.#emit();
+  }
+
+  /** Back on Home after a video started there: focus returns to its card, so its backdrop shows. */
+  #focusHomeCard(path: string): void {
+    const base = this.#grids.get("home") ?? [];
+    const videos = this.#continueEntries().slice(0, HOME_VIDEOS);
+    const film = videos.find((v) => v.path === path);
+    const card = homeGrid(base, videos, film).find((i) => i.id === path);
+    this.#homeFilm = card ? path : undefined;
+    if (card) this.#state.focus.home = { r: card.r, c: card.c };
+    else delete this.#state.focus.home;
   }
 
   #stopPlayback(): void {
@@ -807,7 +816,7 @@ export class Core {
       if (name === "playNext") this.#controls.playNext();
       else if (name === "back" || name === "home") {
         this.#endPlayback(undefined, true);
-        if (name === "home") this.#state.view = "home";
+        if (name === "home") this.#setView("home");
       } else return this.#controls.command(command);
       return true;
     }
@@ -820,7 +829,7 @@ export class Core {
     if (name === "back" || name === "home") {
       this.#stopPlayback();
       this.#endPlayback();
-      if (name === "home") this.#state.view = "home";
+      if (name === "home") this.#setView("home");
       return true;
     }
     if (name === "playpause" || name === "seekBy" || name === "seekTo" || name === "subtitles")
@@ -956,7 +965,10 @@ export class Core {
         : {}),
       continueCard: this.#continueEntries()[0],
       homeVideos,
-      hero: homeVideos.find((v) => v.path === focused?.id) ?? homeVideos[0],
+      hero:
+        this.#state.view === "home" ? homeVideos.find((v) => v.path === this.#homeFilm) : undefined,
+      ambient: this.#ambient,
+      timeFormat: this.#timeFormat,
       overlay: this.#overlay(),
       ...(this.#state.typingBy === "screen" && this.#typingFor
         ? { screenTyping: this.#typingFor }
@@ -1076,6 +1088,13 @@ export class Core {
     if (from !== "screen") this.#lastFrom = from;
     this.#ports.mac.wakeDisplay();
     this.#armIdle();
+    if (this.#ambient) {
+      this.#ambient = false;
+      this.#armAmbient();
+      this.#emit();
+      return;
+    }
+    this.#armAmbient();
     if (command.command === "showControls" && !this.#state.player) return;
     if (command.command === "focusAt") return this.#focusAt(command.args?.r, command.args?.c);
     if (this.#typingKeys(command, from)) return;
@@ -1272,6 +1291,26 @@ export class Core {
     }
   }
 
+  #readTimeFormat(): void {
+    const next = this.#ports.mac.timeFormat();
+    if (next === this.#timeFormat) return;
+    this.#timeFormat = next;
+    this.#emit();
+  }
+
+  /** Ambient mode: after 2 idle minutes on Home the App row and top strip fade away. */
+  #armAmbient(): void {
+    this.#cancelAmbient?.();
+    this.#cancelAmbient = undefined;
+    if (this.#state.view !== "home") return;
+    this.#cancelAmbient = this.#ports.clock.setTimeout(() => {
+      this.#cancelAmbient = undefined;
+      if (this.#state.view !== "home") return;
+      this.#ambient = true;
+      this.#emit();
+    }, AMBIENT_MS);
+  }
+
   #armIdle(): void {
     this.#cancelIdle?.();
     this.#idle = false;
@@ -1308,6 +1347,8 @@ export class Core {
     this.#cancelIdle?.();
     this.#cancelToast?.();
     this.#cancelMinute?.();
+    this.#cancelAmbient?.();
+    this.#offTimeFormat?.();
     this.#controls.dispose();
     this.#cancelSaves?.();
     this.#cancelNote?.();
@@ -1398,16 +1439,20 @@ export class Core {
   /** Changes view; leaving YouTube hides it (pausing playback) and lets the display sleep again. */
   #setView(view: View): void {
     const from = this.#state.view;
+    if (view === "home") {
+      this.#chip = undefined;
+      this.#lastTile = undefined;
+      delete this.#state.focus.home;
+      this.#homeFilm = undefined;
+    }
     if (from === view) return;
     if (from === "youtube") {
       this.#state.typingBy = undefined;
       this.#ports.youtube.hide();
     }
     this.#state.view = view;
-    if (view === "home") {
-      this.#chip = undefined;
-      this.#lastTile = undefined;
-    }
+    this.#ambient = false;
+    this.#armAmbient();
     this.#releaseStrayTyping();
     if (from === "details") this.#detailsPage.cancel();
     if (view === "library") void this.library.refresh(this.#libraryFolders);
@@ -1534,6 +1579,7 @@ export class Core {
   #scheduleMinute(): void {
     const wait = 60_000 - (this.#ports.clock.now() % 60_000);
     this.#cancelMinute = this.#ports.clock.setTimeout(() => {
+      this.#readTimeFormat();
       this.#emit();
       this.#scheduleMinute();
     }, wait);

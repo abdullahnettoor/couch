@@ -45,6 +45,8 @@ const focusItem = (item: GridItem) =>
 // Real movement only: a view drawn under a resting cursor fires mouseover without the mouse moving, which
 // would steal focus from the view's first tile (or its last-focused one).
 window.addEventListener("mousemove", (event) => {
+  // Ambient Home hides every tile: any movement wakes it (the core swallows this first command).
+  if (current?.ambient) return window.couch.send({ command: "focusAt", args: { r: -1, c: -1 } });
   const item = itemAt(event);
   if (item && item.id !== current?.focusedId) focusItem(item);
 });
@@ -91,6 +93,8 @@ window.addEventListener("mouseup", (event) => {
 });
 
 window.addEventListener("mousemove", (event) => {
+  // Ambient Home hides every tile: any movement wakes it (the core swallows this first command).
+  if (current?.ambient) return window.couch.send({ command: "focusAt", args: { r: -1, c: -1 } });
   const tile = (event.target as Element | null)?.closest<HTMLElement>(".g-tile");
   if (!tile) return;
   const box = tile.getBoundingClientRect();

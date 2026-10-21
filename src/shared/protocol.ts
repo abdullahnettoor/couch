@@ -1,3 +1,4 @@
+import type { TimeFormat } from "./clock-format.ts";
 /** Remote protocol and the state shapes shared by the core, the Remote page and the Screen renderer. */
 import type { PlayerOverlay } from "./player.ts";
 
@@ -266,8 +267,12 @@ export interface ScreenPayload {
   continueCard?: LibraryEntry;
   /** Home: up to three in-progress videos, newest first. */
   homeVideos?: LibraryEntry[];
-  /** Home: the in-progress video the backdrop and title show: the focused one, else the newest. */
+  /** Home: the focused (or last focused) in-progress film whose backdrop and title show; absent on the calm Home. */
   hero?: LibraryEntry;
+  /** Home: the idle clock only, the App row and top strip faded away. */
+  ambient?: boolean;
+  /** How the Mac shows times of day. */
+  timeFormat: TimeFormat;
   /** The player overlay the renderer draws over the video; present while a video plays. */
   overlay?: PlayerOverlay;
   /** What the pairing QR code encodes. */

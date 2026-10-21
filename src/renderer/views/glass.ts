@@ -1,3 +1,4 @@
+import { clockParts } from "../../shared/clock-format.ts";
 import { iconSvg, type IconName } from "../../shared/icons.ts";
 import type { ScreenPayload } from "../../shared/protocol.ts";
 import { el, focusable, root } from "./dom.ts";
@@ -5,9 +6,7 @@ import { el, focusable, root } from "./dom.ts";
 /** The top-right strip: phone count, gear (focusable id "settings"), clock. */
 export function topbar(payload: ScreenPayload): HTMLElement {
   const n = payload.state.remotes;
-  const time = new Date(payload.now)
-    .toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    .replace(/\s?[AP]M/i, "");
+  const { time, suffix } = clockParts(payload.now, payload.timeFormat);
   const bar = el(
     "div",
     "topbar",
@@ -32,7 +31,7 @@ export function topbar(payload: ScreenPayload): HTMLElement {
       el("button", `tb-gear${payload.focusedId === "settings" ? " focused" : ""}`, iconSvg("gear")),
       "settings",
     ),
-    el("div", "clock num", time),
+    el("div", "clock num", `${time}${suffix ? `<small>${suffix}</small>` : ""}`),
   );
   return bar;
 }

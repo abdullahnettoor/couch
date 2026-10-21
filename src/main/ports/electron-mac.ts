@@ -1,6 +1,6 @@
 import { execFile, execFileSync, spawn } from "node:child_process";
 import { hostname } from "node:os";
-import { app, BrowserWindow, dialog, powerSaveBlocker, screen } from "electron";
+import { app, BrowserWindow, dialog, powerSaveBlocker, screen, systemPreferences } from "electron";
 import type { Mac } from "./mac.ts";
 
 function osascript(script: string): Promise<string> {
@@ -84,6 +84,25 @@ export function createElectronMac(
         if (name) return `${name}.local`;
       } catch {}
       return `${hostname().replace(/\.local$/, "")}.local`;
+    },
+    timeFormat() {
+      try {
+        if (systemPreferences.getUserDefault("AppleICUForce24HourTime", "boolean")) return "24";
+        if (systemPreferences.getUserDefault("AppleICUForce12HourTime", "boolean")) return "12";
+      } catch {}
+      const cycle = new Intl.DateTimeFormat().resolvedOptions().hourCycle;
+      return cycle === "h23" || cycle === "h24" ? "24" : "12";
+    },
+    onTimeFormatChanged(listener) {
+      try {
+        const id = systemPreferences.subscribeNotification(
+          "AppleTimePreferencesChangedNotification",
+          listener,
+        );
+        return () => systemPreferences.unsubscribeNotification(id);
+      } catch {
+        return () => {};
+      }
     },
     quit: () => app.quit(),
   };
