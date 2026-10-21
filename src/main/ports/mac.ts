@@ -1,3 +1,5 @@
+import type { ListenerLoginItem } from "./login-item.ts";
+
 export interface DisplayInfo {
   id: number;
   label: string;
@@ -24,5 +26,8 @@ export interface Mac {
   timeFormat(): "12" | "24";
   /** Calls back when the Mac's 12/24-hour setting may have changed. */
   onTimeFormatChanged(listener: () => void): () => void;
+  /** Whether the listener starts at login (a LaunchAgent); unavailable outside the installed Couch.app. */
+  listenerLoginItem(): Promise<ListenerLoginItem>;
+  setListenerLoginItem(on: boolean): Promise<void>;
   quit(): void;
 }

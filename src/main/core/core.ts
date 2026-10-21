@@ -175,6 +175,7 @@ export class Core {
       this.#emit();
     });
     this.details.sync();
+    void this.refreshLoginItem();
     this.#controls = new PlayerControls(this.#state, {
       clock: ports.clock,
       playing: () => {
@@ -966,6 +967,9 @@ export class Core {
       this.#state.view === "credits"
         ? { details: this.details.settings() }
         : {}),
+      ...(this.#state.view === "settings"
+        ? { listener: { ...this.#loginItem, running: !!this.#ports.listener } }
+        : {}),
       continueCard: this.#continueEntries()[0],
       homeVideos,
       hero:
@@ -1571,8 +1575,24 @@ export class Core {
       },
       toast: (text) => this.#toast(text),
       forgetAllPhones: () => this.forgetAllPhones(),
+      toggleListener: () => void this.#toggleListener(),
       quit: () => this.quit(),
     };
+  }
+
+  #loginItem = { available: false, on: false };
+
+  /** Reads the login item from the Mac (at start and after each toggle). */
+  async refreshLoginItem(): Promise<void> {
+    this.#loginItem = await this.#ports.mac.listenerLoginItem().catch(() => this.#loginItem);
+    this.#emit();
+  }
+
+  async #toggleListener(): Promise<void> {
+    await this.refreshLoginItem();
+    if (!this.#loginItem.available) return;
+    await this.#ports.mac.setListenerLoginItem(!this.#loginItem.on).catch(() => {});
+    await this.refreshLoginItem();
   }
 
   #toast(text: string): void {

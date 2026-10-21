@@ -1,5 +1,7 @@
 import { execFile, execFileSync, spawn } from "node:child_process";
-import { hostname } from "node:os";
+import { homedir, hostname } from "node:os";
+import { dirname, join } from "node:path";
+import { createLoginItem } from "./login-item.ts";
 import { app, BrowserWindow, dialog, powerSaveBlocker, screen, systemPreferences } from "electron";
 import type { Mac } from "./mac.ts";
 
@@ -27,7 +29,16 @@ export function createElectronMac(
     if (!keep && id !== undefined) powerSaveBlocker.stop(id);
     return keep ? id : undefined;
   };
+  const bundle = app.isPackaged ? dirname(dirname(dirname(process.execPath))) : undefined;
+  const loginItem = createLoginItem({
+    home: homedir(),
+    uid: process.getuid?.() ?? 0,
+    program: bundle ? join(process.resourcesPath, "couch-listener") : undefined,
+    launch: `open -a '${bundle?.replace(/'/g, "'\\''")}'`,
+  });
   return {
+    listenerLoginItem: () => loginItem.state(),
+    setListenerLoginItem: (on) => loginItem.set(on),
     getVolume: () =>
       osascript("output volume of (get volume settings)").then((out) => Number(out) || 0),
     setVolume: (percent) =>

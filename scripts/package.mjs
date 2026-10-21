@@ -1,5 +1,7 @@
 import { packager } from "@electron/packager";
-import { rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { copyFileSync, mkdirSync, rmSync } from "node:fs";
+import { join } from "node:path";
 
 rmSync("out", { recursive: true, force: true });
 const [appPath] = await packager({
@@ -25,4 +27,17 @@ const [appPath] = await packager({
     /^\/native\/mpv-embed\/(?!mpv_embed\.node$)/,
   ],
 });
+
+// The listener can't read inside app.asar: it sits in Resources as real files, with the page and icons in remote/.
+const resources = join(appPath, "Couch.app", "Contents", "Resources");
+const remote = join(resources, "remote");
+mkdirSync(remote, { recursive: true });
+execFileSync(
+  "sh",
+  ["-c", `swiftc -O -swift-version 5 listener/*.swift -o '${join(resources, "couch-listener")}'`],
+  { stdio: "inherit" },
+);
+copyFileSync("dist/remote/page.html", join(remote, "page.html"));
+for (const icon of ["icon-192.png", "touch-icon.png"])
+  copyFileSync(join("src/renderer/public", icon), join(remote, icon));
 console.log(`Built ${appPath}/Couch.app`);

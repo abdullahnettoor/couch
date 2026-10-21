@@ -8,6 +8,7 @@ export interface ActionContext {
   openYouTube(): void;
   retryYouTube(): void;
   restartYouTube(): void;
+  toggleListener(): void;
   quit(): void;
 }
 
@@ -33,6 +34,7 @@ const settingsActions: Record<string, ActionHandler> = {
   "settings:forget-phones": (ctx) => ctx.forgetAllPhones(),
   "settings:library-folders": (ctx) => ctx.open("libraryFolders"),
   "settings:details": (ctx) => ctx.open("details"),
+  "settings:listener": (ctx) => ctx.toggleListener(),
   "settings:quit": (ctx) => ctx.quit(),
 };
 
