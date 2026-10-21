@@ -5,48 +5,72 @@ import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 import { createLoginItem, type Exec } from "./ports/login-item.ts";
 import { startHarness, type Harness } from "./testing/harness.ts";
 
+/** Reads the few plist keys that matter, whatever the whitespace. */
+function readPlist(xml: string) {
+  const strings = (block: string) =>
+    [...block.matchAll(/<string>([^<]*)<\/string>/g)].map((m) => m[1]);
+  const flag = (key: string) =>
+    new RegExp(`<key>${key}</key>\\s*<true\\s*/>`).test(xml) ? true : undefined;
+  return {
+    label: /<key>Label<\/key>\s*<string>([^<]*)<\/string>/.exec(xml)?.[1],
+    args: strings(/<key>ProgramArguments<\/key>\s*<array>([\s\S]*?)<\/array>/.exec(xml)?.[1] ?? ""),
+    runAtLoad: flag("RunAtLoad"),
+    keepAlive: flag("KeepAlive"),
+    log: /<key>StandardErrorPath<\/key>\s*<string>([^<]*)<\/string>/.exec(xml)?.[1],
+  };
+}
+
 describe("login item (real files, fake launchctl)", () => {
   let home: string;
-  let calls: string[][];
-  let loaded: boolean;
+  /** What launchctl has loaded: the plist as it was when bootstrapped. */
+  let loaded: string | undefined;
   const exec: Exec = async (_file, args) => {
-    calls.push(args);
-    if (args[0] === "bootstrap") loaded = true;
-    if (args[0] === "bootout") loaded = false;
-    return { ok: args[0] === "print" ? loaded : true };
+    if (args[0] === "bootstrap") loaded = readFileSync(args[2], "utf8");
+    if (args[0] === "bootout") loaded = undefined;
+    return { ok: args[0] === "print" ? loaded !== undefined : true };
   };
   beforeEach(() => {
     home = mkdtempSync(join(tmpdir(), "couch-login-"));
-    calls = [];
-    loaded = false;
+    loaded = undefined;
   });
   afterEach(() => rmSync(home, { recursive: true, force: true }));
   const PROGRAM = "/Apps/Couch.app/Contents/Resources/couch-listener";
+  const LAUNCH = "open -a '/Apps/Couch.app'";
   const make = (program: string | undefined) =>
-    createLoginItem({ home, uid: 501, program, launch: "open -a '/Apps/Couch.app'", exec });
+    createLoginItem({ home, uid: 501, program, launch: LAUNCH, exec });
 
-  test("on writes the plist and bootstraps; off boots out and removes it", async () => {
+  test("on loads a LaunchAgent that runs the listener at login and keeps it alive; off unloads and removes it", async () => {
     const item = make(PROGRAM);
+    expect(await item.state()).toEqual({ available: true, on: false });
     await item.set(true);
-    const plist = readFileSync(item.plistPath, "utf8");
+    expect(loaded).toBeDefined();
+    expect(readPlist(loaded!)).toEqual({
+      label: "local.couch.listener",
+      args: [PROGRAM, "--launch", LAUNCH],
+      runAtLoad: true,
+      keepAlive: true,
+      log: join(home, "Library/Logs/Couch/listener.log"),
+    });
     expect(item.plistPath).toBe(join(home, "Library/LaunchAgents/local.couch.listener.plist"));
-    expect(plist).toContain("<key>RunAtLoad</key>\n  <true/>");
-    expect(plist).toContain("<key>KeepAlive</key>\n  <true/>");
-    expect(plist).toContain("<string>/Apps/Couch.app/Contents/Resources/couch-listener</string>");
-    expect(plist).toContain(join(home, "Library/Logs/Couch/listener.log"));
-    expect(calls.at(-1)).toEqual(["bootstrap", "gui/501", item.plistPath]);
+    expect(existsSync(item.plistPath)).toBe(true);
     expect(await item.state()).toEqual({ available: true, on: true });
-    expect(calls.at(-1)).toEqual(["print", "gui/501/local.couch.listener"]);
     await item.set(false);
-    expect(calls.at(-1)).toEqual(["bootout", "gui/501/local.couch.listener"]);
+    expect(loaded).toBeUndefined();
     expect(existsSync(item.plistPath)).toBe(false);
     expect(await item.state()).toEqual({ available: true, on: false });
+  });
+
+  test("turning it on twice leaves one loaded agent", async () => {
+    const item = make(PROGRAM);
+    await item.set(true);
+    await item.set(true);
+    expect(await item.state()).toEqual({ available: true, on: true });
   });
 
   test("in development it is unavailable and does nothing", async () => {
     const item = make(undefined);
     await item.set(true);
-    expect(calls).toEqual([]);
+    expect(loaded).toBeUndefined();
     expect(existsSync(item.plistPath)).toBe(false);
     expect(await item.state()).toEqual({ available: false, on: false });
   });
