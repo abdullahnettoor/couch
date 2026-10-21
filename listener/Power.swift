@@ -58,17 +58,32 @@ enum Loopback {
   }
 }
 
-/// off / starting / on, and what moves between them.
+/// Where Couch is in its life, as far as the listener can tell. `stopping` still reads as `on` to phones.
+enum Phase: Equatable {
+  case off
+  case starting(deadline: Date)
+  case on
+  case stopping(deadline: Date, escalated: Bool)
+
+  var visible: PowerState {
+    switch self {
+    case .off: return .off
+    case .starting: return .starting
+    case .on, .stopping: return .on
+    }
+  }
+}
+
+/// off / starting / on / stopping, and what moves between them.
 final class Power {
   private let q: DispatchQueue
   private let cfg: Config
   private let token: String
   private var timer: DispatchSourceTimer?
-  private(set) var state = PowerState.off
+  private var phase = Phase.off
   private var pid: pid_t?
-  private var deadline = Date.distantFuture
-  private var stopping = false
-  private var terminated = false
+
+  var state: PowerState { phase.visible }
 
   /// Called on `q` for every change. `failed` is true when a start timed out.
   var onChange: ((PowerState, Bool) -> Void)?
@@ -89,27 +104,33 @@ final class Power {
   }
 
   private func reschedule() {
-    let busy = state == .starting || stopping
+    let busy: Bool
+    switch phase {
+    case .starting, .stopping: busy = true
+    case .off, .on: busy = false
+    }
     let interval = busy ? 0.25 : 2.0
     timer?.schedule(deadline: .now() + interval, repeating: interval, leeway: .milliseconds(busy ? 50 : 500))
   }
 
-  private func set(_ s: PowerState, failed: Bool = false) {
-    guard s != state || failed else { return }
-    state = s
-    if s != .on {
-      pid = nil
-      stopping = false
+  /// The only place the phase changes.
+  private func transition(to next: Phase, failed: Bool = false) {
+    let before = phase
+    phase = next
+    switch next {
+    case .off, .starting: pid = nil
+    case .on, .stopping: break
     }
     reschedule()
-    log("state \(s.rawValue)")
-    onChange?(s, failed)
+    guard before.visible != next.visible || failed else { return }
+    log("state \(next.visible.rawValue)")
+    onChange?(next.visible, failed)
   }
 
   func toggle() {
-    switch state {
+    switch phase {
     case .off: launch()
-    case .starting: break
+    case .starting, .stopping: break
     case .on: quit()
     }
   }
@@ -120,12 +141,8 @@ final class Power {
     p.arguments = ["-c", cfg.launch]
     p.standardOutput = FileHandle.nullDevice
     p.standardError = FileHandle.nullDevice
-    guard (try? p.run()) != nil else {
-      set(.off, failed: true)
-      return
-    }
-    deadline = Date().addingTimeInterval(cfg.startTimeout)
-    set(.starting)
+    guard (try? p.run()) != nil else { return transition(to: .off, failed: true) }
+    transition(to: .starting(deadline: Date().addingTimeInterval(cfg.startTimeout)))
     wakeDisplay()
   }
 
@@ -135,11 +152,7 @@ final class Power {
   }
 
   private func quit() {
-    guard !stopping else { return }
-    stopping = true
-    terminated = false
-    deadline = Date().addingTimeInterval(10)
-    reschedule()
+    transition(to: .stopping(deadline: Date().addingTimeInterval(10), escalated: false))
     let port = cfg.appPort
     let token = token
     DispatchQueue.global().async { Loopback.postQuit(port: port, token: token) }
@@ -151,11 +164,11 @@ final class Power {
   }
 
   private func becomeOn() {
-    set(.on)
+    transition(to: .on)
     let port = cfg.appPort
     DispatchQueue.global().async { [weak self] in
       let found = Loopback.listeningPid(port)
-      self?.q.async { if self?.state == .on { self?.pid = found } }
+      self?.q.async { if self?.phase.visible == .on { self?.pid = found } }
     }
   }
 
@@ -164,30 +177,27 @@ final class Power {
 
   private func tick() {
     let open = Loopback.isOpen(cfg.appPort)
-    switch state {
+    switch phase {
     case .off:
       if open { becomeOn() }
-    case .starting:
+    case .starting(let deadline):
       if open {
         becomeOn()
       } else if Date() > deadline {
-        set(.off, failed: true)
+        transition(to: .off, failed: true)
       }
     case .on:
-      if stopping {
-        if !open && !alive() {
-          set(.off)
-        } else if Date() > deadline {
-          if let pid, !terminated {
-            kill(pid, SIGTERM)
-            terminated = true
-            deadline = Date().addingTimeInterval(2)
-          } else {
-            set(.off)
-          }
+      if !open || (pid != nil && !alive()) { transition(to: .off) }
+    case .stopping(let deadline, let escalated):
+      if !open && !alive() {
+        transition(to: .off)
+      } else if Date() > deadline {
+        if let pid, !escalated {
+          kill(pid, SIGTERM)
+          transition(to: .stopping(deadline: Date().addingTimeInterval(2), escalated: true))
+        } else {
+          transition(to: .off)
         }
-      } else if !open || (pid != nil && !alive()) {
-        set(.off)
       }
     }
   }

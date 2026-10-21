@@ -395,3 +395,14 @@ test("fragmented text frames are assembled, so a fragmented power works", async 
   c.socket.write(maskedFrame(0, msg.subarray(10), { fin: true }));
   await until(() => c.received().toString().includes("starting"), "power ran");
 });
+
+test("a client that half-closes after its request still gets the whole response", async () => {
+  const env = await setup();
+  const p = await phone(env);
+  p.send("power");
+  await until(() => p.closed(), "on");
+  const c = raw(env);
+  c.socket.end(`GET /?key=${KEY} HTTP/1.1\r\nHost: x\r\n\r\n`);
+  await until(() => c.received().toString().includes("FAKEAPP"), "response after half-close");
+  await until(() => c.closed(), "then closed");
+});

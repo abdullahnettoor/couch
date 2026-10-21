@@ -300,6 +300,7 @@ final class Proxy: Session {
   private let key: String?
   private let q: DispatchQueue
   private var closed = false
+  private var halfClosed = 0
 
   init(
     client: NWConnection, appPort: UInt16, head: Data, websocket: Bool, server: Server, power: Power, pairing: Pairing,
@@ -364,13 +365,20 @@ final class Proxy: Session {
           }
         }
       }
-      let finished = complete || error != nil
-      if out.isEmpty {
-        return finished ? self.cancel() : self.pump(from: from, to: to, filtered: filtered)
+      if error != nil { return self.cancel() }
+      if out.isEmpty && !complete { return self.pump(from: from, to: to, filtered: filtered) }
+      if complete {
+        // Forward the end of this direction as a half-close; the other direction keeps going until it ends too.
+        to.send(content: out.isEmpty ? nil : out, contentContext: .finalMessage, isComplete: true, completion: .contentProcessed { [weak self] e in
+          guard let self else { return }
+          self.halfClosed += 1
+          if e != nil || self.halfClosed >= 2 { self.cancel() }
+        })
+        return
       }
       to.send(content: out, completion: .contentProcessed { [weak self] e in
         guard let self else { return }
-        if e != nil || finished { self.cancel() } else { self.pump(from: from, to: to, filtered: filtered) }
+        if e != nil { self.cancel() } else { self.pump(from: from, to: to, filtered: filtered) }
       })
     }
   }
