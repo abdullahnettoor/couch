@@ -51,10 +51,9 @@ export function render(payload: ScreenPayload): void {
   const body = el("div", "lib-body ls-body");
   if (search.rows.length) {
     for (const row of search.rows) body.append(rowBlock(row, payload));
-  } else {
-    const text = search.query.trim()
-      ? `Nothing matches “${escape(search.query.trim())}”`
-      : "Type to search";
+  } else if (search.query.trim() && !search.searching) {
+    // An empty query needs no prompt: the bar above already says what to do.
+    const text = `Nothing matches “${escape(search.query.trim())}”`;
     body.append(el("div", "lib-empty glass", `${iconSvg("search")}<span>${text}</span>`));
   }
   page.append(field, body, topbar(payload));

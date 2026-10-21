@@ -1,7 +1,8 @@
-// Runs Electron as "Couch": a cached copy of Electron.app with a patched Info.plist, so the
-// menu bar, Dock and Cmd-Tab show Couch during development.
+// Runs Electron as "Couch": a cached copy of Electron.app with a patched Info.plist and Couch's
+// icon, so the menu bar, Dock and Cmd-Tab show Couch during development.
 import { spawn, execFileSync } from "node:child_process";
 import {
+  copyFileSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -9,6 +10,7 @@ import {
   readFileSync,
   writeFileSync,
   rmSync,
+  statSync,
 } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
@@ -22,8 +24,11 @@ const version = JSON.parse(
 const cache = join("node_modules", ".cache", "couch-dev");
 const app = join(cache, "Couch.app");
 const stamp = join(cache, "version");
+const icon = join("build", "icon.icns");
+// Rebuild the copy when Electron or the icon changes.
+const wanted = `${version} ${existsSync(icon) ? statSync(icon).mtimeMs : 0}`;
 
-if (!existsSync(app) || !existsSync(stamp) || readFileSync(stamp, "utf8") !== version) {
+if (!existsSync(app) || !existsSync(stamp) || readFileSync(stamp, "utf8") !== wanted) {
   rmSync(cache, { recursive: true, force: true });
   mkdirSync(cache, { recursive: true });
   cpSync(srcApp, app, { recursive: true, verbatimSymlinks: true });
@@ -33,7 +38,10 @@ if (!existsSync(app) || !existsSync(stamp) || readFileSync(stamp, "utf8") !== ve
   set("CFBundleExecutable", "Couch");
   set("CFBundleName", "Couch");
   set("CFBundleDisplayName", "Couch");
-  writeFileSync(stamp, version);
+  if (existsSync(icon)) copyFileSync(icon, join(app, "Contents/Resources/electron.icns"));
+  // A fresh bundle path makes the Dock read the new icon instead of a cached one.
+  execFileSync("touch", [app]);
+  writeFileSync(stamp, wanted);
 }
 
 const child = spawn(

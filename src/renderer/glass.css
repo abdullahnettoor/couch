@@ -1098,9 +1098,6 @@ body:has(.ls-page) .toast:not(.notice) {
 .typing-input::placeholder {
   color: var(--t3);
 }
-.ls-field.focused .typing-input::placeholder {
-  color: rgba(0, 0, 0, 0.45);
-}
 .g-row .typing-slot {
   justify-content: flex-end;
   min-width: calc(520 * var(--u));
