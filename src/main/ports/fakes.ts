@@ -290,6 +290,7 @@ export class FakeMetadata implements Metadata {
       overview: hit?.overview,
       posterPath: hit?.posterPath,
       backdropPath: `/backdrop${id}.jpg`,
+      genres: [],
       seasons: seasons.map((number) => ({
         number,
         episodes: [

@@ -50,6 +50,7 @@ async function start(opts: { key?: boolean; watched?: boolean; ongoing?: boolean
     ...(opts.ongoing ? { ongoing: true } : {}),
     overview: "Piltover.",
     posterPath: "/arcane.jpg",
+    genres: [],
     backdropPath: "/arcane-bd.jpg",
     seasons: [
       {
@@ -69,6 +70,7 @@ async function start(opts: { key?: boolean; watched?: boolean; ongoing?: boolean
     year: 2017,
     overview: "Koala.",
     posterPath: "/sing.jpg",
+    genres: [],
     seasons: [],
   });
   await h.app.core.library.settled();

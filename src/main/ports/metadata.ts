@@ -37,6 +37,10 @@ export interface Details {
   overview?: string;
   posterPath?: string;
   backdropPath?: string;
+  /** TMDB genre names, e.g. "Drama". */
+  genres: string[];
+  /** `original_language`, ISO 639-1 (e.g. "ml"). */
+  language?: string;
   /** Shows only. */
   seasons: SeasonDetails[];
 }
