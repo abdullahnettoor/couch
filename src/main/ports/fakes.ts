@@ -10,6 +10,7 @@ import type {
 import type { LoadOptions, Player, PlayerEvent } from "../../shared/player.ts";
 import type { Clock } from "./clock.ts";
 import type { DisplayInfo, Mac, OutputDevice } from "./mac.ts";
+import { RouteTracker } from "./youtube-route.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "./youtube.ts";
 
 function emitter<E>() {
@@ -89,8 +90,14 @@ export class FakePlayer implements Player {
 export class FakeYouTube implements YouTube {
   readonly calls: Array<{ call: string; args: unknown[] }> = [];
   #events = emitter<YouTubeEvent>();
+  #tracker = new RouteTracker();
   #record(call: string, ...args: unknown[]) {
     this.calls.push({ call, args });
+  }
+  /** The view's address or Shorts player changed, announced the way the real adapter does. */
+  navigate(url: string, shortsOpen = false) {
+    const route = this.#tracker.update(url, shortsOpen);
+    if (route) this.emit({ type: "route", ...route });
   }
   show(note?: string) {
     this.#record("show", note);

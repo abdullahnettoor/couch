@@ -1526,7 +1526,7 @@ export class Core {
         );
         return;
       }
-      this.#ytBackAt ??= now;
+      this.#ytBackAt = now;
       this.#ports.youtube.sendKey("back");
       return;
     }

@@ -115,6 +115,51 @@ describe("Back inside YouTube", () => {
     expect(s.confirm).toBeUndefined();
   });
 
+  test("Back between two non-home pages goes back, even long after the last Back", async () => {
+    await openYouTube();
+    const watch = "https://www.youtube.com/tv#/watch?v=abc";
+    h.youtube.navigate(watch);
+    await phone.press("back");
+    h.youtube.navigate("https://www.youtube.com/tv#/search?q=cats");
+    h.clock.advance(1500);
+    const s = await phone.press("back");
+    expect(keys()).toEqual(["back", "back"]);
+    expect(s.confirm).toBeUndefined();
+  });
+
+  test("opening and closing a Short counts as navigating", async () => {
+    await openYouTube();
+    const home = "https://www.youtube.com/tv#/";
+    h.youtube.navigate(home);
+    h.youtube.navigate(home, true);
+    await phone.press("back");
+    h.youtube.navigate(home, false);
+    expect((await phone.press("back")).confirm?.title).toBe("Leave YouTube?");
+  });
+
+  test("a route that arrives slowly (900 ms) does not make the next Back ask", async () => {
+    await openYouTube();
+    h.youtube.navigate("https://www.youtube.com/tv#/watch?v=abc");
+    await phone.press("back");
+    h.clock.advance(900);
+    h.youtube.navigate("https://www.youtube.com/tv#/browse?c=FEsubscriptions");
+    const s = await phone.press("back");
+    expect(keys()).toEqual(["back", "back"]);
+    expect(s.confirm).toBeUndefined();
+  });
+
+  test("two quick Backs, then a third a moment later, all reach YouTube", async () => {
+    await openYouTube();
+    h.youtube.navigate("https://www.youtube.com/tv#/watch?v=abc");
+    await phone.press("back");
+    h.clock.advance(500);
+    await phone.press("back");
+    h.clock.advance(500);
+    const s = await phone.press("back");
+    expect(keys()).toEqual(["back", "back", "back"]);
+    expect(s.confirm).toBeUndefined();
+  });
+
   test("Backs pressed in quick succession all reach YouTube", async () => {
     await openYouTube();
     route(false);
