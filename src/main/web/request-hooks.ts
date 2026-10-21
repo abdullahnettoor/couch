@@ -19,6 +19,13 @@ export interface HookSession {
   };
 }
 
+const warned = new WeakSet<object>();
+function warnOnce(handler: object, error: unknown): void {
+  if (warned.has(handler)) return;
+  warned.add(handler);
+  console.warn("[couch] request hook failed:", error);
+}
+
 /**
  * The one place that listens to a session's webRequest events (Electron allows a single listener
  * per event). Handlers run in the order they were added; the identity is added first.
@@ -30,7 +37,13 @@ export class RequestHooks {
   constructor(ses: HookSession) {
     ses.webRequest.onBeforeRequest((details, callback) => {
       for (const handler of [...this.#before]) {
-        const result = handler({ url: details.url });
+        let result;
+        try {
+          result = handler({ url: details.url });
+        } catch (e) {
+          warnOnce(handler, e);
+          continue;
+        }
         if (result && (result.cancel || result.redirectURL)) return callback(result);
       }
       callback({});
@@ -38,7 +51,11 @@ export class RequestHooks {
     ses.webRequest.onBeforeSendHeaders((details, callback) => {
       let requestHeaders: Record<string, string> = details.requestHeaders;
       for (const handler of [...this.#headers]) {
-        requestHeaders = handler({ url: details.url, requestHeaders });
+        try {
+          requestHeaders = handler({ url: details.url, requestHeaders });
+        } catch (e) {
+          warnOnce(handler, e);
+        }
       }
       callback({ requestHeaders });
     });

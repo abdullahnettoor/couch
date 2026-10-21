@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { PagePreload } from "./web-app.ts";
 
 export interface PreloadSession {
   registerPreloadScript(script: { type: "frame"; filePath: string }): string;
@@ -16,7 +17,7 @@ export class SessionPreloads {
   #dir: string;
   #id: string;
   #log: (message: string) => void;
-  #list: { name: string; func: string }[] = [];
+  #list: PagePreload[] = [];
   #registered: string | undefined;
 
   constructor(
@@ -38,7 +39,7 @@ export class SessionPreloads {
   }
 
   /** Replaces the whole list and re-registers the file. */
-  set(list: { name: string; func: string }[]): void {
+  set(list: PagePreload[]): void {
     this.#list = [...list];
     this.#sync();
   }

@@ -6,8 +6,8 @@
  *   couchHooks.onJson(modifier)             modifier(value) -> replacement | undefined (undefined keeps `value`, which may be edited in place)
  *   couchHooks.onResponse(urlPrefix, mod)   mod(text, url) -> replacement text | undefined; fetch and XMLHttpRequest responses whose URL starts with the prefix
  *
- * Modifiers run in registration order. One that throws is skipped (logged once); it can never throw
- * into the page. Patched functions keep their `name`, `length` and `toString()`.
+ * Modifiers run in registration order. One that throws is skipped (logged once) and its edits are
+ * discarded (it works on a copy); it can never throw into the page. Patched functions keep their `name`, `length` and `toString()`.
  */
 export const PAGE_HOOKS_FUNCTION = `function () {
   try {
@@ -44,15 +44,19 @@ export const PAGE_HOOKS_FUNCTION = `function () {
       obj[key] = disguise(make(original), original);
     };
 
+    var nativeParse = JSON.parse;
+    var nativeStringify = JSON.stringify;
     var busy = false;
     var applyJson = function (value) {
       if (busy || !jsonMods.length) return value;
       busy = true;
       try {
         for (var i = 0; i < jsonMods.length; i++) {
+          var work = value;
           try {
-            var r = jsonMods[i](value);
-            if (r !== undefined) value = r;
+            if (value && typeof value === 'object') work = nativeParse(nativeStringify(value));
+            var r = jsonMods[i](work);
+            value = r !== undefined ? r : work;
           } catch (e) { warn(jsonMods[i], e); }
         }
       } finally { busy = false; }

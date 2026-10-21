@@ -25,6 +25,12 @@ export interface RouteSignals {
   tracker(): { update(url: string, page: any): WebRoute | undefined };
 }
 
+/** A main-world function (source text, `function () { ... }`) that runs before the page's scripts, with a name for the log. */
+export interface PagePreload {
+  name: string;
+  func: string;
+}
+
 /** Everything that makes a web App itself: the host (`ElectronWebApp`) holds none of it. */
 export interface WebAppDescription {
   id: string;
@@ -45,7 +51,7 @@ export interface WebAppDescription {
     commitMs: number;
   };
   /** App-specific main-world functions (source text) that run after `couchHooks` and before any add-on. */
-  preloads: { name: string; func: string }[];
+  preloads: PagePreload[];
   /** The add-ons this host can run, and the ids of those that are on now. */
   addons: Addon[];
   enabledAddons: string[];

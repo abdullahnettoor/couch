@@ -45,7 +45,8 @@ const PAGE = `function () {
   };
   var feed = function (text) {
     if (text.indexOf('adSlotRenderer') < 0 && text.indexOf('promoShelfRenderer') < 0 && text.indexOf('hideLogo') < 0) return undefined;
-    var json = JSON.parse(text);
+    var json;
+    try { json = JSON.parse(text); } catch (e) { return undefined; }
     strip(json);
     return JSON.stringify(json);
   };

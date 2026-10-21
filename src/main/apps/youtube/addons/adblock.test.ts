@@ -1,44 +1,13 @@
-import vm from "node:vm";
 import { describe, expect, test } from "vite-plus/test";
-import { PAGE_HOOKS_FUNCTION } from "../../../web/page-hooks.ts";
+import { fakePage } from "../../../web/page-test-helpers.ts";
 import { ADBLOCK } from "./adblock.ts";
 import browse from "./fixtures/browse.json" with { type: "json" };
 import player from "./fixtures/player.json" with { type: "json" };
 import search from "./fixtures/search.json" with { type: "json" };
 import shorts from "./fixtures/shorts.json" with { type: "json" };
 
-class FakeResponse {
-  #body: string;
-  status = 200;
-  statusText = "OK";
-  headers = {};
-  constructor(body: string) {
-    this.#body = body;
-  }
-  clone() {
-    return new FakeResponse(this.#body);
-  }
-  text() {
-    return Promise.resolve(this.#body);
-  }
-}
-
 function page(body = "{}") {
-  const sandbox: any = {
-    console: { warn: () => {} },
-    location: { href: "https://www.youtube.com/tv" },
-    URL,
-    Response: FakeResponse,
-    XMLHttpRequest: class {
-      open() {}
-    },
-    fetch: () => Promise.resolve(new FakeResponse(body)),
-  };
-  sandbox.window = sandbox;
-  vm.createContext(sandbox);
-  vm.runInContext(`(${PAGE_HOOKS_FUNCTION})()`, sandbox);
-  vm.runInContext(`(${ADBLOCK.page})()`, sandbox);
-  return (s: string) => vm.runInContext(s, sandbox);
+  return fakePage(body, [ADBLOCK.page]).run;
 }
 
 const parse = (run: (s: string) => any, v: unknown) =>
@@ -95,5 +64,13 @@ describe("ad blocker add-on", () => {
     expect(await fetched("/youtubei/v1/next", browse)).toEqual(browse);
     const clean = { contents: { sectionListRenderer: { contents: [{ shelfRenderer: {} }] } } };
     expect(await fetched("/youtubei/v1/search", clean)).toEqual(clean);
+  });
+
+  test("a feed that is not valid JSON passes through untouched and is not reported as a failure", async () => {
+    const bad = '{"adSlotRenderer": nope';
+    const p = fakePage(bad, [ADBLOCK.page]);
+    const res = await p.run('fetch("/youtubei/v1/browse")');
+    expect(await res.text()).toBe(bad);
+    expect(p.logs).toEqual([]);
   });
 });

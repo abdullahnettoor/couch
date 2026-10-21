@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vite-plus/test";
+import { describe, expect, test, vi } from "vite-plus/test";
 import { applyToRequestHeaders, buildIdentity } from "../apps/youtube/youtube-identity.ts";
 import { requestHooksFor, type HookSession } from "./request-hooks.ts";
 
@@ -60,5 +60,24 @@ describe("request hooks", () => {
     expect(await beforeRequest("https://x.test/a")).toEqual({ redirectURL: "https://x.test/b" });
     off();
     expect(await beforeRequest("https://x.test/a")).toEqual({});
+  });
+
+  test("a throwing handler is skipped: later handlers still run and the request still goes through", async () => {
+    const { ses, beforeRequest, sendHeaders } = fakeSession();
+    const hooks = requestHooksFor(ses);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    hooks.onBeforeRequest(() => {
+      throw new Error("boom");
+    });
+    hooks.onBeforeRequest((d) => (d.url.includes("ads") ? { cancel: true } : undefined));
+    hooks.onBeforeSendHeaders(() => {
+      throw new Error("boom");
+    });
+    hooks.onBeforeSendHeaders((d) => ({ ...d.requestHeaders, "X-Second": "yes" }));
+    expect(await beforeRequest("https://x.test/ads")).toEqual({ cancel: true });
+    expect(await beforeRequest("https://x.test/ok")).toEqual({});
+    expect(await sendHeaders("https://x.test/", { A: "1" })).toEqual({ A: "1", "X-Second": "yes" });
+    expect(warn).toHaveBeenCalledTimes(2);
+    warn.mockRestore();
   });
 });
