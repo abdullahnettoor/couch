@@ -173,10 +173,10 @@ describe("playing a Library video", () => {
     await phone.press("right");
     expect(focused()).toBe("volume");
     await phone.press("right");
-    expect(h.mac.volume).toBe(55);
+    expect(h.player.volume).toBe(65);
     await phone.press("left");
     await phone.press("left");
-    expect(h.mac.volume).toBe(45);
+    expect(h.player.volume).toBe(55);
     await phone.press("up");
     expect(focused()).toBe("volicon");
     await phone.press("left");
@@ -185,15 +185,15 @@ describe("playing a Library video", () => {
     expect(calls("setSubtitles").at(-1)!.args).toEqual([false]);
   });
 
-  test("volSet clamps, reaches the Mac port and is allowed from phones", async () => {
+  test("volSet clamps, reaches the Player and is allowed from phones", async () => {
     await start();
     await playVideo();
     await phone.press({ command: "volSet", args: { percent: 70 } });
-    expect(h.mac.calls.at(-1)).toEqual({ call: "setVolume", args: [70] });
+    expect(h.player.calls.at(-1)).toEqual({ call: "setVolume", args: [70] });
     await phone.press({ command: "volSet", args: { percent: 250 } });
-    expect(h.mac.volume).toBe(100);
+    expect(h.player.volume).toBe(100);
     await phone.press({ command: "volSet", args: { percent: -5 } });
-    expect(h.mac.volume).toBe(0);
+    expect(h.player.volume).toBe(0);
     expect(h.screen.last.state.volumeShown).toBe(true);
     expect(h.screen.last.overlay!.dock!.level).toBe(0);
   });
@@ -225,19 +225,19 @@ describe("playing a Library video", () => {
     expect(phone.last!.nowPlaying!.subtitlesOn).toBe(false);
   });
 
-  test("volume reaches the Mac port, shows on the Screen and on every phone", async () => {
+  test("volume reaches the Player, shows on the Screen and on every phone", async () => {
     await start();
     const other = await h.connectPhone();
     await playVideo();
     await phone.press("volUp");
-    expect(h.mac.calls.at(-1)).toEqual({ call: "setVolume", args: [55] });
+    expect(h.player.calls.at(-1)).toEqual({ call: "setVolume", args: [65] });
     await other.settle();
-    expect(other.last!.volume).toBe(55);
+    expect(other.last!.volume).toBe(65);
     expect(h.screen.last.state.volumeShown).toBe(true);
-    expect(h.screen.last.overlay!.volume).toBe(55);
+    expect(h.screen.last.overlay!.volume).toBe(65);
     await phone.press("volDown");
     await phone.press("volDown");
-    expect(h.mac.volume).toBe(45);
+    expect(h.player.volume).toBe(55);
     h.clock.advance(3500);
     expect(h.screen.last.state.volumeShown).toBe(false);
   });

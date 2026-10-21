@@ -15,6 +15,7 @@ export type View =
   | "addPhone"
   | "libraryFolders"
   | "details"
+  | "soundOutput"
   | "credits"
   | "show"
   | "fixMatch"
@@ -247,6 +248,16 @@ export interface LibrarySearchPayload {
   rows: LibraryRow[];
 }
 
+/** The Sound output setting: what plays now (System default while the chosen device is missing). */
+export interface SoundPayload {
+  /** "default", or the UID of the device in use. */
+  selected: string;
+  /** "System default", or the device's name. */
+  label: string;
+  /** Present while the chosen device isn't connected. */
+  hint?: string;
+}
+
 /** Core → Screen renderer. */
 export interface ScreenPayload {
   state: ScreenState;
@@ -256,6 +267,8 @@ export interface ScreenPayload {
   focusedLabel?: string;
   /** Settings and its "Show and film details" page: the TMDB key label, On/Off and any hint. */
   details?: { keyLabel: string; hasOwnKey: boolean; enabled: boolean; hint?: string };
+  /** Settings and the Sound output page. */
+  sound?: SoundPayload;
   /** Settings: the listener's login item and whether a listener is running now. */
   listener?: { available: boolean; on: boolean; running: boolean };
   /** Present for library, folder and libraryFolders. */
@@ -364,6 +377,7 @@ export const VIEW_LABELS: Record<View, string> = {
   addPhone: "Add a phone",
   libraryFolders: "Library folders",
   details: "Show and film details",
+  soundOutput: "Sound output",
   credits: "Credits",
   show: "Show",
   fixMatch: "Fix match",

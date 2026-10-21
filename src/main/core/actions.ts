@@ -34,6 +34,7 @@ const settingsActions: Record<string, ActionHandler> = {
   "settings:forget-phones": (ctx) => ctx.forgetAllPhones(),
   "settings:library-folders": (ctx) => ctx.open("libraryFolders"),
   "settings:details": (ctx) => ctx.open("details"),
+  "settings:sound": (ctx) => ctx.open("soundOutput"),
   "settings:listener": (ctx) => ctx.toggleListener(),
   "settings:quit": (ctx) => ctx.quit(),
 };
@@ -51,6 +52,7 @@ export const BACK_TARGETS: Partial<Record<View, View>> = {
   youtubeError: "home",
   libraryFolders: "settings",
   details: "settings",
+  soundOutput: "settings",
   credits: "details",
   library: "home",
   show: "library",

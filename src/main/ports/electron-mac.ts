@@ -1,22 +1,16 @@
-import { execFile, execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { homedir, hostname } from "node:os";
 import { dirname, join } from "node:path";
 import { createLoginItem } from "./login-item.ts";
 import { app, BrowserWindow, dialog, powerSaveBlocker, screen, systemPreferences } from "electron";
 import type { Mac } from "./mac.ts";
-
-function osascript(script: string): Promise<string> {
-  return new Promise((resolve, reject) =>
-    execFile("osascript", ["-e", script], (error, stdout) =>
-      error ? reject(error) : resolve(stdout.trim()),
-    ),
-  );
-}
+import { createOutputDevices } from "./output-devices.ts";
 
 /** Electron-backed Mac port. Display wake arrives with the ticket that needs it. */
 export function createElectronMac(
   getWindow: () => BrowserWindow | undefined = () => undefined,
 ): Mac {
+  const outputs = createOutputDevices();
   let lastWake = 0;
   let awake: number | undefined;
   let displayAwake: number | undefined;
@@ -39,12 +33,8 @@ export function createElectronMac(
   return {
     listenerLoginItem: () => loginItem.state(),
     setListenerLoginItem: (on) => loginItem.set(on),
-    getVolume: () =>
-      osascript("output volume of (get volume settings)").then((out) => Number(out) || 0),
-    setVolume: (percent) =>
-      osascript(`set volume output volume ${Math.round(Math.max(0, Math.min(100, percent)))}`).then(
-        () => {},
-      ),
+    listOutputDevices: outputs.list,
+    onOutputDevicesChanged: outputs.onChanged,
     keepAwake(keep) {
       awake = toggle(awake, keep, "prevent-app-suspension");
     },

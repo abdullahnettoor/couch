@@ -34,6 +34,13 @@ export interface YouTube {
   seekBy(seconds: number): void;
   /** Draws the volume level above the view, or removes it when undefined. */
   showVolume(percent: number | undefined): void;
+  /** Couch's own volume, 0-100, for every media element in the view (re-applied when YouTube changes it). */
+  setVolume(percent: number): void;
+  /**
+   * Plays the view's media to the output with this name, or to the System default when undefined.
+   * Resolves to false when the view has no output by that name (it then keeps the System default).
+   */
+  setOutputDevice(name: string | undefined): Promise<boolean>;
   restart(): void;
   onEvent(listener: (event: YouTubeEvent) => void): () => void;
 }

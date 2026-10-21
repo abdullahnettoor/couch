@@ -67,7 +67,7 @@ describe("YouTube App", () => {
     await openYouTube();
     const levels = () => calls("showVolume").map((c) => c.args[0]);
     await phone.press("volUp");
-    expect(levels().at(-1)).toBe(55);
+    expect(levels().at(-1)).toBe(65);
     h.clock.advance(3100);
     expect(levels().at(-1)).toBeUndefined();
   });
@@ -121,7 +121,7 @@ describe("YouTube App", () => {
     await phone.press("up");
     await phone.press("ok");
     expect(h.screen.last.state.view).toBe("settings");
-    for (let i = 0; i < 5; i++) await phone.press("down");
+    for (let i = 0; i < 6; i++) await phone.press("down");
     expect(h.screen.last.focusedLabel).toBe("Restart YouTube");
     await phone.press("ok");
     expect(calls("restart")).toHaveLength(1);
@@ -129,16 +129,15 @@ describe("YouTube App", () => {
     expect(h.screen.last.state.toast).toBe("Restarting YouTube");
   });
 
-  test("the Remote shows volume in YouTube only, and volume changes the Mac volume", async () => {
+  test("the Remote shows volume in YouTube only, and volume changes Couch's own volume", async () => {
     expect(phone.last?.showVolume).toBe(false);
     await openYouTube();
     expect(phone.last?.showVolume).toBe(true);
-    h.mac.volume = 50;
     await phone.press("volUp");
-    await phone.waitFor(() => h.mac.volume === 55);
+    await phone.waitFor(() => h.youtube.volume === 65);
     await phone.press("volDown");
     await phone.press("volDown");
-    await phone.waitFor(() => h.mac.volume === 45);
+    await phone.waitFor(() => h.youtube.volume === 55);
     await phone.press("home");
     expect(phone.last?.showVolume).toBe(false);
   });

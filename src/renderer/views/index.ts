@@ -12,6 +12,7 @@ import * as library from "./library.ts";
 import * as librarySearch from "./library-search.ts";
 import * as libraryFolders from "./library-folders.ts";
 import * as player from "./player.ts";
+import * as soundOutput from "./sound-output.ts";
 import * as settings from "./settings.ts";
 import * as show from "./show.ts";
 import * as youtube from "./youtube.ts";
@@ -31,6 +32,7 @@ export const VIEWS: Partial<Record<View, ViewModule & { grid?: GridItem[] }>> = 
   librarySearch: { ...librarySearch },
   player: { ...player },
   details: { ...details },
+  soundOutput: { ...soundOutput },
   show: { ...show },
   fixMatch: { ...fixMatch },
   credits: {

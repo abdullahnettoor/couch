@@ -9,7 +9,7 @@ import type {
 } from "./metadata.ts";
 import type { LoadOptions, Player, PlayerEvent } from "../../shared/player.ts";
 import type { Clock } from "./clock.ts";
-import type { DisplayInfo, Mac } from "./mac.ts";
+import type { DisplayInfo, Mac, OutputDevice } from "./mac.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "./youtube.ts";
 
 function emitter<E>() {
@@ -48,6 +48,17 @@ export class FakePlayer implements Player {
   }
   setSubtitles(visible: boolean) {
     return this.#record("setSubtitles", visible);
+  }
+  volume: number | undefined;
+  /** The CoreAudio UID mpv was last pointed at; undefined is the System default. */
+  audioDevice: string | undefined;
+  setVolume(percent: number) {
+    this.volume = percent;
+    return this.#record("setVolume", percent);
+  }
+  setAudioDevice(uid: string | undefined) {
+    this.audioDevice = uid;
+    return this.#record("setAudioDevice", uid);
   }
   setSubtitlesRaised(raised: boolean, aboveUpNext = false) {
     void this.#record("setSubtitlesRaised", raised, aboveUpNext);
@@ -108,6 +119,20 @@ export class FakeYouTube implements YouTube {
   showVolume(percent: number | undefined) {
     this.#record("showVolume", percent);
   }
+  volume: number | undefined;
+  /** The output name the view was last pointed at; undefined is the System default. */
+  outputName: string | undefined;
+  /** Output names the view has no device for, like Chromium not listing a monitor. */
+  unmatchedOutputs = new Set<string>();
+  setVolume(percent: number) {
+    this.volume = percent;
+    this.#record("setVolume", percent);
+  }
+  setOutputDevice(name: string | undefined) {
+    this.outputName = name;
+    this.#record("setOutputDevice", name);
+    return Promise.resolve(name === undefined || !this.unmatchedOutputs.has(name));
+  }
   restart() {
     this.#record("restart");
   }
@@ -121,20 +146,28 @@ export class FakeYouTube implements YouTube {
 
 export class FakeMac implements Mac {
   readonly calls: Array<{ call: string; args: unknown[] }> = [];
-  volume = 50;
+  outputDevices: OutputDevice[] = [
+    { uid: "BuiltInSpeakerDevice", name: "MacBook Pro Speakers" },
+    { uid: "30AEC067-0000-0000-1A24-0104B53C2278", name: "L27h-4A" },
+  ];
   displays: DisplayInfo[] = [{ id: 1, label: "Built-in", internal: true }];
   /** Scripted result of the next folder pick. */
   folderPick: string | undefined;
   #record(call: string, ...args: unknown[]) {
     this.calls.push({ call, args });
   }
-  getVolume() {
-    return Promise.resolve(this.volume);
+  listOutputDevices() {
+    return Promise.resolve([...this.outputDevices]);
   }
-  setVolume(percent: number) {
-    this.volume = percent;
-    this.#record("setVolume", percent);
-    return Promise.resolve();
+  #outputListeners = new Set<() => void>();
+  onOutputDevicesChanged(listener: () => void) {
+    this.#outputListeners.add(listener);
+    return () => void this.#outputListeners.delete(listener);
+  }
+  /** Change the connected outputs and fire the change event. */
+  setOutputDevices(devices: OutputDevice[]) {
+    this.outputDevices = devices;
+    for (const l of [...this.#outputListeners]) l();
   }
   keepAwake(keep: boolean) {
     this.#record("keepAwake", keep);

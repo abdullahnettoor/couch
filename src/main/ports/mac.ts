@@ -6,10 +6,18 @@ export interface DisplayInfo {
   internal: boolean;
 }
 
+/** A sound output the Mac can play to; `uid` is its CoreAudio UID. */
+export interface OutputDevice {
+  uid: string;
+  name: string;
+}
+
 /** The Mac port: system services. */
 export interface Mac {
-  getVolume(): Promise<number>;
-  setVolume(percent: number): Promise<void>;
+  /** The sound outputs now connected (read-only; never changes the Mac's own output). */
+  listOutputDevices(): Promise<OutputDevice[]>;
+  /** Calls back when an output appears or disappears. */
+  onOutputDevicesChanged(listener: () => void): () => void;
   keepAwake(keep: boolean): void;
   keepDisplayAwake(keep: boolean): void;
   wakeDisplay(): void;

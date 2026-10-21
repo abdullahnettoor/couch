@@ -21,11 +21,13 @@ export function render(payload: ScreenPayload): void {
               ? `${phones} connected`
               : item.id === "details"
                 ? payload.details?.hint
-                : item.id === "listener"
-                  ? payload.listener?.on
-                    ? "On"
-                    : "Off"
-                  : undefined,
+                : item.id === "sound"
+                  ? payload.sound?.label
+                  : item.id === "listener"
+                    ? payload.listener?.on
+                      ? "On"
+                      : "Off"
+                    : undefined,
       }),
     ),
     ...(l

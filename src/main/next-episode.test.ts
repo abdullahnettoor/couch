@@ -142,7 +142,7 @@ describe("Play next episode", () => {
     await playEp(1);
     eof();
     await phone.press({ command: "volSet", args: { percent: 33 } });
-    expect(h.mac.calls.at(-1)).toEqual({ call: "setVolume", args: [33] });
+    expect(h.player.calls.at(-1)).toEqual({ call: "setVolume", args: [33] });
     expect(state().controls).toBe("next");
   });
 

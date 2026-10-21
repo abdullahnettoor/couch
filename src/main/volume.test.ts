@@ -25,26 +25,29 @@ describe("phone volume slider", () => {
   test.each([
     ["home", async () => {}],
     ["youtube", async (p: { press: (c: "ok") => Promise<unknown> }) => void (await p.press("ok"))],
-  ] as const)("volSet in the %s layout reaches the Mac and every phone", async (layout, go) => {
-    h = await startHarness(new FileStore(storeDir));
-    const a = await h.connectPhone();
-    const b = await h.connectPhone();
-    await go(a);
-    const s = await a.press({ command: "volSet", args: { percent: 72 } });
-    expect(s.layout).toBe(layout);
-    expect(h.mac.calls.at(-1)).toEqual({ call: "setVolume", args: [72] });
-    await b.waitFor(() => b.last?.volume === 72);
-    expect(a.last!.volume).toBe(72);
-  });
+  ] as const)(
+    "volSet in the %s layout reaches Couch's volume and every phone",
+    async (layout, go) => {
+      h = await startHarness(new FileStore(storeDir));
+      const a = await h.connectPhone();
+      const b = await h.connectPhone();
+      await go(a);
+      const s = await a.press({ command: "volSet", args: { percent: 72 } });
+      expect(s.layout).toBe(layout);
+      expect(h.player.calls.at(-1)).toEqual({ call: "setVolume", args: [72] });
+      await b.waitFor(() => b.last?.volume === 72);
+      expect(a.last!.volume).toBe(72);
+    },
+  );
 
-  test("volSet in the Now Playing layout reaches the Mac and every phone", async () => {
+  test("volSet in the Now Playing layout reaches Couch's volume and every phone", async () => {
     h = await startHarness(new FileStore(storeDir));
     const a = await h.connectPhone();
     const b = await h.connectPhone();
     for (const c of ["right", "ok", "ok", "ok", "ok"] as const) await a.press(c);
     expect(a.last!.layout).toBe("player");
     await a.press({ command: "volSet", args: { percent: 33 } });
-    expect(h.mac.calls.at(-1)).toEqual({ call: "setVolume", args: [33] });
+    expect(h.player.calls.at(-1)).toEqual({ call: "setVolume", args: [33] });
     await b.waitFor(() => b.last?.volume === 33);
   });
 });
