@@ -37,6 +37,7 @@ import { PlayerControls } from "./player-controls.ts";
 import { History } from "./history.ts";
 import { ShowView } from "./show-view.ts";
 import { DetailsPage } from "./details-page.ts";
+import { LibrarySearchView } from "./library-search-view.ts";
 import { MetadataService } from "./metadata-service.ts";
 import { nullMetadata, type Metadata } from "../ports/metadata.ts";
 
@@ -44,6 +45,8 @@ import { nullMetadata, type Metadata } from "../ports/metadata.ts";
 const HOME_VIDEOS = 3;
 const TILE_COLUMNS = 4;
 const LIBRARY_VIEWS = ["library", "folder", "libraryFolders"];
+/** Views where a phone's Search button opens the Library search. */
+const SEARCH_FROM: View[] = ["library", "folder", "show", "librarySearch"];
 
 export interface Ports {
   player: Player;
@@ -115,8 +118,11 @@ export class Core {
   readonly details: MetadataService;
   #show: ShowView;
   #detailsPage: DetailsPage;
+  #search: LibrarySearchView;
+  /** Where Back from a show page goes: the Library, or the search it was opened from. */
+  #showFrom: "library" | "librarySearch" = "library";
   /** What the phone currently typing is typing into. */
-  #typingFor: "search" | "tmdbKey" | undefined;
+  #typingFor: "search" | "tmdbKey" | "librarySearch" | undefined;
   #cancelSaves: (() => void) | undefined;
   #resumeNote: string | undefined;
   #cancelNote: (() => void) | undefined;
@@ -190,6 +196,23 @@ export class Core {
         this.#state.typingBy = remote;
         this.#typingFor = "tmdbKey";
       },
+      setView: (view) => this.#setView(view),
+      toast: (text) => this.#toast(text),
+    });
+    this.#search = new LibrarySearchView(this.#state, {
+      library: this.library,
+      history: this.#history,
+      details: (id) => this.details.detailsFor(id),
+      thumbs: this.#thumbs,
+      decorate: (e) => this.#decorate(e),
+      startTyping: (remote) => {
+        this.#state.typingBy = remote;
+        this.#typingFor = "librarySearch";
+      },
+      connectedPhone: () =>
+        this.#lastFrom !== undefined && this.#remotes.has(this.#lastFrom)
+          ? this.#lastFrom
+          : undefined,
       setView: (view) => this.#setView(view),
       toast: (text) => this.#toast(text),
     });
@@ -432,6 +455,7 @@ export class Core {
     if (this.#state.view === "details") return this.#detailsPage.grid();
     if (this.#state.view === "show") return this.#show.grid();
     if (this.#state.view === "fixMatch") return this.#show.fixGrid();
+    if (this.#state.view === "librarySearch") return this.#search.grid();
     if (this.#state.view === "credits")
       return [{ id: "done", r: 0, c: 0, label: "Done", action: "back", initial: true }];
     if (!this.#isLibraryView()) return this.#grids.get(this.viewKey) ?? [];
@@ -477,7 +501,14 @@ export class Core {
       action: "open:settings",
       initial: tiles.length === 0,
     };
-    return [gear, ...tiles];
+    const search: GridItem = {
+      id: "search",
+      r: 0,
+      c: -1,
+      label: "Search",
+      action: "library:search",
+    };
+    return [search, gear, ...tiles];
   }
 
   #openFolder(path: string): void {
@@ -505,8 +536,11 @@ export class Core {
     else if (verb === "open") this.#openFolder(arg);
     else if (verb === "play") this.#play(arg);
     else if (verb === "playstart") this.#play(arg, true);
-    else if (verb === "show") this.#show.open(arg);
-    else if (verb === "remove") this.#saveFolders(this.#libraryFolders.filter((f) => f !== arg));
+    else if (verb === "search") this.#search.open();
+    else if (verb === "show") {
+      this.#showFrom = this.#state.view === "librarySearch" ? "librarySearch" : "library";
+      this.#show.open(arg);
+    } else if (verb === "remove") this.#saveFolders(this.#libraryFolders.filter((f) => f !== arg));
     else if (verb === "add") {
       void this.#ports.mac
         .pickFolder()
@@ -835,6 +869,7 @@ export class Core {
       library: this.#library(),
       ...(this.#state.view === "show" ? this.#show.payload() : {}),
       ...(this.#state.view === "fixMatch" ? this.#show.fixPayload() : {}),
+      ...(this.#state.view === "librarySearch" ? this.#search.payload() : {}),
       ...(this.#state.view === "details" ||
       this.#state.view === "settings" ||
       this.#state.view === "credits"
@@ -857,6 +892,8 @@ export class Core {
   snapshot(remote: RemoteId): RemoteSnapshot {
     const s = this.#state;
     const card = s.view === "home" ? this.#continueEntries()[0] : undefined;
+    const searchable = SEARCH_FROM.includes(s.view);
+    const searching = s.typingBy === remote && this.#typingFor === "librarySearch";
     return {
       type: "snapshot",
       where:
@@ -866,7 +903,13 @@ export class Core {
             ? (this.library.show(s.showId ?? "")?.name ?? VIEW_LABELS.show)
             : VIEW_LABELS[s.view],
       view: s.view,
-      layout: s.view === "home" || s.view === "youtube" || s.view === "player" ? s.view : "other",
+      layout:
+        s.view === "home" ||
+        s.view === "youtube" ||
+        s.view === "player" ||
+        s.view === "librarySearch"
+          ? s.view
+          : "other",
       ...(card
         ? {
             continueCard: {
@@ -886,9 +929,13 @@ export class Core {
             },
           }
         : {}),
-      typeAvailable: s.view === "youtube" || s.view === "details",
+      typeAvailable: s.view === "youtube" || s.view === "details" || searchable,
       ...(this.#show.fixTarget() ? { fixAvailable: true } : {}),
       ...(s.view === "details" ? { typeLabel: "Type TMDB key" } : {}),
+      ...(searchable ? { typeLabel: "Search Library" } : {}),
+      ...(searching
+        ? { typePlaceholder: "Search your Library", typeSeed: this.#search.query }
+        : {}),
       showVolume: s.view === "youtube",
       showSkip: s.view === "youtube",
       typing: s.typingBy === undefined ? "none" : s.typingBy === remote ? "you" : "other",
@@ -1000,6 +1047,10 @@ export class Core {
     const yt = this.#ports.youtube;
     const owner = this.#state.typingBy;
     if (this.#state.view === "details") return this.#detailsPage.typeKey(command, from);
+    if (SEARCH_FROM.includes(this.#state.view)) {
+      if (this.#state.view !== "librarySearch" && command.command !== "typeOpen") return;
+      return this.#search.type(command, from);
+    }
     if (owner !== undefined && this.#typingFor !== "search") return;
     switch (command.command) {
       case "typeOpen":
@@ -1114,6 +1165,7 @@ export class Core {
     if (
       this.#libraryAction(item.action) ||
       this.#detailsPage.action(item.action) ||
+      this.#search.action(item.action) ||
       this.#show.action(item.action)
     )
       return;
@@ -1139,6 +1191,9 @@ export class Core {
       else this.#openFolder(dirname(path));
       return;
     }
+    if (this.#state.view === "librarySearch") return this.#setView("library");
+    if (this.#state.view === "show" && this.#showFrom === "librarySearch")
+      return this.#setView("librarySearch");
     if (this.#state.view === "fixMatch") {
       this.#show.leaveFix();
       this.#keepLibraryFocus();
@@ -1158,6 +1213,10 @@ export class Core {
       this.#ports.youtube.hide();
     }
     this.#state.view = view;
+    if (from === "librarySearch" && view !== "show") {
+      this.#search.reset();
+      if (this.#typingFor === "librarySearch") this.#state.typingBy = undefined;
+    }
     if (from === "details") this.#detailsPage.cancel();
     if (view === "library") void this.library.refresh(this.#libraryFolders);
   }

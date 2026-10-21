@@ -16,7 +16,8 @@ export type View =
   | "details"
   | "credits"
   | "show"
-  | "fixMatch";
+  | "fixMatch"
+  | "librarySearch";
 
 export const COMMAND_NAMES = [
   "up",
@@ -216,6 +217,14 @@ export interface FixMatchPayload {
   options: { id: string; name: string; year?: number; poster?: string }[];
 }
 
+/** The Library search view: the live query and its result rows (Shows, Films, Episodes). */
+export interface LibrarySearchPayload {
+  query: string;
+  /** A phone's typing sheet is open (the field shows a caret). */
+  typing: boolean;
+  rows: LibraryRow[];
+}
+
 /** Core → Screen renderer. */
 export interface ScreenPayload {
   state: ScreenState;
@@ -229,6 +238,8 @@ export interface ScreenPayload {
   library?: LibraryPayload;
   /** Present on the show page. */
   show?: ShowPagePayload;
+  /** Present on the Library search. */
+  search?: LibrarySearchPayload;
   /** Present on the Fix match list. */
   fixMatch?: FixMatchPayload;
   /** Home's Continue watching card: the newest in-progress video. */
@@ -258,7 +269,7 @@ export interface UpNextItem {
 }
 
 /** Which control layout the Remote shows. */
-export type RemoteLayout = "home" | "youtube" | "player" | "other";
+export type RemoteLayout = "home" | "youtube" | "player" | "librarySearch" | "other";
 
 /** Home's Continue watching shortcut on the Remote. */
 export interface RemoteContinueCard {
@@ -283,6 +294,10 @@ export interface RemoteSnapshot {
   fixAvailable?: boolean;
   /** The Type button's label when it isn't YouTube search. */
   typeLabel?: string;
+  /** The typing sheet's placeholder, when it isn't YouTube search. */
+  typePlaceholder?: string;
+  /** The text the typing sheet starts with (the Library search keeps its query). */
+  typeSeed?: string;
   typing: "none" | "you" | "other";
   /** The end-of-video card: the next video in the folder, waiting for a Play press. */
   next?: { title: string; line?: string; thumbKey?: string };
@@ -319,4 +334,5 @@ export const VIEW_LABELS: Record<View, string> = {
   credits: "Credits",
   show: "Show",
   fixMatch: "Fix match",
+  librarySearch: "Search",
 };
