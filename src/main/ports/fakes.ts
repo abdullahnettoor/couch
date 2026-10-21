@@ -182,6 +182,16 @@ export class FakeMac implements Mac {
   localName() {
     return "test-mac.local";
   }
+  /** Scripted login item; `available: false` is development. */
+  loginItem = { available: true, on: false };
+  listenerLoginItem() {
+    return Promise.resolve({ ...this.loginItem });
+  }
+  setListenerLoginItem(on: boolean) {
+    this.#record("setListenerLoginItem", on);
+    if (this.loginItem.available) this.loginItem.on = on;
+    return Promise.resolve();
+  }
   quit() {
     this.#record("quit");
   }

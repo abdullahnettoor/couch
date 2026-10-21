@@ -78,6 +78,16 @@ You need a Mac with Homebrew, an Android phone with Chrome, and a TV or monitor 
 
 If Couch says it needs mpv, mpv isn't installed. Run `brew install mpv`. Couch looks for it in Homebrew's folders first, then your `PATH`, so Dock launches work.
 
+### Run Couch from the couch
+
+The Couch Listener is a tiny background program inside `Couch.app`. It lets the phone turn Couch on and off while the Mac is on but Couch is closed.
+
+- **Turn it on.** Open `Couch.app` from Applications (not from the build folder), go to Settings and switch **Start Couch Listener at login** On. Settings then says "Listener running · Couch will stay reachable". In development the item is greyed out ("Available in the installed Couch.app").
+- **The Power button.** On the phone's Remote, Power starts Couch when it is off, and quits it (saving your place) when it is on.
+- **Sleep.** The Mac stays awake while the display sleeps, so the Remote keeps working with the TV off. It doesn't wake a Mac that is asleep.
+- **"Can't reach Couch".** With the listener on, this now means the Mac itself is asleep, off or on another network. If Couch is simply closed, the phone shows "Couch is off" with a Power button.
+- **Remove it.** Switch the item Off in Settings. Or run `launchctl bootout gui/$(id -u)/local.couch.listener` and delete `~/Library/LaunchAgents/local.couch.listener.plist`. Its log is `~/Library/Logs/Couch/listener.log`.
+
 ### Where Couch keeps its data
 
 Settings, the pairing key, watch history, YouTube sign-in and thumbnails live in `~/Library/Application Support/Couch`. Rebuilding or replacing `Couch.app` keeps all of it. Delete that folder to start from scratch.

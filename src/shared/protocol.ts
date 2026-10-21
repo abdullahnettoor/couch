@@ -256,6 +256,8 @@ export interface ScreenPayload {
   focusedLabel?: string;
   /** Settings and its "Show and film details" page: the TMDB key label, On/Off and any hint. */
   details?: { keyLabel: string; hasOwnKey: boolean; enabled: boolean; hint?: string };
+  /** Settings: the listener's login item and whether a listener is running now. */
+  listener?: { available: boolean; on: boolean; running: boolean };
   /** Present for library, folder and libraryFolders. */
   library?: LibraryPayload;
   /** Present on the show page. */
