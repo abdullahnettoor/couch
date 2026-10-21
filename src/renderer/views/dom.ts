@@ -21,6 +21,16 @@ export function focusable<T extends HTMLElement>(node: T, id: string): T {
   return node;
 }
 
+/** Up to three genres as small Glass labels (not focusable); empty markup when there are none. */
+export function genreLabels(genres: string[] | undefined): string {
+  if (!genres?.length) return "";
+  const text = (g: string) => g.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+  return `<div class="genres">${genres
+    .slice(0, 3)
+    .map((g) => `<span class="genre g-pill">${text(g)}</span>`)
+    .join("")}</div>`;
+}
+
 /** A QR code as inline SVG markup. */
 export function qrSvg(text: string): string {
   const qr = QRCode.create(text, { errorCorrectionLevel: "M" });

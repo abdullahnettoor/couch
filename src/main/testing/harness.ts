@@ -8,7 +8,14 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FileStore, type Store } from "../ports/store.ts";
-import { FakeClock, FakeMac, FakePlayer, FakeThumbnails, FakeYouTube } from "../ports/fakes.ts";
+import {
+  FakeClock,
+  FakeMac,
+  FakePlayer,
+  FakeMetadata,
+  FakeThumbnails,
+  FakeYouTube,
+} from "../ports/fakes.ts";
 
 /** A pretend phone: a WebSocket client that records every snapshot. */
 export class FakePhone {
@@ -111,6 +118,8 @@ export interface Harness {
   mac: FakeMac;
   clock: FakeClock;
   thumbnails: FakeThumbnails;
+  /** The TMDB stand-in; every search and fetch is recorded. */
+  metadata: FakeMetadata;
   /** Folder the Remote server serves thumbnails from. */
   thumbDir: string;
   phones: FakePhone[];
@@ -127,7 +136,10 @@ export interface Harness {
  * The Store is a real FileStore in a temp folder (removed on stop) unless one is passed in,
  * which is how tests restart: stop, then start again with the same Store.
  */
-export async function startHarness(given?: Store): Promise<Harness> {
+export async function startHarness(
+  given?: Store,
+  options: { tmdbProjectKey?: string; metadata?: (fake: FakeMetadata) => void } = {},
+): Promise<Harness> {
   const tmp = given ? undefined : mkdtempSync(join(tmpdir(), "couch-store-"));
   const store = given ?? new FileStore(tmp!);
   const player = new FakePlayer();
@@ -135,6 +147,8 @@ export async function startHarness(given?: Store): Promise<Harness> {
   const mac = new FakeMac();
   const clock = new FakeClock();
   const thumbnails = new FakeThumbnails();
+  const metadata = new FakeMetadata();
+  options.metadata?.(metadata);
   const thumbDir = mkdtempSync(join(tmpdir(), "couch-thumbs-"));
   const app = await startApp({
     player,
@@ -143,6 +157,8 @@ export async function startHarness(given?: Store): Promise<Harness> {
     clock,
     store,
     thumbnails,
+    metadata,
+    tmdbProjectKey: options.tmdbProjectKey,
     thumbnailDir: thumbDir,
     port: 0,
     host: "127.0.0.1",
@@ -157,6 +173,7 @@ export async function startHarness(given?: Store): Promise<Harness> {
     mac,
     clock,
     thumbnails,
+    metadata,
     thumbDir,
     phones,
     store,
@@ -173,4 +190,15 @@ export async function startHarness(given?: Store): Promise<Harness> {
       if (tmp) rmSync(tmp, { recursive: true, force: true });
     },
   };
+}
+
+/** On the Library's first page, moves down to the Folders row (rows above it depend on what is indexed). */
+export async function focusFolders(h: Harness, phone: FakePhone): Promise<void> {
+  const onFolder = () => {
+    const last = h.screen.last;
+    return last.library?.entries.some((e) => e.path === last.focusedId) ?? false;
+  };
+  for (let i = 0; i < 12 && !onFolder() && h.screen.last.library?.rows?.length; i++) {
+    await phone.press("down");
+  }
 }

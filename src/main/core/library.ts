@@ -64,12 +64,85 @@ function untagged(list: string[], from = 1): string[] {
   return cut === -1 ? list : list.slice(0, cut);
 }
 
-/** Release tags dropped, year kept in brackets: "The Grand Budapest Hotel (2014)". */
-function tidy(text: string): string {
-  const kept = untagged(words(text));
+/** "Kung-Fu-Panda-4" → separate words; "Gru-2022" and "Movie-1080p" split at the year or tag. Real hyphens in titles stay. */
+function dehyphen(list: string[]): string[] {
+  const single = list.filter((w) => !TAGS.has(w.toLowerCase()) && !YEAR.test(w)).length === 1;
+  return list.flatMap((w) => {
+    if (!w.includes("-") || TAGS.has(w.toLowerCase())) return [w];
+    const parts = w.split("-").filter(Boolean);
+    const joined = parts.some((p, i) => i > 0 && (YEAR.test(p) || TAGS.has(p.toLowerCase())));
+    if (!joined && !(single && parts.length >= 3)) return [w];
+    const out: string[] = [];
+    for (let i = 0; i < parts.length; i++) {
+      const pair = `${parts[i]}-${parts[i + 1]}`;
+      if (i + 1 < parts.length && TAGS.has(pair.toLowerCase())) (out.push(pair), i++);
+      else out.push(parts[i]!);
+    }
+    return out;
+  });
+}
+
+const EDITIONS: { re: RegExp; label: string }[] = [
+  { re: /^extended(?: (?:edition|cut|version))?$/i, label: "Extended" },
+  { re: /^theatrical(?: (?:edition|cut|version))?$/i, label: "Theatrical" },
+  { re: /^director'?s cut$/i, label: "Director's Cut" },
+  { re: /^unrated$/i, label: "Unrated" },
+  { re: /^uncut$/i, label: "Uncut" },
+  { re: /^remastered$/i, label: "Remastered" },
+  { re: /^special edition$/i, label: "Special Edition" },
+  { re: /^ultimate edition$/i, label: "Ultimate Edition" },
+  { re: /^final cut$/i, label: "Final Cut" },
+  { re: /^imax$/i, label: "IMAX" },
+  { re: /^criterion(?: (?:collection|edition))?$/i, label: "Criterion" },
+  { re: /^(?:\d+(?:st|nd|rd|th) )?anniversary edition$/i, label: "Anniversary Edition" },
+];
+
+/** The edition phrase starting at `i`: how many words it takes and its label. Longest phrase wins. */
+function editionAt(list: string[], i: number): { length: number; label: string } | undefined {
+  for (let n = 3; n >= 1; n--) {
+    if (i + n > list.length) continue;
+    const phrase = list.slice(i, i + n).join(" ");
+    const hit = EDITIONS.find((e) => e.re.test(phrase));
+    if (hit) return { length: n, label: hit.label };
+  }
+  return undefined;
+}
+
+/**
+ * Edition tags out of the words, kept as a label. A tag must not open the title and must end the title
+ * part: be followed by the end, a year, a release tag or another edition ("Extended Family" stays).
+ */
+function withoutEditions(list: string[]): { list: string[]; edition?: string } {
+  const labels: string[] = [];
+  const out: string[] = [];
+  for (let i = 0; i < list.length;) {
+    const hit = i > 0 ? editionAt(list, i) : undefined;
+    const next = hit ? list[i + hit.length] : undefined;
+    const ends =
+      next === undefined ||
+      YEAR.test(next) ||
+      TAGS.has(next.toLowerCase()) ||
+      editionAt(list, i + hit!.length) !== undefined;
+    if (hit && ends) {
+      if (!labels.includes(hit.label)) labels.push(hit.label);
+      i += hit.length;
+    } else out.push(list[i++]!);
+  }
+  return { list: out, ...(labels.length ? { edition: labels.join(", ") } : {}) };
+}
+
+/** Release tags dropped, year kept in brackets: "The Grand Budapest Hotel (2014)"; edition tags come out as `edition`. */
+function tidyParts(text: string): { text: string; edition?: string } {
+  const { list, edition } = withoutEditions(dehyphen(words(text)));
+  const kept = untagged(list);
   const yearAt = kept.findLastIndex((w, i) => i > 0 && YEAR.test(w));
-  if (yearAt === -1) return kept.join(" ");
-  return `${kept.slice(0, yearAt).join(" ")} (${kept[yearAt]})`;
+  const out =
+    yearAt === -1 ? kept.join(" ") : `${kept.slice(0, yearAt).join(" ")} (${kept[yearAt]})`;
+  return { text: out, ...(edition ? { edition } : {}) };
+}
+
+function tidy(text: string): string {
+  return tidyParts(text).text;
 }
 
 /** A video's title. Episodes carry series, season and episode; `name` is what tiles and the player show. */
@@ -79,50 +152,67 @@ export interface Title {
   episode?: number;
   /** The episode's name ("Episode N" when the file has none), or the whole cleaned title for non-episodes. */
   name: string;
+  /** Films: "Extended", "Director's Cut"… taken out of the title. */
+  edition?: string;
 }
 
-const EPISODE = /(?<!\d)(?:s(\d{1,2})[ ._-]*e(\d{1,3})|(\d{1,2})x(\d{2,3}))(?!\d)/i;
+const EPISODE =
+  /(?<!\d)(?:s(?:eason)?[ ._-]*(\d{1,2})[ ._-]*(?:episode|ep|e)[ ._-]*(\d{1,3})|(\d{1,2})x(\d{2,3}))(?!\d)/i;
+/** "Ep 1", "Episode 1", "E01": an episode whose season comes from its folder. */
+const BARE_EPISODE = /(?<![a-z\d])(?:(?:episode|ep)[ ._-]*(\d{1,3})|e(\d{2,3}))(?![a-z\d])/i;
 
 /** "Arcane S01E01 Welcome to the Playground.mkv" → { series: "Arcane", season: 1, episode: 1, name: "Welcome to the Playground" }. */
 export function parseTitle(fileName: string): Title {
   const ext = extname(fileName).toLowerCase();
   const stem = VIDEO_EXTENSIONS.includes(ext) ? fileName.slice(0, -ext.length) : fileName;
   const normal = stem.replace(/[._]+/g, " ");
-  const m = EPISODE.exec(normal);
+  const full = EPISODE.exec(normal);
+  const m = full ?? BARE_EPISODE.exec(normal);
   if (m) {
-    const season = Number(m[1] ?? m[3]);
-    const episode = Number(m[2] ?? m[4]);
+    const bare = !full;
+    const season = bare ? undefined : Number(m[1] ?? m[3]);
+    const episode = Number(bare ? (m[1] ?? m[2]) : (m[2] ?? m[4]));
     const series = tidy(normal.slice(0, m.index).replace(/[-–:\s]+$/, ""));
     const name = untagged(words(normal.slice(m.index + m[0].length)), 0)
       .join(" ")
       .replace(/^[-–:\s]+|[-–:\s]+$/g, "");
     return {
       ...(series ? { series } : {}),
-      season,
+      ...(season === undefined ? {} : { season }),
       episode,
       name: name || `Episode ${episode}`,
     };
   }
-  return { name: tidy(stem) || stem };
+  const { text, edition } = tidyParts(stem);
+  return { name: text || stem, ...(edition ? { edition } : {}) };
+}
+
+/** A file name's cleaned title, ignoring any episode marker. */
+export function plainTitle(fileName: string): string {
+  const ext = extname(fileName).toLowerCase();
+  const stem = VIDEO_EXTENSIONS.includes(ext) ? fileName.slice(0, -ext.length) : fileName;
+  return tidy(stem) || stem;
 }
 
 /** "The.Grand.Budapest.Hotel.2014.1080p.BluRay.x264.mkv" → "The Grand Budapest Hotel (2014)"; episodes give their name. */
 export function cleanTitle(fileName: string): string {
-  return parseTitle(fileName).name;
+  const t = parseTitle(fileName);
+  return t.episode !== undefined && t.season === undefined ? plainTitle(fileName) : t.name;
 }
 
 /** "Arcane · S1 E1" for episodes; undefined for anything else. */
 export function episodeLine(fileName: string): string | undefined {
   const t = parseTitle(fileName);
-  if (t.episode === undefined) return undefined;
+  if (t.episode === undefined || t.season === undefined) return undefined;
   const code = `S${t.season} E${t.episode}`;
   return t.series ? `${t.series} · ${code}` : code;
 }
 
-/** What a video's tiles, overlay and phone show for it: its title and, for episodes, the "Series · S1 E1" line. */
+/** What a video's tiles, overlay and phone show for it: its title and, for episodes, the "Series · S1 E1" line (for films, the edition). */
 export function presentation(path: string): { title: string; line?: string } {
   const file = basename(path);
-  const line = episodeLine(file);
+  const t = parseTitle(file);
+  const line = episodeLine(file) ?? t.edition;
   return { title: cleanTitle(file), ...(line ? { line } : {}) };
 }
 

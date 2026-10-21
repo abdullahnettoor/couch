@@ -32,6 +32,7 @@ const settingsActions: Record<string, ActionHandler> = {
   "settings:add-phone": (ctx) => ctx.open("addPhone"),
   "settings:forget-phones": (ctx) => ctx.forgetAllPhones(),
   "settings:library-folders": (ctx) => ctx.open("libraryFolders"),
+  "settings:details": (ctx) => ctx.open("details"),
   "settings:quit": (ctx) => ctx.quit(),
 };
 
@@ -47,5 +48,8 @@ export const BACK_TARGETS: Partial<Record<View, View>> = {
   addPhone: "settings",
   youtubeError: "home",
   libraryFolders: "settings",
+  details: "settings",
+  credits: "details",
   library: "home",
+  show: "library",
 };

@@ -16,7 +16,7 @@ Couch makes a MacBook plus monitor feel like the home screen of a modern smart T
 
 ## Positioning
 
-A personal, TV-like shell for one household's YouTube and local files, controlled from any phone by scanning a QR code; no media-centre database, posters, metadata or accounts. Kodi was tried and rejected as dated and technical.
+A personal, TV-like shell for one household's YouTube and local files, controlled from any phone by scanning a QR code; no media-centre database or accounts. Kodi was tried and rejected as dated and technical.
 
 ## Operating Context
 
@@ -29,7 +29,7 @@ A personal, TV-like shell for one household's YouTube and local files, controlle
 - Surfaces: Home (clock, greeting, Apps row of YouTube and Library, one Continue watching card, Settings gear), Library (folders, subfolders, videos, Continue watching row), Player (title, progress, transport, subtitles, volume), Settings (Add a phone, Forget all phones, Library folders, Restart YouTube, Quit Couch), the phone Remote (D-pad, Back/Home/Play-Pause, Type, volume, YouTube skip buttons, Now Playing).
 - Focus is grid-based and owned by the core; the Screen must always show clearly where focus is.
 - Library tiles show a frame from the video (or a colour from the title until it's ready), a cleaned title, progress and "Watched".
-- No posters, plots or metadata; nothing that needs online lookups.
+- Show and film details come from TMDB (a built-in project key in release builds, or the household's own key); Couch works fully without them.
 - The Player overlay is currently drawn by mpv's on-screen display (ASS); the renderer can only draw over the video if the embedded view allows it (open technical question).
 - Terminology from GLOSSARY.md is binding in UI copy: Screen, Remote, Home, App, YouTube, Library, Continue watching, Now Playing, Settings.
 

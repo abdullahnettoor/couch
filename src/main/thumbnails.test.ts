@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 import { FileStore } from "./ports/store.ts";
 import { FfmpegThumbnails, findFfmpeg, thumbnailKey } from "./ports/thumbnails.ts";
-import { startHarness, type Harness } from "./testing/harness.ts";
+import { focusFolders, startHarness, type Harness } from "./testing/harness.ts";
 import { spawnSync } from "node:child_process";
 
 describe("thumbnailKey", () => {
@@ -74,6 +74,7 @@ describe("thumbnails through the Remote", () => {
     await phone.press("down");
     await phone.press("right");
     await phone.press("ok"); // Library
+    await focusFolders(h, phone);
     await phone.press("ok"); // the folder
     return phone;
   }

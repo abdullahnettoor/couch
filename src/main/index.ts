@@ -11,6 +11,8 @@ import { createElectronMac } from "./ports/electron-mac.ts";
 import { ElectronYouTube } from "./ports/electron-youtube.ts";
 import { FileStore } from "./ports/store.ts";
 import { FfmpegThumbnails } from "./ports/thumbnails.ts";
+import { TmdbMetadata } from "./ports/tmdb-metadata.ts";
+import { PROJECT_TMDB_KEY } from "./ports/project-key.ts";
 import { createEmbedFactory } from "./mpv/embed-addon.ts";
 import { MpvPlayer } from "./mpv/mpv-player.ts";
 
@@ -135,6 +137,8 @@ async function createScreen(): Promise<void> {
     store: new FileStore(app.getPath("userData")),
     thumbnails: new FfmpegThumbnails(join(app.getPath("userData"), "thumbnails")),
     thumbnailDir: join(app.getPath("userData"), "thumbnails"),
+    metadata: new TmdbMetadata(join(app.getPath("userData"), "thumbnails")),
+    tmdbProjectKey: PROJECT_TMDB_KEY,
     port: REMOTE_PORT,
   });
   couch.onScreen(publishScreen);

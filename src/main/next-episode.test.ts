@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 import { FileStore } from "./ports/store.ts";
-import { startHarness, type Harness, type FakePhone } from "./testing/harness.ts";
+import { focusFolders, startHarness, type Harness, type FakePhone } from "./testing/harness.ts";
 
 let root: string;
 let storeDir: string;
@@ -37,6 +37,7 @@ async function playEp(n: number) {
   phone = await h.connectPhone();
   await phone.press("right");
   await phone.press("ok");
+  await focusFolders(h, phone);
   await phone.press("ok");
   await phone.press("ok"); // Show
   for (let i = 1; i < n; i++) await phone.press("right");
@@ -157,5 +158,63 @@ describe("Play next episode", () => {
     await phone.press("playNext");
     expect(calls("load")).toHaveLength(1);
     expect(state().controls).not.toBe("next");
+  });
+});
+
+describe("Show order", () => {
+  let a: string[];
+  async function playArcane(n: number) {
+    rmSync(join(root, "Show"), { recursive: true, force: true });
+    const s1 = join(root, "Arcane", "Season 1");
+    const s2 = join(root, "Arcane", "Season 2");
+    mkdirSync(s1, { recursive: true });
+    mkdirSync(s2, { recursive: true });
+    a = [
+      join(s1, "Arcane S01E01.mkv"),
+      join(s1, "Arcane S01E02.mkv"),
+      join(s2, "Arcane S02E01.mkv"),
+    ];
+    for (const f of a) writeFileSync(f, "");
+    store = new FileStore(storeDir);
+    store.write("library", { folders: [root] });
+    h = await startHarness(store);
+    phone = await h.connectPhone();
+    await h.app.core.library.refresh([root]);
+    await phone.press("right");
+    await phone.press("ok");
+    await focusFolders(h, phone);
+    await phone.press("ok");
+    await phone.press("ok"); // Arcane
+    await phone.press("ok"); // Season 1
+    for (let i = 1; i < n; i++) await phone.press("right");
+    await phone.press("ok");
+    h.player.emit({ type: "duration", seconds: 600 });
+  }
+
+  test("Up next lists the whole show in order, playing marked; indices match", async () => {
+    await playArcane(1);
+    await phone.press("down");
+    await phone.press("down");
+    const tiles = overlay().upNext!.tiles;
+    expect(tiles.map((t) => [t.line, t.playing])).toEqual([
+      ["Arcane · S1 E1", true],
+      ["Arcane · S1 E2", false],
+      ["Arcane · S2 E1", false],
+    ]);
+    expect(overlay().upNext!.folder).toBe("Arcane");
+    await phone.press({ command: "playUpNext", args: { index: 2 } });
+    expect(loads().at(-1)).toBe(a[2]);
+  });
+
+  test("Play next at the end of S1 offers S2E1; the last episode leaves", async () => {
+    await playArcane(2);
+    eof();
+    expect(state().controls).toBe("next");
+    expect(overlay().next!.line).toContain("S2 E1");
+    await phone.press("ok");
+    expect(loads().at(-1)).toBe(a[2]);
+    eof();
+    expect(state().controls).not.toBe("next");
+    expect(state().view).not.toBe("player");
   });
 });

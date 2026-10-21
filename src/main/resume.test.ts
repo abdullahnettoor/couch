@@ -139,28 +139,37 @@ describe("thresholds", () => {
     await start();
     phone = await h.connectPhone();
     watchAndLeave(a(), 600);
+    expect(screen().focusedId).toBe("youtube");
+    expect(screen().grid.some((i) => i.id === "resume")).toBe(false);
+    await focusViaPhone(a());
     const g = screen().grid;
     const at = (id: string) => g.find((i) => i.id === id)!;
     expect(at("settings").r).toBe(0);
     expect(at("resume").r).toBe(1);
     expect(at("fromstart").r).toBe(1);
     expect([at("youtube").r, at("library").r, at(a()).r]).toEqual([2, 2, 2]);
-    await focusViaPhone("resume");
+    await tap("up");
+    expect(["resume", "fromstart"]).toContain(screen().focusedId);
+    expect(screen().hero?.path).toBe(a());
     await tap("up");
     expect(screen().focusedId).toBe("settings");
+    expect(screen().hero).toBeUndefined();
   });
 
-  test("the hero follows the focused video, else the newest", async () => {
+  test("the hero follows the focused video; Apps and the gear show none", async () => {
     await start();
     phone = await h.connectPhone();
     watchAndLeave(a(), 600);
     h.clock.advance(1000);
     watchAndLeave(b(), 600);
-    expect(screen().hero?.path).toBe(b());
+    expect(screen().focusedId).toBe("youtube");
+    expect(screen().hero).toBeUndefined();
     await focusViaPhone(a());
     expect(screen().hero?.path).toBe(a());
-    await focusViaPhone("youtube");
+    await focusViaPhone(b());
     expect(screen().hero?.path).toBe(b());
+    await focusViaPhone("youtube");
+    expect(screen().hero).toBeUndefined();
   });
 
   test("no in-progress video, no hero", async () => {
@@ -185,11 +194,13 @@ describe("thresholds", () => {
     await start();
     phone = await h.connectPhone();
     watchAndLeave(a(), 600);
+    await focusViaPhone(a());
     await focusViaPhone("fromstart");
     await tap("ok");
     expect(lastLoad()[1].startSeconds).toBeUndefined();
     await tap("back");
     expect(screen().state.view).toBe("home");
+    expect(screen().hero?.path).toBe(a());
     await focusViaPhone("resume");
     await tap("ok");
     expect(lastLoad()[1].startSeconds).toBe(600);
@@ -318,6 +329,7 @@ describe("resuming", () => {
     h.clock.advance(1000);
     watchAndLeave(d(), 900);
     expect(screen().continueCard?.title).toBe("D Show");
+    focusOn(d());
     focusOn("resume");
     press("ok");
     expect(lastLoad()).toEqual([d(), { subtitles: true, startSeconds: 900 }]);
@@ -341,7 +353,7 @@ describe("leaving a video goes back to where it was started", () => {
     watchAndLeave(d(), 900);
     focusOn("library");
     press("ok");
-    focusOn(d());
+    focusOn(`continue:${d()}`);
     press("ok");
     press("back");
     expect(screen().state.view).toBe("library");
@@ -352,7 +364,8 @@ describe("leaving a video goes back to where it was started", () => {
   test("from Home's card, the end of the file also returns Home", async () => {
     await start();
     watchAndLeave(d(), 900);
-    focusOn("resume");
+    focusOn(d());
+    press("up");
     press("ok");
     h.player.emit({ type: "ended", reason: "eof" });
     expect(screen().state.view).toBe("home");

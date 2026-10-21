@@ -1,7 +1,7 @@
-import { noteScript, volumeScript } from "./youtube-hud.ts";
+import { noteScript, searchBarScript, volumeScript } from "./youtube-hud.ts";
 import { join } from "node:path";
-import { app, BrowserWindow, WebContentsView, session } from "electron";
-import { SCREEN_KEYS } from "../../shared/keyboard.ts";
+import { app, BrowserWindow, WebContentsView, clipboard, session } from "electron";
+import { SCREEN_KEYS, textEditFor } from "../../shared/keyboard.ts";
 import { revealScreen } from "../reveal.ts";
 import { applyCompatPatch } from "./youtube-compat.ts";
 import { CONTROLS_HIDE_MS, SKIP_COMMIT_MS, skipKeys } from "./youtube-skip.ts";
@@ -31,9 +31,6 @@ export function searchUrlFor(text: string): string {
   return q ? `${SEARCH_URL}?q=${encodeURIComponent(q)}` : SEARCH_URL;
 }
 
-/** Live text waits for a pause in typing so YouTube isn't asked for results on every letter. */
-const TYPING_SETTLE_MS = 350;
-
 export function isSearchUrl(url: string): boolean {
   return /#\/search\b/.test(url);
 }
@@ -54,9 +51,8 @@ export class ElectronYouTube implements YouTube {
   #visible = false;
   #failed = false;
   #sending = false;
+  #capturing = false;
   #inSearch = false;
-  #query = "";
-  #typingTimer: ReturnType<typeof setTimeout> | undefined;
   #skipTimer: ReturnType<typeof setTimeout> | undefined;
   #lastSkipAt = 0;
 
@@ -102,6 +98,32 @@ export class ElectronYouTube implements YouTube {
     });
     wc.on("before-input-event", (event, input) => {
       if (this.#sending) return;
+      if (this.#capturing) {
+        event.preventDefault();
+        if (input.type !== "keyDown") return;
+        const edit = textEditFor({
+          key: input.key,
+          meta: input.meta,
+          ctrl: input.control,
+          alt: input.alt,
+        });
+        if (edit && "paste" in edit) {
+          void Promise.resolve(clipboard.readText()).then((text) => {
+            if (text) this.#emit({ type: "edit", edit: { insert: text } });
+          });
+          return;
+        }
+        if (edit) this.#emit({ type: "edit", edit });
+        return;
+      }
+      if (input.type === "keyDown" && !input.control && !input.alt) {
+        const find = input.meta ? input.key.toLowerCase() === "f" : input.key === "/";
+        if (find) {
+          event.preventDefault();
+          this.#emit({ type: "find" });
+          return;
+        }
+      }
       const command = SCREEN_KEYS[input.key];
       if (!command || input.control || input.meta || input.alt) return;
       event.preventDefault();
@@ -211,22 +233,19 @@ export class ElectronYouTube implements YouTube {
     }, SKIP_COMMIT_MS);
   }
 
-  openSearch(): void {
-    this.#query = "";
-    if (!isSearchUrl(this.#view.webContents.getURL())) this.#goToSearch("");
+  captureText(on: boolean): void {
+    this.#capturing = on;
   }
 
-  /** Mirrors the phone's text through YouTube's search link; no page content is read or edited. */
-  setSearchText(text: string): void {
-    this.#query = text;
-    clearTimeout(this.#typingTimer);
-    this.#typingTimer = setTimeout(() => this.#goToSearch(this.#query), TYPING_SETTLE_MS);
-  }
-
-  submitSearch(): void {
-    clearTimeout(this.#typingTimer);
-    this.#goToSearch(this.#query);
+  submitSearch(text: string): void {
+    // Going to search is Couch's own doing, not the household opening YouTube's search screen.
+    this.#inSearch = true;
+    this.#goToSearch(text);
     this.#view.webContents.focus();
+  }
+
+  showSearchBar(text: string | undefined): void {
+    void this.#view.webContents.executeJavaScript(searchBarScript(text)).catch(() => {});
   }
 
   #goToSearch(text: string): void {

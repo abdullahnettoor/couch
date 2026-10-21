@@ -42,7 +42,7 @@ export async function startRemoteServer(
 ): Promise<RemoteServer> {
   const serveThumbnail = (url: string, path: string, res: ServerResponse) => {
     const given = new URL(url, "http://localhost").searchParams.get("key");
-    const name = /^\/thumb\/([0-9a-f]{40})\.jpg$/.exec(path)?.[1];
+    const name = /^\/thumb\/((?:tmdb-[a-z]+-)?[0-9a-f]{40})\.jpg$/.exec(path)?.[1];
     const file = name && options.thumbnailDir ? join(options.thumbnailDir, `${name}.jpg`) : "";
     if (!core.acceptsKey(given)) return void res.writeHead(401).end();
     const isFile = (() => {

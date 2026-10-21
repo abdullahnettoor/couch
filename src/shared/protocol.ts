@@ -1,3 +1,4 @@
+import type { TimeFormat } from "./clock-format.ts";
 /** Remote protocol and the state shapes shared by the core, the Remote page and the Screen renderer. */
 import type { PlayerOverlay } from "./player.ts";
 
@@ -12,7 +13,12 @@ export type View =
   | "player"
   | "settings"
   | "addPhone"
-  | "libraryFolders";
+  | "libraryFolders"
+  | "details"
+  | "credits"
+  | "show"
+  | "fixMatch"
+  | "librarySearch";
 
 export const COMMAND_NAMES = [
   "up",
@@ -36,12 +42,13 @@ export const COMMAND_NAMES = [
   "typeText",
   "typeSubmit",
   "typeCancel",
+  "menu",
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
 
 /** Commands only the Screen itself may send (mouse hover). Never in COMMAND_NAMES, so Remotes can't. */
-export type ScreenOnlyCommandName = "focusAt" | "showControls";
+export type ScreenOnlyCommandName = "focusAt" | "showControls" | "find" | "screenKey";
 
 export interface CommandArgs {
   /** focusAt: the grid cell to focus */
@@ -53,7 +60,7 @@ export interface CommandArgs {
   percent?: number;
   /** playUpNext: position in the Up next list */
   index?: number;
-  /** typeText: the whole current text */
+  /** typeText: the whole current text; typeOpen and screenKey (Screen only): the first character */
   text?: string;
 }
 
@@ -84,6 +91,9 @@ export interface ScreenState {
   /** Focused cell per view key, e.g. "home" or "folder:<path>". */
   focus: Record<string, { r: number; c: number }>;
   folderPath?: string;
+  /** The open show page's show id, and its selected tab ("1", "2", … or "extras"). */
+  showId?: string;
+  showTab?: string;
   typingBy?: RemoteId;
   query: string;
   player?: { path: string; pos: number; dur: number; paused: boolean };
@@ -99,7 +109,9 @@ export interface ScreenState {
 
 /** A tile in the Library: a folder or a video file. */
 export interface LibraryEntry {
-  kind: "folder" | "video";
+  kind: "folder" | "video" | "show";
+  /** Unique tile id when the same item can appear in several rows; defaults to `path`. For a show, `path` is its id. */
+  id?: string;
   path: string;
   /** Folder name, or the cleaned file title. */
   title: string;
@@ -121,6 +133,41 @@ export interface LibraryEntry {
   progress?: { fraction: number; left: string };
   /** Name of the folder holding the video (Continue watching). */
   folder?: string;
+  /** What the Library's featured area shows while this tile is focused. */
+  feature?: {
+    kind: "Show" | "Film" | "Folder";
+    title: string;
+    sub?: string;
+    /** TMDB overview (the Library shows at most three lines). */
+    overview?: string;
+    /** TMDB backdrop for the featured area's background. */
+    backdrop?: string;
+    /** Up to three TMDB genres, drawn as small labels. */
+    genres?: string[];
+  };
+  /** Home: TMDB backdrop for the hero (the tile's `thumb` is the still or poster-sized art). */
+  backdrop?: string;
+  /** Home: up to three TMDB genres, drawn as small labels under the hero title. */
+  genres?: string[];
+  /** Home: TMDB overview under the hero title. */
+  overview?: string;
+}
+
+/** One row on the Library's first page. */
+export interface LibraryRow {
+  id: string;
+  title: string;
+  /** 2:3 posters (Shows, Films); otherwise 16:9 tiles. */
+  poster?: boolean;
+  entries: LibraryEntry[];
+}
+
+/** A filter chip on the Library's first page. */
+export interface LibraryChip {
+  /** "all", "shows", "films", "lang:<code>" or "genre:<name>". */
+  key: string;
+  label: string;
+  active: boolean;
 }
 
 /** What the Library views draw; the core also builds their grids from it. */
@@ -134,6 +181,69 @@ export interface LibraryPayload {
   folders?: string[];
   /** The Library's first page: every in-progress video, newest first. */
   continueWatching?: LibraryEntry[];
+  /** The Library's first page: the rows above Folders, empty ones left out. `entries` are the Folders row. */
+  rows?: LibraryRow[];
+  /** The Library's first page: the chip row under the featured area; empty when there is nothing to filter. */
+  chips?: LibraryChip[];
+  /** The Library's first page: the tile the featured area shows. The focused tile, else the last focused one, else the first. */
+  featuredId?: string;
+}
+
+/** One row of the show page's episode list (or an extra). */
+export interface ShowEpisode {
+  /** The file path; also the grid id. */
+  id: string;
+  /** Episode number; absent for extras. */
+  number?: number;
+  title: string;
+  /** TMDB overview, two lines. */
+  overview?: string;
+  thumb?: string;
+  hue: number;
+  watched?: boolean;
+  progress?: { fraction: number; left: string };
+  missing?: boolean;
+}
+
+/** What the show page draws: details on the left, season tabs and the episode list on the right. */
+export interface ShowPagePayload {
+  id: string;
+  name: string;
+  /** "2021", "2 seasons", "18 episodes" … */
+  meta: string[];
+  /** The primary button, e.g. "Resume S1 E4". */
+  primary: string;
+  /** The TMDB backdrop, or a frame from the episode the primary button plays. */
+  backdrop?: string;
+  /** Up to three TMDB genres, drawn as small labels. */
+  genres?: string[];
+  /** TMDB poster for the left column. */
+  poster?: string;
+  /** TMDB overview, four lines. */
+  overview?: string;
+  tabs: { id: string; label: string; selected: boolean }[];
+  episodes: ShowEpisode[];
+  /** Fix match is offered (details are on and a key exists). */
+  canFix: boolean;
+  /** Details are on and this title uses them, so the poster space is kept even before the art arrives. */
+  artExpected: boolean;
+}
+
+/** Fix match: the top TMDB results for a show or film, or still loading. */
+export interface FixMatchPayload {
+  name: string;
+  loading: boolean;
+  options: { id: string; name: string; year?: number; poster?: string }[];
+}
+
+/** The Library search view: the live query and its result rows (Shows, Films, Episodes). */
+export interface LibrarySearchPayload {
+  query: string;
+  /** Typing paused less than a moment ago: the results below are for an earlier query. */
+  searching: boolean;
+  /** A phone's typing sheet is open (the field shows a caret). */
+  typing: boolean;
+  rows: LibraryRow[];
 }
 
 /** Core → Screen renderer. */
@@ -143,14 +253,28 @@ export interface ScreenPayload {
   grid: GridItem[];
   focusedId?: string;
   focusedLabel?: string;
+  /** Settings and its "Show and film details" page: the TMDB key label, On/Off and any hint. */
+  details?: { keyLabel: string; hasOwnKey: boolean; enabled: boolean; hint?: string };
   /** Present for library, folder and libraryFolders. */
   library?: LibraryPayload;
+  /** Present on the show page. */
+  show?: ShowPagePayload;
+  /** The Screen's own keyboard is typing for this purpose (never the text itself). */
+  screenTyping?: "librarySearch" | "tmdbKey" | "search";
+  /** Present on the Library search. */
+  search?: LibrarySearchPayload;
+  /** Present on the Fix match list. */
+  fixMatch?: FixMatchPayload;
   /** Home's Continue watching card: the newest in-progress video. */
   continueCard?: LibraryEntry;
   /** Home: up to three in-progress videos, newest first. */
   homeVideos?: LibraryEntry[];
-  /** Home: the in-progress video the backdrop and title show: the focused one, else the newest. */
+  /** Home: the focused (or last focused) in-progress film whose backdrop and title show; absent on the calm Home. */
   hero?: LibraryEntry;
+  /** Home: the idle clock only, the App row and top strip faded away. */
+  ambient?: boolean;
+  /** How the Mac shows times of day. */
+  timeFormat: TimeFormat;
   /** The player overlay the renderer draws over the video; present while a video plays. */
   overlay?: PlayerOverlay;
   /** What the pairing QR code encodes. */
@@ -172,7 +296,7 @@ export interface UpNextItem {
 }
 
 /** Which control layout the Remote shows. */
-export type RemoteLayout = "home" | "youtube" | "player" | "other";
+export type RemoteLayout = "home" | "youtube" | "player" | "librarySearch" | "other";
 
 /** Home's Continue watching shortcut on the Remote. */
 export interface RemoteContinueCard {
@@ -193,7 +317,16 @@ export interface RemoteSnapshot {
   /** Home only, when a video is in progress. */
   continueCard?: RemoteContinueCard;
   typeAvailable: boolean;
-  typing: "none" | "you" | "other";
+  /** A show or film tile is focused and details are on: the phone offers Fix match (command `menu`). */
+  fixAvailable?: boolean;
+  /** The Type button's label when it isn't YouTube search. */
+  typeLabel?: string;
+  /** The typing sheet's placeholder, when it isn't YouTube search. */
+  typePlaceholder?: string;
+  /** The text the typing sheet starts with (the Library search keeps its query). */
+  typeSeed?: string;
+  /** "other": another phone is typing; "screen": the Mac keyboard is. */
+  typing: "none" | "you" | "other" | "screen";
   /** The end-of-video card: the next video in the folder, waiting for a Play press. */
   next?: { title: string; line?: string; thumbKey?: string };
   nowPlaying?: {
@@ -204,6 +337,8 @@ export interface RemoteSnapshot {
     duration: number;
     paused: boolean;
     subtitlesOn: boolean;
+    /** "Animation · Comedy": up to three genres, when details have them. */
+    genres?: string;
   };
   /** The playing Library video's folder, while a video plays (and has company). */
   upNext?: UpNextItem[];
@@ -225,4 +360,9 @@ export const VIEW_LABELS: Record<View, string> = {
   settings: "Settings",
   addPhone: "Add a phone",
   libraryFolders: "Library folders",
+  details: "Show and film details",
+  credits: "Credits",
+  show: "Show",
+  fixMatch: "Fix match",
+  librarySearch: "Search",
 };

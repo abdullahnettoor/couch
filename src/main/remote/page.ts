@@ -100,10 +100,11 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 <div class="note" id="hint" hidden>Still nothing? Scan the QR code on the Screen again to pair this phone.</div>
 <main id="controls">
   <button class="cw" id="cw" data-cmd="resume" hidden><span class="pic" id="cw-pic"></span><span class="txt"><b id="cw-title"></b><span class="l" id="cw-left"></span></span><span class="go" data-i="play"></span></button>
-  <button class="search" id="search" data-cmd="typeOpen" hidden><span data-i="search"></span>Search YouTube</button>
+  <button class="search" id="fixbtn" data-cmd="menu" hidden><span id="fix-label">Fix match</span></button>
+  <button class="search" id="search" data-cmd="typeOpen" hidden><span data-i="search"></span><span id="search-label">Search YouTube</span></button>
   <div class="np" id="np" hidden>
     <div class="art" id="np-art"></div>
-    <h3 id="np-title"></h3><div class="f" id="np-folder"></div>
+    <h3 id="np-title"></h3><div class="f" id="np-folder"></div><div class="f" id="np-genres" hidden></div>
     <button class="cw nx" id="nx" data-cmd="playNext" hidden><span class="pic" id="nx-pic"></span><span class="txt"><b id="nx-title"></b><span class="l" id="nx-line">Play next</span></span><span class="go" data-i="play"></span></button>
     <div class="seek" id="seek"><div class="bar"><div class="fill" id="np-fill"></div><div class="knob" id="np-knob"></div></div></div>
     <div class="tm"><span id="np-elapsed"></span><span id="np-remaining"></span></div>
@@ -233,7 +234,9 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       $("cw-left").textContent = s.continueCard.left;
       $("cw-pic").style.backgroundImage = s.continueCard.thumbKey ? thumb(s.continueCard.thumbKey) : "none";
     }
-    $("search").hidden = L !== "youtube" || !!np;
+    $("fixbtn").hidden = !s.fixAvailable || !!np;
+    $("search").hidden = (L !== "youtube" && !(s.typeLabel && s.typeAvailable)) || !!np;
+    $("search-label").textContent = s.typeLabel || "Search YouTube";
     $("search").classList.toggle("dim", !s.typeAvailable);
     if (typeof s.volume === "number" && !volDragging) showVolume(s.volume);
     $("skip").hidden = !s.showSkip || !!np;
@@ -241,6 +244,8 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       duration = np.duration;
       $("np-title").textContent = np.title;
       $("np-folder").textContent = np.line || np.folder;
+      $("np-genres").textContent = np.genres || "";
+      $("np-genres").hidden = !np.genres;
       if (!dragging) showProgress(np.position);
       $("np-pp").innerHTML = icon(np.paused ? "play" : "pause");
       $("np-subs").classList.toggle("on", np.subtitlesOn);
@@ -254,9 +259,11 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       $("nx-line").textContent = s.next.line || "Play next";
       $("nx-pic").style.backgroundImage = s.next.thumbKey ? thumb(s.next.thumbKey) : "none";
     }
-    $("other").hidden = s.typing !== "other";
+    $("other").hidden = s.typing !== "other" && s.typing !== "screen";
+    $("other").textContent = s.typing === "screen" ? "Typing on the Screen" : "Typing on another phone";
     var mine = s.typing === "you";
-    if (mine && $("sheet").hidden) { $("text").value = ""; $("sheet").hidden = false; $("text").focus(); }
+    $("text").placeholder = s.typePlaceholder || "";
+    if (mine && $("sheet").hidden) { $("text").value = s.typeSeed || ""; $("sheet").hidden = false; $("text").focus(); }
     if (!mine) { $("sheet").hidden = true; $("text").blur(); }
   }
 

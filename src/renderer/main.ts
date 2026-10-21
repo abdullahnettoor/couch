@@ -1,8 +1,9 @@
 import type { GridItem, ScreenPayload } from "../shared/protocol.ts";
 import type { CouchApi } from "../shared/ipc.ts";
-import { SCREEN_KEYS } from "../shared/keyboard.ts";
+import { screenKeyCommand } from "../shared/keyboard.ts";
 import { VIEWS } from "./views/index.ts";
 import { renderHud } from "./hud.ts";
+import { isTypingTarget, syncTyping } from "./views/typing.ts";
 import { renderOverlay, setNativeGlass, setVideoTint } from "./player-overlay.ts";
 import { darkTint } from "../shared/glass-tint.ts";
 import { iconSvg } from "../shared/icons.ts";
@@ -24,10 +25,13 @@ declare global {
 }
 
 window.addEventListener("keydown", (event) => {
-  const command = SCREEN_KEYS[event.key];
+  const command = screenKeyCommand(
+    { key: event.key, meta: event.metaKey, ctrl: event.ctrlKey, alt: event.altKey },
+    current?.screenTyping !== undefined,
+  );
   if (!command) return;
   event.preventDefault();
-  window.couch.send({ command });
+  window.couch.send(command);
 });
 
 let current: ScreenPayload | undefined;
@@ -41,10 +45,37 @@ const focusItem = (item: GridItem) =>
 // Real movement only: a view drawn under a resting cursor fires mouseover without the mouse moving, which
 // would steal focus from the view's first tile (or its last-focused one).
 window.addEventListener("mousemove", (event) => {
+  // Ambient Home hides every tile: any movement wakes it (the core swallows this first command).
+  if (current?.ambient) return window.couch.send({ command: "focusAt", args: { r: -1, c: -1 } });
   const item = itemAt(event);
   if (item && item.id !== current?.focusedId) focusItem(item);
 });
+// Long press on a tile opens its menu (Fix match for shows and films).
+let pressTimer: number | undefined;
+let pressed = false;
+window.addEventListener("mousedown", (event) => {
+  const item = event.button === 0 ? itemAt(event) : undefined;
+  window.clearTimeout(pressTimer);
+  pressed = false;
+  if (!item) return;
+  pressTimer = window.setTimeout(() => {
+    pressed = true;
+    focusItem(item);
+    window.couch.send({ command: "menu" });
+  }, 600);
+});
+window.addEventListener("mouseup", () => window.clearTimeout(pressTimer));
+window.addEventListener(
+  "click",
+  (event) => {
+    if (!pressed) return;
+    pressed = false;
+    event.stopImmediatePropagation();
+  },
+  true,
+);
 window.addEventListener("click", (event) => {
+  if (isTypingTarget(event.target)) return;
   const item = itemAt(event);
   if (!item) return;
   focusItem(item);
@@ -62,6 +93,8 @@ window.addEventListener("mouseup", (event) => {
 });
 
 window.addEventListener("mousemove", (event) => {
+  // Ambient Home hides every tile: any movement wakes it (the core swallows this first command).
+  if (current?.ambient) return window.couch.send({ command: "focusAt", args: { r: -1, c: -1 } });
   const tile = (event.target as Element | null)?.closest<HTMLElement>(".g-tile");
   if (!tile) return;
   const box = tile.getBoundingClientRect();
@@ -86,6 +119,7 @@ window.couch.onScreen((payload) => {
     window.couch.reportGrid({ viewKey: payload.viewKey, items: view.grid });
   }
   view?.render(payload);
+  syncTyping(payload, payload.search?.query ?? "");
   // Transparent only once mpv reports a duration (the video is on screen); black before that.
   const playing = payload.state.view === "player" && (payload.state.player?.dur ?? 0) > 0;
   document.body.classList.toggle("video-visible", playing);

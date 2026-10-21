@@ -21,17 +21,34 @@ describe("YouTube typing", () => {
     await b.settle();
     expect(a.last!.typing).toBe("you");
     expect(b.last!.typing).toBe("other");
-    expect(calls("openSearch")).toHaveLength(1);
     expect(h.screen.last.state.typingBy).toBeDefined();
   });
 
-  test("typeText reaches the port with the whole text, only from the owner", async () => {
+  test("nothing reaches YouTube until Search, which sends the owner's whole text once", async () => {
     await a.press("typeOpen");
     await a.press({ command: "typeText", args: { text: "kerala" } });
     await a.press({ command: "typeText", args: { text: "kerala fis" } });
     b.send({ command: "typeText", args: { text: "intruder" } });
     await b.settle();
-    expect(calls("setSearchText").map((c) => c.args[0])).toEqual(["kerala", "kerala fis"]);
+    expect(calls("submitSearch")).toEqual([]);
+    expect(h.screen.last.state.query).toBe("kerala fis");
+    await a.press("typeSubmit");
+    expect(calls("submitSearch").map((c) => c.args)).toEqual([["kerala fis"]]);
+  });
+
+  test("the bar over YouTube follows the typed text and closes on Search or Cancel", async () => {
+    const bar = () => calls("showSearchBar").at(-1)!.args[0];
+    await a.press("typeOpen");
+    expect(bar()).toBe("");
+    await a.press({ command: "typeText", args: { text: "kerala" } });
+    expect(bar()).toBe("kerala");
+    await a.press("typeCancel");
+    expect(bar()).toBeUndefined();
+    expect(calls("submitSearch")).toEqual([]);
+    await a.press("typeOpen");
+    await a.press({ command: "typeText", args: { text: "x" } });
+    await a.press("typeSubmit");
+    expect(bar()).toBeUndefined();
   });
 
   test("another phone cannot take over; its D-pad still works", async () => {
@@ -44,6 +61,7 @@ describe("YouTube typing", () => {
 
   test("Search submits and clears the owner", async () => {
     await a.press("typeOpen");
+    await a.press({ command: "typeText", args: { text: "cats" } });
     const s = await a.press("typeSubmit");
     expect(s.typing).toBe("none");
     expect(calls("submitSearch")).toHaveLength(1);
@@ -70,17 +88,14 @@ describe("YouTube typing", () => {
     await a.press("typeOpen");
     expect(a.last!.typing).toBe("none");
     expect(h.screen.last.state.toast).toBe("Typing works inside YouTube search");
-    expect(calls("openSearch")).toHaveLength(0);
   });
 
-  test("text typed before the search screen is ready is replayed when it opens", async () => {
+  test("YouTube's search screen opening replays nothing", async () => {
     await a.press("typeOpen");
     await a.press({ command: "typeText", args: { text: "kerala" } });
-    const before = calls("setSearchText").length;
     h.youtube.emit({ type: "searchOpened" });
     await a.settle();
-    expect(calls("setSearchText").length).toBe(before + 1);
-    expect(calls("setSearchText").at(-1)!.args[0]).toBe("kerala");
+    expect(calls("submitSearch")).toEqual([]);
   });
 
   test("search route auto-opens the sheet on the last commander", async () => {
@@ -88,6 +103,5 @@ describe("YouTube typing", () => {
     h.youtube.emit({ type: "searchOpened" });
     await b.waitFor(() => b.last!.typing === "you");
     await a.waitFor(() => a.last!.typing === "other");
-    expect(calls("openSearch")).toHaveLength(0);
   });
 });

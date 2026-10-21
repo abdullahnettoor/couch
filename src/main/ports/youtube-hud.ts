@@ -8,6 +8,7 @@ import { ICON_PATHS, ICON_VIEWBOX } from "../../shared/icons.ts";
  * YouTube enforces Trusted Types (no `innerHTML`) and a CSP that ignores injected `<style>`
  * elements, so the nodes are built with the DOM API and styled through the CSSOM only.
  */
+const SEARCH_PATHS = [...ICON_PATHS.search.matchAll(/ d="([^"]+)"/g)].map((m) => m[1]);
 const SPEAKER_PATHS = [...ICON_PATHS.speaker.matchAll(/ d="([^"]+)"/g)].map((m) => m[1]);
 
 const HELPERS = `
@@ -45,4 +46,31 @@ var o=document.getElementById('couch-note');if(o)o.remove();
 var d=document.createElement('div');d.id='couch-note';glass(d);d.textContent=${JSON.stringify(note)};
 css(d,{left:'50%',top:px(56),transform:'translateX(-50%)',padding:px(18)+' '+px(34),'border-radius':px(40),'font-size':px(28),'white-space':'nowrap'});
 document.body.appendChild(d);setTimeout(function(){d.remove()},4000)})()`;
+}
+
+/**
+ * Script that draws the floating search bar (a Glass pill at the top centre) with the typed text, or removes it
+ * when `text` is undefined. Called on every change: the same bar is updated in place, and only a new one drops in.
+ */
+export function searchBarScript(text: string | undefined): string {
+  if (text === undefined) {
+    return `(function(){var e=document.getElementById('couch-search');if(e)e.remove()})()`;
+  }
+  return `(function(){${HELPERS}
+var d=document.getElementById('couch-search'),fresh=!d;
+if(fresh){
+d=document.createElement('div');d.id='couch-search';glass(d);
+css(d,{left:'50%',top:px(56),transform:'translateX(-50%)',width:px(1000),height:px(92),'box-sizing':'border-box',padding:'0 '+px(36),'border-radius':px(46),display:'flex','align-items':'center',gap:px(22),'font-size':px(34),'font-weight':'500','white-space':'nowrap',overflow:'hidden'});
+var s=document.createElementNS(SVG,'svg');s.setAttribute('viewBox',${JSON.stringify(ICON_VIEWBOX)});css(s,{width:px(38),height:px(38),fill:'currentColor',flex:'none',opacity:.6});
+${JSON.stringify(SEARCH_PATHS)}.forEach(function(v){var q=document.createElementNS(SVG,'path');q.setAttribute('d',v);s.appendChild(q)});
+var t=document.createElement('span');t.setAttribute('data-role','text');css(t,{overflow:'hidden','text-overflow':'ellipsis'});
+var c=document.createElement('i');c.setAttribute('data-role','caret');css(c,{width:px(3),height:px(44),background:'#fff',flex:'none','margin-left':px(-14)});
+var g=document.createElement('span');g.textContent=${JSON.stringify("Enter to search · Esc to close")};css(g,{'margin-left':'auto','font-size':px(22),'font-weight':'600',color:${JSON.stringify(COLORS.t3)}});
+d.appendChild(s);d.appendChild(t);d.appendChild(c);d.appendChild(g);document.body.appendChild(d);
+c.animate([{opacity:1},{opacity:0}],{duration:1000,iterations:Infinity,easing:'steps(2,start)'});
+d.animate([{opacity:0,transform:'translateX(-50%) translateY('+px(-40)+')'},{opacity:1,transform:'translateX(-50%) translateY(0)'}],{duration:220,easing:'cubic-bezier(.2,.8,.2,1)'});
+}
+var tx=d.querySelector('[data-role=text]'),ph=${JSON.stringify(text)}==='';
+tx.textContent=ph?'Search YouTube':${JSON.stringify(text)};tx.style.setProperty('color',ph?${JSON.stringify(COLORS.t3)}:'inherit');
+})()`;
 }

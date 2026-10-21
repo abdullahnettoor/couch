@@ -18,7 +18,9 @@ export function render(payload: ScreenPayload): void {
             ? "Show the QR code"
             : item.id === "forget-phones" && phones > 0
               ? `${phones} connected`
-              : undefined,
+              : item.id === "details"
+                ? payload.details?.hint
+                : undefined,
       }),
     ),
   ]);

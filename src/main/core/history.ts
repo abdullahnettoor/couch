@@ -41,6 +41,11 @@ export class History {
     return this.#items[path]?.watched === true;
   }
 
+  /** Epoch ms of the last save for this video, or undefined if it has no record. */
+  touchedAt(path: string): number | undefined {
+    return this.#items[path]?.at;
+  }
+
   progress(path: string): { position: number; duration: number } | undefined {
     const r = this.#items[path];
     return r?.position === undefined ? undefined : { position: r.position, duration: r.duration };

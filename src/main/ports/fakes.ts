@@ -1,4 +1,12 @@
 import type { Thumbnails } from "./thumbnails.ts";
+import type {
+  Candidate,
+  Details,
+  ImageKind,
+  Metadata,
+  MetadataError,
+  MetadataKind,
+} from "./metadata.ts";
 import type { LoadOptions, Player, PlayerEvent } from "../../shared/player.ts";
 import type { Clock } from "./clock.ts";
 import type { DisplayInfo, Mac } from "./mac.ts";
@@ -82,14 +90,14 @@ export class FakeYouTube implements YouTube {
   sendKey(key: YouTubeKey) {
     this.#record("sendKey", key);
   }
-  openSearch() {
-    this.#record("openSearch");
+  submitSearch(text: string) {
+    this.#record("submitSearch", text);
   }
-  setSearchText(text: string) {
-    this.#record("setSearchText", text);
+  showSearchBar(text: string | undefined) {
+    this.#record("showSearchBar", text);
   }
-  submitSearch() {
-    this.#record("submitSearch");
+  captureText(on: boolean) {
+    this.#record("captureText", on);
   }
   playPause() {
     this.#record("playPause");
@@ -149,6 +157,20 @@ export class FakeMac implements Mac {
   setDisplays(displays: DisplayInfo[]) {
     this.displays = displays;
     for (const l of [...this.#displayListeners]) l();
+  }
+  format: "12" | "24" = "12";
+  #formatListeners = new Set<() => void>();
+  timeFormat() {
+    return this.format;
+  }
+  onTimeFormatChanged(listener: () => void) {
+    this.#formatListeners.add(listener);
+    return () => void this.#formatListeners.delete(listener);
+  }
+  /** Flip the Mac's 12/24-hour setting and fire the change event. */
+  setTimeFormat(format: "12" | "24") {
+    this.format = format;
+    for (const l of [...this.#formatListeners]) l();
   }
   moveScreenTo(displayId: number) {
     this.#record("moveScreenTo", displayId);
@@ -228,5 +250,75 @@ export class FakeThumbnails implements Thumbnails {
   }
   fail(path: string) {
     this.#pending.get(path)?.(undefined);
+  }
+}
+
+/** Scripted Metadata: a catalogue keyed by title, every call recorded (with the credential it was given). */
+export class FakeMetadata implements Metadata {
+  /** Search results by lower-cased title, per kind. */
+  catalog: Record<MetadataKind, Record<string, Candidate[]>> = { show: {}, film: {} };
+  /** Details by TMDB id; a missing id is built from the search result. */
+  detailsById = new Map<number, Details>();
+  searches: { key: string; kind: MetadataKind; title: string; year?: number }[] = [];
+  detailCalls: { key: string; kind: MetadataKind; id: number; seasons: number[] }[] = [];
+  images: string[] = [];
+  /** When set, every call throws it (a function can decide per call). */
+  fail: MetadataError | ((key: string) => MetadataError | undefined) | undefined;
+  /** When set, the next `holdLeft` searches wait for it (to model a slow lookup). */
+  hold: Promise<void> | undefined;
+  holdLeft = Infinity;
+  #cached = new Set<string>();
+
+  #check(key: string): void {
+    const error = typeof this.fail === "function" ? this.fail(key) : this.fail;
+    if (error) throw error;
+  }
+  search(key: string, kind: MetadataKind, title: string, year?: number) {
+    this.searches.push({ key, kind, title, ...(year ? { year } : {}) });
+    try {
+      this.#check(key);
+    } catch (error) {
+      return Promise.reject(error as Error);
+    }
+    const results = this.catalog[kind][title.toLowerCase()] ?? [];
+    return this.hold && this.holdLeft-- > 0
+      ? this.hold.then(() => results)
+      : Promise.resolve(results);
+  }
+  details(key: string, kind: MetadataKind, id: number, seasons: number[]) {
+    this.detailCalls.push({ key, kind, id, seasons });
+    try {
+      this.#check(key);
+    } catch (error) {
+      return Promise.reject(error as Error);
+    }
+    const found = this.detailsById.get(id);
+    if (found) return Promise.resolve(found);
+    const hit = Object.values(this.catalog[kind])
+      .flat()
+      .find((c) => c.id === id);
+    return Promise.resolve<Details>({
+      id,
+      name: hit?.name ?? `Title ${id}`,
+      year: hit?.year,
+      overview: hit?.overview,
+      posterPath: hit?.posterPath,
+      backdropPath: `/backdrop${id}.jpg`,
+      genres: [],
+      seasons: seasons.map((number) => ({
+        number,
+        episodes: [
+          { number: 1, name: `S${number}E1 name`, stillPath: `/still${id}-${number}.jpg` },
+        ],
+      })),
+    });
+  }
+  cachedImage(kind: ImageKind, path: string) {
+    return this.#cached.has(`${kind}${path}`) ? `file:///tmdb/${kind}${path}` : undefined;
+  }
+  image(kind: ImageKind, path: string) {
+    this.images.push(`${kind}${path}`);
+    this.#cached.add(`${kind}${path}`);
+    return Promise.resolve(`file:///tmdb/${kind}${path}`);
   }
 }

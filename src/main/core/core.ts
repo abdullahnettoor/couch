@@ -28,15 +28,35 @@ import type { Thumbnails } from "../ports/thumbnails.ts";
 import { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
 import { ACTIONS, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
+import { MediaLibrary } from "./media-library.ts";
+import { artFor, type PathArt } from "./art.ts";
+import { libraryRows, tileAction, topGenres } from "./library-rows.ts";
+import { autoRows, chipsFor, keepFor } from "./library-chips.ts";
 import { presentation, hueFor, listFolder, mosaicSources, rootEntries } from "./library.ts";
-import type { UpNextItem } from "../../shared/protocol.ts";
+import { applyEdit, type TextEdit } from "../../shared/keyboard.ts";
+import type { LibraryChip, UpNextItem } from "../../shared/protocol.ts";
 import { PlayerControls } from "./player-controls.ts";
 import { History } from "./history.ts";
+import { ShowView } from "./show-view.ts";
+import { DetailsPage } from "./details-page.ts";
+import { LibrarySearchView } from "./library-search-view.ts";
+import { AMBIENT_MS, filmAfterFocus, homeGrid } from "./home-view.ts";
+import type { TimeFormat } from "../../shared/clock-format.ts";
+import { MetadataService } from "./metadata-service.ts";
+import { nullMetadata, type Metadata } from "../ports/metadata.ts";
 
 /** In-progress videos shown on Home. */
 const HOME_VIDEOS = 3;
 const TILE_COLUMNS = 4;
 const LIBRARY_VIEWS = ["library", "folder", "libraryFolders"];
+/** Views where a phone's Search button opens the Library search. */
+const TYPING_VIEW = { search: "youtube", tmdbKey: "details", librarySearch: "librarySearch" };
+type Purpose = keyof typeof TYPING_VIEW;
+const SCREEN_ONLY = ["focusAt", "showControls", "find", "screenKey"];
+const NAV = ["up", "down", "left", "right"];
+/** Views the Library search's query and focus survive, so Back returns to them. */
+const SEARCH_KEEPS: View[] = ["librarySearch", "show", "fixMatch", "player"];
+const SEARCH_FROM: View[] = ["library", "folder", "show", "librarySearch"];
 
 export interface Ports {
   player: Player;
@@ -45,6 +65,10 @@ export interface Ports {
   clock: Clock;
   store: Store;
   thumbnails?: Thumbnails;
+  /** Show and film details (TMDB). Without it, everything uses frames. */
+  metadata?: Metadata;
+  /** The project's TMDB key, built into release builds; used when the household has none of its own. */
+  tmdbProjectKey?: string;
 }
 
 /** Who sent a command: a connected phone, or the Screen's own keyboard. */
@@ -98,12 +122,30 @@ export class Core {
   #rootKey: string | undefined;
   #controls: PlayerControls;
   #history: History;
+  /** The Library index and its Shows and Films; scans run in the background. */
+  readonly library: MediaLibrary;
+  /** TMDB details for Shows and Films (saved matches, Fix match, key settings). */
+  readonly details: MetadataService;
+  #show: ShowView;
+  #detailsPage: DetailsPage;
+  #search: LibrarySearchView;
+  /** Where Back from a show page goes: the Library, or the search it was opened from. */
+  /** The active filter chip on the Library's first page (a chip key), if any. */
+  #chip: string | undefined;
+  #showFrom: "library" | "librarySearch" = "library";
+  #dataVersion = 0;
+  /** What the phone currently typing is typing into. */
+  #typingFor: Purpose | undefined;
+  /** Who sent the command being handled. */
+  #source: Source = "screen";
+  #capturing = false;
   #cancelSaves: (() => void) | undefined;
   #resumeNote: string | undefined;
   #cancelNote: (() => void) | undefined;
   #displayId: number | undefined;
   #unsubDisplays: () => void;
   #shownYtVolume: number | undefined;
+  #shownYtBar: string | undefined;
   #idle = false;
   #cancelIdle: (() => void) | undefined;
   #displayAwake: boolean | undefined;
@@ -112,6 +154,25 @@ export class Core {
     this.#ports = ports;
     const lib = ports.store.read<{ folders?: unknown }>("library", {});
     this.#history = new History(ports.store);
+    this.library = new MediaLibrary(ports.store, ports.clock);
+    this.details = new MetadataService({
+      store: ports.store,
+      clock: ports.clock,
+      port: ports.metadata ?? nullMetadata,
+      library: this.library,
+      projectKey: ports.tmdbProjectKey,
+      changed: () => {
+        this.#dataVersion++;
+        this.#emit();
+      },
+    });
+    this.library.onChange(() => {
+      this.#dataVersion++;
+      this.details.sync();
+      this.#keepLibraryFocus();
+      this.#emit();
+    });
+    this.details.sync();
     this.#controls = new PlayerControls(this.#state, {
       clock: ports.clock,
       playing: () => {
@@ -127,18 +188,74 @@ export class Core {
       changed: () => this.#emit(),
     });
     this.#thumbs = new ThumbnailScheduler(ports.thumbnails, () => this.#emit());
+    this.#show = new ShowView(this.#state, {
+      library: this.library,
+      history: this.#history,
+      details: this.details,
+      thumbs: this.#thumbs,
+      art: (path) => this.#art(path),
+      grid: () => this.#currentGrid(),
+      viewKey: () => this.viewKey,
+      focusedEntry: () => {
+        const focused = resolveFocus(this.#currentGrid(), this.#state.focus[this.viewKey]);
+        return this.#rows()
+          .rows.flatMap((r) => r.entries)
+          .find((e) => (e.id ?? e.path) === focused?.id);
+      },
+      play: (path, fromStart) => this.#play(path, fromStart),
+      setView: (view) => this.#setView(view),
+      toast: (text) => this.#toast(text),
+      changed: () => this.#emit(),
+    });
+    this.#detailsPage = new DetailsPage(this.#state, {
+      details: this.details,
+      connectedPhone: () =>
+        this.#lastFrom !== undefined && this.#remotes.has(this.#lastFrom)
+          ? this.#lastFrom
+          : undefined,
+      startTyping: (remote) => {
+        this.#state.typingBy = remote;
+        this.#typingFor = "tmdbKey";
+      },
+      setView: (view) => this.#setView(view),
+      toast: (text) => this.#toast(text),
+    });
+    this.#search = new LibrarySearchView(this.#state, {
+      library: this.library,
+      history: this.#history,
+      details: (id) => this.details.detailsFor(id),
+      dataVersion: () => this.#dataVersion,
+      thumbs: this.#thumbs,
+      clock: ports.clock,
+      changed: () => this.#emit(),
+      decorate: (e) => this.#decorate(e),
+      startTyping: (remote) => {
+        this.#state.typingBy = remote;
+        this.#typingFor = "librarySearch";
+      },
+      connectedPhone: () =>
+        this.#lastFrom !== undefined && this.#remotes.has(this.#lastFrom)
+          ? this.#lastFrom
+          : undefined,
+      setView: (view) => this.#setView(view),
+      toast: (text) => this.#toast(text),
+    });
     this.#libraryFolders = Array.isArray(lib.folders)
       ? lib.folders.filter((f): f is string => typeof f === "string")
       : [];
+    void this.library.refresh(this.#libraryFolders);
     const saved = ports.store.read<{ key?: string }>("pairing", {});
     this.#key = typeof saved.key === "string" && saved.key ? saved.key : this.#newKey();
     const playback = ports.store.read<{ subtitlesOn?: unknown }>("playback", {});
     this.#state.subtitlesOn = playback.subtitlesOn !== false;
     this.#unsubPlayer = ports.player.onEvent((event) => this.#onPlayerEvent(event));
+    this.#timeFormat = ports.mac.timeFormat();
+    this.#offTimeFormat = ports.mac.onTimeFormatChanged(() => this.#readTimeFormat());
     this.#scheduleMinute();
     this.#displayId = pickTargetDisplay(ports.mac.listDisplays())?.id;
     this.#unsubDisplays = ports.mac.onDisplaysChanged(() => this.#retarget());
     this.#armIdle();
+    this.#armAmbient();
     this.#syncDisplayAwake();
     this.#ytOff = ports.youtube.onEvent((event) => this.#onYouTube(event));
     void ports.mac
@@ -195,15 +312,30 @@ export class Core {
   }
 
   /** The Library views are built here from disk; other views' grids come from the renderer. */
-  #library(): LibraryPayload | undefined {
+  #library(focusedId?: string): LibraryPayload | undefined {
     switch (this.#state.view) {
-      case "library":
+      case "library": {
+        const rows = this.#rows().rows;
+        const folders = this.#chip ? [] : rootEntries(this.#libraryFolders);
+        const ids = [...rows.flatMap((r) => r.entries), ...folders].map((e) => e.id ?? e.path);
+        if (focusedId && ids.includes(focusedId)) this.#lastTile = focusedId;
+        else if (this.#lastTile && !ids.includes(this.#lastTile)) this.#lastTile = undefined;
+        const featuredId = this.#lastTile ?? ids[0];
         return {
           heading: "Library",
-          entries: rootEntries(this.#libraryFolders).map((e) => this.#withMosaic(e)),
+          entries: this.#chip
+            ? []
+            : rootEntries(this.#libraryFolders).map((e) => ({
+                ...this.#withMosaic(e),
+                feature: { kind: "Folder" as const, title: e.title },
+              })),
           continueWatching: this.#continueEntries(),
+          rows,
+          chips: this.#chips(),
+          ...(featuredId ? { featuredId } : {}),
           emptyText: "No folders yet. Add one in Settings on the Mac.",
         };
+      }
       case "folder":
         return {
           heading: basename(this.#state.folderPath ?? ""),
@@ -215,6 +347,80 @@ export class Core {
       default:
         return undefined;
     }
+  }
+
+  /** The tile focused on the Library's first page, so rows that change under it don't move focus. */
+  #rootFocusId: string | undefined;
+  /** Home: the film card whose backdrop shows (focused, or last focused while Resume / From start has focus). */
+  #homeFilm: string | undefined;
+  #ambient = false;
+  #cancelAmbient: (() => void) | undefined;
+  #timeFormat: TimeFormat = "12";
+  #offTimeFormat: (() => void) | undefined;
+  /** The last tile focused on the Library's first page; the featured area keeps showing it while a chip or icon has focus. */
+  #lastTile: string | undefined;
+
+  #keepLibraryFocus(): void {
+    if (this.#state.view !== "library" || !this.#rootFocusId) return;
+    const at = this.#currentGrid().find((i) => i.id === this.#rootFocusId);
+    if (at) this.#state.focus[this.viewKey] = { r: at.r, c: at.c };
+  }
+
+  /** The chip row; an active chip that no longer exists is dropped. */
+  #chips(): LibraryChip[] {
+    const make = () =>
+      chipsFor({
+        details: this.details,
+        shows: this.library.shows().length,
+        films: this.library.films().length,
+        active: this.#chip,
+      });
+    let chips = make();
+    if (this.#chip && !chips.some((c) => c.key === this.#chip)) {
+      this.#chip = undefined;
+      chips = make();
+    }
+    return chips;
+  }
+
+  #rows(): ReturnType<typeof libraryRows> {
+    const chips = this.#chips();
+    return libraryRows({
+      ...(this.#chip && chips.length
+        ? { keep: keepFor(this.#chip, this.details) }
+        : this.#state.view === "library"
+          ? { auto: autoRows(this.details) }
+          : {}),
+      library: this.library,
+      history: this.#history,
+      decorate: (e) => this.#decorate(e),
+      continueEntries: this.#continueEntries(),
+      thumb: (p) => this.#thumbs.urlFor(p),
+      details: (id) => this.details.detailsFor(id),
+    });
+  }
+
+  /** TMDB details for a video path (its show or film, and the episode's own name, overview and still). */
+  #art(path: string): PathArt {
+    return artFor(this.library, (id) => this.details.detailsFor(id), path);
+  }
+
+  /** The episode's still, else a film's backdrop, else a frame from the video. */
+  #still(path: string, frame: (p: string) => string | undefined): string | undefined {
+    const { details, episode } = this.#art(path);
+    return episode?.still ?? details?.backdrop ?? frame(path);
+  }
+
+  /** Overlay title and line for a video: the TMDB episode name replaces the parsed one. */
+  #present(path: string): { title: string; line?: string } {
+    const p = presentation(path);
+    const name = this.#art(path).episode?.name;
+    return name ? { ...p, title: name } : p;
+  }
+
+  #nowGenres(path: string): { genres?: string } {
+    const genres = topGenres(this.#art(path).details);
+    return genres.length ? { genres: genres.join(" · ") } : {};
   }
 
   /** A video entry with its watched tag or progress, from the history. */
@@ -249,11 +455,12 @@ export class Core {
       this.#rootKey = undefined;
       return;
     }
-    const key = this.#libraryFolders.join("\0");
+    const rows = this.#rows();
+    const key = [...this.#libraryFolders, "", ...rows.wanted].join("\0");
     if (this.#rootKey === key) return;
     this.#rootKey = key;
     this.#mosaics.clear();
-    const paths: string[] = [];
+    const paths: string[] = [...rows.wanted];
     for (const f of this.#libraryFolders) {
       if (!existsSync(f)) continue;
       const m = mosaicSources(f);
@@ -266,14 +473,21 @@ export class Core {
   #continueEntries(): LibraryEntry[] {
     return this.#history.continueWatching().map((c) => {
       const { title, line } = presentation(c.path);
+      const { details, episode } = this.#art(c.path);
+      const thumb = this.#still(c.path, (p) => this.#thumbs.lookup(p));
       return this.#decorate({
         kind: "video",
         path: c.path,
-        title,
+        title: episode?.name ?? title,
         ...(line ? { line } : {}),
         hue: hueFor(title),
         folder: basename(dirname(c.path)),
-        thumb: this.#thumbs.lookup(c.path),
+        thumb,
+        ...(details?.backdrop ? { backdrop: details.backdrop } : {}),
+        ...(details?.genres?.length ? { genres: topGenres(details) } : {}),
+        ...((episode?.overview ?? details?.overview)
+          ? { overview: episode?.overview ?? details?.overview }
+          : {}),
       });
     });
   }
@@ -282,37 +496,28 @@ export class Core {
     if (this.#state.view === "home") {
       const base = this.#grids.get("home") ?? [];
       const videos = base.length ? this.#continueEntries().slice(0, HOME_VIDEOS) : [];
-      const newest = videos[0];
-      if (!newest) return base;
-      const apps = base.filter((i) => i.id !== "settings");
-      return [
-        ...base.filter((i) => i.id === "settings"),
-        {
-          id: "resume",
-          r: 1,
-          c: 0,
-          label: `Resume ${newest.title}`,
-          action: `library:play:${newest.path}`,
-          initial: true,
-        },
-        {
-          id: "fromstart",
-          r: 1,
-          c: 1,
-          label: `${newest.title} from start`,
-          action: `library:playstart:${newest.path}`,
-        },
-        ...apps.map((i) => ({ ...i, r: 2, initial: false })),
-        ...videos.map((v, i) => ({
-          id: v.path,
-          r: 2,
-          c: apps.length + i,
-          label: v.title,
-          action: `library:play:${v.path}`,
-        })),
-      ];
+      const gridFor = () =>
+        homeGrid(
+          base,
+          videos,
+          videos.find((v) => v.path === this.#homeFilm),
+        );
+      let grid = gridFor();
+      this.#homeFilm = filmAfterFocus(
+        resolveFocus(grid, this.#state.focus.home)?.id,
+        videos,
+        this.#homeFilm,
+      );
+      grid = gridFor();
+      return grid;
     }
     if (this.#state.view === "player") return this.#controls.grid();
+    if (this.#state.view === "details") return this.#detailsPage.grid();
+    if (this.#state.view === "show") return this.#show.grid();
+    if (this.#state.view === "fixMatch") return this.#show.fixGrid();
+    if (this.#state.view === "librarySearch") return this.#search.grid();
+    if (this.#state.view === "credits")
+      return [{ id: "done", r: 0, c: 0, label: "Done", action: "back", initial: true }];
     if (!this.#isLibraryView()) return this.#grids.get(this.viewKey) ?? [];
     const lib = this.#library()!;
     if (lib.folders) {
@@ -327,30 +532,38 @@ export class Core {
         })),
       ];
     }
-    const cont = lib.continueWatching ?? [];
     const tile = (e: LibraryEntry, r: number, c: number, initial: boolean): GridItem => ({
-      id: e.path,
+      id: e.id ?? e.path,
       r,
       c,
       label: e.title,
-      action: e.missing
-        ? "library:missing"
-        : e.kind === "folder"
-          ? `library:open:${e.path}`
-          : `library:play:${e.path}`,
+      action: tileAction(e),
       initial,
     });
-    // Row 0 is the top strip's gear, as on Home; tiles start on row 1.
-    const tiles = cont.length
-      ? [
-          ...cont.map((e, i) => tile(e, 1, i, i === 0)),
-          ...lib.entries.map((e, i) =>
-            tile(e, 2 + Math.floor(i / TILE_COLUMNS), i % TILE_COLUMNS, false),
-          ),
-        ]
-      : lib.entries.map((e, i) =>
-          tile(e, 1 + Math.floor(i / TILE_COLUMNS), i % TILE_COLUMNS, i === 0),
-        );
+    // Row 0 is the top strip's gear, as on Home; the chips are row 1 when there are any; each page row is one grid row, Folders wrap below.
+    const rows = lib.rows ?? [];
+    const chips = lib.chips ?? [];
+    const top = chips.length ? 2 : 1;
+    const chipItems: GridItem[] = chips.map((c, i) => ({
+      id: `chip:${c.key}`,
+      r: 1,
+      c: i,
+      label: c.label,
+      action: `library:chip:${c.key}`,
+    }));
+    const tiles = [
+      ...rows.flatMap((row, r) =>
+        row.entries.map((e, c) => tile(e, top + r, c, r === 0 && c === 0)),
+      ),
+      ...lib.entries.map((e, i) =>
+        tile(
+          e,
+          top + rows.length + Math.floor(i / TILE_COLUMNS),
+          i % TILE_COLUMNS,
+          rows.length === 0 && i === 0,
+        ),
+      ),
+    ];
     const gear: GridItem = {
       id: "settings",
       r: 0,
@@ -359,7 +572,14 @@ export class Core {
       action: "open:settings",
       initial: tiles.length === 0,
     };
-    return [gear, ...tiles];
+    const search: GridItem = {
+      id: "search",
+      r: 0,
+      c: -1,
+      label: "Search",
+      action: "library:search",
+    };
+    return [search, gear, ...chipItems, ...tiles];
   }
 
   #openFolder(path: string): void {
@@ -387,7 +607,16 @@ export class Core {
     else if (verb === "open") this.#openFolder(arg);
     else if (verb === "play") this.#play(arg);
     else if (verb === "playstart") this.#play(arg, true);
-    else if (verb === "remove") this.#saveFolders(this.#libraryFolders.filter((f) => f !== arg));
+    else if (verb === "search") {
+      this.#search.open();
+      if (this.#source === "screen") this.#search.action("search:field", "screen");
+    } else if (verb === "chip") {
+      this.#chip = this.#chip === arg || arg === "all" ? undefined : arg;
+      this.#lastTile = undefined;
+    } else if (verb === "show") {
+      this.#showFrom = this.#state.view === "librarySearch" ? "librarySearch" : "library";
+      this.#show.open(arg);
+    } else if (verb === "remove") this.#saveFolders(this.#libraryFolders.filter((f) => f !== arg));
     else if (verb === "add") {
       void this.#ports.mac
         .pickFolder()
@@ -409,7 +638,18 @@ export class Core {
     if (switching) this.savePlayingPosition();
     else this.#playedFrom = this.#state.view === "folder" ? "folder" : this.#state.view;
     if (this.#playedFrom === "folder") this.#focusEntry(path);
-    const upNext = (listFolder(dirname(path)) ?? []).filter((e) => e.kind === "video");
+    const show = this.library.showOf(path);
+    const upNext: LibraryEntry[] = show
+      ? show.seasons.flatMap((se) =>
+          se.episodes.map((e): LibraryEntry => ({
+            kind: "video",
+            path: e.path,
+            title: presentation(e.path).title,
+            hue: hueFor(presentation(e.path).title),
+          })),
+        )
+      : (listFolder(dirname(path)) ?? []).filter((e) => e.kind === "video");
+    this.#upNextLabel = show?.name;
     const startSeconds = fromStart ? undefined : this.#history.resumeAt(path);
     this.#state.player = { path, pos: startSeconds ?? 0, dur: 0, paused: false };
     this.#state.view = "player";
@@ -467,11 +707,26 @@ export class Core {
     if (this.#playedFrom === "folder") {
       this.#focusEntry(p.path, ended);
       this.#state.view = this.#state.folderPath ? "folder" : "library";
+    } else if (this.#playedFrom === "show" && this.#state.showId) {
+      this.#show.returnTo(p.path, ended);
     } else {
-      this.#state.view = this.#playedFrom;
+      this.#state.view = this.#playedFrom === "show" ? "library" : this.#playedFrom;
+      if (this.#state.view === "home") this.#focusHomeCard(p.path);
     }
     if (toast) this.#toast(toast);
+    this.#keepLibraryFocus();
     this.#emit();
+  }
+
+  /** Back on Home after a video started there: focus returns to its card, so its backdrop shows. */
+  #focusHomeCard(path: string): void {
+    const base = this.#grids.get("home") ?? [];
+    const videos = this.#continueEntries().slice(0, HOME_VIDEOS);
+    const film = videos.find((v) => v.path === path);
+    const card = homeGrid(base, videos, film).find((i) => i.id === path);
+    this.#homeFilm = card ? path : undefined;
+    if (card) this.#state.focus.home = { r: card.r, c: card.c };
+    else delete this.#state.focus.home;
   }
 
   #stopPlayback(): void {
@@ -561,7 +816,7 @@ export class Core {
       if (name === "playNext") this.#controls.playNext();
       else if (name === "back" || name === "home") {
         this.#endPlayback(undefined, true);
-        if (name === "home") this.#state.view = "home";
+        if (name === "home") this.#setView("home");
       } else return this.#controls.command(command);
       return true;
     }
@@ -574,7 +829,7 @@ export class Core {
     if (name === "back" || name === "home") {
       this.#stopPlayback();
       this.#endPlayback();
-      if (name === "home") this.#state.view = "home";
+      if (name === "home") this.#setView("home");
       return true;
     }
     if (name === "playpause" || name === "seekBy" || name === "seekTo" || name === "subtitles")
@@ -602,7 +857,7 @@ export class Core {
     const p = this.#state.player;
     if (!p) return undefined;
     return {
-      ...presentation(p.path),
+      ...this.#present(p.path),
       controls: this.#state.controls,
       dock:
         this.#state.controls !== "hidden" && this.#state.controls !== "next"
@@ -626,25 +881,28 @@ export class Core {
   #nextCard(): PlayerOverlay["next"] {
     const next = this.#controls.next;
     if (!next || this.#state.controls !== "next") return undefined;
-    const { title, line } = presentation(next.path);
+    const { title, line } = this.#present(next.path);
     return {
       title,
       ...(line ? { line } : {}),
-      thumb: this.#thumbs.lookup(next.path),
+      thumb: this.#still(next.path, (p) => this.#thumbs.lookup(p)),
       hue: hueFor(title),
       focusedId: this.#controls.focusedCard(),
     };
   }
 
+  /** The show's name while its episodes are the Up next list. */
+  #upNextLabel: string | undefined;
+
   #upNextTiles(): NonNullable<PlayerOverlay["upNext"]> {
     const playing = this.#state.player?.path;
     const tiles = this.#controls.upNext.map((e) => {
       const d = this.#decorate({ ...e });
-      const { title, line } = presentation(e.path);
+      const { title, line } = this.#present(e.path);
       return {
         title,
         ...(line ? { line } : {}),
-        thumb: this.#thumbs.lookup(e.path),
+        thumb: this.#still(e.path, (p) => this.#thumbs.lookup(p)),
         hue: hueFor(title),
         watched: d.watched === true,
         playing: e.path === playing,
@@ -653,14 +911,15 @@ export class Core {
     });
     return {
       tiles,
-      folder: basename(dirname(playing ?? "")),
+      folder: this.#upNextLabel ?? basename(dirname(playing ?? "")),
       focusedIndex: this.#controls.focusedTile,
     };
   }
 
+  /** The phone fetches pictures by key: a frame's, or a cached TMDB still or poster's. */
   #thumbKey(path: string): string | undefined {
-    return this.#thumbs
-      .urlFor(path)
+    const { details, episode } = this.#art(path);
+    return (episode?.still ?? details?.poster ?? this.#thumbs.urlFor(path))
       ?.split("/")
       .pop()
       ?.replace(/\.jpg$/, "");
@@ -672,7 +931,7 @@ export class Core {
       const key = this.#thumbKey(e.path);
       const progress = this.#history.progress(e.path);
       return {
-        ...presentation(e.path),
+        ...this.#present(e.path),
         ...(key ? { thumbKey: key } : {}),
         watched: this.#history.isWatched(e.path),
         playing: e.path === playing,
@@ -683,6 +942,7 @@ export class Core {
 
   #saveFolders(folders: string[]): void {
     this.#libraryFolders = folders;
+    void this.library.refresh(folders);
     this.#ports.store.write("library", { folders });
   }
 
@@ -691,13 +951,28 @@ export class Core {
     this.#syncRoot();
     const grid = this.#currentGrid();
     const focused = resolveFocus(grid, this.#state.focus[this.viewKey]);
+    if (this.#state.view === "library") this.#rootFocusId = focused?.id;
     const homeVideos = this.#continueEntries().slice(0, HOME_VIDEOS);
     return {
-      library: this.#library(),
+      library: this.#library(focused?.id),
+      ...(this.#state.view === "show" ? this.#show.payload() : {}),
+      ...(this.#state.view === "fixMatch" ? this.#show.fixPayload() : {}),
+      ...(this.#state.view === "librarySearch" ? this.#search.payload() : {}),
+      ...(this.#state.view === "details" ||
+      this.#state.view === "settings" ||
+      this.#state.view === "credits"
+        ? { details: this.details.settings() }
+        : {}),
       continueCard: this.#continueEntries()[0],
       homeVideos,
-      hero: homeVideos.find((v) => v.path === focused?.id) ?? homeVideos[0],
+      hero:
+        this.#state.view === "home" ? homeVideos.find((v) => v.path === this.#homeFilm) : undefined,
+      ambient: this.#ambient,
+      timeFormat: this.#timeFormat,
       overlay: this.#overlay(),
+      ...(this.#state.typingBy === "screen" && this.#typingFor
+        ? { screenTyping: this.#typingFor }
+        : {}),
       state: structuredClone(this.#state),
       viewKey: this.viewKey,
       grid,
@@ -711,11 +986,26 @@ export class Core {
   snapshot(remote: RemoteId): RemoteSnapshot {
     const s = this.#state;
     const card = s.view === "home" ? this.#continueEntries()[0] : undefined;
+    const searchable = SEARCH_FROM.includes(s.view);
+    const searching = s.typingBy === remote && this.#typingFor === "librarySearch";
     return {
       type: "snapshot",
-      where: s.view === "folder" ? basename(s.folderPath ?? "") : VIEW_LABELS[s.view],
+      where:
+        s.view === "library" && this.#chip
+          ? `Library · ${this.#chips().find((c) => c.active)?.label ?? ""}`
+          : s.view === "folder"
+            ? basename(s.folderPath ?? "")
+            : s.view === "show"
+              ? (this.library.show(s.showId ?? "")?.name ?? VIEW_LABELS.show)
+              : VIEW_LABELS[s.view],
       view: s.view,
-      layout: s.view === "home" || s.view === "youtube" || s.view === "player" ? s.view : "other",
+      layout:
+        s.view === "home" ||
+        s.view === "youtube" ||
+        s.view === "player" ||
+        s.view === "librarySearch"
+          ? s.view
+          : "other",
       ...(card
         ? {
             continueCard: {
@@ -728,24 +1018,38 @@ export class Core {
       ...(s.controls === "next" && this.#controls.next
         ? {
             next: {
-              ...presentation(this.#controls.next.path),
+              ...this.#present(this.#controls.next.path),
               ...(this.#thumbKey(this.#controls.next.path)
                 ? { thumbKey: this.#thumbKey(this.#controls.next.path) }
                 : {}),
             },
           }
         : {}),
-      typeAvailable: s.view === "youtube",
+      typeAvailable: s.view === "youtube" || s.view === "details" || searchable,
+      ...(this.#show.fixTarget() ? { fixAvailable: true } : {}),
+      ...(s.view === "details" ? { typeLabel: "Type TMDB key" } : {}),
+      ...(searchable ? { typeLabel: "Search Library" } : {}),
+      ...(searching
+        ? { typePlaceholder: "Search your Library", typeSeed: this.#search.query }
+        : {}),
       showVolume: s.view === "youtube",
       showSkip: s.view === "youtube",
-      typing: s.typingBy === undefined ? "none" : s.typingBy === remote ? "you" : "other",
+      typing:
+        s.typingBy === undefined
+          ? "none"
+          : s.typingBy === remote
+            ? "you"
+            : s.typingBy === "screen"
+              ? "screen"
+              : "other",
       nowPlaying: s.player && {
-        ...presentation(s.player.path),
+        ...this.#present(s.player.path),
         folder: basename(dirname(s.player.path)),
         position: s.player.pos,
         duration: s.player.dur,
         paused: s.player.paused,
         subtitlesOn: s.subtitlesOn,
+        ...this.#nowGenres(s.player.path),
       },
       ...(s.player && this.#controls.upNextAvailable ? { upNext: this.#upNextItems() } : {}),
       volume: s.volume,
@@ -779,13 +1083,21 @@ export class Core {
   }
 
   handle(command: Command, from: Source): void {
-    if ((command.command === "focusAt" || command.command === "showControls") && from !== "screen")
-      return;
+    if (SCREEN_ONLY.includes(command.command) && from !== "screen") return;
+    this.#source = from;
     if (from !== "screen") this.#lastFrom = from;
     this.#ports.mac.wakeDisplay();
     this.#armIdle();
+    if (this.#ambient) {
+      this.#ambient = false;
+      this.#armAmbient();
+      this.#emit();
+      return;
+    }
+    this.#armAmbient();
     if (command.command === "showControls" && !this.#state.player) return;
     if (command.command === "focusAt") return this.#focusAt(command.args?.r, command.args?.c);
+    if (this.#typingKeys(command, from)) return;
     if (this.#state.player && this.#playbackCommand(command)) {
       this.#emit();
       return;
@@ -796,12 +1108,22 @@ export class Core {
       case "left":
       case "right":
         this.#move(command.command);
+        if (from === "screen") this.#fieldReached();
         break;
       case "ok":
         this.#ok();
         break;
       case "back":
         this.#back();
+        break;
+      case "menu":
+        this.#show.menu();
+        break;
+      case "find":
+        this.#find();
+        break;
+      case "screenKey":
+        this.#screenKey(command.args?.text);
         break;
       case "home":
         this.#setView("home");
@@ -840,25 +1162,118 @@ export class Core {
     this.#emit();
   }
 
+  /** What a typing session started now would be typing into: decided by the view it opens in. */
+  #purposeFor(view: View): Purpose | undefined {
+    if (view === "youtube") return "search";
+    if (view === "details") return "tmdbKey";
+    return SEARCH_FROM.includes(view) ? "librarySearch" : undefined;
+  }
+
+  #endTyping(): void {
+    if (this.#state.typingBy === undefined) return;
+    if (this.#typingFor === "tmdbKey") this.#detailsPage.cancel();
+    this.#state.typingBy = undefined;
+    this.#typingFor = undefined;
+  }
+
+  /** ⌘F on the Screen: type a search wherever one can be typed. */
+  #find(): void {
+    const view = this.#state.view;
+    if (this.#purposeFor(view) === "tmdbKey" || this.#state.typingBy === "screen") return;
+    if (view === "youtube" || SEARCH_FROM.includes(view))
+      this.#type({ command: "typeOpen" }, "screen");
+  }
+
+  /** A printable key on the Library's first page opens search with it already typed. */
+  #screenKey(text: string | undefined): void {
+    if (this.#state.view !== "library" || text === undefined || [...text].length !== 1) return;
+    this.#type({ command: "typeOpen", args: { text } }, "screen");
+  }
+
+  /**
+   * While the Screen types: Esc/Back leaves the field, Down goes to the results, and anything else
+   * from a phone or the mouse ends the session before it does its usual job. True when handled here.
+   */
+  #typingKeys(command: Command, from: Source): boolean {
+    if (this.#state.typingBy !== "screen") return false;
+    const name = command.command;
+    if (name === "back") {
+      this.#type({ command: "typeCancel" }, "screen");
+    } else if (from === "screen" && NAV.includes(name)) {
+      if (name === "down" && this.#typingFor === "librarySearch")
+        this.#type({ command: "typeSubmit" }, "screen");
+    } else if (NAV.includes(name) || name === "ok") {
+      this.#endTyping();
+      return false;
+    } else {
+      return false;
+    }
+    this.#emit();
+    return true;
+  }
+
+  /** Moving up onto the search field from the results types there again. */
+  #fieldReached(): void {
+    if (this.#state.view !== "librarySearch" || this.#state.typingBy !== undefined) return;
+    const item = resolveFocus(this.#currentGrid(), this.#state.focus[this.viewKey]);
+    if (item?.id === "field") this.#search.action("search:field", "screen");
+  }
+
+  /** An edit of YouTube search text typed on the Mac keyboard while Couch captures it. */
+  #onEdit(edit: TextEdit): void {
+    if (this.#state.typingBy !== "screen" || this.#typingFor !== "search") return;
+    if (this.#state.view !== "youtube") return;
+    if ("done" in edit) {
+      this.#type({ command: edit.done === "submit" ? "typeSubmit" : "typeCancel" }, "screen");
+      return;
+    }
+    this.#state.query = applyEdit(this.#state.query, edit);
+  }
+
+  /** Mac-keyboard text for YouTube is captured only while the Screen owns a search session. */
+  #syncCapture(): void {
+    const on =
+      this.#state.view === "youtube" &&
+      this.#state.typingBy === "screen" &&
+      this.#typingFor === "search";
+    if (on === this.#capturing) return;
+    this.#capturing = on;
+    this.#ports.youtube.captureText(on);
+  }
+
   #type(command: Command, from: Source): void {
+    const owner = this.#state.typingBy;
+    if (command.command === "typeOpen") {
+      const purpose = this.#purposeFor(this.#state.view);
+      if (!purpose) return this.#toast(TYPING_HINT);
+      // The latest of a phone and the Screen to open takes over; one phone can't take from another.
+      if (owner !== undefined && owner !== from && from !== "screen" && owner !== "screen") return;
+      if (owner !== undefined && owner !== from) this.#endTyping();
+      return this.#typeFor(purpose, command, from);
+    }
+    if (owner === undefined || this.#typingFor === undefined) return;
+    this.#typeFor(this.#typingFor, command, from);
+  }
+
+  #typeFor(purpose: Purpose, command: Command, from: Source): void {
     const yt = this.#ports.youtube;
     const owner = this.#state.typingBy;
+    if (purpose === "tmdbKey") return this.#detailsPage.typeKey(command, from);
+    if (purpose === "librarySearch") return this.#search.type(command, from);
     switch (command.command) {
       case "typeOpen":
-        if (this.#state.view !== "youtube") return this.#toast(TYPING_HINT);
-        if (from === "screen" || (owner !== undefined && owner !== from)) return;
+        if (owner !== undefined && owner !== from) return;
         this.#state.typingBy = from;
+        this.#typingFor = "search";
         this.#state.query = "";
-        yt.openSearch();
         break;
       case "typeText":
         if (owner !== from) return;
         this.#state.query = command.args?.text ?? "";
-        yt.setSearchText(this.#state.query);
         break;
       case "typeSubmit":
         if (owner !== from) return;
-        yt.submitSearch();
+        if (this.#state.query.trim()) yt.submitSearch(this.#state.query);
         this.#state.typingBy = undefined;
         break;
       case "typeCancel":
@@ -874,6 +1289,26 @@ export class Core {
       this.#stopPlayback();
       this.#endPlayback();
     }
+  }
+
+  #readTimeFormat(): void {
+    const next = this.#ports.mac.timeFormat();
+    if (next === this.#timeFormat) return;
+    this.#timeFormat = next;
+    this.#emit();
+  }
+
+  /** Ambient mode: after 2 idle minutes on Home the App row and top strip fade away. */
+  #armAmbient(): void {
+    this.#cancelAmbient?.();
+    this.#cancelAmbient = undefined;
+    if (this.#state.view !== "home") return;
+    this.#cancelAmbient = this.#ports.clock.setTimeout(() => {
+      this.#cancelAmbient = undefined;
+      if (this.#state.view !== "home") return;
+      this.#ambient = true;
+      this.#emit();
+    }, AMBIENT_MS);
   }
 
   #armIdle(): void {
@@ -906,11 +1341,14 @@ export class Core {
   }
 
   dispose(): void {
+    this.details.dispose();
     this.#thumbs.dispose();
     this.#unsubDisplays();
     this.#cancelIdle?.();
     this.#cancelToast?.();
     this.#cancelMinute?.();
+    this.#cancelAmbient?.();
+    this.#offTimeFormat?.();
     this.#controls.dispose();
     this.#cancelSaves?.();
     this.#cancelNote?.();
@@ -925,6 +1363,11 @@ export class Core {
     const current = resolveFocus(grid, this.#state.focus[this.viewKey]);
     if (this.#state.view === "youtube") return this.#ports.youtube.sendKey(direction);
     if (!current) return;
+    if (this.#state.view === "show") {
+      this.#show.move(direction);
+      this.#show.syncTab();
+      return;
+    }
     const next = moveFocus(grid, current, direction);
     this.#state.focus[this.viewKey] = { r: next.r, c: next.c };
   }
@@ -935,6 +1378,7 @@ export class Core {
     const item = this.#currentGrid().find((i) => i.r === r && i.c === c);
     if (!item) return;
     this.#state.focus[this.viewKey] = { r: item.r, c: item.c };
+    this.#show.syncTab();
     this.#controls.cardActivity();
     this.#emit();
   }
@@ -945,7 +1389,13 @@ export class Core {
     const item = resolveFocus(grid, this.#state.focus[this.viewKey]);
     if (!item) return;
     if (item.action === "back") return this.#back();
-    if (this.#libraryAction(item.action)) return;
+    if (
+      this.#libraryAction(item.action) ||
+      this.#detailsPage.action(item.action, this.#source) ||
+      this.#search.action(item.action, this.#source) ||
+      this.#show.action(item.action)
+    )
+      return;
     const action = ACTIONS[item.action];
     // Placeholder Apps until they exist.
     if (action) action(this.#actionContext());
@@ -968,19 +1418,44 @@ export class Core {
       else this.#openFolder(dirname(path));
       return;
     }
+    if (this.#state.view === "library" && this.#chip) {
+      this.#chip = undefined;
+      this.#state.focus[this.viewKey] = { r: 1, c: 0 };
+      return;
+    }
+    if (this.#state.view === "librarySearch") return this.#setView("library");
+    if (this.#state.view === "show" && this.#showFrom === "librarySearch")
+      return this.#setView("librarySearch");
+    if (this.#state.view === "fixMatch") {
+      this.#show.leaveFix();
+      this.#keepLibraryFocus();
+      return;
+    }
     const target = BACK_TARGETS[this.#state.view];
     if (target) this.#setView(target);
+    this.#keepLibraryFocus();
   }
 
   /** Changes view; leaving YouTube hides it (pausing playback) and lets the display sleep again. */
   #setView(view: View): void {
     const from = this.#state.view;
+    if (view === "home") {
+      this.#chip = undefined;
+      this.#lastTile = undefined;
+      delete this.#state.focus.home;
+      this.#homeFilm = undefined;
+    }
     if (from === view) return;
     if (from === "youtube") {
       this.#state.typingBy = undefined;
       this.#ports.youtube.hide();
     }
     this.#state.view = view;
+    this.#ambient = false;
+    this.#armAmbient();
+    this.#releaseStrayTyping();
+    if (from === "details") this.#detailsPage.cancel();
+    if (view === "library") void this.library.refresh(this.#libraryFolders);
   }
 
   #openYouTube(): void {
@@ -1010,6 +1485,12 @@ export class Core {
       case "key":
         this.handle({ command: event.command }, "screen");
         return;
+      case "find":
+        if (this.#state.view === "youtube") this.handle({ command: "find" }, "screen");
+        return;
+      case "edit":
+        this.#onEdit(event.edit);
+        break;
       case "route":
         this.#ytTopLevel = event.topLevel;
         break;
@@ -1021,9 +1502,8 @@ export class Core {
           this.#remotes.has(this.#lastFrom)
         ) {
           this.#state.typingBy = this.#lastFrom;
+          this.#typingFor = "search";
           this.#state.query = "";
-        } else if (this.#state.typingBy !== undefined && this.#state.query) {
-          this.#ports.youtube.setSearchText(this.#state.query);
         }
         break;
       default:
@@ -1039,6 +1519,19 @@ export class Core {
     if (level === this.#shownYtVolume) return;
     this.#shownYtVolume = level;
     this.#ports.youtube.showVolume(level);
+  }
+
+  /** The floating search bar draws over YouTube only while a search session types for it. */
+  #syncYouTubeBar(): void {
+    const text =
+      this.#state.view === "youtube" &&
+      this.#state.typingBy !== undefined &&
+      this.#typingFor === "search"
+        ? this.#state.query
+        : undefined;
+    if (text === this.#shownYtBar) return;
+    this.#shownYtBar = text;
+    this.#ports.youtube.showSearchBar(text);
   }
 
   async #setVolume(percent: number): Promise<void> {
@@ -1086,12 +1579,24 @@ export class Core {
   #scheduleMinute(): void {
     const wait = 60_000 - (this.#ports.clock.now() % 60_000);
     this.#cancelMinute = this.#ports.clock.setTimeout(() => {
+      this.#readTimeFormat();
       this.#emit();
       this.#scheduleMinute();
     }, wait);
   }
 
+  /** Typing belongs to one view; leaving it closes the sheet. The search query outlives it only for Back. */
+  #releaseStrayTyping(): void {
+    const { view, typingBy } = this.#state;
+    if (typingBy !== undefined && TYPING_VIEW[this.#typingFor ?? "search"] !== view) {
+      this.#state.typingBy = undefined;
+      this.#typingFor = undefined;
+    }
+    if (!SEARCH_KEEPS.includes(view)) this.#search.reset();
+  }
+
   #emit(): void {
+    this.#releaseStrayTyping();
     const raised =
       this.#state.controls !== "hidden" &&
       this.#state.controls !== "next" &&
@@ -1103,6 +1608,8 @@ export class Core {
     }
     this.#syncDisplayAwake();
     this.#syncYouTubeVolume();
+    this.#syncYouTubeBar();
+    this.#syncCapture();
     for (const l of [...this.#listeners]) l();
   }
 }
