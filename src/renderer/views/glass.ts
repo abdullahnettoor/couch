@@ -75,11 +75,12 @@ export function glassPill(
 export function splitPage(
   art: { icon: IconName } | { image: string; alt: string } | { html: string },
   content: HTMLElement[],
+  options: { compact?: boolean } = {},
 ): void {
   root.replaceChildren();
   const page = el("div", "screen-glass");
   page.append(splitArt(art));
-  const list = el("div", "split-list");
+  const list = el("div", options.compact ? "split-list compact" : "split-list");
   list.append(...content);
   page.append(list);
   root.append(page);
