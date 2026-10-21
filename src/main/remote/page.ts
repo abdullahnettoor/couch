@@ -259,7 +259,8 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     }
     $("other").hidden = s.typing !== "other";
     var mine = s.typing === "you";
-    if (mine && $("sheet").hidden) { $("text").value = ""; $("sheet").hidden = false; $("text").focus(); }
+    $("text").placeholder = s.typePlaceholder || "";
+    if (mine && $("sheet").hidden) { $("text").value = s.typeSeed || ""; $("sheet").hidden = false; $("text").focus(); }
     if (!mine) { $("sheet").hidden = true; $("text").blur(); }
   }
 

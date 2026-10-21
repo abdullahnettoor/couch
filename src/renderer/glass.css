@@ -897,3 +897,60 @@ body.windowed .topbar [data-id] {
 .lf-feat p {
   text-shadow: 0 calc(2 * var(--u)) calc(18 * var(--u)) rgba(0, 0, 0, 0.55);
 }
+
+/* ---- Library search ---- */
+.ls-field {
+  position: absolute;
+  left: calc(96 * var(--u));
+  top: calc(64 * var(--u));
+  display: flex;
+  align-items: center;
+  gap: calc(22 * var(--u));
+  width: calc(900 * var(--u));
+  height: calc(92 * var(--u));
+  padding: 0 calc(36 * var(--u));
+  border-radius: calc(46 * var(--u));
+  font-size: calc(34 * var(--u));
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.ls-field svg {
+  flex: none;
+  font-size: calc(38 * var(--u));
+  color: var(--t3);
+}
+.ls-field .ph {
+  color: var(--t3);
+}
+.ls-field .caret {
+  width: calc(3 * var(--u));
+  height: calc(44 * var(--u));
+  margin-left: calc(-14 * var(--u));
+  background: #fff;
+  animation: ls-blink 1s steps(2, start) infinite;
+}
+.ls-field.focused {
+  background: #fff;
+  color: #000;
+  box-shadow: 0 calc(18 * var(--u)) calc(40 * var(--u)) rgba(0, 0, 0, 0.5);
+}
+.ls-field.focused svg,
+.ls-field.focused .ph {
+  color: rgba(0, 0, 0, 0.45);
+}
+.ls-field.focused .caret {
+  background: #000;
+}
+@keyframes ls-blink {
+  to {
+    visibility: hidden;
+  }
+}
+.ls-body {
+  top: calc(200 * var(--u));
+  padding-bottom: calc(520 * var(--u));
+}
+.ls-shelf {
+  overflow-x: hidden;
+}

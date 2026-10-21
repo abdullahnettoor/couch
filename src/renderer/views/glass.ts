@@ -15,6 +15,18 @@ export function topbar(payload: ScreenPayload): HTMLElement {
       n > 0 ? `${n} ${n === 1 ? "phone" : "phones"} connected` : "No phone connected"
     }</div>`,
   );
+  if (payload.state.view === "library") {
+    bar.append(
+      focusable(
+        el(
+          "button",
+          `tb-gear${payload.focusedId === "search" ? " focused" : ""}`,
+          iconSvg("search"),
+        ),
+        "search",
+      ),
+    );
+  }
   bar.append(
     focusable(
       el("button", `tb-gear${payload.focusedId === "settings" ? " focused" : ""}`, iconSvg("gear")),

@@ -38,7 +38,7 @@ function picture(e: LibraryEntry): string {
 }
 
 /** `withFolder`: Continue watching cards say which folder the video is in. */
-function card(
+export function card(
   e: LibraryEntry,
   payload: ScreenPayload,
   withFolder = false,
@@ -65,7 +65,7 @@ function card(
 }
 
 /** Poster tiles without a picture show their title over the plain colour, as the prototype's Frames mode. */
-function posterLabel(node: HTMLElement, e: LibraryEntry): void {
+export function posterLabel(node: HTMLElement, e: LibraryEntry): void {
   if (e.thumb) return;
   node.querySelector(".g-tile")!.append(el("div", "lib-lbl", escape(e.title)));
 }
