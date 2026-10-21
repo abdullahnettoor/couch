@@ -61,8 +61,10 @@ test("a keystroke on a household-sized Library (≈150 titles, ≈500 episodes) 
   await phone.press("typeOpen");
   const text = "panda story";
   const start = performance.now();
-  for (let i = 1; i <= text.length; i++)
+  for (let i = 1; i <= text.length; i++) {
     await phone.press({ command: "typeText", args: { text: text.slice(0, i) } });
+    h.clock.advance(150);
+  }
   const each = (performance.now() - start) / text.length;
   console.log(`search keystroke: ${each.toFixed(1)} ms`);
   expect(h.screen.last.search!.rows.length).toBeGreaterThan(0);

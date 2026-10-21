@@ -63,6 +63,8 @@ export interface TitleDetails {
   overview?: string;
   poster?: string;
   backdrop?: string;
+  /** TMDB genre names, when saved. */
+  genres?: string[];
   seasons: {
     number: number;
     episodes: (Omit<EpisodeDetails, "stillPath"> & { still?: string })[];
@@ -481,6 +483,7 @@ export class MetadataService {
         ? { years: yearsLabel(e.year, e.endYear, e.ongoing) }
         : {}),
       ...(e.overview ? { overview: e.overview } : {}),
+      ...(e.genres?.length ? { genres: e.genres } : {}),
       poster: image("poster", e.posterPath),
       backdrop: image("backdrop", e.backdropPath),
       seasons: (e.seasons ?? []).map((s) => ({

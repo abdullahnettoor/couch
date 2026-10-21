@@ -13,6 +13,7 @@ import type { MediaLibrary } from "./media-library.ts";
 import type { MatchOption, MetadataService } from "./metadata-service.ts";
 import { EXTRAS_TAB, allEpisodes, primaryFor, tabIds, tabOf } from "./show-page.ts";
 import type { PathArt } from "./art.ts";
+import { topGenres } from "./library-rows.ts";
 import type { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
 
 /** What the show page and Fix match ask of the core. */
@@ -334,6 +335,7 @@ export class ShowView {
         ...(backdrop ? { backdrop } : {}),
         ...(d?.poster ? { poster: d.poster } : {}),
         ...(d?.overview ? { overview: d.overview } : {}),
+        ...(d?.genres?.length ? { genres: topGenres(d) } : {}),
         tabs: tabs.map((t) => ({
           id: t,
           label: t === EXTRAS_TAB ? "Extras" : `Season ${t}`,

@@ -1,4 +1,4 @@
-import { noteScript, volumeScript } from "./youtube-hud.ts";
+import { noteScript, searchBarScript, volumeScript } from "./youtube-hud.ts";
 import { join } from "node:path";
 import { app, BrowserWindow, WebContentsView, clipboard, session } from "electron";
 import { SCREEN_KEYS, textEditFor } from "../../shared/keyboard.ts";
@@ -31,9 +31,6 @@ export function searchUrlFor(text: string): string {
   return q ? `${SEARCH_URL}?q=${encodeURIComponent(q)}` : SEARCH_URL;
 }
 
-/** Live text waits for a pause in typing so YouTube isn't asked for results on every letter. */
-const TYPING_SETTLE_MS = 350;
-
 export function isSearchUrl(url: string): boolean {
   return /#\/search\b/.test(url);
 }
@@ -56,8 +53,6 @@ export class ElectronYouTube implements YouTube {
   #sending = false;
   #capturing = false;
   #inSearch = false;
-  #query = "";
-  #typingTimer: ReturnType<typeof setTimeout> | undefined;
   #skipTimer: ReturnType<typeof setTimeout> | undefined;
   #lastSkipAt = 0;
 
@@ -238,26 +233,19 @@ export class ElectronYouTube implements YouTube {
     }, SKIP_COMMIT_MS);
   }
 
-  openSearch(): void {
-    this.#query = "";
-    if (!isSearchUrl(this.#view.webContents.getURL())) this.#goToSearch("");
-  }
-
-  /** Mirrors the phone's text through YouTube's search link; no page content is read or edited. */
-  setSearchText(text: string): void {
-    this.#query = text;
-    clearTimeout(this.#typingTimer);
-    this.#typingTimer = setTimeout(() => this.#goToSearch(this.#query), TYPING_SETTLE_MS);
-  }
-
   captureText(on: boolean): void {
     this.#capturing = on;
   }
 
-  submitSearch(): void {
-    clearTimeout(this.#typingTimer);
-    this.#goToSearch(this.#query);
+  submitSearch(text: string): void {
+    // Going to search is Couch's own doing, not the household opening YouTube's search screen.
+    this.#inSearch = true;
+    this.#goToSearch(text);
     this.#view.webContents.focus();
+  }
+
+  showSearchBar(text: string | undefined): void {
+    void this.#view.webContents.executeJavaScript(searchBarScript(text)).catch(() => {});
   }
 
   #goToSearch(text: string): void {

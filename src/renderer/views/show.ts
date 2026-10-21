@@ -1,5 +1,5 @@
 import type { ScreenPayload, ShowEpisode } from "../../shared/protocol.ts";
-import { el, focusable, root } from "./dom.ts";
+import { el, focusable, genreLabels, root } from "./dom.ts";
 import { glassPill, topbar } from "./glass.ts";
 
 function escape(text: string): string {
@@ -70,6 +70,7 @@ export function render(payload: ScreenPayload): void {
       : []),
     el("h1", "", escape(show.name)),
     el("div", "sh-meta", show.meta.map((m) => `<span>${escape(m)}</span>`).join("<i>·</i>")),
+    ...(show.genres?.length ? [el("div", "sh-genres", genreLabels(show.genres))] : []),
     ...(show.overview || reserved ? [el("p", "sh-ov", escape(show.overview ?? ""))] : []),
     el("div", "sh-acts"),
   );

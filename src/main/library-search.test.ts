@@ -75,6 +75,7 @@ async function openSearch() {
 }
 async function type(text: string) {
   await phone.press({ command: "typeText", args: { text } });
+  h.clock.advance(150);
 }
 const rows = () => screen().search!.rows;
 const titles = (id: string) =>
@@ -267,8 +268,10 @@ describe("Library search", () => {
       await phone.press("typeOpen");
       expect(phone.last!.typing).toBe("you");
       await type("cats");
+      expect(h.youtube.calls.filter((c) => c.call === "submitSearch")).toEqual([]);
+      await phone.press("typeSubmit");
       expect(
-        h.youtube.calls.filter((c) => c.call === "setSearchText").map((c) => c.args[0]),
+        h.youtube.calls.filter((c) => c.call === "submitSearch").map((c) => c.args[0]),
       ).toEqual(["cats"]);
     });
 

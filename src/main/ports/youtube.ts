@@ -23,10 +23,10 @@ export interface YouTube {
   /** Hides the view and pauses playback; it stays loaded. */
   hide(): void;
   sendKey(key: YouTubeKey): void;
-  /** Moves YouTube to its search screen if it is not there already. */
-  openSearch(): void;
-  setSearchText(text: string): void;
-  submitSearch(): void;
+  /** Searches YouTube for the whole text, once (YouTube's search link). */
+  submitSearch(text: string): void;
+  /** Draws Couch's floating search bar with this text over the view, or removes it when undefined. */
+  showSearchBar(text: string | undefined): void;
   /** While on, every key on the Mac keyboard becomes an `edit` event instead of reaching YouTube. */
   captureText(on: boolean): void;
   playPause(): void;

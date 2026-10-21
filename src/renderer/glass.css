@@ -539,6 +539,25 @@ svg.i {
   letter-spacing: 0.02em;
   color: var(--t2);
 }
+.genres {
+  display: flex;
+  gap: calc(10 * var(--u));
+  margin-top: calc(14 * var(--u));
+}
+.genre.g-pill {
+  height: auto;
+  padding: calc(6 * var(--u)) calc(18 * var(--u));
+  border-radius: calc(20 * var(--u));
+  font-size: calc(20 * var(--u));
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: none;
+}
+.sh-genres {
+  margin: calc(16 * var(--u)) 0 0;
+}
+.sh-genres .genres {
+  margin-top: 0;
+}
 .lf-feat h1 {
   margin: calc(12 * var(--u)) 0 0;
   padding-bottom: calc(4 * var(--u));
@@ -962,12 +981,13 @@ body.windowed .topbar [data-id] {
 /* ---- Library search ---- */
 .ls-field {
   position: absolute;
-  left: calc(96 * var(--u));
-  top: calc(64 * var(--u));
+  left: 50%;
+  translate: -50% 0;
+  top: calc(56 * var(--u));
   display: flex;
   align-items: center;
   gap: calc(22 * var(--u));
-  width: calc(900 * var(--u));
+  width: calc(800 * var(--u));
   height: calc(92 * var(--u));
   padding: 0 calc(36 * var(--u));
   border-radius: calc(46 * var(--u));
@@ -975,6 +995,36 @@ body.windowed .topbar [data-id] {
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
+}
+.ls-field.drop {
+  animation: ls-drop 0.22s var(--ease);
+}
+@keyframes ls-drop {
+  from {
+    opacity: 0;
+    translate: -50% calc(-40 * var(--u));
+  }
+}
+.ls-field .hint {
+  margin-left: auto;
+  font-size: calc(22 * var(--u));
+  font-weight: 600;
+  color: var(--t3);
+}
+.ls-field.focused .hint {
+  color: rgba(0, 0, 0, 0.45);
+}
+.ls-page .phones {
+  display: none;
+}
+.ls-searching {
+  position: absolute;
+  left: 50%;
+  translate: -50% 0;
+  top: calc(164 * var(--u));
+  font-size: calc(22 * var(--u));
+  font-weight: 600;
+  color: var(--t3);
 }
 .ls-field svg {
   flex: none;

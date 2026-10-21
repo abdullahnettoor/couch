@@ -35,7 +35,10 @@ afterEach(async () => {
 const screen = () => h.screen.last;
 const key = (command: Command["command"] | Command) =>
   h.app.screenCommand(typeof command === "string" ? { command } : command);
-const text = (value: string) => key({ command: "typeText", args: { text: value } });
+const text = (value: string) => {
+  key({ command: "typeText", args: { text: value } });
+  h.clock.advance(150);
+};
 const films$ = () =>
   screen()
     .search!.rows.find((r) => r.id === "films")
@@ -176,6 +179,52 @@ describe("Screen typing: Library search", () => {
   });
 });
 
+describe("Library search bar: debounce", () => {
+  const raw = (value: string) => key({ command: "typeText", args: { text: value } });
+
+  test("results follow 150 ms after the last keystroke, with Searching… until then", () => {
+    toLibrary();
+    key("find");
+    raw("pan");
+    expect(screen().search!.searching).toBe(true);
+    expect(films$()).toEqual([]);
+    h.clock.advance(100);
+    raw("pand");
+    h.clock.advance(100);
+    expect(films$()).toEqual([]);
+    expect(screen().search!.searching).toBe(true);
+    h.clock.advance(50);
+    expect(films$()).toEqual(["Panda", "Pandemic", "Kung Fu Panda 4"]);
+    expect(screen().search!.searching).toBe(false);
+  });
+
+  test("a printable key opens the bar already searching for it", () => {
+    toLibrary();
+    key({ command: "screenKey", args: { text: "a" } });
+    expect(screen().search!.query).toBe("a");
+    expect(screen().search!.searching).toBe(true);
+    h.clock.advance(150);
+    expect(screen().search!.searching).toBe(false);
+  });
+
+  test("Enter shows the results at once and keeps the bar's query", () => {
+    toLibrary();
+    key("find");
+    raw("panda");
+    key("typeSubmit");
+    expect(screen().search!.searching).toBe(false);
+    expect(screen().search!.query).toBe("panda");
+    expect(screen().focusedId).toBe(`search:films:${join(root, "Films", "Panda (2020).mkv")}`);
+  });
+
+  test("no Searching… for an empty query", () => {
+    toLibrary();
+    key("find");
+    raw("");
+    expect(screen().search!.searching).toBe(false);
+  });
+});
+
 describe("Screen typing: TMDB key", () => {
   test("typed on the Screen, saved on Enter, and never in a payload, snapshot or toast", async () => {
     await toDetails();
@@ -234,18 +283,18 @@ describe("Screen typing: YouTube", () => {
   test("⌘F or / opens Couch's typing path; typed text reaches setSearchText; Enter submits", () => {
     key("find");
     expect(screen().state.typingBy).toBe("screen");
-    expect(calls("openSearch")).toHaveLength(1);
     expect(calls("captureText").at(-1)!.args).toEqual([true]);
     h.youtube.emit({ type: "edit", edit: { insert: "k" } });
     h.youtube.emit({ type: "edit", edit: { insert: "er" } });
     h.youtube.emit({ type: "edit", edit: { erase: "char" } });
     h.youtube.emit({ type: "edit", edit: { insert: "ala" } });
-    expect(calls("setSearchText").map((c) => c.args[0])).toEqual(["k", "ker", "ke", "keala"]);
+    expect(screen().state.query).toBe("keala");
     h.youtube.emit({ type: "edit", edit: { erase: "word" } });
-    expect(calls("setSearchText").at(-1)!.args).toEqual([""]);
+    expect(screen().state.query).toBe("");
     h.youtube.emit({ type: "edit", edit: { insert: "cats" } });
+    expect(calls("submitSearch")).toHaveLength(0);
     h.youtube.emit({ type: "edit", edit: { done: "submit" } });
-    expect(calls("submitSearch")).toHaveLength(1);
+    expect(calls("submitSearch").map((c) => c.args)).toEqual([["cats"]]);
     expect(screen().state.typingBy).toBeUndefined();
     expect(calls("captureText").at(-1)!.args).toEqual([false]);
   });
@@ -258,7 +307,7 @@ describe("Screen typing: YouTube", () => {
     expect(screen().state.typingBy).toBeUndefined();
     expect(calls("submitSearch")).toHaveLength(0);
     h.youtube.emit({ type: "edit", edit: { insert: "stray" } });
-    expect(calls("setSearchText").map((c) => c.args[0])).toEqual(["a"]);
+    expect(screen().state.query).toBe("a");
   });
 
   test("other keys keep driving YouTube while no session is open", () => {
@@ -273,7 +322,7 @@ describe("Screen typing: YouTube", () => {
     expect(screen().state.typingBy).toBeUndefined();
     expect(calls("captureText").at(-1)!.args).toEqual([false]);
     h.youtube.emit({ type: "edit", edit: { insert: "x" } });
-    expect(calls("setSearchText")).toEqual([]);
+    expect(screen().state.query).toBe("");
   });
 });
 
@@ -286,7 +335,7 @@ describe("Screen and phone take over from each other", () => {
     key("find");
     await phone.settle();
     expect(screen().state.typingBy).toBe("screen");
-    expect(phone.last!.typing).toBe("other");
+    expect(phone.last!.typing).toBe("screen");
     await phone.press({ command: "typeText", args: { text: "intruder" } });
     expect(screen().search!.query).toBe("");
     text("amelie");
@@ -304,6 +353,7 @@ describe("Screen and phone take over from each other", () => {
     text("hijack");
     expect(screen().search!.query).toBe("pan");
     await phone.press({ command: "typeText", args: { text: "amelie" } });
+    h.clock.advance(150);
     expect(films$()).toEqual(["Amélie"]);
   });
 
@@ -314,16 +364,16 @@ describe("Screen and phone take over from each other", () => {
     expect(phone.last!.typing).toBe("you");
     h.youtube.emit({ type: "find" });
     await phone.settle();
-    expect(phone.last!.typing).toBe("other");
+    expect(phone.last!.typing).toBe("screen");
     await phone.press({ command: "typeText", args: { text: "nope" } });
-    expect(calls("setSearchText")).toEqual([]);
+    expect(screen().state.query).toBe("");
     h.youtube.emit({ type: "edit", edit: { insert: "yes" } });
-    expect(calls("setSearchText").map((c) => c.args[0])).toEqual(["yes"]);
+    expect(screen().state.query).toBe("yes");
     await phone.press("typeOpen");
     expect(phone.last!.typing).toBe("you");
     expect(calls("captureText").at(-1)!.args).toEqual([false]);
     h.youtube.emit({ type: "edit", edit: { insert: "late" } });
-    expect(calls("setSearchText").map((c) => c.args[0])).toEqual(["yes"]);
+    expect(screen().state.query).toBe("");
   });
 
   test("two phones still cannot take over from each other", async () => {
@@ -346,7 +396,7 @@ describe("nothing typed for one purpose reaches another", () => {
     toLibrary();
     key("find");
     expect(screen().search!.query).toBe("");
-    expect(h.youtube.calls.filter((c) => c.call === "setSearchText")).toEqual([]);
+    expect(calls("submitSearch")).toEqual([]);
     expect(await everything()).not.toContain(SECRET);
   });
 
@@ -356,7 +406,7 @@ describe("nothing typed for one purpose reaches another", () => {
     text("panda");
     key("typeSubmit");
     expect(h.app.core.details.settings().hasOwnKey).toBe(false);
-    expect(calls("setSearchText")).toEqual([]);
+    expect(calls("submitSearch")).toEqual([]);
     await toDetails();
     key("typeSubmit");
     expect(h.app.core.details.settings().hasOwnKey).toBe(false);

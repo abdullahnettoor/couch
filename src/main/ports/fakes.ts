@@ -90,14 +90,11 @@ export class FakeYouTube implements YouTube {
   sendKey(key: YouTubeKey) {
     this.#record("sendKey", key);
   }
-  openSearch() {
-    this.#record("openSearch");
+  submitSearch(text: string) {
+    this.#record("submitSearch", text);
   }
-  setSearchText(text: string) {
-    this.#record("setSearchText", text);
-  }
-  submitSearch() {
-    this.#record("submitSearch");
+  showSearchBar(text: string | undefined) {
+    this.#record("showSearchBar", text);
   }
   captureText(on: boolean) {
     this.#record("captureText", on);

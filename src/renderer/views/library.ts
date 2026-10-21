@@ -1,6 +1,6 @@
 import type { LibraryEntry, LibraryRow, ScreenPayload } from "../../shared/protocol.ts";
 import { iconSvg } from "../../shared/icons.ts";
-import { el, focusable, root } from "./dom.ts";
+import { el, focusable, genreLabels, root } from "./dom.ts";
 import { topbar } from "./glass.ts";
 
 function escape(text: string): string {
@@ -216,7 +216,7 @@ function renderRoot(payload: ScreenPayload): void {
     "div",
     "lf-feat",
     feat
-      ? `<div class="k">${escape([feat.kind.toUpperCase(), feat.sub].filter(Boolean).join(" · "))}</div><h1>${escape(feat.title)}</h1>${feat.overview ? `<p>${escape(feat.overview)}</p>` : ""}`
+      ? `<div class="k">${escape([feat.kind.toUpperCase(), feat.sub].filter(Boolean).join(" · "))}</div>${genreLabels(feat.genres)}<h1>${escape(feat.title)}</h1>${feat.overview ? `<p>${escape(feat.overview)}</p>` : ""}`
       : "",
   );
   const body = el("div", "lib-body lf-body");

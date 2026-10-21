@@ -141,6 +141,8 @@ export interface LibraryEntry {
     overview?: string;
     /** TMDB backdrop for the featured area's background. */
     backdrop?: string;
+    /** Up to three TMDB genres, drawn as small labels. */
+    genres?: string[];
   };
   /** Home: TMDB backdrop for the hero (the tile's `thumb` is the still or poster-sized art). */
   backdrop?: string;
@@ -210,6 +212,8 @@ export interface ShowPagePayload {
   primary: string;
   /** The TMDB backdrop, or a frame from the episode the primary button plays. */
   backdrop?: string;
+  /** Up to three TMDB genres, drawn as small labels. */
+  genres?: string[];
   /** TMDB poster for the left column. */
   poster?: string;
   /** TMDB overview, four lines. */
@@ -232,6 +236,8 @@ export interface FixMatchPayload {
 /** The Library search view: the live query and its result rows (Shows, Films, Episodes). */
 export interface LibrarySearchPayload {
   query: string;
+  /** Typing paused less than a moment ago: the results below are for an earlier query. */
+  searching: boolean;
   /** A phone's typing sheet is open (the field shows a caret). */
   typing: boolean;
   rows: LibraryRow[];
@@ -312,7 +318,8 @@ export interface RemoteSnapshot {
   typePlaceholder?: string;
   /** The text the typing sheet starts with (the Library search keeps its query). */
   typeSeed?: string;
-  typing: "none" | "you" | "other";
+  /** "other": another phone is typing; "screen": the Mac keyboard is. */
+  typing: "none" | "you" | "other" | "screen";
   /** The end-of-video card: the next video in the folder, waiting for a Play press. */
   next?: { title: string; line?: string; thumbKey?: string };
   nowPlaying?: {
@@ -323,6 +330,8 @@ export interface RemoteSnapshot {
     duration: number;
     paused: boolean;
     subtitlesOn: boolean;
+    /** "Animation · Comedy": up to three genres, when details have them. */
+    genres?: string;
   };
   /** The playing Library video's folder, while a video plays (and has company). */
   upNext?: UpNextItem[];

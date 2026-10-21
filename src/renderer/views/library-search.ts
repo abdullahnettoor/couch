@@ -27,13 +27,15 @@ function rowBlock(row: LibraryRow, payload: ScreenPayload): HTMLElement {
 export function render(payload: ScreenPayload): void {
   const search = payload.search;
   if (!search) return;
+  const entering = !root.querySelector(".ls-page");
   root.replaceChildren();
   const page = el("div", "screen-glass ls-page");
   const onScreen = payload.screenTyping === "librarySearch";
+  const typing = onScreen || search.typing;
   const field = focusable(
     el(
       "div",
-      `ls-field g-pill glass${payload.focusedId === "field" ? " focused" : ""}`,
+      `ls-field g-pill glass${entering ? " drop" : ""}${payload.focusedId === "field" ? " focused" : ""}`,
       `${iconSvg("search")}${
         onScreen
           ? ""
@@ -45,6 +47,7 @@ export function render(payload: ScreenPayload): void {
     "field",
   );
   if (onScreen) field.append(typingSlot());
+  if (typing) field.append(el("span", "hint", "Enter for results · Esc to close"));
   const body = el("div", "lib-body ls-body");
   if (search.rows.length) {
     for (const row of search.rows) body.append(rowBlock(row, payload));
@@ -55,6 +58,7 @@ export function render(payload: ScreenPayload): void {
     body.append(el("div", "lib-empty glass", `${iconSvg("search")}<span>${text}</span>`));
   }
   page.append(field, body, topbar(payload));
+  if (search.searching) page.append(el("div", "ls-searching", "Searching…"));
   root.append(page);
 
   const focused = body.querySelector<HTMLElement>(".lib-card.focused");

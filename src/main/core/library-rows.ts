@@ -40,9 +40,14 @@ function filmSub(year?: string, edition?: string): { sub?: string } {
   return sub ? { sub } : {};
 }
 
+/** Up to three genres, for the labels under a title. */
+export const topGenres = (d?: { genres?: string[] }) => (d?.genres ?? []).slice(0, 3);
+const genreLabels = (d?: { genres?: string[] }) =>
+  d?.genres?.length ? { genres: topGenres(d) } : {};
+
 function showFeature(
   show: Show,
-  d?: { overview?: string; backdrop?: string; years?: string },
+  d?: { overview?: string; backdrop?: string; years?: string; genres?: string[] },
 ): NonNullable<LibraryEntry["feature"]> {
   const sub = [d?.years ?? show.year, plural(show.seasons.length, "season")]
     .filter(Boolean)
@@ -53,6 +58,7 @@ function showFeature(
     sub,
     ...(d?.overview ? { overview: d.overview } : {}),
     ...(d?.backdrop ? { backdrop: d.backdrop } : {}),
+    ...genreLabels(d),
   };
 }
 
@@ -122,6 +128,7 @@ export function libraryRows(ctx: RowsContext): { rows: LibraryRow[]; wanted: str
         ...filmSub(d?.years ?? (film.year ? String(film.year) : undefined), film.edition),
         ...(d?.overview ? { overview: d.overview } : {}),
         ...(d?.backdrop ? { backdrop: d.backdrop } : {}),
+        ...genreLabels(d),
       },
     });
   };
@@ -151,6 +158,7 @@ export function libraryRows(ctx: RowsContext): { rows: LibraryRow[]; wanted: str
             ...filmSub(d?.years ?? (film?.year ? String(film.year) : undefined), film?.edition),
             ...(d?.overview ? { overview: d.overview } : {}),
             ...(d?.backdrop ? { backdrop: d.backdrop } : {}),
+            ...genreLabels(d),
           },
     };
   });

@@ -30,7 +30,7 @@ import { ACTIONS, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
 import { MediaLibrary } from "./media-library.ts";
 import { artFor, type PathArt } from "./art.ts";
-import { libraryRows, tileAction } from "./library-rows.ts";
+import { libraryRows, tileAction, topGenres } from "./library-rows.ts";
 import { autoRows, chipsFor, keepFor } from "./library-chips.ts";
 import { presentation, hueFor, listFolder, mosaicSources, rootEntries } from "./library.ts";
 import { applyEdit, type TextEdit } from "../../shared/keyboard.ts";
@@ -143,6 +143,7 @@ export class Core {
   #displayId: number | undefined;
   #unsubDisplays: () => void;
   #shownYtVolume: number | undefined;
+  #shownYtBar: string | undefined;
   #idle = false;
   #cancelIdle: (() => void) | undefined;
   #displayAwake: boolean | undefined;
@@ -223,6 +224,8 @@ export class Core {
       details: (id) => this.details.detailsFor(id),
       dataVersion: () => this.#dataVersion,
       thumbs: this.#thumbs,
+      clock: ports.clock,
+      changed: () => this.#emit(),
       decorate: (e) => this.#decorate(e),
       startTyping: (remote) => {
         this.#state.typingBy = remote;
@@ -402,6 +405,11 @@ export class Core {
     const p = presentation(path);
     const name = this.#art(path).episode?.name;
     return name ? { ...p, title: name } : p;
+  }
+
+  #nowGenres(path: string): { genres?: string } {
+    const genres = topGenres(this.#art(path).details);
+    return genres.length ? { genres: genres.join(" · ") } : {};
   }
 
   /** A video entry with its watched tag or progress, from the history. */
@@ -1014,7 +1022,14 @@ export class Core {
         : {}),
       showVolume: s.view === "youtube",
       showSkip: s.view === "youtube",
-      typing: s.typingBy === undefined ? "none" : s.typingBy === remote ? "you" : "other",
+      typing:
+        s.typingBy === undefined
+          ? "none"
+          : s.typingBy === remote
+            ? "you"
+            : s.typingBy === "screen"
+              ? "screen"
+              : "other",
       nowPlaying: s.player && {
         ...this.#present(s.player.path),
         folder: basename(dirname(s.player.path)),
@@ -1022,6 +1037,7 @@ export class Core {
         duration: s.player.dur,
         paused: s.player.paused,
         subtitlesOn: s.subtitlesOn,
+        ...this.#nowGenres(s.player.path),
       },
       ...(s.player && this.#controls.upNextAvailable ? { upNext: this.#upNextItems() } : {}),
       volume: s.volume,
@@ -1193,7 +1209,6 @@ export class Core {
       return;
     }
     this.#state.query = applyEdit(this.#state.query, edit);
-    this.#ports.youtube.setSearchText(this.#state.query);
   }
 
   /** Mac-keyboard text for YouTube is captured only while the Screen owns a search session. */
@@ -1232,16 +1247,14 @@ export class Core {
         this.#state.typingBy = from;
         this.#typingFor = "search";
         this.#state.query = "";
-        yt.openSearch();
         break;
       case "typeText":
         if (owner !== from) return;
         this.#state.query = command.args?.text ?? "";
-        yt.setSearchText(this.#state.query);
         break;
       case "typeSubmit":
         if (owner !== from) return;
-        yt.submitSearch();
+        if (this.#state.query.trim()) yt.submitSearch(this.#state.query);
         this.#state.typingBy = undefined;
         break;
       case "typeCancel":
@@ -1446,8 +1459,6 @@ export class Core {
           this.#state.typingBy = this.#lastFrom;
           this.#typingFor = "search";
           this.#state.query = "";
-        } else if (this.#state.typingBy !== undefined && this.#state.query) {
-          this.#ports.youtube.setSearchText(this.#state.query);
         }
         break;
       default:
@@ -1463,6 +1474,19 @@ export class Core {
     if (level === this.#shownYtVolume) return;
     this.#shownYtVolume = level;
     this.#ports.youtube.showVolume(level);
+  }
+
+  /** The floating search bar draws over YouTube only while a search session types for it. */
+  #syncYouTubeBar(): void {
+    const text =
+      this.#state.view === "youtube" &&
+      this.#state.typingBy !== undefined &&
+      this.#typingFor === "search"
+        ? this.#state.query
+        : undefined;
+    if (text === this.#shownYtBar) return;
+    this.#shownYtBar = text;
+    this.#ports.youtube.showSearchBar(text);
   }
 
   async #setVolume(percent: number): Promise<void> {
@@ -1538,6 +1562,7 @@ export class Core {
     }
     this.#syncDisplayAwake();
     this.#syncYouTubeVolume();
+    this.#syncYouTubeBar();
     this.#syncCapture();
     for (const l of [...this.#listeners]) l();
   }

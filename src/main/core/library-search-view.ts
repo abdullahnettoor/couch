@@ -14,10 +14,14 @@ import { hueFor, presentation } from "./library.ts";
 import { memoLookup, searchLibrary, type SearchResults } from "./library-search.ts";
 import { showStatus, tileAction } from "./library-rows.ts";
 import type { History } from "./history.ts";
+import type { Clock } from "../ports/clock.ts";
 import type { MediaLibrary } from "./media-library.ts";
 import type { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
 
 export const SEARCH_VIEW = "librarySearch";
+
+/** Results follow the typing after this long a pause. */
+const DEBOUNCE_MS = 150;
 
 /** What the Library search asks of the core. */
 export interface LibrarySearchHost {
@@ -25,6 +29,9 @@ export interface LibrarySearchHost {
   history: History;
   details: DetailsLookup;
   thumbs: ThumbnailScheduler;
+  clock: Clock;
+  /** The payload changed outside a command (the debounce fired). */
+  changed(): void;
   /** Adds progress or the watched tag to a video entry. */
   decorate(entry: LibraryEntry): LibraryEntry;
   /** A phone (or the Screen) starts typing the query: it owns the typing session. */
@@ -46,7 +53,11 @@ const bare = (title: string) => title.replace(/\s*\(\d{4}\)$/, "");
 export class LibrarySearchView {
   #state: ScreenState;
   #h: LibrarySearchHost;
+  /** What the bar shows. */
   #query = "";
+  /** What the results are for: the query once typing has paused. */
+  #applied = "";
+  #cancelDebounce: (() => void) | undefined;
   #wanted = "";
   #found: { query: string; version: number; results: SearchResults } | undefined;
 
@@ -65,8 +76,29 @@ export class LibrarySearchView {
     this.#h.setView(SEARCH_VIEW);
   }
 
+  #setQuery(query: string): void {
+    if (query === this.#query) return;
+    this.#query = query;
+    this.#cancelDebounce?.();
+    this.#cancelDebounce = this.#h.clock.setTimeout(() => {
+      this.#cancelDebounce = undefined;
+      this.#applied = this.#query;
+      this.#h.changed();
+    }, DEBOUNCE_MS);
+  }
+
+  /** Typing paused or ended: the results are for the query as it stands. */
+  #flush(): void {
+    this.#cancelDebounce?.();
+    this.#cancelDebounce = undefined;
+    this.#applied = this.#query;
+  }
+
   /** The search was left (not for a show page): forget the query and where focus was. */
   reset(): void {
+    this.#cancelDebounce?.();
+    this.#cancelDebounce = undefined;
+    this.#applied = "";
     this.#query = "";
     this.#wanted = "";
     delete this.#state.focus[SEARCH_VIEW];
@@ -75,11 +107,11 @@ export class LibrarySearchView {
   /** Matching is done once per query and data change; the grid and the payload share it. */
   #results(lookup: DetailsLookup): SearchResults {
     const version = this.#h.dataVersion();
-    if (this.#found?.query !== this.#query || this.#found.version !== version)
+    if (this.#found?.query !== this.#applied || this.#found.version !== version)
       this.#found = {
-        query: this.#query,
+        query: this.#applied,
         version,
-        results: searchLibrary(this.#h.library, lookup, this.#query),
+        results: searchLibrary(this.#h.library, lookup, this.#applied),
       };
     return this.#found.results;
   }
@@ -169,6 +201,7 @@ export class LibrarySearchView {
     return {
       search: {
         query: this.#query,
+        searching: this.#query !== this.#applied && this.#query.trim() !== "",
         typing: this.#state.typingBy !== undefined,
         rows: this.#rows(),
       },
@@ -194,21 +227,23 @@ export class LibrarySearchView {
           this.open();
           // Only the Screen's own keyboard brings the first character along.
           const first = from === "screen" ? command.args?.text : undefined;
-          if (first !== undefined && [...first].length === 1) this.#query = first;
+          if (first !== undefined && [...first].length === 1) this.#setQuery(first);
         }
         this.#h.startTyping(from);
         break;
       case "typeText":
-        if (owner === from) this.#query = command.args?.text ?? "";
+        if (owner === from) this.#setQuery(command.args?.text ?? "");
         break;
       case "typeSubmit":
         if (owner !== from) return;
         this.#state.typingBy = undefined;
+        this.#flush();
         if (this.#rows().length) this.#state.focus[SEARCH_VIEW] = { r: 1, c: 0 };
         break;
       case "typeCancel":
         if (owner !== from) return;
         this.#state.typingBy = undefined;
+        this.#flush();
         break;
     }
   }

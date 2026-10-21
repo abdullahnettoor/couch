@@ -449,7 +449,7 @@ describe("Settings: Show and film details", () => {
     await a.press("typeSubmit");
     await settle();
     expect(core().details.settings().keyLabel).toBe("No key");
-    expect(h!.youtube.calls.filter((c) => c.call === "setSearchText")).toEqual([]);
+    expect(h!.youtube.calls.filter((c) => c.call === "submitSearch")).toEqual([]);
     const all = JSON.stringify([h!.screen.payloads, a.snapshots, b.snapshots, h!.youtube.calls]);
     expect(all).not.toContain("abcd1234ownkey");
   });

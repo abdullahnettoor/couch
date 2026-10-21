@@ -104,7 +104,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   <button class="search" id="search" data-cmd="typeOpen" hidden><span data-i="search"></span><span id="search-label">Search YouTube</span></button>
   <div class="np" id="np" hidden>
     <div class="art" id="np-art"></div>
-    <h3 id="np-title"></h3><div class="f" id="np-folder"></div>
+    <h3 id="np-title"></h3><div class="f" id="np-folder"></div><div class="f" id="np-genres" hidden></div>
     <button class="cw nx" id="nx" data-cmd="playNext" hidden><span class="pic" id="nx-pic"></span><span class="txt"><b id="nx-title"></b><span class="l" id="nx-line">Play next</span></span><span class="go" data-i="play"></span></button>
     <div class="seek" id="seek"><div class="bar"><div class="fill" id="np-fill"></div><div class="knob" id="np-knob"></div></div></div>
     <div class="tm"><span id="np-elapsed"></span><span id="np-remaining"></span></div>
@@ -244,6 +244,8 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       duration = np.duration;
       $("np-title").textContent = np.title;
       $("np-folder").textContent = np.line || np.folder;
+      $("np-genres").textContent = np.genres || "";
+      $("np-genres").hidden = !np.genres;
       if (!dragging) showProgress(np.position);
       $("np-pp").innerHTML = icon(np.paused ? "play" : "pause");
       $("np-subs").classList.toggle("on", np.subtitlesOn);
@@ -257,7 +259,8 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       $("nx-line").textContent = s.next.line || "Play next";
       $("nx-pic").style.backgroundImage = s.next.thumbKey ? thumb(s.next.thumbKey) : "none";
     }
-    $("other").hidden = s.typing !== "other";
+    $("other").hidden = s.typing !== "other" && s.typing !== "screen";
+    $("other").textContent = s.typing === "screen" ? "Typing on the Screen" : "Typing on another phone";
     var mine = s.typing === "you";
     $("text").placeholder = s.typePlaceholder || "";
     if (mine && $("sheet").hidden) { $("text").value = s.typeSeed || ""; $("sheet").hidden = false; $("text").focus(); }
