@@ -2,6 +2,8 @@
 
 Turns a Mac connected to a TV into a couch-friendly media centre, controlled from phones. See `.issues/001-couch-v1-spec.md` for the spec and `GLOSSARY.md` for the words we use.
 
+Contributing (set-up, tickets, adding a YouTube add-on or a web App): see `CONTRIBUTING.md`.
+
 ## Commands
 
 Tooling is [Vite+](https://viteplus.dev) (`vp`), run through pnpm.
