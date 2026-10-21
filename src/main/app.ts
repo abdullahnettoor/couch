@@ -1,6 +1,7 @@
 import type { GridItem, ScreenPayload } from "../shared/protocol.ts";
 import { Core, type Ports, type Source } from "./core/core.ts";
 import type { Command } from "../shared/protocol.ts";
+import { createFrontdoor, type FrontdoorOptions } from "./frontdoor.ts";
 import { startRemoteServer, type RemoteServer } from "./remote/server.ts";
 
 export interface CouchApp {
@@ -26,16 +27,55 @@ export interface AppOptions extends Ports {
   thumbnailDir?: string;
   /** Folder with the Remote page's icons (the renderer's public files). */
   iconDir?: string;
+  /** Set to let the listener toggle move the Remote server between the public port and loopback. */
+  frontdoorSetup?: Pick<FrontdoorOptions, "env" | "probe" | "sleep" | "windowMs" | "pollMs">;
 }
 
 /** Wires the core and the Remote server to the given ports. Tests and Electron both start it. */
 export async function startApp(options: AppOptions): Promise<CouchApp> {
-  const core = new Core(options);
-  const remote = await startRemoteServer(core, options);
+  let remote: RemoteServer | undefined;
+  const serve = async (
+    binding: { port: number; host?: string },
+    listener: AppOptions["listener"],
+  ) => {
+    core.setListener(listener);
+    remote = await startRemoteServer(core, {
+      ...options,
+      port: binding.port,
+      host: binding.host,
+      listener,
+    });
+  };
+  const frontdoor = options.frontdoorSetup && {
+    ...createFrontdoor({
+      probe: options.listenerProbe,
+      ...options.frontdoorSetup,
+      store: options.store,
+      remote: {
+        release: async () => {
+          const old = remote;
+          remote = undefined;
+          await old?.close();
+        },
+        bind: async (binding, listener) => {
+          await remote?.close();
+          remote = undefined;
+          await serve(
+            binding,
+            listener && { publicPort: listener.publicPort, token: listener.token },
+          );
+        },
+      },
+    }),
+  };
+  const core = new Core({ ...options, frontdoor });
+  await serve({ port: options.port, host: options.host }, options.listener);
   const screenSource: Source = "screen";
   return {
     core,
-    remote,
+    get remote() {
+      return remote!;
+    },
     screenCommand: (command) => core.handle(command, screenSource),
     reportGrid: (viewKey, items) => core.reportGrid(viewKey, items),
     screen: () => core.screen(),
@@ -44,7 +84,7 @@ export async function startApp(options: AppOptions): Promise<CouchApp> {
       return core.onChange(() => listener(core.screen()));
     },
     async stop() {
-      await remote.close();
+      await remote?.close();
       core.dispose();
     },
   };

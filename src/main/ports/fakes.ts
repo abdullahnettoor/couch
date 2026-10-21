@@ -187,10 +187,12 @@ export class FakeMac implements Mac {
   listenerLoginItem() {
     return Promise.resolve({ ...this.loginItem });
   }
-  setListenerLoginItem(on: boolean) {
+  /** Runs inside `setListenerLoginItem`, so a test can play the listener coming up or going away. */
+  onLoginItemSet: ((on: boolean) => void | Promise<void>) | undefined;
+  async setListenerLoginItem(on: boolean) {
     this.#record("setListenerLoginItem", on);
     if (this.loginItem.available) this.loginItem.on = on;
-    return Promise.resolve();
+    await this.onLoginItemSet?.(on);
   }
   quit() {
     this.#record("quit");

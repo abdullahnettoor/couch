@@ -405,7 +405,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   });
 
   setOnline(false);
-  if (window.COUCH_UNPAIRED) {
+  if (typeof window !== "undefined" && window.COUCH_UNPAIRED) {
     $("pw").hidden = false;
     $("pw-btn").hidden = true;
     $("pw-spin").hidden = true;

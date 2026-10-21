@@ -84,7 +84,8 @@ export async function startRemoteServer(
     const from = req.socket.remoteAddress ?? "";
     const loopback = from === "::1" || from.startsWith("127.") || from.startsWith("::ffff:127.");
     if (req.method !== "POST" || !token || !loopback) return void res.writeHead(404).end();
-    if (!safeEqual(req.headers.authorization ?? "", `Bearer ${token}`)) return void res.writeHead(401).end();
+    if (!safeEqual(req.headers.authorization ?? "", `Bearer ${token}`))
+      return void res.writeHead(401).end();
     res.writeHead(200, { "content-type": "application/json" });
     res.end('{"ok":true}', () => core.quit());
   };

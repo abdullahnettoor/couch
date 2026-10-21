@@ -13,7 +13,8 @@ import { FileStore } from "./ports/store.ts";
 import { FfmpegThumbnails } from "./ports/thumbnails.ts";
 import { TmdbMetadata } from "./ports/tmdb-metadata.ts";
 import { PROJECT_TMDB_KEY } from "./ports/project-key.ts";
-import { chooseBinding, liveListener } from "./listener.ts";
+import { detectListener } from "./frontdoor.ts";
+import { chooseBinding } from "./listener.ts";
 import { createEmbedFactory } from "./mpv/embed-addon.ts";
 import { MpvPlayer } from "./mpv/mpv-player.ts";
 
@@ -129,7 +130,10 @@ async function createScreen(): Promise<void> {
   const youtube = new ElectronYouTube(win);
   mac.keepAwake(true);
   const store = new FileStore(app.getPath("userData"));
-  const listener = await liveListener(store);
+  const listener = await detectListener({
+    store,
+    installed: async () => (await mac.listenerLoginItem()).on,
+  });
   couch = await startApp({
     player,
     youtube,
@@ -142,6 +146,7 @@ async function createScreen(): Promise<void> {
     metadata: new TmdbMetadata(join(app.getPath("userData"), "thumbnails")),
     tmdbProjectKey: PROJECT_TMDB_KEY,
     ...chooseBinding(listener, process.env),
+    frontdoorSetup: { env: process.env },
     listener: listener && { publicPort: listener.publicPort, token: listener.token },
   });
   couch.onScreen(publishScreen);

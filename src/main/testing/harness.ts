@@ -3,7 +3,7 @@ import { HOME_ITEMS } from "../../shared/home-grid.ts";
 import { ADD_PHONE_ITEMS, SETTINGS_ITEMS } from "../../shared/settings-grid.ts";
 import { YOUTUBE_ERROR_ITEMS } from "../../shared/youtube-grid.ts";
 import type { Command, GridItem, RemoteSnapshot, ScreenPayload } from "../../shared/protocol.ts";
-import { startApp, type CouchApp } from "../app.ts";
+import { startApp, type AppOptions, type CouchApp } from "../app.ts";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -124,6 +124,8 @@ export interface Harness {
   thumbDir: string;
   phones: FakePhone[];
   store: Store;
+  /** Whether the stand-in listener "answers" (flip it to simulate the listener coming or going). */
+  listenerUp: { alive: boolean };
   /** The current pairing key, as a phone would read it from the QR code. */
   pairingKey(): string;
   /** Connect a paired phone (current key unless given). */
@@ -141,6 +143,8 @@ export async function startHarness(
   options: {
     tmdbProjectKey?: string;
     listener?: { publicPort: number; token: string };
+    /** Passed to startApp: lets the listener toggle move the Remote server (fast, fake sleeps). */
+    frontdoor?: AppOptions["frontdoorSetup"];
     metadata?: (fake: FakeMetadata) => void;
   } = {},
 ): Promise<Harness> {
@@ -154,7 +158,21 @@ export async function startHarness(
   const metadata = new FakeMetadata();
   options.metadata?.(metadata);
   const thumbDir = mkdtempSync(join(tmpdir(), "couch-thumbs-"));
+  const listenerUp = { alive: !!options.listener };
+  if (options.listener) {
+    store.write("listener", {
+      pid: 4242,
+      publicPort: options.listener.publicPort,
+      appPort: 4748,
+      token: options.listener.token,
+    });
+  }
   const app = await startApp({
+    listenerProbe: {
+      pidExists: () => listenerUp.alive,
+      portAnswers: () => Promise.resolve(listenerUp.alive),
+    },
+    frontdoorSetup: options.frontdoor,
     player,
     youtube,
     mac,
@@ -183,6 +201,7 @@ export async function startHarness(
     thumbDir,
     phones,
     store,
+    listenerUp,
     pairingKey: () => new URL(app.core.pairingUrl).searchParams.get("key")!,
     async connectPhone(key = new URL(app.core.pairingUrl).searchParams.get("key")!) {
       const phone = await FakePhone.connect(app.remote.port, key);

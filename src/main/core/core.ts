@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { safeEqual } from "../constant-time.ts";
+import { liveListener, systemProbe, type ListenerProbe } from "../listener.ts";
 import { dirname, basename } from "node:path";
 import {
   VIEW_LABELS,
@@ -72,6 +73,13 @@ export interface Ports {
   tmdbProjectKey?: string;
   /** A live listener (the always-on front door): its public port goes in the QR code and it handles `power`. */
   listener?: { publicPort: number; token: string };
+  /** How the listener is told apart from "not there" right now (the real system when absent). */
+  listenerProbe?: ListenerProbe;
+  /** Moves the Remote server out of the listener's way and back when the login item is toggled while Couch runs. */
+  frontdoor?: {
+    beforeEnable(): Promise<void>;
+    afterChange(on: boolean): Promise<void>;
+  };
 }
 
 /** Who sent a command: a connected phone, or the Screen's own keyboard. */
@@ -106,6 +114,7 @@ export class Core {
   #cancelMinute: (() => void) | undefined;
   #key: string;
   #port = 0;
+  #listener: { publicPort: number; token: string } | undefined;
   #forgetListeners = new Set<() => void>();
   #ytFailed = false;
   #lastFrom: RemoteId | undefined;
@@ -176,6 +185,7 @@ export class Core {
       this.#emit();
     });
     this.details.sync();
+    this.#listener = ports.listener;
     void this.refreshLoginItem();
     this.#controls = new PlayerControls(this.#state, {
       clock: ports.clock,
@@ -282,12 +292,17 @@ export class Core {
     this.#port = port;
   }
 
+  /** The listener Couch now sits behind (or none), which decides the port in the QR code. */
+  setListener(listener: { publicPort: number; token: string } | undefined): void {
+    this.#listener = listener;
+  }
+
   acceptsKey(key: string | null | undefined): boolean {
     return typeof key === "string" && key.length > 0 && safeEqual(key, this.#key);
   }
 
   get pairingUrl(): string {
-    const port = this.#ports.listener?.publicPort ?? this.#port;
+    const port = this.#listener?.publicPort ?? this.#port;
     return `http://${this.#ports.mac.localName()}:${port}/?key=${this.#key}`;
   }
 
@@ -968,9 +983,7 @@ export class Core {
       this.#state.view === "credits"
         ? { details: this.details.settings() }
         : {}),
-      ...(this.#state.view === "settings"
-        ? { listener: { ...this.#loginItem, running: !!this.#ports.listener } }
-        : {}),
+      ...(this.#state.view === "settings" ? { listener: { ...this.#loginItem } } : {}),
       continueCard: this.#continueEntries()[0],
       homeVideos,
       hero:
@@ -1137,7 +1150,7 @@ export class Core {
         this.#setView("home");
         break;
       case "power":
-        if (!this.#ports.listener) this.quit();
+        if (!this.#listener) this.quit();
         break;
       case "resume": {
         const newest = this.#continueEntries()[0];
@@ -1473,6 +1486,7 @@ export class Core {
     this.#releaseStrayTyping();
     if (from === "details") this.#detailsPage.cancel();
     if (view === "library") void this.library.refresh(this.#libraryFolders);
+    if (view === "settings") void this.refreshLoginItem();
   }
 
   #openYouTube(): void {
@@ -1581,18 +1595,29 @@ export class Core {
     };
   }
 
-  #loginItem = { available: false, on: false };
+  #loginItem = { available: false, on: false, running: false };
 
-  /** Reads the login item from the Mac (at start and after each toggle). */
+  /** Reads the login item and whether a listener is really up (status file, pid, port) from the Mac. */
   async refreshLoginItem(): Promise<void> {
-    this.#loginItem = await this.#ports.mac.listenerLoginItem().catch(() => this.#loginItem);
+    const item = await this.#ports.mac.listenerLoginItem().catch(() => this.#loginItem);
+    const running =
+      item.available &&
+      !!(await liveListener(this.#ports.store, this.#ports.listenerProbe ?? systemProbe).catch(
+        () => undefined,
+      ));
+    this.#loginItem = { available: item.available, on: item.on, running };
     this.#emit();
   }
 
   async #toggleListener(): Promise<void> {
     await this.refreshLoginItem();
     if (!this.#loginItem.available) return;
-    await this.#ports.mac.setListenerLoginItem(!this.#loginItem.on).catch(() => {});
+    const turnOn = !this.#loginItem.on;
+    const door = this.#ports.frontdoor;
+    if (turnOn) await door?.beforeEnable().catch(() => {});
+    await this.#ports.mac.setListenerLoginItem(turnOn).catch(() => {});
+    await this.refreshLoginItem();
+    await door?.afterChange(this.#loginItem.on).catch(() => {});
     await this.refreshLoginItem();
   }
 
