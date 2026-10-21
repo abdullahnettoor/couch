@@ -160,11 +160,15 @@ function scrollChips(row: HTMLElement, track: HTMLElement): void {
 
 function focusedEntry(payload: ScreenPayload): { e?: LibraryEntry; poster: boolean } {
   const lib = payload.library!;
-  for (const row of lib.rows!) {
-    const e = row.entries.find((x) => tileId(x) === payload.focusedId);
-    if (e) return { e, poster: row.poster === true };
-  }
-  return { e: lib.entries.find((x) => tileId(x) === payload.focusedId), poster: false };
+  const find = (id: string | undefined) => {
+    for (const row of lib.rows!) {
+      const e = row.entries.find((x) => tileId(x) === id);
+      if (e) return { e, poster: row.poster === true };
+    }
+    const e = lib.entries.find((x) => tileId(x) === id);
+    return e ? { e, poster: false } : undefined;
+  };
+  return find(payload.focusedId) ?? find(lib.featuredId) ?? { poster: false };
 }
 
 /** The featured area's picture: the TMDB backdrop, else a frame (a poster tile's picture is no backdrop). */

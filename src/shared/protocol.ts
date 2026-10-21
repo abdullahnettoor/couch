@@ -180,6 +180,8 @@ export interface LibraryPayload {
   rows?: LibraryRow[];
   /** The Library's first page: the chip row under the featured area; empty when there is nothing to filter. */
   chips?: LibraryChip[];
+  /** The Library's first page: the tile the featured area shows. The focused tile, else the last focused one, else the first. */
+  featuredId?: string;
 }
 
 /** One row of the show page's episode list (or an extra). */

@@ -54,6 +54,8 @@ export interface Film {
   path: string;
   title: string;
   year?: number;
+  /** "Extended", "Director's Cut"… */
+  edition?: string;
   addedAt: number;
   missing?: boolean;
 }
@@ -352,6 +354,7 @@ export function groupVideos(videos: IndexedVideo[]): Grouped {
         path: v.path,
         title: t,
         ...(y ? { year: Number(y[1]) } : {}),
+        ...(v.title.edition ? { edition: v.title.edition } : {}),
         addedAt: addedAt(v),
         ...(v.missing ? { missing: true } : {}),
       };

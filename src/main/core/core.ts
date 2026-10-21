@@ -304,9 +304,15 @@ export class Core {
   }
 
   /** The Library views are built here from disk; other views' grids come from the renderer. */
-  #library(): LibraryPayload | undefined {
+  #library(focusedId?: string): LibraryPayload | undefined {
     switch (this.#state.view) {
-      case "library":
+      case "library": {
+        const rows = this.#rows().rows;
+        const folders = this.#chip ? [] : rootEntries(this.#libraryFolders);
+        const ids = [...rows.flatMap((r) => r.entries), ...folders].map((e) => e.id ?? e.path);
+        if (focusedId && ids.includes(focusedId)) this.#lastTile = focusedId;
+        else if (this.#lastTile && !ids.includes(this.#lastTile)) this.#lastTile = undefined;
+        const featuredId = this.#lastTile ?? ids[0];
         return {
           heading: "Library",
           entries: this.#chip
@@ -316,10 +322,12 @@ export class Core {
                 feature: { kind: "Folder" as const, title: e.title },
               })),
           continueWatching: this.#continueEntries(),
-          rows: this.#rows().rows,
+          rows,
           chips: this.#chips(),
+          ...(featuredId ? { featuredId } : {}),
           emptyText: "No folders yet. Add one in Settings on the Mac.",
         };
+      }
       case "folder":
         return {
           heading: basename(this.#state.folderPath ?? ""),
@@ -335,6 +343,8 @@ export class Core {
 
   /** The tile focused on the Library's first page, so rows that change under it don't move focus. */
   #rootFocusId: string | undefined;
+  /** The last tile focused on the Library's first page; the featured area keeps showing it while a chip or icon has focus. */
+  #lastTile: string | undefined;
 
   #keepLibraryFocus(): void {
     if (this.#state.view !== "library" || !this.#rootFocusId) return;
@@ -595,8 +605,10 @@ export class Core {
     else if (verb === "search") {
       this.#search.open();
       if (this.#source === "screen") this.#search.action("search:field", "screen");
-    } else if (verb === "chip") this.#chip = this.#chip === arg || arg === "all" ? undefined : arg;
-    else if (verb === "show") {
+    } else if (verb === "chip") {
+      this.#chip = this.#chip === arg || arg === "all" ? undefined : arg;
+      this.#lastTile = undefined;
+    } else if (verb === "show") {
       this.#showFrom = this.#state.view === "librarySearch" ? "librarySearch" : "library";
       this.#show.open(arg);
     } else if (verb === "remove") this.#saveFolders(this.#libraryFolders.filter((f) => f !== arg));
@@ -925,7 +937,7 @@ export class Core {
     if (this.#state.view === "library") this.#rootFocusId = focused?.id;
     const homeVideos = this.#continueEntries().slice(0, HOME_VIDEOS);
     return {
-      library: this.#library(),
+      library: this.#library(focused?.id),
       ...(this.#state.view === "show" ? this.#show.payload() : {}),
       ...(this.#state.view === "fixMatch" ? this.#show.fixPayload() : {}),
       ...(this.#state.view === "librarySearch" ? this.#search.payload() : {}),
@@ -1379,7 +1391,10 @@ export class Core {
       this.#ports.youtube.hide();
     }
     this.#state.view = view;
-    if (view === "home") this.#chip = undefined;
+    if (view === "home") {
+      this.#chip = undefined;
+      this.#lastTile = undefined;
+    }
     this.#releaseStrayTyping();
     if (from === "details") this.#detailsPage.cancel();
     if (view === "library") void this.library.refresh(this.#libraryFolders);

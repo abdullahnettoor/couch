@@ -34,6 +34,12 @@ export function showStatus(show: Show, history: WatchState): string {
   return "Watched";
 }
 
+/** "2003 · Extended" */
+function filmSub(year?: string, edition?: string): { sub?: string } {
+  const sub = [year, edition].filter(Boolean).join(" · ");
+  return sub ? { sub } : {};
+}
+
 function showFeature(
   show: Show,
   d?: { overview?: string; backdrop?: string; years?: string },
@@ -92,7 +98,7 @@ export function libraryRows(ctx: RowsContext): { rows: LibraryRow[]; wanted: str
   };
   const filmTile = (
     row: string,
-    film: { path: string; title: string; year?: number; missing?: boolean },
+    film: { path: string; title: string; year?: number; edition?: string; missing?: boolean },
     line?: string,
     poster = row === "films",
   ) => {
@@ -100,19 +106,20 @@ export function libraryRows(ctx: RowsContext): { rows: LibraryRow[]; wanted: str
     const d = lookup(film.path);
     const thumb = (poster ? d?.poster : d?.backdrop) ?? frame;
     const title = bare(film.title, film.year);
+    const small = [line, film.edition].filter(Boolean).join(" · ");
     return ctx.decorate({
       kind: "video",
       id: `${row}:${film.path}`,
       path: film.path,
       title,
-      ...(line ? { line } : {}),
+      ...(small ? { line: small } : {}),
       hue: hueFor(title),
       ...(film.missing ? { missing: true } : {}),
       ...(thumb ? { thumb } : {}),
       feature: {
         kind: "Film",
         title: title,
-        ...((d?.years ?? film.year) ? { sub: d?.years ?? String(film.year) } : {}),
+        ...filmSub(d?.years ?? (film.year ? String(film.year) : undefined), film.edition),
         ...(d?.overview ? { overview: d.overview } : {}),
         ...(d?.backdrop ? { backdrop: d.backdrop } : {}),
       },
@@ -141,7 +148,7 @@ export function libraryRows(ctx: RowsContext): { rows: LibraryRow[]; wanted: str
         : {
             kind: "Film",
             title,
-            ...((d?.years ?? film?.year) ? { sub: d?.years ?? String(film?.year) } : {}),
+            ...filmSub(d?.years ?? (film?.year ? String(film.year) : undefined), film?.edition),
             ...(d?.overview ? { overview: d.overview } : {}),
             ...(d?.backdrop ? { backdrop: d.backdrop } : {}),
           },

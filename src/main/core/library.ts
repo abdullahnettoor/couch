@@ -82,12 +82,67 @@ function dehyphen(list: string[]): string[] {
   });
 }
 
-/** Release tags dropped, year kept in brackets: "The Grand Budapest Hotel (2014)". */
-function tidy(text: string): string {
-  const kept = untagged(dehyphen(words(text)));
+const EDITIONS: { re: RegExp; label: string }[] = [
+  { re: /^extended(?: (?:edition|cut|version))?$/i, label: "Extended" },
+  { re: /^theatrical(?: (?:edition|cut|version))?$/i, label: "Theatrical" },
+  { re: /^director'?s cut$/i, label: "Director's Cut" },
+  { re: /^unrated$/i, label: "Unrated" },
+  { re: /^uncut$/i, label: "Uncut" },
+  { re: /^remastered$/i, label: "Remastered" },
+  { re: /^special edition$/i, label: "Special Edition" },
+  { re: /^ultimate edition$/i, label: "Ultimate Edition" },
+  { re: /^final cut$/i, label: "Final Cut" },
+  { re: /^imax$/i, label: "IMAX" },
+  { re: /^criterion(?: (?:collection|edition))?$/i, label: "Criterion" },
+  { re: /^(?:\d+(?:st|nd|rd|th) )?anniversary edition$/i, label: "Anniversary Edition" },
+];
+
+/** The edition phrase starting at `i`: how many words it takes and its label. Longest phrase wins. */
+function editionAt(list: string[], i: number): { length: number; label: string } | undefined {
+  for (let n = 3; n >= 1; n--) {
+    if (i + n > list.length) continue;
+    const phrase = list.slice(i, i + n).join(" ");
+    const hit = EDITIONS.find((e) => e.re.test(phrase));
+    if (hit) return { length: n, label: hit.label };
+  }
+  return undefined;
+}
+
+/**
+ * Edition tags out of the words, kept as a label. A tag must not open the title and must end the title
+ * part: be followed by the end, a year, a release tag or another edition ("Extended Family" stays).
+ */
+function withoutEditions(list: string[]): { list: string[]; edition?: string } {
+  const labels: string[] = [];
+  const out: string[] = [];
+  for (let i = 0; i < list.length;) {
+    const hit = i > 0 ? editionAt(list, i) : undefined;
+    const next = hit ? list[i + hit.length] : undefined;
+    const ends =
+      next === undefined ||
+      YEAR.test(next) ||
+      TAGS.has(next.toLowerCase()) ||
+      editionAt(list, i + hit!.length) !== undefined;
+    if (hit && ends) {
+      if (!labels.includes(hit.label)) labels.push(hit.label);
+      i += hit.length;
+    } else out.push(list[i++]!);
+  }
+  return { list: out, ...(labels.length ? { edition: labels.join(", ") } : {}) };
+}
+
+/** Release tags dropped, year kept in brackets: "The Grand Budapest Hotel (2014)"; edition tags come out as `edition`. */
+function tidyParts(text: string): { text: string; edition?: string } {
+  const { list, edition } = withoutEditions(dehyphen(words(text)));
+  const kept = untagged(list);
   const yearAt = kept.findLastIndex((w, i) => i > 0 && YEAR.test(w));
-  if (yearAt === -1) return kept.join(" ");
-  return `${kept.slice(0, yearAt).join(" ")} (${kept[yearAt]})`;
+  const out =
+    yearAt === -1 ? kept.join(" ") : `${kept.slice(0, yearAt).join(" ")} (${kept[yearAt]})`;
+  return { text: out, ...(edition ? { edition } : {}) };
+}
+
+function tidy(text: string): string {
+  return tidyParts(text).text;
 }
 
 /** A video's title. Episodes carry series, season and episode; `name` is what tiles and the player show. */
@@ -97,6 +152,8 @@ export interface Title {
   episode?: number;
   /** The episode's name ("Episode N" when the file has none), or the whole cleaned title for non-episodes. */
   name: string;
+  /** Films: "Extended", "Director's Cut"… taken out of the title. */
+  edition?: string;
 }
 
 const EPISODE =
@@ -126,7 +183,8 @@ export function parseTitle(fileName: string): Title {
       name: name || `Episode ${episode}`,
     };
   }
-  return { name: tidy(stem) || stem };
+  const { text, edition } = tidyParts(stem);
+  return { name: text || stem, ...(edition ? { edition } : {}) };
 }
 
 /** A file name's cleaned title, ignoring any episode marker. */
@@ -150,10 +208,11 @@ export function episodeLine(fileName: string): string | undefined {
   return t.series ? `${t.series} · ${code}` : code;
 }
 
-/** What a video's tiles, overlay and phone show for it: its title and, for episodes, the "Series · S1 E1" line. */
+/** What a video's tiles, overlay and phone show for it: its title and, for episodes, the "Series · S1 E1" line (for films, the edition). */
 export function presentation(path: string): { title: string; line?: string } {
   const file = basename(path);
-  const line = episodeLine(file);
+  const t = parseTitle(file);
+  const line = episodeLine(file) ?? t.edition;
   return { title: cleanTitle(file), ...(line ? { line } : {}) };
 }
 
