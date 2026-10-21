@@ -1,3 +1,4 @@
+import { describeConfirm } from "../shared/confirm-layout.ts";
 import type { ScreenPayload } from "../shared/protocol.ts";
 import { ICON_PATHS } from "../shared/icons.ts";
 
@@ -30,18 +31,24 @@ export function renderConfirm(payload: ScreenPayload): void {
   confirm.classList.toggle("show", Boolean(c));
   if (!c) return;
   confirm.replaceChildren();
+  const d = describeConfirm(c, (n) => `calc(${n} * var(--u))`);
+  const style = (el: HTMLElement, props: Record<string, string>) => {
+    for (const [k, v] of Object.entries(props)) el.style.setProperty(k, v);
+  };
+  confirm.style.background = d.scrim;
   const box = document.createElement("div");
   box.className = "box glass";
+  style(box, d.boxStyle);
   const title = document.createElement("b");
-  title.textContent = c.title;
+  title.textContent = d.title;
   const row = document.createElement("div");
-  row.className = "btns";
-  c.buttons.forEach((label, i) => {
+  style(row, d.rowStyle);
+  for (const button of d.buttons) {
     const b = document.createElement("span");
-    b.className = `g-pill${i === c.focus ? " focused" : ""}`;
-    b.textContent = label;
+    b.textContent = button.label;
+    style(b, button.style);
     row.append(b);
-  });
+  }
   box.append(title, row);
   confirm.append(box);
 }

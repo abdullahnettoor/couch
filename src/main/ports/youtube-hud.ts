@@ -1,4 +1,5 @@
 import { COLORS } from "../../shared/glass-tokens.ts";
+import { describeConfirm } from "../../shared/confirm-layout.ts";
 import type { Confirmation } from "../../shared/protocol.ts";
 import { ICON_PATHS, ICON_VIEWBOX } from "../../shared/icons.ts";
 
@@ -81,17 +82,16 @@ export function confirmScript(confirm: Confirmation | undefined): string {
   if (confirm === undefined) {
     return `(function(){var e=document.getElementById('couch-confirm');if(e)e.remove()})()`;
   }
+  const d = describeConfirm(confirm, (n) => `calc(${n} * var(--couch-u))`);
+  const obj = (o: Record<string, string>) => JSON.stringify(o);
   return `(function(){${HELPERS}
 var o=document.getElementById('couch-confirm');if(o)o.remove();
 var w=document.createElement('div');w.id='couch-confirm';
-css(w,{position:'fixed',inset:'0','z-index':'2147483647','pointer-events':'none',display:'grid','place-items':'center',background:'rgba(0,0,0,.45)'});
+css(w,{'--couch-u':U+'px',position:'fixed',inset:'0','z-index':'2147483647','pointer-events':'none',display:'grid','place-items':'center',background:${JSON.stringify(d.scrim)}});
 var d=document.createElement('div');glass(d);
-css(d,{position:'static',display:'flex','flex-direction':'column','align-items':'center',gap:px(40),padding:px(56)+' '+px(72),'border-radius':px(48),'font-size':px(44),'font-weight':'700'});
-var t=document.createElement('span');t.textContent=${JSON.stringify(confirm.title)};
-var r=document.createElement('div');css(r,{display:'flex',gap:px(24)});
-${JSON.stringify(confirm.buttons)}.forEach(function(label,i){var b=document.createElement('span');b.textContent=label;
-var on=i===${confirm.focus};
-css(b,{display:'inline-flex','align-items':'center',height:px(84),padding:'0 '+px(40),'border-radius':px(42),'font-size':px(30),'font-weight':'600',
-background:on?'#fff':'rgba(255,255,255,.16)',color:on?'#000':${JSON.stringify(COLORS.t2)},transform:on?'scale(1.06)':'none'});r.appendChild(b)});
+css(d,{position:'static'});css(d,${obj(d.boxStyle)});
+var t=document.createElement('span');t.textContent=${JSON.stringify(d.title)};
+var r=document.createElement('div');css(r,${obj(d.rowStyle)});
+[${d.buttons.map((b) => `[${JSON.stringify(b.label)},${obj(b.style)}]`).join(",")}].forEach(function(x){var b=document.createElement('span');b.textContent=x[0];css(b,x[1]);r.appendChild(b)});
 d.appendChild(t);d.appendChild(r);w.appendChild(d);document.body.appendChild(w)})()`;
 }
