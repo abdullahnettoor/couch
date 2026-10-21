@@ -1,7 +1,7 @@
 import type { Confirmation } from "../../../shared/protocol.ts";
 import type { Clock } from "../../ports/clock.ts";
 import type { YouTube } from "../../ports/youtube.ts";
-import type { App, AppEvent, AppKey } from "../app.ts";
+import type { App, AppEvent, AppKey, AppTyping } from "../app.ts";
 
 /** A Back sent to YouTube that changed no route within this long counts as already at home. */
 const BACK_SETTLE_MS = 800;
@@ -10,9 +10,9 @@ const BACK_SETTLE_MS = 800;
 export class YouTubeApp implements App {
   readonly id = "youtube";
   readonly label = "YouTube";
-  readonly typeLabel = "Search YouTube";
   readonly showVolume = true;
   readonly showSkip = true;
+  readonly typing: AppTyping;
   #port: YouTube;
   #clock: Clock;
   #home = true;
@@ -24,6 +24,12 @@ export class YouTubeApp implements App {
   constructor(port: YouTube, clock: Clock) {
     this.#port = port;
     this.#clock = clock;
+    this.typing = {
+      label: "Search YouTube",
+      submitSearch: (text) => port.submitSearch(text),
+      showSearchBar: (text) => port.showSearchBar(text),
+      captureText: (on) => port.captureText(on),
+    };
     port.onEvent((event) => {
       if (event.type !== "route") return this.#emit(event);
       this.#home = event.home;
@@ -60,15 +66,6 @@ export class YouTubeApp implements App {
   }
   sendKey(key: AppKey) {
     this.#port.sendKey(key);
-  }
-  submitSearch(text: string) {
-    this.#port.submitSearch(text);
-  }
-  showSearchBar(text: string | undefined) {
-    this.#port.showSearchBar(text);
-  }
-  captureText(on: boolean) {
-    this.#port.captureText(on);
   }
   playPause() {
     this.#port.playPause();

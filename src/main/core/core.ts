@@ -24,7 +24,7 @@ import {
 import type { Clock } from "../ports/clock.ts";
 import type { Mac } from "../ports/mac.ts";
 import { pickTargetDisplay } from "../display.ts";
-import type { App, AppEvent } from "../apps/app.ts";
+import type { App, AppEvent, AppTyping } from "../apps/app.ts";
 import { randomBytes } from "node:crypto";
 import type { Store } from "../ports/store.ts";
 import type { Thumbnails } from "../ports/thumbnails.ts";
@@ -161,7 +161,7 @@ export class Core {
   #typingFor: Purpose | undefined;
   /** Who sent the command being handled. */
   #source: Source = "screen";
-  #capturing: App | undefined;
+  #capturing: AppTyping | undefined;
   #cancelSaves: (() => void) | undefined;
   #resumeNote: string | undefined;
   #cancelNote: (() => void) | undefined;
@@ -1057,9 +1057,11 @@ export class Core {
                 : VIEW_LABELS[s.view],
       view: s.view,
       layout:
-        s.view === "home" || s.view === "app" || s.view === "player" || s.view === "librarySearch"
-          ? s.view
-          : "other",
+        s.view === "app"
+          ? (front?.layout ?? "app")
+          : s.view === "home" || s.view === "player" || s.view === "librarySearch"
+            ? s.view
+            : "other",
       ...(card
         ? {
             continueCard: {
@@ -1080,11 +1082,11 @@ export class Core {
           }
         : {}),
       ...(s.confirm ? { confirm: s.confirm } : {}),
-      typeAvailable: s.view === "app" || s.view === "details" || searchable,
+      typeAvailable: (s.view === "app" && !!front?.typing) || s.view === "details" || searchable,
       ...(this.#show.fixTarget() ? { fixAvailable: true } : {}),
       ...(s.view === "details" ? { typeLabel: "Type TMDB key" } : {}),
       ...(searchable ? { typeLabel: "Search Library" } : {}),
-      ...(front ? { typeLabel: front.typeLabel } : {}),
+      ...(front?.typing ? { typeLabel: front.typing.label } : {}),
       ...(searching
         ? { typePlaceholder: "Search your Library", typeSeed: this.#search.query }
         : {}),
@@ -1196,10 +1198,10 @@ export class Core {
         break;
       }
       case "playpause":
-        this.#front()?.playPause();
+        this.#front()?.playPause?.();
         break;
       case "seekBy":
-        this.#front()?.seekBy(command.args?.seconds ?? 0);
+        this.#front()?.seekBy?.(command.args?.seconds ?? 0);
         break;
       case "volUp":
       case "volDown":
@@ -1224,7 +1226,7 @@ export class Core {
 
   /** What a typing session started now would be typing into: decided by the view it opens in. */
   #purposeFor(view: View): Purpose | undefined {
-    if (view === "app") return "search";
+    if (view === "app") return this.#front()?.typing ? "search" : undefined;
     if (view === "details") return "tmdbKey";
     return SEARCH_FROM.includes(view) ? "librarySearch" : undefined;
   }
@@ -1240,7 +1242,8 @@ export class Core {
   #find(): void {
     const view = this.#state.view;
     if (this.#purposeFor(view) === "tmdbKey" || this.#state.typingBy === "screen") return;
-    if (view === "app" || SEARCH_FROM.includes(view)) this.#type({ command: "typeOpen" }, "screen");
+    if (this.#purposeFor(view) || SEARCH_FROM.includes(view))
+      this.#type({ command: "typeOpen" }, "screen");
   }
 
   /** A printable key on the Library's first page opens search with it already typed. */
@@ -1293,8 +1296,8 @@ export class Core {
   #syncCapture(): void {
     const front = this.#front();
     const app =
-      front && this.#state.typingBy === "screen" && this.#typingFor === "search"
-        ? front
+      front?.typing && this.#state.typingBy === "screen" && this.#typingFor === "search"
+        ? front.typing
         : undefined;
     if (app === this.#capturing) return;
     this.#capturing?.captureText(false);
@@ -1317,7 +1320,7 @@ export class Core {
   }
 
   #typingHint(): string {
-    const names = [...this.#apps.values()].map((a) => `${a.label} search`);
+    const names = [...this.#apps.values()].filter((a) => a.typing).map((a) => `${a.label} search`);
     return `Typing works inside ${names.join(" or ")}`;
   }
 
@@ -1338,7 +1341,7 @@ export class Core {
         break;
       case "typeSubmit":
         if (owner !== from) return;
-        if (this.#state.query.trim()) this.#front()?.submitSearch(this.#state.query);
+        if (this.#state.query.trim()) this.#front()?.typing?.submitSearch(this.#state.query);
         this.#state.typingBy = undefined;
         break;
       case "typeCancel":
@@ -1689,7 +1692,7 @@ export class Core {
           : undefined;
       if (bar !== shown.bar) {
         shown.bar = bar;
-        app.showSearchBar(bar);
+        app.typing?.showSearchBar(bar);
       }
       this.#shown.set(app.id, shown);
     }

@@ -1,4 +1,4 @@
-import type { CommandName, Confirmation } from "../../shared/protocol.ts";
+import type { CommandName, Confirmation, RemoteLayout } from "../../shared/protocol.ts";
 import type { TextEdit } from "../../shared/keyboard.ts";
 
 export type AppKey = "up" | "down" | "left" | "right" | "ok" | "back";
@@ -30,13 +30,27 @@ export interface SoundSink {
   setOutputDevice(name: string | undefined): Promise<boolean>;
 }
 
+/** An App that takes text: the Remote's Type button and the Mac keyboard search. */
+export interface AppTyping {
+  /** The Remote's Type button label, e.g. "Search YouTube". */
+  readonly label: string;
+  /** Searches the App for the whole text, once. */
+  submitSearch(text: string): void;
+  /** Draws Couch's floating search bar with this text over the App, or removes it when undefined. */
+  showSearchBar(text: string | undefined): void;
+  /** While on, every key on the Mac keyboard becomes an `edit` event instead of reaching the App. */
+  captureText(on: boolean): void;
+}
+
 /**
  * A web App: a full-screen web view core hands the Screen to. While it is the front App, core
  * sends it the D-pad, OK, Back, play/pause, seek and typing; everything App-specific lives behind this.
  */
 export interface App extends SoundSink {
-  /** The Remote's Type button label, e.g. "Search YouTube". */
-  readonly typeLabel: string;
+  /** Present when the App takes text; without it the Remote shows no Type button. */
+  readonly typing?: AppTyping;
+  /** Which control layout the Remote shows while the App is in front; "app" when absent. */
+  readonly layout?: RemoteLayout;
   /** The Remote shows its volume −/+ pair. */
   readonly showVolume: boolean;
   /** The Remote shows its −10 s / +10 s pair. */
@@ -52,15 +66,10 @@ export interface App extends SoundSink {
    * "handled": the App went back by itself.
    */
   back(): "leave" | "handled";
-  /** Searches the App for the whole text, once. */
-  submitSearch(text: string): void;
-  /** Draws Couch's floating search bar with this text over the App, or removes it when undefined. */
-  showSearchBar(text: string | undefined): void;
-  /** While on, every key on the Mac keyboard becomes an `edit` event instead of reaching the App. */
-  captureText(on: boolean): void;
-  playPause(): void;
-  /** Skips the playing video forward (+) or back (−) by this many seconds. */
-  seekBy(seconds: number): void;
+  /** Absent for an App with nothing to play or pause. */
+  playPause?(): void;
+  /** Skips the playing video forward (+) or back (−) by this many seconds; absent when it can't. */
+  seekBy?(seconds: number): void;
   /** Draws the volume level above the App, or removes it when undefined. */
   drawVolume(percent: number | undefined): void;
   /** Draws Couch's question over the App, or removes it when undefined. */

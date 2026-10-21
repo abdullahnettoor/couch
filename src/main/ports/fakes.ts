@@ -12,8 +12,8 @@ import type { Clock } from "./clock.ts";
 import type { DisplayInfo, Mac, OutputDevice } from "./mac.ts";
 import { RouteTracker, type PageState } from "../apps/youtube/youtube-route.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "./youtube.ts";
-import type { App, AppEvent, AppKey } from "../apps/app.ts";
-import type { Confirmation } from "../../shared/protocol.ts";
+import type { App, AppEvent, AppKey, AppTyping } from "../apps/app.ts";
+import type { Confirmation, RemoteLayout } from "../../shared/protocol.ts";
 
 function emitter<E>() {
   const listeners = new Set<(event: E) => void>();
@@ -170,6 +170,17 @@ export class FakeYouTube implements YouTube {
   }
 }
 
+export interface FakeWebAppOptions {
+  typeLabel?: string;
+  showVolume?: boolean;
+  showSkip?: boolean;
+  /** false: the App doesn't take text. */
+  typing?: boolean;
+  /** false: the App has no play/pause or seek. */
+  playback?: boolean;
+  layout?: RemoteLayout;
+}
+
 /** A second web App that is not YouTube: records what core tells it. `atHome` is what its Back answers. */
 export class FakeWebApp implements App {
   readonly calls: Array<{ call: string; args: unknown[] }> = [];
@@ -181,18 +192,27 @@ export class FakeWebApp implements App {
   volume: number | undefined;
   readonly id: string;
   readonly label: string;
-  readonly options: { typeLabel?: string; showVolume?: boolean; showSkip?: boolean };
-  constructor(
-    id: string,
-    label: string,
-    options: { typeLabel?: string; showVolume?: boolean; showSkip?: boolean } = {},
-  ) {
+  readonly options: FakeWebAppOptions;
+  readonly typing: AppTyping | undefined;
+  readonly layout: RemoteLayout | undefined;
+  readonly playPause: (() => void) | undefined;
+  readonly seekBy: ((seconds: number) => void) | undefined;
+  constructor(id: string, label: string, options: FakeWebAppOptions = {}) {
     this.id = id;
     this.label = label;
     this.options = options;
-  }
-  get typeLabel() {
-    return this.options.typeLabel ?? `Search ${this.label}`;
+    this.layout = options.layout;
+    if (options.typing !== false)
+      this.typing = {
+        label: options.typeLabel ?? `Search ${label}`,
+        submitSearch: (text) => this.#record("submitSearch", text),
+        showSearchBar: (text) => this.#record("showSearchBar", text),
+        captureText: (on) => this.#record("captureText", on),
+      };
+    if (options.playback !== false) {
+      this.playPause = () => this.#record("playPause");
+      this.seekBy = (seconds) => this.#record("seekBy", seconds);
+    }
   }
   get showVolume() {
     return this.options.showVolume ?? false;
@@ -215,21 +235,6 @@ export class FakeWebApp implements App {
   back() {
     this.#record("back");
     return this.atHome ? ("leave" as const) : ("handled" as const);
-  }
-  submitSearch(text: string) {
-    this.#record("submitSearch", text);
-  }
-  showSearchBar(text: string | undefined) {
-    this.#record("showSearchBar", text);
-  }
-  captureText(on: boolean) {
-    this.#record("captureText", on);
-  }
-  playPause() {
-    this.#record("playPause");
-  }
-  seekBy(seconds: number) {
-    this.#record("seekBy", seconds);
   }
   drawVolume(percent: number | undefined) {
     this.#record("drawVolume", percent);

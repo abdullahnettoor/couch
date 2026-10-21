@@ -152,4 +152,27 @@ describe("a second web App", () => {
     await phone.press("ok");
     expect(weather.calls.map((c) => c.call)).toContain("restart");
   });
+
+  test("an App without search, playback or a layout of its own: no Type, nothing sent, plain app layout", async () => {
+    const quiet = new FakeWebApp("quiet", "Quiet", { typing: false, playback: false });
+    await h.stop();
+    h = await startHarness(undefined, {
+      apps: [
+        { entry: { ...entry, id: "quiet", label: "Quiet", action: "app:open:quiet" }, app: quiet },
+      ],
+    });
+    const phone = await h.connectPhone();
+    for (let i = 0; i < 20 && h.screen.last.focusedId !== "quiet"; i++) await phone.press("right");
+    const s = await phone.press("ok");
+    expect(s.view).toBe("app");
+    expect(s.layout).toBe("app");
+    expect(s.typeAvailable).toBe(false);
+    expect(s.typeLabel).toBeUndefined();
+    const toasted = await phone.press({ command: "typeOpen" });
+    expect(toasted.typing).toBe("none");
+    await phone.press("playpause");
+    await phone.press({ command: "seekBy", args: { seconds: 10 } });
+    quiet.emit({ type: "find" });
+    expect(quiet.calls.map((c) => c.call)).toEqual(["show"]);
+  });
 });
