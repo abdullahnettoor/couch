@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { safeEqual } from "../constant-time.ts";
 import { dirname, basename } from "node:path";
 import {
   VIEW_LABELS,
@@ -282,7 +283,7 @@ export class Core {
   }
 
   acceptsKey(key: string | null | undefined): boolean {
-    return typeof key === "string" && key.length > 0 && key === this.#key;
+    return typeof key === "string" && key.length > 0 && safeEqual(key, this.#key);
   }
 
   get pairingUrl(): string {

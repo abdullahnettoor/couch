@@ -5,6 +5,7 @@ import type { AddressInfo } from "node:net";
 import { WebSocketServer, type WebSocket } from "ws";
 import { COMMAND_NAMES, type Command, type CommandName } from "../../shared/protocol.ts";
 import type { Core } from "../core/core.ts";
+import { safeEqual } from "../constant-time.ts";
 import { REMOTE_PAGE } from "./page.ts";
 
 export interface RemoteServer {
@@ -83,7 +84,7 @@ export async function startRemoteServer(
     const from = req.socket.remoteAddress ?? "";
     const loopback = from === "::1" || from.startsWith("127.") || from.startsWith("::ffff:127.");
     if (req.method !== "POST" || !token || !loopback) return void res.writeHead(404).end();
-    if (req.headers.authorization !== `Bearer ${token}`) return void res.writeHead(401).end();
+    if (!safeEqual(req.headers.authorization ?? "", `Bearer ${token}`)) return void res.writeHead(401).end();
     res.writeHead(200, { "content-type": "application/json" });
     res.end('{"ok":true}', () => core.quit());
   };
