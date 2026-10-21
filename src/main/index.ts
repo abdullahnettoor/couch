@@ -8,7 +8,8 @@ import { pickTargetDisplay } from "./display.ts";
 import { revealScreen } from "./reveal.ts";
 import { systemClock } from "./ports/clock.ts";
 import { createElectronMac } from "./ports/electron-mac.ts";
-import { ElectronYouTube } from "./ports/electron-youtube.ts";
+import { ElectronWebApp } from "./web/electron-web-app.ts";
+import { youtubeDescription } from "./apps/youtube/youtube-web.ts";
 import { YouTubeApp } from "./apps/youtube/youtube-app.ts";
 import { FileStore } from "./ports/store.ts";
 import { FfmpegThumbnails } from "./ports/thumbnails.ts";
@@ -131,7 +132,7 @@ async function createScreen(): Promise<void> {
     list: () => player!.listAudioDevices(),
     onChanged: (listener) => player!.onAudioDevicesChanged(listener),
   });
-  const youtube = new ElectronYouTube(win);
+  const youtube = new ElectronWebApp(youtubeDescription(app.getVersion()), win);
   const youtubeApp = new YouTubeApp(youtube, systemClock);
   mac.keepAwake(true);
   const store = new FileStore(app.getPath("userData"));

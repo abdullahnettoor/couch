@@ -10,7 +10,7 @@ import type {
 import type { LoadOptions, Player, PlayerEvent } from "../../shared/player.ts";
 import type { Clock } from "./clock.ts";
 import type { DisplayInfo, Mac, OutputDevice } from "./mac.ts";
-import { RouteTracker, type PageState } from "./youtube-route.ts";
+import { RouteTracker, type PageState } from "../apps/youtube/youtube-route.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "./youtube.ts";
 import type { App, AppEvent, AppKey } from "../apps/app.ts";
 import type { Confirmation } from "../../shared/protocol.ts";

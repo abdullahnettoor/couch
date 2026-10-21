@@ -4,7 +4,7 @@ import type { Confirmation } from "../../shared/protocol.ts";
 import { ICON_PATHS, ICON_VIEWBOX } from "../../shared/icons.ts";
 
 /**
- * Glass toast and volume level for the YouTube view, injected into the page.
+ * Glass toast and volume level for a web App's view, injected into the page.
  * Mirrors `.toast` and `.volhud` in src/renderer/glass.css.
  *
  * YouTube enforces Trusted Types (no `innerHTML`) and a CSP that ignores injected `<style>`
@@ -54,7 +54,7 @@ document.body.appendChild(d);setTimeout(function(){d.remove()},4000)})()`;
  * Script that draws the floating search bar (a Glass pill at the top centre) with the typed text, or removes it
  * when `text` is undefined. Called on every change: the same bar is updated in place, and only a new one drops in.
  */
-export function searchBarScript(text: string | undefined): string {
+export function searchBarScript(text: string | undefined, placeholder: string): string {
   if (text === undefined) {
     return `(function(){var e=document.getElementById('couch-search');if(e)e.remove()})()`;
   }
@@ -73,7 +73,7 @@ c.animate([{opacity:1},{opacity:0}],{duration:1000,iterations:Infinity,easing:'s
 d.animate([{opacity:0,transform:'translateX(-50%) translateY('+px(-40)+')'},{opacity:1,transform:'translateX(-50%) translateY(0)'}],{duration:220,easing:'cubic-bezier(.2,.8,.2,1)'});
 }
 var tx=d.querySelector('[data-role=text]'),ph=${JSON.stringify(text)}==='';
-tx.textContent=ph?'Search YouTube':${JSON.stringify(text)};tx.style.setProperty('color',ph?${JSON.stringify(COLORS.t3)}:'inherit');
+tx.textContent=ph?${JSON.stringify(placeholder)}:${JSON.stringify(text)};tx.style.setProperty('color',ph?${JSON.stringify(COLORS.t3)}:'inherit');
 })()`;
 }
 

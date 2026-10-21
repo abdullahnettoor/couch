@@ -1,56 +1,24 @@
-import { confirmScript, noteScript, searchBarScript, volumeScript } from "./youtube-hud.ts";
-import {
-  RouteTracker,
-  isYouTubeOrigin,
-  PAGE_STATE_SCRIPT,
-  type PageState,
-} from "./youtube-route.ts";
-import type { Confirmation } from "../../shared/protocol.ts";
 import { join } from "node:path";
 import { app, BrowserWindow, WebContentsView, clipboard, session } from "electron";
+import type { Confirmation } from "../../shared/protocol.ts";
 import { SCREEN_KEYS, textEditFor } from "../../shared/keyboard.ts";
 import { revealScreen } from "../reveal.ts";
+import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
+import { requestHooksFor } from "./request-hooks.ts";
+import { SessionPreloads } from "./session-preloads.ts";
+import type { WebAppDescription, WebIdentity } from "./web-app.ts";
+import { confirmScript, noteScript, searchBarScript, volumeScript } from "./web-hud.ts";
 import {
   LIST_OUTPUTS_SCRIPT,
   pickOutputId,
   SOUND_RECHECK,
   soundScript,
   type PageOutput,
-} from "./youtube-sound.ts";
-import { applyCompatPatch } from "./youtube-compat.ts";
-import { CONTROLS_HIDE_MS, SKIP_COMMIT_MS, skipKeys } from "./youtube-skip.ts";
-import { applyToRequestHeaders, buildIdentity } from "./youtube-identity.ts";
-import type { YouTube, YouTubeEvent, YouTubeKey } from "./youtube.ts";
+} from "./web-sound.ts";
 
-export const YOUTUBE_URL = "https://www.youtube.com/tv";
-/** The Cobalt TV identity from the feasibility research; plain Chrome UAs get a "going to youtube.com" page. */
-const IDENTITY = buildIdentity(app.getVersion());
-export const COBALT_USER_AGENT = IDENTITY.userAgent;
-const PARTITION = "persist:youtube";
-
-const KEY_CODES: Record<YouTubeKey, string> = {
-  up: "Up",
-  down: "Down",
-  left: "Left",
-  right: "Right",
-  ok: "Return",
-  back: "Escape",
-};
-
-export const SEARCH_URL = "https://www.youtube.com/tv#/search";
-
-/** YouTube TV's own search deep link: it fills the search box and shows results for the text. */
-export function searchUrlFor(text: string): string {
-  const q = text.trim();
-  return q ? `${SEARCH_URL}?q=${encodeURIComponent(q)}` : SEARCH_URL;
-}
-
-export function isSearchUrl(url: string): boolean {
-  return /#\/search\b/.test(url);
-}
-
-/** The YouTube port in Electron: one persistent, always-loaded view over the Screen window. */
-export class ElectronYouTube implements YouTube {
+/** The web-App host: one persistent, always-loaded view over the Screen window, described by `desc`. */
+export class ElectronWebApp implements YouTube {
+  #desc: WebAppDescription;
   #win: BrowserWindow;
   #view: WebContentsView;
   #listeners = new Set<(event: YouTubeEvent) => void>();
@@ -61,8 +29,8 @@ export class ElectronYouTube implements YouTube {
   #inSearch = false;
   #skipTimer: ReturnType<typeof setTimeout> | undefined;
   #lastSkipAt = 0;
-  #page: PageState = { shorts: false, guide: false };
-  #routes = new RouteTracker();
+  #page: unknown;
+  #routes: ReturnType<WebAppDescription["route"]["tracker"]>;
   #routeTimer: ReturnType<typeof setInterval> | undefined;
   #volume = 60;
   #sinkId = "";
@@ -73,28 +41,27 @@ export class ElectronYouTube implements YouTube {
   #again = false;
   #ready = false;
 
-  constructor(win: BrowserWindow) {
+  constructor(desc: WebAppDescription, win: BrowserWindow) {
+    this.#desc = desc;
     this.#win = win;
-    const ses = session.fromPartition(PARTITION);
-    app.userAgentFallback = COBALT_USER_AGENT;
-    ses.setUserAgent(COBALT_USER_AGENT);
-    ses.webRequest.onBeforeSendHeaders((details, callback) => {
-      callback({
-        requestHeaders: applyToRequestHeaders(
-          IDENTITY,
-          new URL(details.url),
-          details.requestHeaders,
-        ),
-      });
-    });
+    this.#page = desc.route.idle;
+    this.#routes = desc.route.tracker();
+    const ses = session.fromPartition(desc.partition);
+    ses.setUserAgent(desc.identity.userAgent);
+    const hooks = requestHooksFor(ses);
+    // The identity comes first so every later handler sees (and keeps) its headers.
+    hooks.onBeforeSendHeaders((details) =>
+      desc.identity.headersFor(new URL(details.url), details.requestHeaders),
+    );
     // The view may ask the Mac for nothing (no microphone, no camera). Its media permission *check*
     // is answered yes only while Couch itself lists the outputs (to read their names for setSinkId),
-    // and only for YouTube's own origin.
+    // and only for the App's own origin.
     ses.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
     ses.setPermissionCheckHandler((_wc, permission, origin) => {
-      return this.#enumerating && permission === "media" && isYouTubeOrigin(origin);
+      return this.#enumerating && permission === "media" && desc.isOwnOrigin(origin);
     });
-    applyCompatPatch(ses, join(app.getPath("userData"), "youtube"));
+    const preloads = new SessionPreloads(ses, join(app.getPath("userData"), desc.id), desc.id);
+    for (const p of desc.preloads) preloads.add(p.name, p.func);
     this.#view = new WebContentsView({
       webPreferences: {
         session: ses,
@@ -109,7 +76,7 @@ export class ElectronYouTube implements YouTube {
     win.on("resize", () => this.#fit());
 
     const wc = this.#view.webContents;
-    wc.setUserAgent(COBALT_USER_AGENT);
+    wc.setUserAgent(desc.identity.userAgent);
     wc.on("did-finish-load", () => {
       if (this.#failed || !wc.getURL().startsWith("https:")) return;
       this.#emit({ type: "loaded" });
@@ -163,8 +130,8 @@ export class ElectronYouTube implements YouTube {
     const route = (_e: unknown, url: string) => {
       if (!url.startsWith("https:")) return;
       this.#syncRoute();
-      const entering = isSearchUrl(url) && !this.#inSearch;
-      this.#inSearch = isSearchUrl(url);
+      const entering = this.#desc.isSearchUrl(url) && !this.#inSearch;
+      this.#inSearch = this.#desc.isSearchUrl(url);
       // Only arriving at search counts; Couch's own query updates also change the route.
       if (entering) setTimeout(() => this.#emit({ type: "searchOpened" }), 400);
     };
@@ -180,8 +147,8 @@ export class ElectronYouTube implements YouTube {
 
   #pollShorts(): void {
     void this.#view.webContents
-      .executeJavaScript(PAGE_STATE_SCRIPT)
-      .then((page: PageState) => {
+      .executeJavaScript(this.#desc.route.script)
+      .then((page: unknown) => {
         this.#page = page;
         this.#syncRoute();
       })
@@ -196,14 +163,19 @@ export class ElectronYouTube implements YouTube {
       .loadURL("about:blank")
       .catch(() => {})
       // The identity must never hold YouTube back; load anyway if DevTools doesn't answer.
-      .then(() => Promise.race([applyIdentity(wc), new Promise((r) => setTimeout(r, 3000))]))
+      .then(() =>
+        Promise.race([
+          applyIdentity(wc, this.#desc.identity),
+          new Promise((r) => setTimeout(r, 3000)),
+        ]),
+      )
       .then(() => this.#load());
   }
 
   #load(): void {
     this.#failed = false;
     void this.#view.webContents
-      .loadURL(YOUTUBE_URL, { userAgent: COBALT_USER_AGENT })
+      .loadURL(this.#desc.url, { userAgent: this.#desc.identity.userAgent })
       .catch(() => {});
   }
 
@@ -326,7 +298,7 @@ export class ElectronYouTube implements YouTube {
   }
 
   sendKey(key: YouTubeKey): void {
-    const keyCode = KEY_CODES[key];
+    const keyCode = this.#desc.keyCodes[key];
     const wc = this.#view.webContents;
     this.#sending = true;
     try {
@@ -349,14 +321,14 @@ export class ElectronYouTube implements YouTube {
    */
   seekBy(seconds: number): void {
     const now = Date.now();
-    for (const key of skipKeys(seconds, now - this.#lastSkipAt < CONTROLS_HIDE_MS))
-      this.sendKey(key);
+    const { keys, controlsHideMs, commitMs } = this.#desc.skip;
+    for (const key of keys(seconds, now - this.#lastSkipAt < controlsHideMs)) this.sendKey(key);
     this.#lastSkipAt = now;
     clearTimeout(this.#skipTimer);
     this.#skipTimer = setTimeout(() => {
       this.sendKey("ok");
       this.#lastSkipAt = 0;
-    }, SKIP_COMMIT_MS);
+    }, commitMs);
   }
 
   captureText(on: boolean): void {
@@ -371,14 +343,16 @@ export class ElectronYouTube implements YouTube {
   }
 
   showSearchBar(text: string | undefined): void {
-    void this.#view.webContents.executeJavaScript(searchBarScript(text)).catch(() => {});
+    void this.#view.webContents
+      .executeJavaScript(searchBarScript(text, this.#desc.searchPlaceholder))
+      .catch(() => {});
   }
 
   #goToSearch(text: string): void {
     const wc = this.#view.webContents;
-    const url = searchUrlFor(text);
+    const url = this.#desc.searchUrlFor(text);
     if (wc.getURL() === url) return;
-    void wc.loadURL(url, { userAgent: COBALT_USER_AGENT }).catch(() => {});
+    void wc.loadURL(url, { userAgent: this.#desc.identity.userAgent }).catch(() => {});
   }
 
   restart(): void {
@@ -393,10 +367,10 @@ export class ElectronYouTube implements YouTube {
 
 const AUTO_ATTACH = { autoAttach: true, waitForDebuggerOnStart: true, flatten: true };
 
-/** Makes navigator.userAgent / userAgentData match the Cobalt identity, in the page and its iframes. */
-async function applyIdentity(wc: Electron.WebContents): Promise<void> {
+/** Makes navigator.userAgent / userAgentData match the App's identity, in the page and its iframes. */
+async function applyIdentity(wc: Electron.WebContents, identity: WebIdentity): Promise<void> {
   const dbg = wc.debugger;
-  const override = { userAgent: IDENTITY.userAgent, userAgentMetadata: IDENTITY.metadata };
+  const override = { userAgent: identity.userAgent, userAgentMetadata: identity.metadata };
   try {
     if (!dbg.isAttached()) dbg.attach("1.3");
     dbg.on("message", (_e, method, params: any) => {
@@ -418,6 +392,6 @@ async function applyIdentity(wc: Electron.WebContents): Promise<void> {
     await dbg.sendCommand("Emulation.setUserAgentOverride", override);
     await dbg.sendCommand("Target.setAutoAttach", AUTO_ATTACH);
   } catch (error) {
-    console.warn(`[youtube] could not apply client-hint identity: ${String(error)}`);
+    console.warn(`[web] could not apply client-hint identity: ${String(error)}`);
   }
 }

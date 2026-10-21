@@ -1,4 +1,4 @@
-import type { YouTubeKey } from "./youtube.ts";
+import type { YouTubeKey } from "../../ports/youtube.ts";
 
 /** YouTube TV scrubs 10 s per Left/Right once its controls are up; OK then commits the jump. */
 export const SKIP_STEP_SECONDS = 10;

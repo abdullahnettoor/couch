@@ -26,9 +26,6 @@
  * SOFTWARE.
  */
 
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-
 /**
  * Runs in the page before YouTube's scripts. Makes MediaSource.isTypeSupported behave like
  * Cobalt's (it validates width/height/framerate/eotf...; Chromium accepts everything, so the
@@ -84,37 +81,7 @@ export const COMPAT_FUNCTION = `function () {
 
 export const COMPAT_SCRIPT = `(${COMPAT_FUNCTION})();`;
 
-/** Session preload: runs the shim in YouTube's main world before any page script, on every navigation. */
-export const COMPAT_PRELOAD = `try { require('electron').contextBridge.executeInMainWorld({ func: ${COMPAT_FUNCTION} }); } catch (e) {}\n`;
-
-export interface CompatSession {
-  registerPreloadScript(script: { type: "frame"; filePath: string }): string;
-}
-
 /** Development switch: COUCH_YOUTUBE_PATCH=off keeps YouTube at its stock 720p behaviour. */
 export function compatEnabled(env: Record<string, string | undefined> = process.env): boolean {
   return env.COUCH_YOUTUBE_PATCH !== "off";
-}
-
-/**
- * Registers the compatibility shim as a session preload (written to `dir`). It is synchronous and
- * never throws: on any failure it logs and returns false, and YouTube loads unpatched (720p).
- */
-export function applyCompatPatch(
-  ses: CompatSession,
-  dir: string,
-  opts: { enabled?: boolean; log?: (message: string) => void } = {},
-): boolean {
-  const log = opts.log ?? ((m: string) => console.warn(m));
-  if (!(opts.enabled ?? compatEnabled())) return false;
-  try {
-    mkdirSync(dir, { recursive: true });
-    const filePath = join(dir, "youtube-compat-preload.cjs");
-    writeFileSync(filePath, COMPAT_PRELOAD);
-    ses.registerPreloadScript({ type: "frame", filePath });
-    return true;
-  } catch (error) {
-    log(`[youtube] 4K compatibility patch failed, staying at 720p: ${String(error)}`);
-    return false;
-  }
 }

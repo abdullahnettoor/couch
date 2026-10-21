@@ -1,5 +1,5 @@
 import { expect, test } from "vite-plus/test";
-import { pickOutputId } from "./youtube-sound.ts";
+import { pickOutputId } from "./web-sound.ts";
 
 // What Chromium reported for this Mac's outputs (labels as the view sees them).
 const OUTPUTS = [
