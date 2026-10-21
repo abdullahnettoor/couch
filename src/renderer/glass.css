@@ -1011,8 +1011,19 @@ body.windowed .topbar [data-id] {
   font-weight: 600;
   color: var(--t3);
 }
-.ls-field.focused .hint {
-  color: rgba(0, 0, 0, 0.45);
+/* The bar stays glass while focused (a light ring, not a white pill), as over YouTube. */
+.ls-field.g-pill.focused {
+  background: var(--glass-strong);
+  color: #fff;
+  transform: none;
+  box-shadow:
+    var(--glass-edge),
+    0 0 0 calc(3 * var(--u)) rgba(255, 255, 255, 0.85),
+    0 calc(16 * var(--u)) calc(40 * var(--u)) rgba(0, 0, 0, 0.45);
+}
+/* Toasts drop below the search bar instead of covering it. */
+body:has(.ls-page) .toast:not(.notice) {
+  top: calc(212 * var(--u));
 }
 .ls-page .phones {
   display: none;
@@ -1040,13 +1051,6 @@ body.windowed .topbar [data-id] {
   margin-left: calc(-14 * var(--u));
   background: #fff;
   animation: ls-blink 1s steps(2, start) infinite;
-}
-.ls-field.focused svg,
-.ls-field.focused .ph {
-  color: rgba(0, 0, 0, 0.45);
-}
-.ls-field.focused .caret {
-  background: #000;
 }
 @keyframes ls-blink {
   to {
