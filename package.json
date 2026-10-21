@@ -11,6 +11,8 @@
     "package": "vp run build && node scripts/package.mjs",
     "sample": "sh scripts/make-sample.sh",
     "icons": "sh scripts/make-icons.sh",
+    "listener": "sh listener/build.sh",
+    "listener:test": "vp run listener && node --test listener/test/run.mjs",
     "check": "vp check",
     "test": "vp test run"
   },
