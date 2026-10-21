@@ -16,7 +16,8 @@ export default defineConfig({
       outDir: "dist/main",
       format: "esm",
       platform: "node",
-      deps: { neverBundle: ["electron"] },
+      // Couch.app ships without node_modules, so every runtime dependency must be inside the bundle.
+      deps: { neverBundle: ["electron"], alwaysBundle: [/^(?!electron$|node:)/] },
       // The TMDB project key goes into the main process bundle only (never the renderer or preload).
       define: { __COUCH_TMDB_TOKEN__: JSON.stringify(process.env.COUCH_TMDB_TOKEN ?? "") },
       clean: true,

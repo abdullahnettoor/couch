@@ -1,7 +1,19 @@
 import { packager } from "@electron/packager";
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdirSync, rmSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { builtinModules } from "node:module";
 import { join } from "node:path";
+
+// Couch.app has no node_modules: refuse to package a main bundle that still imports a package.
+for (const file of ["dist/main/index.mjs", "dist/preload/index.cjs"]) {
+  const code = readFileSync(file, "utf8");
+  const bare = [...code.matchAll(/(?:from\s*|import\(|require\()\s*["']([^"'./][^"']*)["']/g)]
+    .map((m) => m[1])
+    .filter((name) => name !== "electron" && !name.startsWith("node:") && !builtinModules.includes(name))
+    // ws loads these optional speed-ups inside try/catch.
+    .filter((name) => name !== "bufferutil" && name !== "utf-8-validate");
+  if (bare.length) throw new Error(`${file} imports packages that won't be in Couch.app: ${[...new Set(bare)].join(", ")}`);
+}
 
 rmSync("out", { recursive: true, force: true });
 const [appPath] = await packager({
