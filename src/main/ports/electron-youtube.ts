@@ -1,5 +1,5 @@
 import { confirmScript, noteScript, searchBarScript, volumeScript } from "./youtube-hud.ts";
-import { RouteTracker, SHORTS_OPEN_SCRIPT } from "./youtube-route.ts";
+import { RouteTracker, PAGE_STATE_SCRIPT, type PageState } from "./youtube-route.ts";
 import type { Confirmation } from "../../shared/protocol.ts";
 import { join } from "node:path";
 import { app, BrowserWindow, WebContentsView, clipboard, session } from "electron";
@@ -55,7 +55,7 @@ export class ElectronYouTube implements YouTube {
   #inSearch = false;
   #skipTimer: ReturnType<typeof setTimeout> | undefined;
   #lastSkipAt = 0;
-  #shortsOpen = false;
+  #page: PageState = { shorts: false, guide: false };
   #routes = new RouteTracker();
   #routeTimer: ReturnType<typeof setInterval> | undefined;
   #volume = 60;
@@ -156,16 +156,15 @@ export class ElectronYouTube implements YouTube {
 
   /** Tells the core whether YouTube is on its home screen (a Short keeps Home's URL, so the page is asked too). */
   #syncRoute(): void {
-    const route = this.#routes.update(this.#view.webContents.getURL(), this.#shortsOpen);
+    const route = this.#routes.update(this.#view.webContents.getURL(), this.#page);
     if (route) this.#emit({ type: "route", ...route });
   }
 
   #pollShorts(): void {
     void this.#view.webContents
-      .executeJavaScript(SHORTS_OPEN_SCRIPT)
-      .then((open: boolean) => {
-        if (open === this.#shortsOpen) return;
-        this.#shortsOpen = open;
+      .executeJavaScript(PAGE_STATE_SCRIPT)
+      .then((page: PageState) => {
+        this.#page = page;
         this.#syncRoute();
       })
       .catch(() => {});

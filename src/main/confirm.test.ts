@@ -131,10 +131,33 @@ describe("Back inside YouTube", () => {
     await openYouTube();
     const home = "https://www.youtube.com/tv#/";
     h.youtube.navigate(home);
-    h.youtube.navigate(home, true);
+    h.youtube.navigate(home, { shorts: true });
     await phone.press("back");
-    h.youtube.navigate(home, false);
+    h.youtube.navigate(home);
     expect((await phone.press("back")).confirm?.title).toBe("Leave YouTube?");
+  });
+
+  test("one Back from a Short closes it and the guide YouTube opens, landing on the shelf", async () => {
+    await openYouTube();
+    const home = "https://www.youtube.com/tv#/";
+    h.youtube.navigate(home);
+    h.youtube.navigate(home, { shorts: true, guide: true });
+    await phone.press("back");
+    expect(keys()).toEqual(["back"]);
+    h.youtube.navigate(home, { shorts: false, guide: true });
+    expect(keys()).toEqual(["back", "back"]);
+    h.youtube.navigate(home, { shorts: false, guide: false });
+    h.clock.advance(1500);
+    const s = await phone.press("back");
+    expect(s.confirm?.title).toBe("Leave YouTube?");
+  });
+
+  test("the guide opened by the household is left alone when no Short closes", async () => {
+    await openYouTube();
+    const home = "https://www.youtube.com/tv#/";
+    h.youtube.navigate(home);
+    h.youtube.navigate(home, { guide: true });
+    expect(keys()).toEqual([]);
   });
 
   test("a route that arrives slowly (900 ms) does not make the next Back ask", async () => {

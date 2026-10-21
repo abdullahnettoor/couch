@@ -123,6 +123,7 @@ export class Core {
   #ytFailed = false;
   #lastFrom: RemoteId | undefined;
   #ytHome = true;
+  #ytShorts = false;
   /** Back was sent to YouTube at this time and no route change has followed. */
   #ytBackAt: number | undefined;
   #quitApproved = false;
@@ -1617,7 +1618,17 @@ export class Core {
         break;
       case "route":
         this.#ytHome = event.home;
-        this.#ytBackAt = undefined;
+        // YouTube's Back out of a Short leaves its guide open; close that too, back to where the Short began.
+        if (
+          this.#ytShorts &&
+          event.shorts === false &&
+          event.guideOpen &&
+          this.#ytBackAt !== undefined
+        ) {
+          this.#ytBackAt = this.#ports.clock.now();
+          this.#ports.youtube.sendKey("back");
+        } else this.#ytBackAt = undefined;
+        this.#ytShorts = event.shorts === true;
         break;
       case "searchOpened":
         if (

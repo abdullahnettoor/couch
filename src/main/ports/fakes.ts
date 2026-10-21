@@ -10,7 +10,7 @@ import type {
 import type { LoadOptions, Player, PlayerEvent } from "../../shared/player.ts";
 import type { Clock } from "./clock.ts";
 import type { DisplayInfo, Mac, OutputDevice } from "./mac.ts";
-import { RouteTracker } from "./youtube-route.ts";
+import { RouteTracker, type PageState } from "./youtube-route.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "./youtube.ts";
 
 function emitter<E>() {
@@ -95,8 +95,8 @@ export class FakeYouTube implements YouTube {
     this.calls.push({ call, args });
   }
   /** The view's address or Shorts player changed, announced the way the real adapter does. */
-  navigate(url: string, shortsOpen = false) {
-    const route = this.#tracker.update(url, shortsOpen);
+  navigate(url: string, page: Partial<PageState> = {}) {
+    const route = this.#tracker.update(url, { shorts: false, guide: false, ...page });
     if (route) this.emit({ type: "route", ...route });
   }
   show(note?: string) {

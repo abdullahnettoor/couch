@@ -9,8 +9,11 @@ export type YouTubeEvent =
   | { type: "key"; command: CommandName }
   | { type: "loaded" }
   | { type: "failed" }
-  /** The view navigated; `home` is true only on YouTube's home screen. */
-  | { type: "route"; home: boolean }
+  /**
+   * The view's address, Shorts player or guide changed; `home` is true only on YouTube's home screen.
+   * `shorts` and `guideOpen` come from the page (a Short keeps Home's URL).
+   */
+  | { type: "route"; home: boolean; shorts?: boolean; guideOpen?: boolean }
   | { type: "searchOpened" }
   /** ⌘F or / on the Mac keyboard: the household wants to type a search with it. */
   | { type: "find" }
