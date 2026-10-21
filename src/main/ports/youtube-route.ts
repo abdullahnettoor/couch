@@ -32,3 +32,12 @@ export class RouteTracker {
     return { home: isYouTubeHome(url, page.shorts), shorts: page.shorts, guideOpen: page.guide };
   }
 }
+
+/** True only for YouTube's own origin; `www.youtube.com.evil.example` and look-alikes are not. */
+export function isYouTubeOrigin(origin: string): boolean {
+  try {
+    return new URL(origin).origin === "https://www.youtube.com";
+  } catch {
+    return false;
+  }
+}

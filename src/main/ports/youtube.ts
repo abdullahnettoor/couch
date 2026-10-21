@@ -15,6 +15,8 @@ export type YouTubeEvent =
    */
   | { type: "route"; home: boolean; shorts?: boolean; guideOpen?: boolean }
   | { type: "searchOpened" }
+  /** The view found (ok) or still can't find the output it was asked for; sent whenever it looks again. */
+  | { type: "output"; name: string; ok: boolean }
   /** ⌘F or / on the Mac keyboard: the household wants to type a search with it. */
   | { type: "find" }
   /** A key while text capture is on, already turned into an edit of the search text. */
@@ -44,7 +46,9 @@ export interface YouTube {
   setVolume(percent: number): void;
   /**
    * Plays the view's media to the output with this name, or to the System default when undefined.
-   * Resolves to false when the view has no output by that name (it then keeps the System default).
+   * The wanted output is kept and looked for again whenever the page loads, media appears or the
+   * output list changes (`output` events report each outcome). Resolves to whether this attempt
+   * found it; false means the view keeps the System default for now.
    */
   setOutputDevice(name: string | undefined): Promise<boolean>;
   restart(): void;

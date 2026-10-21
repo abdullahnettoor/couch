@@ -1630,6 +1630,9 @@ export class Core {
         } else this.#ytBackAt = undefined;
         this.#ytShorts = event.shorts === true;
         break;
+      case "output":
+        this.#sound.youtubeOutput(event.name, event.ok);
+        return;
       case "searchOpened":
         if (
           this.#state.view === "youtube" &&

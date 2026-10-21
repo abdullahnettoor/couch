@@ -37,8 +37,14 @@ export class SoundOutput {
   #chosen: OutputDevice | undefined;
   #devices: OutputDevice[] = [];
   #listed = false;
-  /** The device mpv and YouTube were last pointed at; undefined is System default. */
-  #applied: OutputDevice | undefined;
+  /** The UID mpv is on: undefined is System default, null is "not known to be on the chosen device". */
+  #mpvUid: string | undefined | null = undefined;
+  #mpvPending: string | undefined | null = null;
+  /** The device each part last failed to reach (so a failure is said once). */
+  #mpvFailed: string | undefined;
+  #youtubeFailed: string | undefined;
+  /** The UID YouTube was last asked for. */
+  #youtubeUid: string | undefined;
   #off: () => void;
   #disposed = false;
 
@@ -94,29 +100,71 @@ export class SoundOutput {
         this.#h.toast(`${this.#chosen.name} isn't connected · using System default`);
       else if (!missing && wasMissing) this.#h.toast(`Back on ${this.#chosen.name}`);
     }
-    this.#apply();
+    this.#apply(true);
     this.#h.changed();
   }
 
-  #apply(): void {
+  /** Points mpv and YouTube at the effective device. `retry` asks YouTube to look again even for the same device. */
+  #apply(retry: boolean): void {
     const target = this.#effective();
-    if (target?.uid === this.#applied?.uid) return;
-    this.#applied = target;
-    this.#h.player.setAudioDevice(target?.uid).catch(() => {});
-    void this.#h.youtube
-      .setOutputDevice(target?.name)
-      .then((ok) => {
-        if (ok || !target || this.#disposed || this.#applied !== target) return;
-        this.#h.toast(`YouTube can't play to ${target.name} · using System default`);
+    if (this.#mpvUid !== target?.uid) void this.#applyMpv(target);
+    if (retry || this.#youtubeUid !== target?.uid) {
+      this.#youtubeUid = target?.uid;
+      void this.#h.youtube
+        .setOutputDevice(target?.name)
+        .then((ok) => this.#youtubeResult(target?.name, ok))
+        .catch(() => this.#youtubeResult(target?.name, false));
+    }
+  }
+
+  async #applyMpv(target: OutputDevice | undefined): Promise<void> {
+    const uid = target?.uid;
+    if (this.#mpvPending === uid) return;
+    this.#mpvPending = uid;
+    try {
+      await this.#h.player.setAudioDevice(uid);
+      if (this.#disposed || this.#mpvPending !== uid) return;
+      this.#mpvUid = uid;
+      this.#mpvFailed = undefined;
+    } catch {
+      if (this.#disposed || this.#mpvPending !== uid || this.#effective()?.uid !== uid) return;
+      this.#mpvUid = null;
+      this.#h.player.setAudioDevice(undefined).catch(() => {});
+      if (target && this.#mpvFailed !== uid) {
+        this.#mpvFailed = uid;
+        this.#h.toast(`Can't play to ${target.name} · using System default`);
         this.#h.changed();
-      })
-      .catch(() => {});
+      }
+    } finally {
+      if (this.#mpvPending === uid) this.#mpvPending = null;
+    }
+  }
+
+  /** The view reports whether it found the output named `name` (also called when it looks again later). */
+  youtubeOutput(name: string | undefined, ok: boolean): void {
+    this.#youtubeResult(name, ok);
+  }
+
+  #youtubeResult(name: string | undefined, ok: boolean): void {
+    const target = this.#effective();
+    if (this.#disposed || !target || target.name !== name) return;
+    if (ok) {
+      this.#youtubeFailed = undefined;
+      return;
+    }
+    if (this.#youtubeFailed === target.uid) return;
+    this.#youtubeFailed = target.uid;
+    this.#h.toast(`YouTube can't play to ${target.name} · using System default`);
+    this.#h.changed();
   }
 
   #choose(device: OutputDevice | undefined): void {
     this.#chosen = device;
     this.#save();
-    this.#apply();
+    this.#youtubeFailed = undefined;
+    this.#mpvFailed = undefined;
+    this.#mpvUid = null;
+    this.#apply(true);
     this.#h.toast(`Sound output: ${device?.name ?? "System default"}`);
   }
 

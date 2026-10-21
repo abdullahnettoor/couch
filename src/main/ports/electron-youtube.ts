@@ -1,5 +1,10 @@
 import { confirmScript, noteScript, searchBarScript, volumeScript } from "./youtube-hud.ts";
-import { RouteTracker, PAGE_STATE_SCRIPT, type PageState } from "./youtube-route.ts";
+import {
+  RouteTracker,
+  isYouTubeOrigin,
+  PAGE_STATE_SCRIPT,
+  type PageState,
+} from "./youtube-route.ts";
 import type { Confirmation } from "../../shared/protocol.ts";
 import { join } from "node:path";
 import { app, BrowserWindow, WebContentsView, clipboard, session } from "electron";
@@ -8,6 +13,7 @@ import { revealScreen } from "../reveal.ts";
 import {
   LIST_OUTPUTS_SCRIPT,
   pickOutputId,
+  SOUND_RECHECK,
   soundScript,
   type PageOutput,
 } from "./youtube-sound.ts";
@@ -60,6 +66,12 @@ export class ElectronYouTube implements YouTube {
   #routeTimer: ReturnType<typeof setInterval> | undefined;
   #volume = 60;
   #sinkId = "";
+  /** The output the household wants (by name), looked for whenever the page could have it. */
+  #wanted: string | undefined;
+  #enumerating = false;
+  #resolving: Promise<boolean> | undefined;
+  #again = false;
+  #ready = false;
 
   constructor(win: BrowserWindow) {
     this.#win = win;
@@ -76,10 +88,11 @@ export class ElectronYouTube implements YouTube {
       });
     });
     // The view may ask the Mac for nothing (no microphone, no camera). Its media permission *check*
-    // is answered yes only so the page can read output names (labels), to pick one for setSinkId.
+    // is answered yes only while Couch itself lists the outputs (to read their names for setSinkId),
+    // and only for YouTube's own origin.
     ses.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
     ses.setPermissionCheckHandler((_wc, permission, origin) => {
-      return permission === "media" && /^https:\/\/www\.youtube\.com\/?/.test(origin);
+      return this.#enumerating && permission === "media" && isYouTubeOrigin(origin);
     });
     applyCompatPatch(ses, join(app.getPath("userData"), "youtube"));
     this.#view = new WebContentsView({
@@ -101,9 +114,14 @@ export class ElectronYouTube implements YouTube {
       if (this.#failed || !wc.getURL().startsWith("https:")) return;
       this.#emit({ type: "loaded" });
       this.#syncRoute();
+      this.#ready = true;
+      void this.#resolveOutput();
+    });
+    wc.on("console-message", (event) => {
+      if ((event as { message?: string }).message === SOUND_RECHECK) void this.#resolveOutput();
     });
     // A new document has none of Couch's volume or output yet.
-    wc.on("dom-ready", () => this.#applySound());
+    wc.on("dom-ready", () => void this.#applySound());
     wc.on("did-fail-load", (_e, code, _desc, _url, isMainFrame) => {
       if (!isMainFrame || code === -3) return;
       this.#failed = true;
@@ -229,34 +247,74 @@ export class ElectronYouTube implements YouTube {
 
   setVolume(percent: number): void {
     this.#volume = percent;
-    this.#applySound();
+    void this.#applySound();
   }
 
-  #applySound(): void {
-    void this.#view.webContents
-      .executeJavaScript(soundScript(this.#volume, this.#sinkId))
-      .catch(() => {});
+  /** Puts Couch's volume and the resolved output on the page's media; false when an element refused the output. */
+  async #applySound(): Promise<boolean> {
+    try {
+      const pending = this.#wanted !== undefined && this.#sinkId === "";
+      return (await this.#view.webContents.executeJavaScript(
+        soundScript(this.#volume, this.#sinkId, pending),
+      )) as boolean;
+    } catch {
+      return false;
+    }
   }
 
   async setOutputDevice(name: string | undefined): Promise<boolean> {
+    this.#wanted = name;
     if (name === undefined) {
       this.#sinkId = "";
-      this.#applySound();
+      await this.#applySound();
       return true;
     }
+    // Before the page has loaded there is nothing to ask; the load looks again and reports.
+    if (!this.#ready) return true;
+    return this.#resolveOutput();
+  }
+
+  /** Looks for the wanted output in the page now; a request that arrives meanwhile runs once more after. */
+  #resolveOutput(): Promise<boolean> {
+    if (this.#resolving) {
+      this.#again = true;
+      return this.#resolving;
+    }
+    const run = async (): Promise<boolean> => {
+      let ok = true;
+      do {
+        this.#again = false;
+        ok = await this.#resolveOnce();
+      } while (this.#again);
+      return ok;
+    };
+    this.#resolving = run().finally(() => {
+      this.#resolving = undefined;
+    });
+    return this.#resolving;
+  }
+
+  async #resolveOnce(): Promise<boolean> {
+    const name = this.#wanted;
+    if (name === undefined) return true;
+    let found = false;
     try {
+      this.#enumerating = true;
       const outputs = (await this.#view.webContents.executeJavaScript(
         LIST_OUTPUTS_SCRIPT,
       )) as PageOutput[];
-      const id = pickOutputId(name, outputs);
-      this.#sinkId = id ?? "";
-      this.#applySound();
-      return id !== undefined;
+      const pick = pickOutputId(name, outputs);
+      this.#sinkId = "id" in pick ? pick.id : "";
+      found = "id" in pick;
     } catch {
       this.#sinkId = "";
-      this.#applySound();
-      return false;
+    } finally {
+      this.#enumerating = false;
     }
+    const applied = await this.#applySound();
+    const ok = found && applied && this.#wanted === name;
+    if (this.#wanted === name) this.#emit({ type: "output", name, ok });
+    return ok;
   }
 
   async #showNote(note: string): Promise<void> {

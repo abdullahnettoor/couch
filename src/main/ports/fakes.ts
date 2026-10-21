@@ -57,7 +57,13 @@ export class FakePlayer implements Player {
     this.volume = percent;
     return this.#record("setVolume", percent);
   }
+  /** UIDs mpv refuses to open, like a monitor that is asleep. */
+  failingAudioDevices = new Set<string>();
   setAudioDevice(uid: string | undefined) {
+    if (uid !== undefined && this.failingAudioDevices.has(uid)) {
+      void this.#record("setAudioDevice", uid);
+      return Promise.reject(new Error("audio-device refused"));
+    }
     this.audioDevice = uid;
     return this.#record("setAudioDevice", uid);
   }
@@ -134,6 +140,11 @@ export class FakeYouTube implements YouTube {
   outputName: string | undefined;
   /** Output names the view has no device for, like Chromium not listing a monitor. */
   unmatchedOutputs = new Set<string>();
+  /** The device shows up in the view (Chromium lists it now): the view looks again and says so. */
+  outputAppears(name: string) {
+    this.unmatchedOutputs.delete(name);
+    if (this.outputName === name) this.emit({ type: "output", name, ok: true });
+  }
   setVolume(percent: number) {
     this.volume = percent;
     this.#record("setVolume", percent);

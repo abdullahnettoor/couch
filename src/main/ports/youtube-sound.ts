@@ -13,36 +13,52 @@ function chromiumName(label: string): string {
   return label.replace(/\s*\([^()]*\)$/, "");
 }
 
+export type PickResult = { id: string } | { error: "none" | "ambiguous" };
+
 /**
  * The page's output id for a CoreAudio device name. Chromium hashes its ids per profile, so the
- * label is the only link to the CoreAudio UID. Names match whole, or by prefix (Chromium says
- * "Microsoft Teams Audio Device" where CoreAudio says "Microsoft Teams Audio").
+ * label is the only link to the CoreAudio UID. A whole name wins; otherwise a prefix may match
+ * (Chromium says "Microsoft Teams Audio Device" where CoreAudio says "Microsoft Teams Audio").
+ * Two outputs with the same match are ambiguous, never guessed.
  */
-export function pickOutputId(name: string, outputs: PageOutput[]): string | undefined {
+export function pickOutputId(name: string, outputs: PageOutput[]): PickResult {
   const candidates = outputs.filter(
     (o) => o.deviceId !== "default" && o.deviceId !== "" && !o.label.startsWith("Default - "),
   );
-  const exact = candidates.find((o) => chromiumName(o.label) === name);
-  if (exact) return exact.deviceId;
-  return candidates.find((o) => chromiumName(o.label).startsWith(name))?.deviceId;
+  const exact = candidates.filter((o) => chromiumName(o.label) === name);
+  const found = exact.length
+    ? exact
+    : candidates.filter((o) => chromiumName(o.label).startsWith(name));
+  if (found.length === 1) return { id: found[0]!.deviceId };
+  return { error: found.length ? "ambiguous" : "none" };
 }
 
 /** Script that lists the page's audio outputs (labels need the view's narrow `media` permission check). */
 export const LIST_OUTPUTS_SCRIPT = `navigator.mediaDevices.enumerateDevices().then(function(d){return d.filter(function(x){return x.kind==='audiooutput'}).map(function(x){return {deviceId:x.deviceId,label:x.label}})})`;
 
-/** Script that sets the volume (0-100) and output id ("" is the System default) on every media element, now and later. */
-export function soundScript(percent: number, sinkId: string): string {
+/** What the page logs to ask the port to look for the wanted output again. */
+export const SOUND_RECHECK = "couch:sound-recheck";
+
+/**
+ * Script that sets the volume (0-100) and output id ("" is the System default) on every media
+ * element, now and later, and resolves to whether every element took the output. While
+ * `pending` (an output is wanted but not found yet) new media and device changes ask for a re-check.
+ */
+export function soundScript(percent: number, sinkId: string, pending = false): string {
   const p = Math.max(0, Math.min(100, Math.round(percent)));
   return `(function(){
 var s=window.__couchSound||(window.__couchSound={});
-s.vol=${p}/100;s.sink=${JSON.stringify(sinkId)};
-function fix(m){
-if(!m||(m.tagName!=='VIDEO'&&m.tagName!=='AUDIO'))return;
+s.vol=${p}/100;s.sink=${JSON.stringify(sinkId)};s.pending=${pending};
+function fix(m,ask){
+if(!m||(m.tagName!=='VIDEO'&&m.tagName!=='AUDIO'))return Promise.resolve(true);
 if(Math.abs(m.volume-s.vol)>0.001)m.volume=s.vol;
-if(m.setSinkId&&m.sinkId!==s.sink)m.setSinkId(s.sink).catch(function(){});
+if(ask&&ask!=='volumechange'&&s.pending)console.debug(${JSON.stringify(SOUND_RECHECK)});
+if(m.setSinkId&&m.sinkId!==s.sink)return m.setSinkId(s.sink).then(function(){return true},function(){return false});
+return Promise.resolve(true);
 }
 if(!s.on){s.on=true;['loadstart','loadedmetadata','play','playing','volumechange'].forEach(function(t){
-document.addEventListener(t,function(e){fix(e.target)},true)})}
-document.querySelectorAll('video,audio').forEach(fix);
+document.addEventListener(t,function(e){fix(e.target,e.type)},true)});
+if(navigator.mediaDevices&&navigator.mediaDevices.addEventListener)navigator.mediaDevices.addEventListener('devicechange',function(){console.debug(${JSON.stringify(SOUND_RECHECK)})})}
+return Promise.all(Array.prototype.map.call(document.querySelectorAll('video,audio'),fix)).then(function(r){return r.every(Boolean)});
 })()`;
 }

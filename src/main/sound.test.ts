@@ -171,6 +171,52 @@ describe("Sound output", () => {
     expect(h.screen.last.state.toast).toBe("YouTube can't play to L27h-4A · using System default");
   });
 
+  test("reselecting the chosen device, or a change of the device list, makes YouTube look again", async () => {
+    store.write("sound", { output: MONITOR });
+    await start();
+    const asks = () => h.youtube.calls.filter((c) => c.call === "setOutputDevice").length;
+    const before = asks();
+    h.mac.setOutputDevices([SPEAKERS, MONITOR, { uid: "x", name: "Other" }]);
+    await until(() => asks() > before);
+    const mid = asks();
+    await openSoundPage();
+    await phone.press("down");
+    await phone.press("down");
+    await phone.press("ok");
+    expect(asks()).toBeGreaterThan(mid);
+  });
+
+  test("once YouTube finds the device later, the fallback note is not repeated", async () => {
+    h = await startHarness(store);
+    h.youtube.unmatchedOutputs.add("L27h-4A");
+    phone = await h.connectPhone();
+    await openSoundPage();
+    await phone.press("down");
+    await phone.press("down");
+    await phone.press("ok");
+    await settle();
+    expect(h.screen.last.state.toast).toBe("YouTube can't play to L27h-4A · using System default");
+    h.youtube.outputAppears("L27h-4A");
+    h.youtube.emit({ type: "output", name: "L27h-4A", ok: false });
+    await settle();
+    expect(h.youtube.outputName).toBe("L27h-4A");
+  });
+
+  test("a device mpv can't open falls back to System default with a note, and is retried when the list changes", async () => {
+    await start();
+    h.player.failingAudioDevices.add(MONITOR.uid);
+    await openSoundPage();
+    await phone.press("down");
+    await phone.press("down");
+    await phone.press("ok");
+    await settle();
+    expect(h.player.audioDevice).toBeUndefined();
+    expect(h.screen.last.state.toast).toBe("Can't play to L27h-4A · using System default");
+    h.player.failingAudioDevices.clear();
+    h.mac.setOutputDevices([SPEAKERS, MONITOR, { uid: "x", name: "Other" }]);
+    await until(() => h.player.audioDevice === MONITOR.uid);
+  });
+
   test("Back returns to Settings", async () => {
     await start();
     await openSoundPage();

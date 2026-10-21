@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vite-plus/test";
-import { isYouTubeHome } from "./youtube-route.ts";
+import { isYouTubeHome, isYouTubeOrigin } from "./youtube-route.ts";
 
 // Routes recorded from a real signed-in session on 2026-10-21 (see .issues/053-youtube-back-confirmations.md).
 describe("isYouTubeHome", () => {
@@ -27,5 +27,20 @@ describe("isYouTubeHome", () => {
       "https://www.youtube.com/tv#/settings",
     ])
       expect(isYouTubeHome(url, false)).toBe(false);
+  });
+});
+
+describe("isYouTubeOrigin", () => {
+  test("accepts YouTube's own origin only", () => {
+    expect(isYouTubeOrigin("https://www.youtube.com")).toBe(true);
+    expect(isYouTubeOrigin("https://www.youtube.com/")).toBe(true);
+    for (const origin of [
+      "https://www.youtube.com.evil.example",
+      "https://www.youtube.com@evil.example",
+      "http://www.youtube.com",
+      "https://youtube.com",
+      "",
+    ])
+      expect(isYouTubeOrigin(origin)).toBe(false);
   });
 });
