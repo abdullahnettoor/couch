@@ -1,0 +1,17 @@
+{
+  "responseContext": { "visitorData": "VISITOR" },
+  "entries": [
+    { "command": { "reelWatchEndpoint": { "videoId": "short1" } } },
+    {
+      "command": {
+        "reelWatchEndpoint": { "videoId": "adshort", "adClientParams": { "isAd": true } }
+      }
+    },
+    {
+      "command": {
+        "reelWatchEndpoint": { "videoId": "short2", "adClientParams": { "isAd": false } }
+      }
+    }
+  ],
+  "continuationEndpoint": { "token": "T" }
+}

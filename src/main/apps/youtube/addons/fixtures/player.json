@@ -1,0 +1,43 @@
+{
+  "responseContext": {
+    "serviceTrackingParams": [
+      { "service": "GFEEDBACK", "params": [{ "key": "is_viewed_live", "value": "False" }] }
+    ]
+  },
+  "playabilityStatus": { "status": "OK", "playableInEmbed": true },
+  "streamingData": {
+    "expiresInSeconds": "21540",
+    "adaptiveFormats": [
+      {
+        "itag": 137,
+        "mimeType": "video/mp4; codecs=\"avc1.640028\"",
+        "width": 1920,
+        "height": 1080,
+        "bitrate": 4300000
+      }
+    ]
+  },
+  "videoDetails": { "videoId": "VIDEO_ID", "title": "A video", "lengthSeconds": "212" },
+  "adPlacements": [
+    {
+      "adPlacementRenderer": {
+        "config": {
+          "adPlacementConfig": {
+            "kind": "AD_PLACEMENT_KIND_START",
+            "adTimeOffset": { "offsetStartMilliseconds": "0", "offsetEndMilliseconds": "0" }
+          }
+        },
+        "renderer": { "adBreakServiceRenderer": { "prefetchMilliseconds": "3000" } }
+      }
+    }
+  ],
+  "adSlots": [
+    {
+      "adSlotRenderer": {
+        "adSlotMetadata": { "slotId": "1", "slotType": "SLOT_TYPE_PLAYER_BYTES" }
+      }
+    }
+  ],
+  "playerAds": [{ "playerLegacyDesktopWatchAdsRenderer": { "gutParams": { "tag": "x" } } }],
+  "adBreakHeartbeatParams": "keep-me"
+}

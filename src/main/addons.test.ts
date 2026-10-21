@@ -47,9 +47,10 @@ describe("YouTube add-ons in Settings", () => {
     expect(h.screen.last.state.view).toBe("addons");
     expect(h.screen.last.addons).toEqual([
       expect.objectContaining({ id: "4k", label: "4K video", on: true }),
+      expect.objectContaining({ id: "adblock", label: "Ad blocker", on: false }),
     ]);
-    expect(h.screen.last.addons![0].description).not.toBe("");
-    expect(h.screen.last.grid.map((i) => i.id)).toEqual(["4k"]);
+    expect(h.screen.last.addons!.every((a) => a.description !== "")).toBe(true);
+    expect(h.screen.last.grid.map((i) => i.id)).toEqual(["4k", "adblock"]);
     expect(setCalls()).toHaveLength(0);
   });
 

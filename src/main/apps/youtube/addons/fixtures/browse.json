@@ -1,0 +1,44 @@
+{
+  "responseContext": { "visitorData": "VISITOR" },
+  "contents": {
+    "tvBrowseRenderer": {
+      "content": {
+        "tvSurfaceContentRenderer": {
+          "content": {
+            "sectionListRenderer": {
+              "contents": [
+                { "adSlotRenderer": { "adSlotMetadata": { "slotId": "home-1" } } },
+                { "promoShelfRenderer": { "title": "Promo" } },
+                {
+                  "shelfRenderer": {
+                    "tvhtml5Metadata": { "hideLogo": true },
+                    "content": {
+                      "horizontalListRenderer": {
+                        "items": [{ "tileRenderer": { "contentId": "premium" } }]
+                      }
+                    }
+                  }
+                },
+                {
+                  "shelfRenderer": {
+                    "title": { "simpleText": "Recommended" },
+                    "content": {
+                      "horizontalListRenderer": {
+                        "items": [
+                          { "tileRenderer": { "contentId": "v1" } },
+                          { "adSlotRenderer": { "adSlotMetadata": { "slotId": "inline" } } },
+                          { "tileRenderer": { "contentId": "v2" } }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ],
+              "continuation": "CONT"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "responseContext": { "visitorData": "VISITOR" },
+  "contents": {
+    "sectionListRenderer": {
+      "contents": [
+        {
+          "shelfRenderer": {
+            "title": { "simpleText": "Results" },
+            "content": {
+              "horizontalListRenderer": {
+                "items": [
+                  { "tileRenderer": { "contentId": "s1" } },
+                  { "adSlotRenderer": { "adSlotMetadata": { "slotId": "search-1" } } },
+                  { "tileRenderer": { "contentId": "s2" } }
+                ]
+              }
+            }
+          }
+        },
+        { "adSlotRenderer": { "adSlotMetadata": { "slotId": "search-2" } } }
+      ]
+    }
+  }
+}
