@@ -64,12 +64,22 @@ function pick<T>(
 
 const bare = (title: string) => title.replace(/\s*\(\d{4}\)$/, "");
 
+/** A lookup that builds each title's details once. */
+export function memoLookup(lookup: DetailsLookup): DetailsLookup {
+  const seen = new Map<string, ReturnType<DetailsLookup>>();
+  return (id) => {
+    if (!seen.has(id)) seen.set(id, lookup(id));
+    return seen.get(id);
+  };
+}
+
 /** Search the Library index (and TMDB names where details exist): shows and films by title, episodes by name. */
 export function searchLibrary(
   library: MediaLibrary,
-  lookup: DetailsLookup,
+  details: DetailsLookup,
   rawQuery: string,
 ): SearchResults {
+  const lookup = memoLookup(details);
   const query = normalise(rawQuery);
   if (!query) return { shows: [], films: [], episodes: [] };
   const shows = pick(query, library.shows(), (s) => ({

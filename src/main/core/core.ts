@@ -127,6 +127,7 @@ export class Core {
   /** The active filter chip on the Library's first page (a chip key), if any. */
   #chip: string | undefined;
   #showFrom: "library" | "librarySearch" = "library";
+  #dataVersion = 0;
   /** What the phone currently typing is typing into. */
   #typingFor: "search" | "tmdbKey" | "librarySearch" | undefined;
   #cancelSaves: (() => void) | undefined;
@@ -150,9 +151,13 @@ export class Core {
       port: ports.metadata ?? nullMetadata,
       library: this.library,
       projectKey: ports.tmdbProjectKey,
-      changed: () => this.#emit(),
+      changed: () => {
+        this.#dataVersion++;
+        this.#emit();
+      },
     });
     this.library.onChange(() => {
+      this.#dataVersion++;
       this.details.sync();
       this.#keepLibraryFocus();
       this.#emit();
@@ -209,6 +214,7 @@ export class Core {
       library: this.library,
       history: this.#history,
       details: (id) => this.details.detailsFor(id),
+      dataVersion: () => this.#dataVersion,
       thumbs: this.#thumbs,
       decorate: (e) => this.#decorate(e),
       startTyping: (remote) => {

@@ -11,7 +11,7 @@ import type {
 import type { Source } from "./core.ts";
 import { artFor, type DetailsLookup } from "./art.ts";
 import { hueFor, presentation } from "./library.ts";
-import { searchLibrary } from "./library-search.ts";
+import { memoLookup, searchLibrary, type SearchResults } from "./library-search.ts";
 import { showStatus, tileAction } from "./library-rows.ts";
 import type { History } from "./history.ts";
 import type { MediaLibrary } from "./media-library.ts";
@@ -29,6 +29,8 @@ export interface LibrarySearchHost {
   decorate(entry: LibraryEntry): LibraryEntry;
   /** A phone starts typing the query: it owns the typing sheet. */
   startTyping(remote: RemoteId): void;
+  /** Changes whenever the Library index or any saved details change. */
+  dataVersion(): number;
   /** The phone that last sent a command, if it is still connected. */
   connectedPhone(): RemoteId | undefined;
   setView(view: View): void;
@@ -46,6 +48,7 @@ export class LibrarySearchView {
   #h: LibrarySearchHost;
   #query = "";
   #wanted = "";
+  #found: { query: string; version: number; results: SearchResults } | undefined;
 
   constructor(state: ScreenState, host: LibrarySearchHost) {
     this.#state = state;
@@ -69,10 +72,22 @@ export class LibrarySearchView {
     delete this.#state.focus[SEARCH_VIEW];
   }
 
+  /** Matching is done once per query and data change; the grid and the payload share it. */
+  #results(lookup: DetailsLookup): SearchResults {
+    const version = this.#h.dataVersion();
+    if (this.#found?.query !== this.#query || this.#found.version !== version)
+      this.#found = {
+        query: this.#query,
+        version,
+        results: searchLibrary(this.#h.library, lookup, this.#query),
+      };
+    return this.#found.results;
+  }
+
   #rows(): LibraryRow[] {
     const { library, history } = this.#h;
-    const lookup = this.#h.details;
-    const found = searchLibrary(library, lookup, this.#query);
+    const lookup = memoLookup(this.#h.details);
+    const found = this.#results(lookup);
     const wanted: string[] = [];
     const frame = (path: string) => {
       wanted.push(path);
