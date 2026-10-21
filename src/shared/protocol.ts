@@ -147,6 +147,8 @@ export interface LibraryEntry {
   };
   /** Home: TMDB backdrop for the hero (the tile's `thumb` is the still or poster-sized art). */
   backdrop?: string;
+  /** Home: up to three TMDB genres, drawn as small labels under the hero title. */
+  genres?: string[];
   /** Home: TMDB overview under the hero title. */
   overview?: string;
 }
