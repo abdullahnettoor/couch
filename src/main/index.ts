@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, powerMonitor, screen } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, screen } from "electron";
 import { join } from "node:path";
 import { Channel, type GlassRect, type GridReport } from "../shared/ipc.ts";
 import type { Command } from "../shared/protocol.ts";
@@ -168,15 +168,36 @@ let quitting = false;
 app.on("before-quit", (event) => {
   if (quitting || !player) return;
   event.preventDefault();
-  if (couch && !couch.requestQuit()) return;
   quitting = true;
   couch?.beforeQuit();
   void Promise.all([player.dispose(), couch?.stop()]).finally(() => app.quit());
 });
 
-// Log out, restart and shut down must never be held up by a question.
-powerMonitor.on("shutdown", () => couch?.approveQuit());
+// Only Couch's own ⌘Q asks; every other quit (log out, shut down, Dock → Quit) goes straight through.
+function installMenu(): void {
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      {
+        label: app.name,
+        submenu: [
+          { role: "about" },
+          { type: "separator" },
+          { role: "hide" },
+          { role: "hideOthers" },
+          { role: "unhide" },
+          { type: "separator" },
+          { label: `Quit ${app.name}`, accelerator: "CmdOrCtrl+Q", click: () => couch?.askQuit() },
+        ],
+      },
+      { role: "editMenu" },
+      { role: "windowMenu" },
+    ]),
+  );
+}
 
 app.on("window-all-closed", () => app.quit());
 
-void app.whenReady().then(createScreen);
+void app.whenReady().then(() => {
+  installMenu();
+  return createScreen();
+});

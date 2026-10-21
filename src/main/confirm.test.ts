@@ -198,8 +198,8 @@ describe("Quit Couch?", () => {
     await phone.press("ok");
   }
 
-  test("⌘Q asks first; Cancel (focused) keeps Couch", async () => {
-    expect(h.app.requestQuit()).toBe(false);
+  test("Couch's own ⌘Q asks first; Cancel (focused) keeps Couch", async () => {
+    h.app.askQuit();
     expect(h.screen.last.state.confirm).toEqual({
       title: "Quit Couch?",
       buttons: ["Cancel", "Quit"],
@@ -212,18 +212,17 @@ describe("Quit Couch?", () => {
   });
 
   test("Back dismisses it", async () => {
-    h.app.requestQuit();
+    h.app.askQuit();
     const s = await phone.press("back");
     expect(s.confirm).toBeUndefined();
     expect(quits()).toHaveLength(0);
   });
 
-  test("Quit quits, and the app then lets ⌘Q through", async () => {
-    h.app.requestQuit();
+  test("Quit confirms with the normal quit", async () => {
+    h.app.askQuit();
     await phone.press("right");
     await phone.press("ok");
     expect(quits()).toHaveLength(1);
-    expect(h.app.requestQuit()).toBe(true);
   });
 
   test("Settings → Quit asks first", async () => {
@@ -240,20 +239,20 @@ describe("Quit Couch?", () => {
 
   test("over YouTube the YouTube port draws it", async () => {
     await openYouTube();
-    h.app.requestQuit();
+    h.app.askQuit();
     expect(lastConfirm()?.title).toBe("Quit Couch?");
     await phone.press("back");
     expect(lastConfirm()).toBeUndefined();
   });
 
-  test("phone Power and a system quit never ask", async () => {
-    await phone.press("power");
-    expect(quits()).toHaveLength(1);
+  test("an app-level quit request (system, Dock, /local/quit) never asks", () => {
+    h.app.beforeQuit();
     expect(h.screen.last.state.confirm).toBeUndefined();
   });
 
-  test("a system quit (log out, shut down) is let through", () => {
-    h.app.approveQuit();
-    expect(h.app.requestQuit()).toBe(true);
+  test("phone Power quits without asking", async () => {
+    await phone.press("power");
+    expect(quits()).toHaveLength(1);
+    expect(h.screen.last.state.confirm).toBeUndefined();
   });
 });

@@ -126,7 +126,6 @@ export class Core {
   #ytShorts = false;
   /** Back was sent to YouTube at this time and no route change has followed. */
   #ytBackAt: number | undefined;
-  #quitApproved = false;
   #shownYtConfirm: Confirmation | undefined;
   #confirmAnswers: [() => void, () => void] | undefined;
   #ytOff: () => void;
@@ -1326,23 +1325,15 @@ export class Core {
     }
   }
 
-  /** The same path as Settings → Quit (beforeQuit then runs through the app's before-quit). */
+  /** Confirming "Quit Couch?" (⌘Q in Couch's menu, Settings → Quit) and phone Power: the normal quit, saving the position first. */
   quit(): void {
-    this.#quitApproved = true;
     this.savePlayingPosition();
     this.#ports.mac.quit();
   }
 
-  /** ⌘Q: true when Couch may quit now; otherwise "Quit Couch?" is up. */
-  requestQuit(): boolean {
-    if (this.#quitApproved) return true;
+  /** Couch's own ⌘Q and Settings → Quit ask first; every other quit goes straight through the app's before-quit. */
+  askQuit(): void {
     this.#askQuit();
-    return false;
-  }
-
-  /** The system is quitting Couch (log out, shut down): nothing to ask. */
-  approveQuit(): void {
-    this.#quitApproved = true;
   }
 
   #askQuit(): void {
