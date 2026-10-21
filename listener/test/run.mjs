@@ -102,6 +102,9 @@ async function setup({
       );
       if (pid) process.kill(pid, "SIGKILL");
     } catch {}
+    try {
+      execFileSync("/usr/bin/pkill", ["-f", support]);
+    } catch {}
     rmSync(support, { recursive: true, force: true });
     rmSync(web, { recursive: true, force: true });
   });
