@@ -182,6 +182,18 @@ function renderRoot(payload: ScreenPayload): void {
       : "",
   );
   const body = el("div", "lib-body lf-body");
+  const chips = lib.chips?.length ? el("div", "lf-chips") : undefined;
+  for (const c of lib.chips ?? [])
+    chips!.append(
+      focusable(
+        el(
+          "button",
+          `lf-chip${c.active ? " on" : ""}${payload.focusedId === `chip:${c.key}` ? " focused" : ""}`,
+          escape(c.label),
+        ),
+        `chip:${c.key}`,
+      ),
+    );
   const rowBlock = (row: LibraryRow): HTMLElement => {
     const block = el("div", "lf-block", `<div class="lib-rowh">${escape(row.title)}</div>`);
     const shelf = el("div", "lf-shelf");
@@ -204,11 +216,18 @@ function renderRoot(payload: ScreenPayload): void {
     block.append(grid);
     body.append(block);
   }
-  firstPage.replaceChildren(backdrop!, featured, body, topbar(payload));
+  firstPage.replaceChildren(backdrop!, featured, ...(chips ? [chips] : []), body, topbar(payload));
 
   // Scroll after attaching so offsets exist: the focused row to the top, and the tile inside its shelf.
   const card_ = body.querySelector<HTMLElement>(".lib-card.focused");
-  if (!card_) return;
+  if (!card_) {
+    if (chips) {
+      body.style.scrollBehavior = "smooth";
+      body.scrollTop = 0;
+      bodyScroll = 0;
+    }
+    return;
+  }
   const block = card_.closest<HTMLElement>(".lf-block")!;
   // The page is redrawn per payload, so each new element starts where the old one was and then moves.
   const top = block.offsetTop;

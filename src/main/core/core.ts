@@ -31,8 +31,9 @@ import { moveFocus, resolveFocus } from "./focus.ts";
 import { MediaLibrary } from "./media-library.ts";
 import { artFor, type PathArt } from "./art.ts";
 import { libraryRows, tileAction } from "./library-rows.ts";
+import { autoRows, chipsFor, keepFor } from "./library-chips.ts";
 import { presentation, hueFor, listFolder, mosaicSources, rootEntries } from "./library.ts";
-import type { UpNextItem } from "../../shared/protocol.ts";
+import type { LibraryChip, UpNextItem } from "../../shared/protocol.ts";
 import { PlayerControls } from "./player-controls.ts";
 import { History } from "./history.ts";
 import { ShowView } from "./show-view.ts";
@@ -120,6 +121,8 @@ export class Core {
   #detailsPage: DetailsPage;
   #search: LibrarySearchView;
   /** Where Back from a show page goes: the Library, or the search it was opened from. */
+  /** The active filter chip on the Library's first page (a chip key), if any. */
+  #chip: string | undefined;
   #showFrom: "library" | "librarySearch" = "library";
   /** What the phone currently typing is typing into. */
   #typingFor: "search" | "tmdbKey" | "librarySearch" | undefined;
@@ -290,12 +293,15 @@ export class Core {
       case "library":
         return {
           heading: "Library",
-          entries: rootEntries(this.#libraryFolders).map((e) => ({
-            ...this.#withMosaic(e),
-            feature: { kind: "Folder" as const, title: e.title },
-          })),
+          entries: this.#chip
+            ? []
+            : rootEntries(this.#libraryFolders).map((e) => ({
+                ...this.#withMosaic(e),
+                feature: { kind: "Folder" as const, title: e.title },
+              })),
           continueWatching: this.#continueEntries(),
           rows: this.#rows().rows,
+          chips: this.#chips(),
           emptyText: "No folders yet. Add one in Settings on the Mac.",
         };
       case "folder":
@@ -320,8 +326,31 @@ export class Core {
     if (at) this.#state.focus[this.viewKey] = { r: at.r, c: at.c };
   }
 
+  /** The chip row; an active chip that no longer exists is dropped. */
+  #chips(): LibraryChip[] {
+    const make = () =>
+      chipsFor({
+        details: this.details,
+        shows: this.library.shows().length,
+        films: this.library.films().length,
+        active: this.#chip,
+      });
+    let chips = make();
+    if (this.#chip && !chips.some((c) => c.key === this.#chip)) {
+      this.#chip = undefined;
+      chips = make();
+    }
+    return chips;
+  }
+
   #rows(): ReturnType<typeof libraryRows> {
+    const chips = this.#chips();
     return libraryRows({
+      ...(this.#chip && chips.length
+        ? { keep: keepFor(this.#chip, this.details) }
+        : this.#state.view === "library"
+          ? { auto: autoRows(this.details) }
+          : {}),
       library: this.library,
       history: this.#history,
       decorate: (e) => this.#decorate(e),
@@ -480,14 +509,25 @@ export class Core {
       action: tileAction(e),
       initial,
     });
-    // Row 0 is the top strip's gear, as on Home; each page row is one grid row, Folders wrap below.
+    // Row 0 is the top strip's gear, as on Home; the chips are row 1 when there are any; each page row is one grid row, Folders wrap below.
     const rows = lib.rows ?? [];
+    const chips = lib.chips ?? [];
+    const top = chips.length ? 2 : 1;
+    const chipItems: GridItem[] = chips.map((c, i) => ({
+      id: `chip:${c.key}`,
+      r: 1,
+      c: i,
+      label: c.label,
+      action: `library:chip:${c.key}`,
+    }));
     const tiles = [
-      ...rows.flatMap((row, r) => row.entries.map((e, c) => tile(e, 1 + r, c, r === 0 && c === 0))),
+      ...rows.flatMap((row, r) =>
+        row.entries.map((e, c) => tile(e, top + r, c, r === 0 && c === 0)),
+      ),
       ...lib.entries.map((e, i) =>
         tile(
           e,
-          1 + rows.length + Math.floor(i / TILE_COLUMNS),
+          top + rows.length + Math.floor(i / TILE_COLUMNS),
           i % TILE_COLUMNS,
           rows.length === 0 && i === 0,
         ),
@@ -508,7 +548,7 @@ export class Core {
       label: "Search",
       action: "library:search",
     };
-    return [search, gear, ...tiles];
+    return [search, gear, ...chipItems, ...tiles];
   }
 
   #openFolder(path: string): void {
@@ -537,6 +577,7 @@ export class Core {
     else if (verb === "play") this.#play(arg);
     else if (verb === "playstart") this.#play(arg, true);
     else if (verb === "search") this.#search.open();
+    else if (verb === "chip") this.#chip = this.#chip === arg || arg === "all" ? undefined : arg;
     else if (verb === "show") {
       this.#showFrom = this.#state.view === "librarySearch" ? "librarySearch" : "library";
       this.#show.open(arg);
@@ -897,11 +938,13 @@ export class Core {
     return {
       type: "snapshot",
       where:
-        s.view === "folder"
-          ? basename(s.folderPath ?? "")
-          : s.view === "show"
-            ? (this.library.show(s.showId ?? "")?.name ?? VIEW_LABELS.show)
-            : VIEW_LABELS[s.view],
+        s.view === "library" && this.#chip
+          ? `Library · ${this.#chips().find((c) => c.active)?.label ?? ""}`
+          : s.view === "folder"
+            ? basename(s.folderPath ?? "")
+            : s.view === "show"
+              ? (this.library.show(s.showId ?? "")?.name ?? VIEW_LABELS.show)
+              : VIEW_LABELS[s.view],
       view: s.view,
       layout:
         s.view === "home" ||
@@ -1191,6 +1234,11 @@ export class Core {
       else this.#openFolder(dirname(path));
       return;
     }
+    if (this.#state.view === "library" && this.#chip) {
+      this.#chip = undefined;
+      this.#state.focus[this.viewKey] = { r: 1, c: 0 };
+      return;
+    }
     if (this.#state.view === "librarySearch") return this.#setView("library");
     if (this.#state.view === "show" && this.#showFrom === "librarySearch")
       return this.#setView("librarySearch");
@@ -1213,6 +1261,7 @@ export class Core {
       this.#ports.youtube.hide();
     }
     this.#state.view = view;
+    if (view === "home") this.#chip = undefined;
     if (from === "librarySearch" && view !== "show") {
       this.#search.reset();
       if (this.#typingFor === "librarySearch") this.#state.typingBy = undefined;

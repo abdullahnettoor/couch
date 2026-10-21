@@ -1,6 +1,7 @@
 import type { LibraryEntry, LibraryRow } from "../../shared/protocol.ts";
 import { hueFor, presentation } from "./library.ts";
 import { artFor, type DetailsLookup } from "./art.ts";
+import { AUTO_MAX_TITLES, type AutoRow, type TitleKeep } from "./library-chips.ts";
 import type { MediaLibrary, Show, WatchState } from "./media-library.ts";
 
 export interface RowsContext {
@@ -14,6 +15,10 @@ export interface RowsContext {
   thumb(path: string): string | undefined;
   /** TMDB details by show id or film path; without it, frames everywhere. */
   details?: DetailsLookup;
+  /** The active chip's filter. */
+  keep?: TitleKeep;
+  /** Automatic language and genre rows; none while a chip is active. */
+  auto?: AutoRow[];
 }
 
 /** "Elemental (2023)" → "Elemental"; the year has its own place. */
@@ -63,11 +68,16 @@ export function libraryRows(ctx: RowsContext): { rows: LibraryRow[]; wanted: str
     return ctx.thumb(path);
   };
 
-  const showTile = (row: string, show: Show, line: string): LibraryEntry => {
+  const showTile = (
+    row: string,
+    show: Show,
+    line: string,
+    poster = row === "shows",
+  ): LibraryEntry => {
     const first = show.seasons[0]?.episodes[0]?.path;
     const frame = first ? picture(first) : undefined;
     const d = lookup(show.id);
-    const thumb = (row === "shows" ? d?.poster : d?.backdrop) ?? frame;
+    const thumb = (poster ? d?.poster : d?.backdrop) ?? frame;
     return {
       kind: "show",
       id: `${row}:${show.id}`,
@@ -84,10 +94,11 @@ export function libraryRows(ctx: RowsContext): { rows: LibraryRow[]; wanted: str
     row: string,
     film: { path: string; title: string; year?: number; missing?: boolean },
     line?: string,
+    poster = row === "films",
   ) => {
     const frame = picture(film.path);
     const d = lookup(film.path);
-    const thumb = (row === "films" ? d?.poster : d?.backdrop) ?? frame;
+    const thumb = (poster ? d?.poster : d?.backdrop) ?? frame;
     const title = bare(film.title, film.year);
     return ctx.decorate({
       kind: "video",
@@ -158,12 +169,52 @@ export function libraryRows(ctx: RowsContext): { rows: LibraryRow[]; wanted: str
       r.show ? showTile("recent", r.show, "Show") : filmTile("recent", r.film!, "Film"),
     );
 
+  const auto = (ctx.auto ?? []).map((a): LibraryRow => {
+    const named = [
+      ...(a.films
+        ? []
+        : library
+            .shows()
+            .filter((s) => a.ids.has(s.id))
+            .map((s) => ({
+              name: s.name,
+              make: () => showTile(a.id, s, showStatus(s, history), true),
+            }))),
+      ...library
+        .films()
+        .filter((f) => a.ids.has(f.path))
+        .map((f) => ({
+          name: bare(f.title, f.year),
+          make: () => filmTile(a.id, f, undefined, true),
+        })),
+    ]
+      .sort((x, y) => x.name.localeCompare(y.name))
+      .slice(0, AUTO_MAX_TITLES);
+    return { id: a.id, title: a.title, poster: true, entries: named.map((n) => n.make()) };
+  });
+
   const rows: LibraryRow[] = [
     { id: "continue", title: "Continue watching", entries: continuing },
     { id: "nextup", title: "Next up", entries: nextUp },
     { id: "shows", title: "Shows", poster: true, entries: shows },
     { id: "films", title: "Films", poster: true, entries: films },
+    ...auto,
     { id: "recent", title: "Recently added", entries: recent },
   ];
-  return { rows: rows.filter((r) => r.entries.length), wanted };
+  const keep = ctx.keep;
+  const titleOf = (e: LibraryEntry): { id: string; kind: "show" | "film" } => {
+    if (e.kind === "show") return { id: e.path, kind: "show" };
+    const show = library.showOf(e.path);
+    return show ? { id: show.id, kind: "show" } : { id: e.path, kind: "film" };
+  };
+  const kept = keep
+    ? rows.map((r) => ({
+        ...r,
+        entries: r.entries.filter((e) => {
+          const t = titleOf(e);
+          return keep(t.id, t.kind);
+        }),
+      }))
+    : rows;
+  return { rows: kept.filter((r) => r.entries.length), wanted };
 }

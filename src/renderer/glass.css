@@ -545,8 +545,43 @@ svg.i {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.lf-chips {
+  position: absolute;
+  left: calc(96 * var(--u));
+  right: calc(96 * var(--u));
+  top: calc(520 * var(--u));
+  display: flex;
+  gap: calc(16 * var(--u));
+  overflow: hidden;
+  white-space: nowrap;
+  padding: calc(8 * var(--u)) 0;
+  z-index: 2;
+}
+.lf-chip {
+  flex: none;
+  padding: calc(14 * var(--u)) calc(34 * var(--u));
+  border: 0;
+  border-radius: calc(40 * var(--u));
+  font: inherit;
+  font-size: calc(28 * var(--u));
+  font-weight: 600;
+  color: var(--t2);
+  background: rgba(255, 255, 255, 0.12);
+  transition:
+    transform 0.2s var(--ease),
+    background 0.2s var(--ease);
+}
+.lf-chip.on {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.3);
+}
+.lf-chip.focused {
+  color: #000;
+  background: #fff;
+  transform: scale(1.06);
+}
 .lf-body {
-  top: calc(560 * var(--u));
+  top: calc(620 * var(--u));
   padding-top: calc(30 * var(--u));
   padding-bottom: calc(520 * var(--u));
 }

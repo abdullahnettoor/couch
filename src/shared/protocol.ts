@@ -157,6 +157,14 @@ export interface LibraryRow {
   entries: LibraryEntry[];
 }
 
+/** A filter chip on the Library's first page. */
+export interface LibraryChip {
+  /** "all", "shows", "films", "lang:<code>" or "genre:<name>". */
+  key: string;
+  label: string;
+  active: boolean;
+}
+
 /** What the Library views draw; the core also builds their grids from it. */
 export interface LibraryPayload {
   /** Heading: "Library", or the folder's name. */
@@ -170,6 +178,8 @@ export interface LibraryPayload {
   continueWatching?: LibraryEntry[];
   /** The Library's first page: the rows above Folders, empty ones left out. `entries` are the Folders row. */
   rows?: LibraryRow[];
+  /** The Library's first page: the chip row under the featured area; empty when there is nothing to filter. */
+  chips?: LibraryChip[];
 }
 
 /** One row of the show page's episode list (or an extra). */
