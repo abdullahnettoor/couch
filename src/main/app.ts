@@ -24,6 +24,8 @@ export interface AppOptions extends Ports {
   host?: string;
   /** Folder of cached thumbnails the Remote server may serve (by key only). */
   thumbnailDir?: string;
+  /** Folder with the Remote page's icons (the renderer's public files). */
+  iconDir?: string;
 }
 
 /** Wires the core and the Remote server to the given ports. Tests and Electron both start it. */

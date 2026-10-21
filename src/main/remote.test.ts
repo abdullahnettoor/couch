@@ -28,6 +28,17 @@ describe("Remote on Home", () => {
     expect(await res.text()).toContain("Couch Remote");
   });
 
+  test("the Remote page's tab and home-screen icons are served", async () => {
+    for (const path of ["/icon.png", "/touch-icon.png"]) {
+      const res = await fetch(`http://127.0.0.1:${h.app.remote.port}${path}`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("image/png");
+    }
+    const page = await (await fetch(`http://127.0.0.1:${h.app.remote.port}/`)).text();
+    expect(page).toContain('href="/icon.png"');
+    expect(page).toContain('href="/touch-icon.png"');
+  });
+
   test("every connected phone gets a snapshot after each change", async () => {
     const a = await h.connectPhone();
     const b = await h.connectPhone();

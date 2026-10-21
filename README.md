@@ -6,15 +6,16 @@ Turns a Mac connected to a TV into a couch-friendly media centre, controlled fro
 
 Tooling is [Vite+](https://viteplus.dev) (`vp`), run through pnpm.
 
-| Command          | What it does                                                                                    |
-| ---------------- | ----------------------------------------------------------------------------------------------- |
-| `pnpm install`   | Install dependencies (Electron's download is allowed in `pnpm-workspace.yaml`)                  |
-| `vp check`       | Format, lint and type-check (use `vp check --fix` to auto-fix)                                  |
-| `vp test run`    | Run the Vitest tests once                                                                       |
-| `vp run build`   | Build renderer (`vp build`) and main + preload (`vp pack`) into `dist/`                         |
-| `vp run start`   | Build, then start Couch in Electron                                                             |
-| `vp run package` | Build an unsigned `out/Couch-darwin-<arch>/Couch.app` (name, icon, bundle id `local.couch.app`) |
-| `vp run sample`  | Generate `.dev/sample.mkv` (needs ffmpeg) used by the temporary play key                        |
+| Command          | What it does                                                                                     |
+| ---------------- | ------------------------------------------------------------------------------------------------ |
+| `pnpm install`   | Install dependencies (Electron's download is allowed in `pnpm-workspace.yaml`)                   |
+| `vp check`       | Format, lint and type-check (use `vp check --fix` to auto-fix)                                   |
+| `vp test run`    | Run the Vitest tests once                                                                        |
+| `vp run build`   | Build renderer (`vp build`) and main + preload (`vp pack`) into `dist/`                          |
+| `vp run start`   | Build, then start Couch in Electron                                                              |
+| `vp run package` | Build an unsigned `out/Couch-darwin-<arch>/Couch.app` (name, icon, bundle id `local.couch.app`)  |
+| `vp run sample`  | Generate `.dev/sample.mkv` (needs ffmpeg) used by the temporary play key                         |
+| `vp run icons`   | Rebuild `build/icon.icns` and the Remote/Credits PNGs from `build/icon.png` and `icon-touch.png` |
 
 Run `vp` as `pnpm exec vp …` if it isn't installed globally. If `ELECTRON_RUN_AS_NODE` is set in your shell, unset it before `vp run start`.
 

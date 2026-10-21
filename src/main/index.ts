@@ -137,6 +137,7 @@ async function createScreen(): Promise<void> {
     store: new FileStore(app.getPath("userData")),
     thumbnails: new FfmpegThumbnails(join(app.getPath("userData"), "thumbnails")),
     thumbnailDir: join(app.getPath("userData"), "thumbnails"),
+    iconDir: join(import.meta.dirname, "../renderer"),
     metadata: new TmdbMetadata(join(app.getPath("userData"), "thumbnails")),
     tmdbProjectKey: PROJECT_TMDB_KEY,
     port: REMOTE_PORT,

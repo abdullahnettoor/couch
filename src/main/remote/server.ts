@@ -12,6 +12,12 @@ export interface RemoteServer {
   close(): Promise<void>;
 }
 
+/** The Remote page's tab and home-screen icons, by URL path, as files in `iconDir`. */
+const ICON_FILES: Record<string, string> = {
+  "/icon.png": "icon-192.png",
+  "/touch-icon.png": "touch-icon.png",
+};
+
 export function parseCommand(raw: string): Command | undefined {
   let msg: unknown;
   try {
@@ -38,13 +44,16 @@ export function parseCommand(raw: string): Command | undefined {
 /** Serves the Remote page and the WebSocket that carries commands and snapshots. */
 export async function startRemoteServer(
   core: Core,
-  options: { port: number; host?: string; thumbnailDir?: string },
+  options: { port: number; host?: string; thumbnailDir?: string; iconDir?: string },
 ): Promise<RemoteServer> {
   const serveThumbnail = (url: string, path: string, res: ServerResponse) => {
     const given = new URL(url, "http://localhost").searchParams.get("key");
     const name = /^\/thumb\/((?:tmdb-[a-z]+-)?[0-9a-f]{40})\.jpg$/.exec(path)?.[1];
     const file = name && options.thumbnailDir ? join(options.thumbnailDir, `${name}.jpg`) : "";
     if (!core.acceptsKey(given)) return void res.writeHead(401).end();
+    serveFile(file, "image/jpeg", "private, max-age=86400", res);
+  };
+  const serveFile = (file: string, type: string, cache: string, res: ServerResponse) => {
     const isFile = (() => {
       try {
         return statSync(file).isFile();
@@ -59,15 +68,13 @@ export async function startRemoteServer(
       else res.writeHead(404).end();
     });
     stream.once("open", () => {
-      res.writeHead(200, {
-        "content-type": "image/jpeg",
-        "cache-control": "private, max-age=86400",
-      });
+      res.writeHead(200, { "content-type": type, "cache-control": cache });
       stream.pipe(res);
     });
   };
   const http: Server = createServer((req, res) => {
     const path = (req.url ?? "/").split("?")[0];
+    const icon = Object.hasOwn(ICON_FILES, path) ? ICON_FILES[path] : undefined;
     if (path === "/") {
       res.writeHead(200, {
         "content-type": "text/html; charset=utf-8",
@@ -76,6 +83,9 @@ export async function startRemoteServer(
       res.end(REMOTE_PAGE);
     } else if (path.startsWith("/thumb/")) {
       serveThumbnail(req.url ?? "", path, res);
+    } else if (icon) {
+      const file = options.iconDir ? join(options.iconDir, icon) : "";
+      serveFile(file, "image/png", "public, max-age=86400", res);
     } else {
       res.writeHead(404).end();
     }

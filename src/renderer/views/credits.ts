@@ -8,7 +8,7 @@ export function render(payload: ScreenPayload): void {
   const logo = el("img", "tmdb-logo");
   (logo as HTMLImageElement).src = tmdbLogo;
   (logo as HTMLImageElement).alt = "TMDB";
-  splitPage({ icon: "gear" }, [
+  splitPage({ image: "./icon-512.png", alt: "Couch" }, [
     el("h1", "", "Credits"),
     el("p", "", "Show and film details and artwork come from TMDB."),
     logo,
