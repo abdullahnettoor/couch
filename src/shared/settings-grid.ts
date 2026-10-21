@@ -16,6 +16,7 @@ const ITEMS: SettingsItem[] = [
     label: `Restart ${app.label}`,
     action: `${RESTART_APP}${app.id}`,
   })),
+  { id: "addons", label: "YouTube add-ons", action: "settings:addons" },
   { id: "quit", label: "Quit Couch", action: "settings:quit" },
 ];
 

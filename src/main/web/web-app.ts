@@ -1,4 +1,5 @@
 import type { YouTubeKey } from "../ports/youtube.ts";
+import type { Addon } from "./addon.ts";
 
 /** The identity a web App presents: one user agent and client hints, on the page, its frames and every request. */
 export interface WebIdentity {
@@ -43,6 +44,9 @@ export interface WebAppDescription {
     controlsHideMs: number;
     commitMs: number;
   };
-  /** Main-world functions (source text) for the session preload list, in order. */
+  /** App-specific main-world functions (source text) that run after `couchHooks` and before any add-on. */
   preloads: { name: string; func: string }[];
+  /** The add-ons this host can run, and the ids of those that are on now. */
+  addons: Addon[];
+  enabledAddons: string[];
 }

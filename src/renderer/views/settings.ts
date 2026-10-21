@@ -23,11 +23,13 @@ export function render(payload: ScreenPayload): void {
                 ? payload.details?.hint
                 : item.id === "sound"
                   ? payload.sound?.label
-                  : item.id === "listener"
-                    ? payload.listener?.on
-                      ? "On"
-                      : "Off"
-                    : undefined,
+                  : item.id === "addons"
+                    ? `${payload.addons?.filter((a) => a.on).length ?? 0} on`
+                    : item.id === "listener"
+                      ? payload.listener?.on
+                        ? "On"
+                        : "Off"
+                      : undefined,
       }),
     ),
     ...(l

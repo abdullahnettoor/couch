@@ -43,6 +43,15 @@ describe("session preloads", () => {
     expect([...live.keys()][0]).not.toBe(before);
   });
 
+  test("set replaces the whole list", () => {
+    const { preloads, live } = setup();
+    preloads.add("first", "function () { window.a = 1; }");
+    preloads.set([{ name: "only", func: "function () { window.c = 3; }" }]);
+    const file = readFileSync([...live.values()][0]!, "utf8");
+    expect(file).toContain("window.c");
+    expect(file).not.toContain("window.a");
+  });
+
   test("a failure to write logs and leaves the page unpatched", () => {
     const logs: string[] = [];
     const ses = { registerPreloadScript: () => "x", unregisterPreloadScript: () => {} };

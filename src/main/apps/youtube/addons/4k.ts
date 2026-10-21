@@ -26,6 +26,8 @@
  * SOFTWARE.
  */
 
+import type { Addon } from "../../../web/addon.ts";
+
 /**
  * Runs in the page before YouTube's scripts. Makes MediaSource.isTypeSupported behave like
  * Cobalt's (it validates width/height/framerate/eotf...; Chromium accepts everything, so the
@@ -85,3 +87,12 @@ export const COMPAT_SCRIPT = `(${COMPAT_FUNCTION})();`;
 export function compatEnabled(env: Record<string, string | undefined> = process.env): boolean {
   return env.COUCH_YOUTUBE_PATCH !== "off";
 }
+
+export const FOUR_K: Addon = {
+  id: "4k",
+  label: "4K video",
+  description: "Lets YouTube offer 4K and 60 fps on this Mac",
+  app: "youtube",
+  defaultOn: true,
+  page: COMPAT_FUNCTION,
+};

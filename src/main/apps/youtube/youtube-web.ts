@@ -1,5 +1,7 @@
 import type { WebAppDescription } from "../../web/web-app.ts";
-import { COMPAT_FUNCTION, compatEnabled } from "./youtube-compat.ts";
+import { YOUTUBE_ADDONS } from "./addons/index.ts";
+import { compatEnabled } from "./addons/4k.ts";
+import { enabledAddons, type AddonChoices } from "../../web/addon.ts";
 import { applyToRequestHeaders, buildIdentity } from "./youtube-identity.ts";
 import { isYouTubeOrigin, PAGE_STATE_SCRIPT, RouteTracker } from "./youtube-route.ts";
 import { CONTROLS_HIDE_MS, SKIP_COMMIT_MS, skipKeys } from "./youtube-skip.ts";
@@ -22,6 +24,7 @@ export function isSearchUrl(url: string): boolean {
 export function youtubeDescription(
   version: string,
   env: Record<string, string | undefined> = process.env,
+  choices: AddonChoices = {},
 ): WebAppDescription {
   const identity = buildIdentity(version);
   return {
@@ -51,6 +54,9 @@ export function youtubeDescription(
       tracker: () => new RouteTracker(),
     },
     skip: { keys: skipKeys, controlsHideMs: CONTROLS_HIDE_MS, commitMs: SKIP_COMMIT_MS },
-    preloads: compatEnabled(env) ? [{ name: "4K compatibility", func: COMPAT_FUNCTION }] : [],
+    preloads: [],
+    // COUCH_YOUTUBE_PATCH=off keeps the stock 720p behaviour whatever Settings says.
+    addons: YOUTUBE_ADDONS.filter((a) => a.id !== "4k" || compatEnabled(env)),
+    enabledAddons: enabledAddons(YOUTUBE_ADDONS, choices).map((a) => a.id),
   };
 }

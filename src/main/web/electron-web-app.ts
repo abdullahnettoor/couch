@@ -4,7 +4,8 @@ import type { Confirmation } from "../../shared/protocol.ts";
 import { SCREEN_KEYS, textEditFor } from "../../shared/keyboard.ts";
 import { revealScreen } from "../reveal.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
-import { requestHooksFor } from "./request-hooks.ts";
+import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
+import { requestHooksFor, type RequestHooks } from "./request-hooks.ts";
 import { SessionPreloads } from "./session-preloads.ts";
 import type { WebAppDescription, WebIdentity } from "./web-app.ts";
 import { confirmScript, noteScript, searchBarScript, volumeScript } from "./web-hud.ts";
@@ -40,6 +41,9 @@ export class ElectronWebApp implements YouTube {
   #resolving: Promise<boolean> | undefined;
   #again = false;
   #ready = false;
+  #hooks: RequestHooks;
+  #preloads: SessionPreloads;
+  #addonRequests: Array<() => void> = [];
 
   constructor(desc: WebAppDescription, win: BrowserWindow) {
     this.#desc = desc;
@@ -60,8 +64,9 @@ export class ElectronWebApp implements YouTube {
     ses.setPermissionCheckHandler((_wc, permission, origin) => {
       return this.#enumerating && permission === "media" && desc.isOwnOrigin(origin);
     });
-    const preloads = new SessionPreloads(ses, join(app.getPath("userData"), desc.id), desc.id);
-    for (const p of desc.preloads) preloads.add(p.name, p.func);
+    this.#hooks = hooks;
+    this.#preloads = new SessionPreloads(ses, join(app.getPath("userData"), desc.id), desc.id);
+    this.#applyAddons(desc.enabledAddons);
     this.#view = new WebContentsView({
       webPreferences: {
         session: ses,
@@ -357,6 +362,29 @@ export class ElectronWebApp implements YouTube {
 
   restart(): void {
     this.#load();
+  }
+
+  /** The page hooks runtime, the App's own functions, then each enabled add-on's; request handlers follow the same set. */
+  #applyAddons(ids: string[]): void {
+    const on = this.#desc.addons.filter((a) => ids.includes(a.id));
+    this.#preloads.set([
+      { name: "Page hooks", func: PAGE_HOOKS_FUNCTION },
+      ...this.#desc.preloads,
+      ...on.flatMap((a) => (a.page ? [{ name: a.label, func: a.page }] : [])),
+    ]);
+    for (const off of this.#addonRequests.splice(0)) off();
+    for (const a of on) {
+      if (a.requests?.onBeforeRequest)
+        this.#addonRequests.push(this.#hooks.onBeforeRequest(a.requests.onBeforeRequest));
+      if (a.requests?.onBeforeSendHeaders)
+        this.#addonRequests.push(this.#hooks.onBeforeSendHeaders(a.requests.onBeforeSendHeaders));
+    }
+  }
+
+  setAddons(ids: string[]): void {
+    this.#applyAddons(ids);
+    const wc = this.#view.webContents;
+    if (wc.getURL().startsWith("https:")) wc.reload();
   }
 
   onEvent(listener: (event: YouTubeEvent) => void): () => void {

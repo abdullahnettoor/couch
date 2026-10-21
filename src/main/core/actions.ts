@@ -42,6 +42,7 @@ const settingsActions: Record<string, ActionHandler> = {
   "settings:library-folders": (ctx) => ctx.open("libraryFolders"),
   "settings:details": (ctx) => ctx.open("details"),
   "settings:sound": (ctx) => ctx.open("soundOutput"),
+  "settings:addons": (ctx) => ctx.open("addons"),
   "settings:listener": (ctx) => ctx.toggleListener(),
   "settings:quit": (ctx) => ctx.quit(),
 };
@@ -64,6 +65,7 @@ export const BACK_TARGETS: Partial<Record<View, View>> = {
   libraryFolders: "settings",
   details: "settings",
   soundOutput: "settings",
+  addons: "settings",
   credits: "details",
   library: "home",
   show: "library",

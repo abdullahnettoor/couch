@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vite-plus/test";
-import { COMPAT_SCRIPT, compatEnabled } from "./youtube-compat.ts";
+import { COMPAT_SCRIPT, compatEnabled } from "./4k.ts";
 
 function runScript() {
   const real = (t: string) => t.includes("avc1");

@@ -91,6 +91,9 @@ export class YouTubeApp implements App {
   restart() {
     this.#port.restart();
   }
+  setAddons(ids: string[]) {
+    this.#port.setAddons(ids);
+  }
   onEvent(listener: (event: AppEvent) => void) {
     this.#listeners.add(listener);
     return () => void this.#listeners.delete(listener);

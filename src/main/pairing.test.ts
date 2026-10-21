@@ -107,6 +107,7 @@ describe("Settings", () => {
       "Sound output",
       "Start Couch Listener at login",
       "Restart YouTube",
+      "YouTube add-ons",
       "Quit Couch",
     ]);
   });
@@ -130,7 +131,7 @@ describe("Settings", () => {
 
   test("Quit Couch asks, then quits", async () => {
     const phone = await openSettings();
-    for (let i = 0; i < 7; i++) await phone.press("down");
+    for (let i = 0; i < 8; i++) await phone.press("down");
     await phone.press("ok");
     await phone.press("right");
     await phone.press("ok");

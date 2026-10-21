@@ -16,6 +16,7 @@ export type View =
   | "libraryFolders"
   | "details"
   | "soundOutput"
+  | "addons"
   | "credits"
   | "show"
   | "fixMatch"
@@ -279,6 +280,8 @@ export interface ScreenPayload {
   details?: { keyLabel: string; hasOwnKey: boolean; enabled: boolean; hint?: string };
   /** Settings and the Sound output page. */
   sound?: SoundPayload;
+  /** Settings and the YouTube add-ons page: each add-on and whether it is on. */
+  addons?: Array<{ id: string; label: string; description: string; on: boolean }>;
   /** Settings: the listener's login item and whether a listener is running now. */
   listener?: { available: boolean; on: boolean; running: boolean };
   /** Present for library, folder and libraryFolders. */
@@ -390,6 +393,7 @@ export const VIEW_LABELS: Record<View, string> = {
   libraryFolders: "Library folders",
   details: "Show and film details",
   soundOutput: "Sound output",
+  addons: "YouTube add-ons",
   credits: "Credits",
   show: "Show",
   fixMatch: "Fix match",

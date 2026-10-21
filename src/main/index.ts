@@ -12,6 +12,7 @@ import { ElectronWebApp } from "./web/electron-web-app.ts";
 import { youtubeDescription } from "./apps/youtube/youtube-web.ts";
 import { YouTubeApp } from "./apps/youtube/youtube-app.ts";
 import { FileStore } from "./ports/store.ts";
+import { readChoices } from "./web/addon.ts";
 import { FfmpegThumbnails } from "./ports/thumbnails.ts";
 import { TmdbMetadata } from "./ports/tmdb-metadata.ts";
 import { PROJECT_TMDB_KEY } from "./ports/project-key.ts";
@@ -132,10 +133,13 @@ async function createScreen(): Promise<void> {
     list: () => player!.listAudioDevices(),
     onChanged: (listener) => player!.onAudioDevicesChanged(listener),
   });
-  const youtube = new ElectronWebApp(youtubeDescription(app.getVersion()), win);
+  const store = new FileStore(app.getPath("userData"));
+  const youtube = new ElectronWebApp(
+    youtubeDescription(app.getVersion(), process.env, readChoices(store, "youtube")),
+    win,
+  );
   const youtubeApp = new YouTubeApp(youtube, systemClock);
   mac.keepAwake(true);
-  const store = new FileStore(app.getPath("userData"));
   const listener = await detectListener({
     store,
     installed: async () => (await mac.listenerLoginItem()).on,

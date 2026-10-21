@@ -37,6 +37,12 @@ export class SessionPreloads {
     this.#sync();
   }
 
+  /** Replaces the whole list and re-registers the file. */
+  set(list: { name: string; func: string }[]): void {
+    this.#list = [...list];
+    this.#sync();
+  }
+
   #sync(): void {
     try {
       mkdirSync(this.#dir, { recursive: true });

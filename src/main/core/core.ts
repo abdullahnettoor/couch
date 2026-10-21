@@ -41,6 +41,7 @@ import type { LibraryChip, UpNextItem } from "../../shared/protocol.ts";
 import { PlayerControls } from "./player-controls.ts";
 import { History } from "./history.ts";
 import { ShowView } from "./show-view.ts";
+import { AddonsPage } from "./addons-page.ts";
 import { DetailsPage } from "./details-page.ts";
 import { SoundOutput } from "./sound-output.ts";
 import { LibrarySearchView } from "./library-search-view.ts";
@@ -148,6 +149,7 @@ export class Core {
   readonly details: MetadataService;
   #show: ShowView;
   #detailsPage: DetailsPage;
+  #addonsPage: AddonsPage;
   #sound: SoundOutput;
   #search: LibrarySearchView;
   /** Where Back from a show page goes: the Library, or the search it was opened from. */
@@ -237,6 +239,12 @@ export class Core {
       changed: () => this.#emit(),
     });
     this.#state.volume = this.#sound.volume;
+    this.#addonsPage = new AddonsPage({
+      store: ports.store,
+      apply: (app, ids) => this.#apps.get(app)?.setAddons?.(ids),
+      toast: (text) => this.#toast(text),
+      changed: () => this.#emit(),
+    });
     this.#detailsPage = new DetailsPage(this.#state, {
       details: this.details,
       connectedPhone: () =>
@@ -551,6 +559,7 @@ export class Core {
     if (this.#state.view === "player") return this.#controls.grid();
     if (this.#state.view === "details") return this.#detailsPage.grid();
     if (this.#state.view === "soundOutput") return this.#sound.grid();
+    if (this.#state.view === "addons") return this.#addonsPage.grid();
     if (this.#state.view === "show") return this.#show.grid();
     if (this.#state.view === "fixMatch") return this.#show.fixGrid();
     if (this.#state.view === "librarySearch") return this.#search.grid();
@@ -1003,6 +1012,9 @@ export class Core {
         : {}),
       ...(this.#state.view === "settings" || this.#state.view === "soundOutput"
         ? { sound: this.#sound.payload() }
+        : {}),
+      ...(this.#state.view === "settings" || this.#state.view === "addons"
+        ? { addons: this.#addonsPage.payload() }
         : {}),
       ...(this.#state.view === "settings" ? { listener: { ...this.#loginItem } } : {}),
       continueCard: this.#continueEntries()[0],
@@ -1508,6 +1520,7 @@ export class Core {
       this.#libraryAction(item.action) ||
       this.#detailsPage.action(item.action, this.#source) ||
       this.#sound.action(item.action) ||
+      this.#addonsPage.action(item.action) ||
       this.#search.action(item.action, this.#source) ||
       this.#show.action(item.action)
     )
