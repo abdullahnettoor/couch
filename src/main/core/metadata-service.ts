@@ -40,6 +40,8 @@ interface Entry {
   backdropPath?: string;
   genres?: string[];
   language?: string;
+  /** When fetching genres for this saved match last failed; tried again after a day. */
+  genresFailedAt?: number;
   seasons?: SeasonDetails[];
 }
 
@@ -85,8 +87,6 @@ export interface DetailsSettings {
 
 interface Doc {
   items: Record<string, Entry>;
-  /** The one-time genres and languages backfill has finished. */
-  genresBackfilled?: boolean;
 }
 
 /** A language or genre in the household's Library, with how many titles have it. */
@@ -136,9 +136,6 @@ export class MetadataService {
   #ownKey: string | undefined;
   #enabled: boolean;
   #queue: { item: Item; force: boolean; backfill?: boolean }[] = [];
-  #backfilled: boolean;
-  #backfillLeft = 0;
-  #backfillFailed = false;
   #queued = new Set<string>();
   #running = 0;
   #idle: (() => void)[] = [];
@@ -164,7 +161,6 @@ export class MetadataService {
     const doc = deps.store.read<Partial<Doc>>("metadata", {});
     this.#items = doc.items && typeof doc.items === "object" ? doc.items : {};
     const settings = deps.store.read<{ key?: unknown; enabled?: unknown }>("tmdb", {});
-    this.#backfilled = doc.genresBackfilled === true;
     this.#ownKey = typeof settings.key === "string" && settings.key ? settings.key : undefined;
     this.#enabled = settings.enabled !== false;
   }
@@ -267,30 +263,21 @@ export class MetadataService {
     this.#backfill();
   }
 
-  /** Once: fetches only the details endpoint for matched titles saved before genres existed. */
+  /** Fetches only the details endpoint for matched titles saved before genres existed; a failure waits a day. */
   #backfill(): void {
-    if (this.#backfilled) return;
+    const now = this.#clock.now();
     for (const item of this.#libraryItems()) {
       const e = this.#items[item.id];
       if (e?.state !== "matched" || e.tmdbId === undefined || e.genres) continue;
-      if (this.#queued.has(item.id)) continue;
-      this.#backfillLeft++;
+      if (e.genresFailedAt !== undefined && now - e.genresFailedAt < DAY_MS) continue;
       this.#enqueue(item, false, true);
     }
-    if (this.#backfillLeft === 0) this.#finishBackfill();
-  }
-
-  #finishBackfill(): void {
-    if (this.#backfillFailed) return;
-    this.#backfilled = true;
-    this.#writeDoc();
   }
 
   async #fill(item: Item): Promise<void> {
     const key = this.#key();
     const e = this.#items[item.id];
     if (!key || this.#blocked() || e?.state !== "matched" || e.tmdbId === undefined) {
-      this.#backfillFailed = true;
       return;
     }
     const stale = this.#staleCheck(item.id);
@@ -302,7 +289,9 @@ export class MetadataService {
       if (now?.state !== "matched") return;
       this.#save(item.id, { ...now, genres: d.genres, language: d.language });
     } catch (error) {
-      this.#backfillFailed = true;
+      const now = this.#items[item.id];
+      if (now?.state === "matched")
+        this.#save(item.id, { ...now, genresFailedAt: this.#clock.now() });
       if (
         error instanceof MetadataError &&
         (error.status === 401 || error.status === 403 || error.status === 429)
@@ -345,7 +334,6 @@ export class MetadataService {
       void (next.backfill ? this.#fill(next.item) : this.#lookup(next.item, next.force))
         .catch(() => {})
         .finally(() => {
-          if (next.backfill && --this.#backfillLeft === 0) this.#finishBackfill();
           this.#running--;
           this.#queued.delete(next.item.id);
           this.#pump();
@@ -463,10 +451,7 @@ export class MetadataService {
   }
 
   #writeDoc(): void {
-    this.#store.write("metadata", {
-      items: this.#items,
-      ...(this.#backfilled ? { genresBackfilled: true } : {}),
-    } satisfies Doc);
+    this.#store.write("metadata", { items: this.#items } satisfies Doc);
   }
 
   async #downloadImages(id: string): Promise<void> {

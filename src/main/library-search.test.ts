@@ -2,7 +2,6 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
-import { normalise, rank } from "./core/library-search.ts";
 import { FileStore } from "./ports/store.ts";
 import { startHarness, type FakePhone, type Harness } from "./testing/harness.ts";
 
@@ -83,18 +82,6 @@ const titles = (id: string) =>
     .find((r) => r.id === id)
     ?.entries.map((e) => e.title) ?? [];
 
-describe("normalise and rank", () => {
-  test("case, accents, separators", () => {
-    expect(normalise("  Amélie_Poulain.2001-HD ")).toBe("amelie poulain 2001 hd");
-  });
-  test("exact, starts-with, word-prefix in any order", () => {
-    expect(rank("Panda", "panda")).toBe(0);
-    expect(rank("Panda Express", "panda")).toBe(1);
-    expect(rank("Kung Fu Panda 4", "panda kung")).toBe(2);
-    expect(rank("Kung Fu Panda 4", "pandas")).toBeUndefined();
-  });
-});
-
 describe("Library search", () => {
   test("search icon is left of the gear; OK opens an empty search", async () => {
     await start();
@@ -115,6 +102,10 @@ describe("Library search", () => {
     expect(titles("films")).toEqual(["Kung Fu Panda 4"]);
     await type("amelie");
     expect(titles("films")).toEqual(["Amélie"]);
+    await type("  AMÉLIE-2001 ");
+    expect(titles("films")).toEqual(["Amélie"]);
+    await type("pandas");
+    expect(rows()).toEqual([]);
     await type("arc");
     expect(titles("shows")).toEqual(["Arcane"]);
     expect(h.metadata.searches).toEqual([]);
@@ -276,7 +267,9 @@ describe("Library search", () => {
       await phone.press("typeOpen");
       expect(phone.last!.typing).toBe("you");
       await type("cats");
-      expect(h.youtube.calls.filter((c) => c.call === "setSearchText").map((c) => c.args[0])).toEqual(["cats"]);
+      expect(
+        h.youtube.calls.filter((c) => c.call === "setSearchText").map((c) => c.args[0]),
+      ).toEqual(["cats"]);
     });
 
     test("Back from a show restores query and focus without the sheet", async () => {
