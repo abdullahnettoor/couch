@@ -182,6 +182,19 @@ function syncBackdrop(e: LibraryEntry | undefined, poster: boolean): void {
   window.setTimeout(() => old.forEach((n) => n.remove()), 700);
 }
 
+/** The title shrinks a step or two before it is cut; a two-line title leaves the overview two lines. */
+function fitFeatured(featured: HTMLElement): void {
+  const title = featured.querySelector<HTMLElement>("h1");
+  if (!title) return;
+  for (const step of ["", "s1", "s2"]) {
+    title.className = step;
+    if (title.scrollHeight <= title.clientHeight + 1) break;
+  }
+  const line = parseFloat(getComputedStyle(title).fontSize) * 1;
+  const padding = parseFloat(getComputedStyle(title).paddingBottom);
+  featured.classList.toggle("two", (title.clientHeight - padding) / line > 1.5);
+}
+
 function renderRoot(payload: ScreenPayload): void {
   const lib = payload.library!;
   if (!firstPage || root.firstElementChild !== firstPage) {
@@ -239,6 +252,7 @@ function renderRoot(payload: ScreenPayload): void {
     body.append(block);
   }
   firstPage.replaceChildren(backdrop!, featured, ...(chips ? [chips] : []), body, topbar(payload));
+  fitFeatured(featured);
 
   if (chips) scrollChips(chips, chipTrack);
 

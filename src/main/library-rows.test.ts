@@ -222,3 +222,40 @@ describe("Library first page rows", () => {
     expect(featured()).toEqual({ kind: "Folder", title: basename(root).replaceAll("-", " ") });
   });
 });
+
+describe("Continue watching captions", () => {
+  async function startWithDetails(history: Record<string, unknown>) {
+    const store = new FileStore(storeDir);
+    store.write("library", { folders: [root] });
+    store.write("history", { items: history });
+    h = await startHarness(store, { tmdbProjectKey: "eyJ.test.key" });
+    h.metadata.catalog.film.elemental = [{ id: 976573, name: "Elemental", year: 2023 }];
+    h.metadata.catalog.show.arcane = [{ id: 94605, name: "Arcane", year: 2021 }];
+    await h.app.core.library.settled();
+    await h.app.core.details.settled();
+    phone = await h.connectPhone();
+    await phone.press("home");
+    await focusOn("library");
+    await phone.press("ok");
+  }
+
+  test("episodes use the show name and no folder; films with details drop the folder", async () => {
+    seed();
+    await startWithDetails({
+      [ep(1, 1)]: { position: 600, duration: 2400, at: 8 },
+      [at("Elemental.2023.mkv")]: { position: 600, duration: 6000, at: 9 },
+      [at("Heat.mkv")]: { position: 600, duration: 6000, at: 7 },
+    });
+    const byPath = (p: string) => row("continue").find((e) => e.path === p)!;
+    const episode = byPath(ep(1, 1));
+    expect(episode.line).toBe("Arcane · S1 E1");
+    expect(episode.folder).toBeUndefined();
+    expect(byPath(at("Elemental.2023.mkv")).folder).toBeUndefined();
+  });
+
+  test("a film without details keeps its folder", async () => {
+    seed();
+    await start({ [at("Heat.mkv")]: { position: 600, duration: 6000, at: 7 } });
+    expect(row("continue")[0]!.folder).toBe(basename(root));
+  });
+});

@@ -125,8 +125,14 @@ export function libraryRows(ctx: RowsContext): { rows: LibraryRow[]; wanted: str
     const { details: d, episode } = artFor(library, lookup, e.path);
     const title = film ? bare(e.title, film.year) : (episode?.name ?? e.title);
     const art = episode?.still ?? d?.backdrop;
+    // The folder only says where a video is when nothing else does: an episode has its show, a film with
+    // details its title.
+    const { folder, ...rest } = e;
+    const ep = show?.seasons.flatMap((s) => s.episodes).find((x) => x.path === e.path);
     return {
-      ...e,
+      ...rest,
+      ...(!show && !d && folder ? { folder } : {}),
+      ...(show && ep ? { line: `${show.name} · S${ep.season} E${ep.episode}` } : {}),
       id: `continue:${e.path}`,
       title,
       ...(art ? { thumb: art } : {}),
