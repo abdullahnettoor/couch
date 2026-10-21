@@ -1,8 +1,9 @@
 import type { GridItem, ScreenPayload } from "../shared/protocol.ts";
 import type { CouchApi } from "../shared/ipc.ts";
-import { SCREEN_KEYS } from "../shared/keyboard.ts";
+import { screenKeyCommand } from "../shared/keyboard.ts";
 import { VIEWS } from "./views/index.ts";
 import { renderHud } from "./hud.ts";
+import { isTypingTarget, syncTyping } from "./views/typing.ts";
 import { renderOverlay, setNativeGlass, setVideoTint } from "./player-overlay.ts";
 import { darkTint } from "../shared/glass-tint.ts";
 import { iconSvg } from "../shared/icons.ts";
@@ -24,10 +25,13 @@ declare global {
 }
 
 window.addEventListener("keydown", (event) => {
-  const command = SCREEN_KEYS[event.key];
+  const command = screenKeyCommand(
+    { key: event.key, meta: event.metaKey, ctrl: event.ctrlKey, alt: event.altKey },
+    current?.screenTyping !== undefined,
+  );
   if (!command) return;
   event.preventDefault();
-  window.couch.send({ command });
+  window.couch.send(command);
 });
 
 let current: ScreenPayload | undefined;
@@ -69,6 +73,7 @@ window.addEventListener(
   true,
 );
 window.addEventListener("click", (event) => {
+  if (isTypingTarget(event.target)) return;
   const item = itemAt(event);
   if (!item) return;
   focusItem(item);
@@ -110,6 +115,7 @@ window.couch.onScreen((payload) => {
     window.couch.reportGrid({ viewKey: payload.viewKey, items: view.grid });
   }
   view?.render(payload);
+  syncTyping(payload, payload.search?.query ?? "");
   // Transparent only once mpv reports a duration (the video is on screen); black before that.
   const playing = payload.state.view === "player" && (payload.state.player?.dur ?? 0) > 0;
   document.body.classList.toggle("video-visible", playing);

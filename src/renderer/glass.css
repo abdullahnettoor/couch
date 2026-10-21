@@ -992,3 +992,36 @@ body.windowed .topbar [data-id] {
 .ls-shelf {
   overflow-x: hidden;
 }
+
+/* ---- Typing with the Mac keyboard ---- */
+.typing-slot {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+.typing-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  caret-color: currentColor;
+  text-align: inherit;
+}
+.typing-input::placeholder {
+  color: var(--t3);
+}
+.ls-field.focused .typing-input::placeholder {
+  color: rgba(0, 0, 0, 0.45);
+}
+.g-row .typing-slot {
+  justify-content: flex-end;
+  min-width: calc(520 * var(--u));
+}
+.g-row .typing-input {
+  text-align: right;
+}

@@ -7,8 +7,8 @@ export interface DetailsPageHost {
   details: MetadataService;
   /** The phone that last sent a command, if it is still connected. */
   connectedPhone(): RemoteId | undefined;
-  /** A phone starts typing the key: it owns the typing sheet, for the key only. */
-  startTyping(remote: RemoteId): void;
+  /** A phone (or the Screen) starts typing the key: it owns the typing session, for the key only. */
+  startTyping(source: Source): void;
   setView(view: View): void;
   toast(text: string): void;
 }
@@ -43,13 +43,14 @@ export class DetailsPage {
   }
 
   /** Actions on the "Show and film details" page. */
-  action(action: string): boolean {
+  action(action: string, from: Source): boolean {
     if (!action.startsWith("details:")) return false;
     switch (action) {
       case "details:own-key": {
-        // The key is typed on a phone's typing sheet.
+        // Typed where OK was pressed: a field on the Screen, or the phone's typing sheet.
         const phone = this.#h.connectedPhone();
-        if (phone !== undefined) this.startTyping(phone);
+        if (from === "screen") this.startTyping(from);
+        else if (phone !== undefined) this.startTyping(phone);
         else this.#h.toast("Open Couch's Remote on your phone to type the key");
         break;
       }
@@ -73,8 +74,8 @@ export class DetailsPage {
     return true;
   }
 
-  startTyping(remote: RemoteId): void {
-    this.#h.startTyping(remote);
+  startTyping(source: Source): void {
+    this.#h.startTyping(source);
     this.#draft = "";
   }
 
@@ -89,7 +90,7 @@ export class DetailsPage {
     const owner = this.#state.typingBy;
     switch (command.command) {
       case "typeOpen":
-        if (from === "screen" || (owner !== undefined && owner !== from)) return;
+        if (owner !== undefined && owner !== from) return;
         this.startTyping(from);
         break;
       case "typeText":

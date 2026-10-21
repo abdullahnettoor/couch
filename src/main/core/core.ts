@@ -33,6 +33,7 @@ import { artFor, type PathArt } from "./art.ts";
 import { libraryRows, tileAction } from "./library-rows.ts";
 import { autoRows, chipsFor, keepFor } from "./library-chips.ts";
 import { presentation, hueFor, listFolder, mosaicSources, rootEntries } from "./library.ts";
+import { applyEdit, type TextEdit } from "../../shared/keyboard.ts";
 import type { LibraryChip, UpNextItem } from "../../shared/protocol.ts";
 import { PlayerControls } from "./player-controls.ts";
 import { History } from "./history.ts";
@@ -48,6 +49,9 @@ const TILE_COLUMNS = 4;
 const LIBRARY_VIEWS = ["library", "folder", "libraryFolders"];
 /** Views where a phone's Search button opens the Library search. */
 const TYPING_VIEW = { search: "youtube", tmdbKey: "details", librarySearch: "librarySearch" };
+type Purpose = keyof typeof TYPING_VIEW;
+const SCREEN_ONLY = ["focusAt", "showControls", "find", "screenKey"];
+const NAV = ["up", "down", "left", "right"];
 /** Views the Library search's query and focus survive, so Back returns to them. */
 const SEARCH_KEEPS: View[] = ["librarySearch", "show", "fixMatch", "player"];
 const SEARCH_FROM: View[] = ["library", "folder", "show", "librarySearch"];
@@ -129,7 +133,10 @@ export class Core {
   #showFrom: "library" | "librarySearch" = "library";
   #dataVersion = 0;
   /** What the phone currently typing is typing into. */
-  #typingFor: "search" | "tmdbKey" | "librarySearch" | undefined;
+  #typingFor: Purpose | undefined;
+  /** Who sent the command being handled. */
+  #source: Source = "screen";
+  #capturing = false;
   #cancelSaves: (() => void) | undefined;
   #resumeNote: string | undefined;
   #cancelNote: (() => void) | undefined;
@@ -585,8 +592,10 @@ export class Core {
     else if (verb === "open") this.#openFolder(arg);
     else if (verb === "play") this.#play(arg);
     else if (verb === "playstart") this.#play(arg, true);
-    else if (verb === "search") this.#search.open();
-    else if (verb === "chip") this.#chip = this.#chip === arg || arg === "all" ? undefined : arg;
+    else if (verb === "search") {
+      this.#search.open();
+      if (this.#source === "screen") this.#search.action("search:field", "screen");
+    } else if (verb === "chip") this.#chip = this.#chip === arg || arg === "all" ? undefined : arg;
     else if (verb === "show") {
       this.#showFrom = this.#state.view === "librarySearch" ? "librarySearch" : "library";
       this.#show.open(arg);
@@ -929,6 +938,9 @@ export class Core {
       homeVideos,
       hero: homeVideos.find((v) => v.path === focused?.id) ?? homeVideos[0],
       overlay: this.#overlay(),
+      ...(this.#state.typingBy === "screen" && this.#typingFor
+        ? { screenTyping: this.#typingFor }
+        : {}),
       state: structuredClone(this.#state),
       viewKey: this.viewKey,
       grid,
@@ -1031,13 +1043,14 @@ export class Core {
   }
 
   handle(command: Command, from: Source): void {
-    if ((command.command === "focusAt" || command.command === "showControls") && from !== "screen")
-      return;
+    if (SCREEN_ONLY.includes(command.command) && from !== "screen") return;
+    this.#source = from;
     if (from !== "screen") this.#lastFrom = from;
     this.#ports.mac.wakeDisplay();
     this.#armIdle();
     if (command.command === "showControls" && !this.#state.player) return;
     if (command.command === "focusAt") return this.#focusAt(command.args?.r, command.args?.c);
+    if (this.#typingKeys(command, from)) return;
     if (this.#state.player && this.#playbackCommand(command)) {
       this.#emit();
       return;
@@ -1048,6 +1061,7 @@ export class Core {
       case "left":
       case "right":
         this.#move(command.command);
+        if (from === "screen") this.#fieldReached();
         break;
       case "ok":
         this.#ok();
@@ -1057,6 +1071,12 @@ export class Core {
         break;
       case "menu":
         this.#show.menu();
+        break;
+      case "find":
+        this.#find();
+        break;
+      case "screenKey":
+        this.#screenKey(command.args?.text);
         break;
       case "home":
         this.#setView("home");
@@ -1095,24 +1115,108 @@ export class Core {
     this.#emit();
   }
 
+  /** What a typing session started now would be typing into: decided by the view it opens in. */
+  #purposeFor(view: View): Purpose | undefined {
+    if (view === "youtube") return "search";
+    if (view === "details") return "tmdbKey";
+    return SEARCH_FROM.includes(view) ? "librarySearch" : undefined;
+  }
+
+  #endTyping(): void {
+    if (this.#state.typingBy === undefined) return;
+    if (this.#typingFor === "tmdbKey") this.#detailsPage.cancel();
+    this.#state.typingBy = undefined;
+    this.#typingFor = undefined;
+  }
+
+  /** ⌘F on the Screen: type a search wherever one can be typed. */
+  #find(): void {
+    const view = this.#state.view;
+    if (this.#purposeFor(view) === "tmdbKey" || this.#state.typingBy === "screen") return;
+    if (view === "youtube" || SEARCH_FROM.includes(view))
+      this.#type({ command: "typeOpen" }, "screen");
+  }
+
+  /** A printable key on the Library's first page opens search with it already typed. */
+  #screenKey(text: string | undefined): void {
+    if (this.#state.view !== "library" || text === undefined || [...text].length !== 1) return;
+    this.#type({ command: "typeOpen", args: { text } }, "screen");
+  }
+
+  /**
+   * While the Screen types: Esc/Back leaves the field, Down goes to the results, and anything else
+   * from a phone or the mouse ends the session before it does its usual job. True when handled here.
+   */
+  #typingKeys(command: Command, from: Source): boolean {
+    if (this.#state.typingBy !== "screen") return false;
+    const name = command.command;
+    if (name === "back") {
+      this.#type({ command: "typeCancel" }, "screen");
+    } else if (from === "screen" && NAV.includes(name)) {
+      if (name === "down" && this.#typingFor === "librarySearch")
+        this.#type({ command: "typeSubmit" }, "screen");
+    } else if (NAV.includes(name) || name === "ok") {
+      this.#endTyping();
+      return false;
+    } else {
+      return false;
+    }
+    this.#emit();
+    return true;
+  }
+
+  /** Moving up onto the search field from the results types there again. */
+  #fieldReached(): void {
+    if (this.#state.view !== "librarySearch" || this.#state.typingBy !== undefined) return;
+    const item = resolveFocus(this.#currentGrid(), this.#state.focus[this.viewKey]);
+    if (item?.id === "field") this.#search.action("search:field", "screen");
+  }
+
+  /** An edit of YouTube search text typed on the Mac keyboard while Couch captures it. */
+  #onEdit(edit: TextEdit): void {
+    if (this.#state.typingBy !== "screen" || this.#typingFor !== "search") return;
+    if (this.#state.view !== "youtube") return;
+    if ("done" in edit) {
+      this.#type({ command: edit.done === "submit" ? "typeSubmit" : "typeCancel" }, "screen");
+      return;
+    }
+    this.#state.query = applyEdit(this.#state.query, edit);
+    this.#ports.youtube.setSearchText(this.#state.query);
+  }
+
+  /** Mac-keyboard text for YouTube is captured only while the Screen owns a search session. */
+  #syncCapture(): void {
+    const on =
+      this.#state.view === "youtube" &&
+      this.#state.typingBy === "screen" &&
+      this.#typingFor === "search";
+    if (on === this.#capturing) return;
+    this.#capturing = on;
+    this.#ports.youtube.captureText(on);
+  }
+
   #type(command: Command, from: Source): void {
+    const owner = this.#state.typingBy;
+    if (command.command === "typeOpen") {
+      const purpose = this.#purposeFor(this.#state.view);
+      if (!purpose) return this.#toast(TYPING_HINT);
+      // The latest of a phone and the Screen to open takes over; one phone can't take from another.
+      if (owner !== undefined && owner !== from && from !== "screen" && owner !== "screen") return;
+      if (owner !== undefined && owner !== from) this.#endTyping();
+      return this.#typeFor(purpose, command, from);
+    }
+    if (owner === undefined || this.#typingFor === undefined) return;
+    this.#typeFor(this.#typingFor, command, from);
+  }
+
+  #typeFor(purpose: Purpose, command: Command, from: Source): void {
     const yt = this.#ports.youtube;
     const owner = this.#state.typingBy;
-    const purpose = owner === undefined ? undefined : this.#typingFor;
     if (purpose === "tmdbKey") return this.#detailsPage.typeKey(command, from);
     if (purpose === "librarySearch") return this.#search.type(command, from);
-    if (purpose === undefined) {
-      if (this.#state.view === "details") return this.#detailsPage.typeKey(command, from);
-      if (SEARCH_FROM.includes(this.#state.view)) {
-        if (this.#state.view !== "librarySearch" && command.command !== "typeOpen") return;
-        return this.#search.type(command, from);
-      }
-    }
-    if (owner !== undefined && this.#typingFor !== "search") return;
     switch (command.command) {
       case "typeOpen":
-        if (this.#state.view !== "youtube") return this.#toast(TYPING_HINT);
-        if (from === "screen" || (owner !== undefined && owner !== from)) return;
+        if (owner !== undefined && owner !== from) return;
         this.#state.typingBy = from;
         this.#typingFor = "search";
         this.#state.query = "";
@@ -1221,8 +1325,8 @@ export class Core {
     if (item.action === "back") return this.#back();
     if (
       this.#libraryAction(item.action) ||
-      this.#detailsPage.action(item.action) ||
-      this.#search.action(item.action) ||
+      this.#detailsPage.action(item.action, this.#source) ||
+      this.#search.action(item.action, this.#source) ||
       this.#show.action(item.action)
     )
       return;
@@ -1308,6 +1412,12 @@ export class Core {
       case "key":
         this.handle({ command: event.command }, "screen");
         return;
+      case "find":
+        if (this.#state.view === "youtube") this.handle({ command: "find" }, "screen");
+        return;
+      case "edit":
+        this.#onEdit(event.edit);
+        break;
       case "route":
         this.#ytTopLevel = event.topLevel;
         break;
@@ -1413,6 +1523,7 @@ export class Core {
     }
     this.#syncDisplayAwake();
     this.#syncYouTubeVolume();
+    this.#syncCapture();
     for (const l of [...this.#listeners]) l();
   }
 }

@@ -99,10 +99,13 @@ describe("Screen typing: Library search", () => {
     expect(screen().state.typingBy).toBeUndefined();
   });
 
-  test("OK on the search icon from the Screen types on the Screen; from a phone it does not", async () => {
+  test("OK on the search icon from the Screen types on the Screen", async () => {
     toLibrary();
-    key("up");
-    key("left");
+    for (let i = 0; i < 20 && screen().focusedId !== "search"; i++) {
+      const cur = screen().grid.find((x) => x.id === screen().focusedId)!;
+      const t = screen().grid.find((x) => x.id === "search")!;
+      key(t.r < cur.r ? "up" : t.c < cur.c ? "left" : "right");
+    }
     expect(screen().focusedId).toBe("search");
     key("ok");
     expect(screen().state.view).toBe("librarySearch");
@@ -300,8 +303,8 @@ describe("Screen and phone take over from each other", () => {
     expect(screen().screenTyping).toBeUndefined();
     text("hijack");
     expect(screen().search!.query).toBe("pan");
-    await phone.press({ command: "typeText", args: { text: "panda" } });
-    expect(films$()).toEqual(["Panda"]);
+    await phone.press({ command: "typeText", args: { text: "amelie" } });
+    expect(films$()).toEqual(["Amélie"]);
   });
 
   test("the Screen takes over a phone's YouTube typing, and back", async () => {

@@ -35,19 +35,18 @@ describe("Screen keys", () => {
 });
 
 describe("Text edits (YouTube key capture)", () => {
-  const paste = () => "pasted";
   test("maps keys", () => {
-    expect(textEditFor({ key: "a" }, paste)).toEqual({ insert: "a" });
-    expect(textEditFor({ key: " " }, paste)).toEqual({ insert: " " });
-    expect(textEditFor({ key: "Backspace" }, paste)).toEqual({ erase: "char" });
-    expect(textEditFor({ key: "Backspace", alt: true }, paste)).toEqual({ erase: "word" });
-    expect(textEditFor({ key: "Backspace", meta: true }, paste)).toEqual({ erase: "all" });
-    expect(textEditFor({ key: "v", meta: true }, paste)).toEqual({ insert: "pasted" });
-    expect(textEditFor({ key: "Enter" }, paste)).toEqual({ done: "submit" });
-    expect(textEditFor({ key: "Escape" }, paste)).toEqual({ done: "cancel" });
-    expect(textEditFor({ key: "Shift" }, paste)).toBeUndefined();
-    expect(textEditFor({ key: "ArrowUp" }, paste)).toBeUndefined();
-    expect(textEditFor({ key: "a", meta: true }, paste)).toBeUndefined();
+    expect(textEditFor({ key: "a" })).toEqual({ insert: "a" });
+    expect(textEditFor({ key: " " })).toEqual({ insert: " " });
+    expect(textEditFor({ key: "Backspace" })).toEqual({ erase: "char" });
+    expect(textEditFor({ key: "Backspace", alt: true })).toEqual({ erase: "word" });
+    expect(textEditFor({ key: "Backspace", meta: true })).toEqual({ erase: "all" });
+    expect(textEditFor({ key: "v", meta: true })).toEqual({ paste: true });
+    expect(textEditFor({ key: "Enter" })).toEqual({ done: "submit" });
+    expect(textEditFor({ key: "Escape" })).toEqual({ done: "cancel" });
+    expect(textEditFor({ key: "Shift" })).toBeUndefined();
+    expect(textEditFor({ key: "ArrowUp" })).toBeUndefined();
+    expect(textEditFor({ key: "a", meta: true })).toBeUndefined();
   });
 
   test("applies edits", () => {

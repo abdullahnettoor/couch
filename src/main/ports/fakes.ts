@@ -99,6 +99,9 @@ export class FakeYouTube implements YouTube {
   submitSearch() {
     this.#record("submitSearch");
   }
+  captureText(on: boolean) {
+    this.#record("captureText", on);
+  }
   playPause() {
     this.#record("playPause");
   }

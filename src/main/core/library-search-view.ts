@@ -27,8 +27,8 @@ export interface LibrarySearchHost {
   thumbs: ThumbnailScheduler;
   /** Adds progress or the watched tag to a video entry. */
   decorate(entry: LibraryEntry): LibraryEntry;
-  /** A phone starts typing the query: it owns the typing sheet. */
-  startTyping(remote: RemoteId): void;
+  /** A phone (or the Screen) starts typing the query: it owns the typing session. */
+  startTyping(source: Source): void;
   /** Changes whenever the Library index or any saved details change. */
   dataVersion(): number;
   /** The phone that last sent a command, if it is still connected. */
@@ -175,10 +175,11 @@ export class LibrarySearchView {
     };
   }
 
-  action(action: string): boolean {
+  action(action: string, from: Source): boolean {
     if (action !== "search:field") return false;
     const phone = this.#h.connectedPhone();
-    if (phone !== undefined) this.#h.startTyping(phone);
+    if (from === "screen") this.#h.startTyping(from);
+    else if (phone !== undefined) this.#h.startTyping(phone);
     else this.#h.toast("Open Couch's Remote on your phone to search");
     return true;
   }
@@ -188,8 +189,13 @@ export class LibrarySearchView {
     const owner = this.#state.typingBy;
     switch (command.command) {
       case "typeOpen":
-        if (from === "screen" || (owner !== undefined && owner !== from)) return;
-        if (this.#state.view !== SEARCH_VIEW) this.open();
+        if (owner !== undefined && owner !== from) return;
+        if (this.#state.view !== SEARCH_VIEW) {
+          this.open();
+          // Only the Screen's own keyboard brings the first character along.
+          const first = from === "screen" ? command.args?.text : undefined;
+          if (first !== undefined && [...first].length === 1) this.#query = first;
+        }
         this.#h.startTyping(from);
         break;
       case "typeText":

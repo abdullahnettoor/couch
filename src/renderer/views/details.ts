@@ -1,11 +1,13 @@
 import type { ScreenPayload } from "../../shared/protocol.ts";
 import { el } from "./dom.ts";
 import { glassRow, splitPage } from "./glass.ts";
+import { typingSlot } from "./typing.ts";
 
 /** "Show and film details": the TMDB key, On/Off, Refresh and Credits. */
 export function render(payload: ScreenPayload): void {
   const d = payload.details;
-  const typing = payload.state.typingBy !== undefined;
+  const onScreen = payload.screenTyping === "tmdbKey";
+  const typing = payload.state.typingBy !== undefined && !onScreen;
   const content = [
     el("h1", "", "Show and film details"),
     ...payload.grid.map((item) =>
@@ -27,6 +29,10 @@ export function render(payload: ScreenPayload): void {
       }),
     ),
   ];
+  if (onScreen) {
+    const value = content.find((n) => n.dataset.id === "own-key")?.querySelector(".v");
+    value?.replaceChildren(typingSlot());
+  }
   if (d?.hint) content.push(el("p", "details-hint", d.hint));
   splitPage({ icon: "gear" }, content);
 }

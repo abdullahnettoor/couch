@@ -8,6 +8,7 @@ export const nullYouTube: YouTube = {
   openSearch() {},
   setSearchText() {},
   submitSearch() {},
+  captureText() {},
   playPause() {},
   seekBy() {},
   showVolume() {},

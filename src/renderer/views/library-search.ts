@@ -3,6 +3,7 @@ import { iconSvg } from "../../shared/icons.ts";
 import { el, focusable, root } from "./dom.ts";
 import { topbar } from "./glass.ts";
 import { card, posterLabel } from "./library.ts";
+import { typingSlot } from "./typing.ts";
 
 function escape(text: string): string {
   return text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -28,23 +29,29 @@ export function render(payload: ScreenPayload): void {
   if (!search) return;
   root.replaceChildren();
   const page = el("div", "screen-glass ls-page");
+  const onScreen = payload.screenTyping === "librarySearch";
   const field = focusable(
     el(
       "div",
       `ls-field g-pill glass${payload.focusedId === "field" ? " focused" : ""}`,
-      `${iconSvg("search")}<span class="q${search.query ? "" : " ph"}">${
-        search.query ? escape(search.query) : "Search your Library"
-      }</span>${search.typing ? `<i class="caret"></i>` : ""}`,
+      `${iconSvg("search")}${
+        onScreen
+          ? ""
+          : `<span class="q${search.query ? "" : " ph"}">${
+              search.query ? escape(search.query) : "Search your Library"
+            }</span>${search.typing ? `<i class="caret"></i>` : ""}`
+      }`,
     ),
     "field",
   );
+  if (onScreen) field.append(typingSlot());
   const body = el("div", "lib-body ls-body");
   if (search.rows.length) {
     for (const row of search.rows) body.append(rowBlock(row, payload));
   } else {
     const text = search.query.trim()
       ? `Nothing matches “${escape(search.query.trim())}”`
-      : "Type on your phone to search";
+      : "Type to search";
     body.append(el("div", "lib-empty glass", `${iconSvg("search")}<span>${text}</span>`));
   }
   page.append(field, body, topbar(payload));

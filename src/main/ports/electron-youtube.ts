@@ -1,7 +1,7 @@
 import { noteScript, volumeScript } from "./youtube-hud.ts";
 import { join } from "node:path";
-import { app, BrowserWindow, WebContentsView, session } from "electron";
-import { SCREEN_KEYS } from "../../shared/keyboard.ts";
+import { app, BrowserWindow, WebContentsView, clipboard, session } from "electron";
+import { SCREEN_KEYS, textEditFor } from "../../shared/keyboard.ts";
 import { revealScreen } from "../reveal.ts";
 import { applyCompatPatch } from "./youtube-compat.ts";
 import { CONTROLS_HIDE_MS, SKIP_COMMIT_MS, skipKeys } from "./youtube-skip.ts";
@@ -54,6 +54,7 @@ export class ElectronYouTube implements YouTube {
   #visible = false;
   #failed = false;
   #sending = false;
+  #capturing = false;
   #inSearch = false;
   #query = "";
   #typingTimer: ReturnType<typeof setTimeout> | undefined;
@@ -102,6 +103,32 @@ export class ElectronYouTube implements YouTube {
     });
     wc.on("before-input-event", (event, input) => {
       if (this.#sending) return;
+      if (this.#capturing) {
+        event.preventDefault();
+        if (input.type !== "keyDown") return;
+        const edit = textEditFor({
+          key: input.key,
+          meta: input.meta,
+          ctrl: input.control,
+          alt: input.alt,
+        });
+        if (edit && "paste" in edit) {
+          void Promise.resolve(clipboard.readText()).then((text) => {
+            if (text) this.#emit({ type: "edit", edit: { insert: text } });
+          });
+          return;
+        }
+        if (edit) this.#emit({ type: "edit", edit });
+        return;
+      }
+      if (input.type === "keyDown" && !input.control && !input.alt) {
+        const find = input.meta ? input.key.toLowerCase() === "f" : input.key === "/";
+        if (find) {
+          event.preventDefault();
+          this.#emit({ type: "find" });
+          return;
+        }
+      }
       const command = SCREEN_KEYS[input.key];
       if (!command || input.control || input.meta || input.alt) return;
       event.preventDefault();
@@ -221,6 +248,10 @@ export class ElectronYouTube implements YouTube {
     this.#query = text;
     clearTimeout(this.#typingTimer);
     this.#typingTimer = setTimeout(() => this.#goToSearch(this.#query), TYPING_SETTLE_MS);
+  }
+
+  captureText(on: boolean): void {
+    this.#capturing = on;
   }
 
   submitSearch(): void {

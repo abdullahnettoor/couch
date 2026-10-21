@@ -47,7 +47,7 @@ export const COMMAND_NAMES = [
 export type CommandName = (typeof COMMAND_NAMES)[number];
 
 /** Commands only the Screen itself may send (mouse hover). Never in COMMAND_NAMES, so Remotes can't. */
-export type ScreenOnlyCommandName = "focusAt" | "showControls";
+export type ScreenOnlyCommandName = "focusAt" | "showControls" | "find" | "screenKey";
 
 export interface CommandArgs {
   /** focusAt: the grid cell to focus */
@@ -59,7 +59,7 @@ export interface CommandArgs {
   percent?: number;
   /** playUpNext: position in the Up next list */
   index?: number;
-  /** typeText: the whole current text */
+  /** typeText: the whole current text; typeOpen and screenKey (Screen only): the first character */
   text?: string;
 }
 
@@ -248,6 +248,8 @@ export interface ScreenPayload {
   library?: LibraryPayload;
   /** Present on the show page. */
   show?: ShowPagePayload;
+  /** The Screen's own keyboard is typing for this purpose (never the text itself). */
+  screenTyping?: "librarySearch" | "tmdbKey" | "search";
   /** Present on the Library search. */
   search?: LibrarySearchPayload;
   /** Present on the Fix match list. */
