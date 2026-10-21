@@ -8,6 +8,7 @@ struct Config {
   var icons = ""
   var launch = "open -a /Applications/Couch.app"
   var startTimeout = 30.0
+  var headerTimeout = 10.0
 
   static func parse() -> Config {
     var c = Config()
@@ -30,6 +31,7 @@ struct Config {
       case "--icons": c.icons = value
       case "--launch": c.launch = value
       case "--start-timeout": c.startTimeout = Double(value) ?? c.startTimeout
+      case "--header-timeout": c.headerTimeout = Double(value) ?? c.headerTimeout
       default: break
       }
     }

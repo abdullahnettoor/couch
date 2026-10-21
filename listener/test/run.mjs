@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { spawn, execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { createServer } from "node:net";
+import { connect, createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, test } from "node:test";
@@ -40,7 +40,13 @@ async function until(fn, what, ms = 8000) {
 }
 
 /** Starts a listener; `launch` is "app" (starts the fake app after delayMs), or a literal command. */
-async function setup({ key = KEY, launch = "app", delayMs = 400, startTimeout = 30 } = {}) {
+async function setup({
+  key = KEY,
+  launch = "app",
+  delayMs = 400,
+  startTimeout = 30,
+  extra = [],
+} = {}) {
   const support = mkdtempSync(join(tmpdir(), "couch-listener-"));
   const web = mkdtempSync(join(tmpdir(), "couch-listener-web-"));
   writeFileSync(join(web, "page.html"), "<html>OFFPAGE</html>");
@@ -66,6 +72,7 @@ async function setup({ key = KEY, launch = "app", delayMs = 400, startTimeout = 
       launchCmd,
       "--start-timeout",
       String(startTimeout),
+      ...extra,
     ],
     { env: { ...process.env, COUCH_PORT: String(port), COUCH_APP_PORT: String(appPort) } },
   );
@@ -269,4 +276,122 @@ test("keys, tokens and the launch command are never logged", async () => {
   for (const secret of [KEY, "wrong-key-xyz", env.status().token, MARK, "fake-app"]) {
     assert.ok(!out.includes(secret), `log leaks ${secret.slice(0, 4)}…`);
   }
+});
+
+/** A raw TCP client for malformed traffic. */
+function raw(env) {
+  const socket = connect(env.port, "127.0.0.1");
+  let closed = false;
+  let received = Buffer.alloc(0);
+  socket.on("data", (d) => (received = Buffer.concat([received, d])));
+  socket.on("close", () => (closed = true));
+  socket.on("error", () => {});
+  cleanups.push(() => socket.destroy());
+  return { socket, closed: () => closed, received: () => received };
+}
+
+async function rawPhone(env, key = KEY) {
+  const c = raw(env);
+  c.socket.write(
+    `GET /ws?key=${key} HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n`,
+  );
+  await until(() => c.received().toString().includes("\r\n\r\n"), "handshake");
+  return c;
+}
+
+const maskedFrame = (opcode, payload, { fin = true } = {}) => {
+  const mask = Buffer.from([1, 2, 3, 4]);
+  const body = Buffer.from(payload);
+  const head =
+    body.length < 126
+      ? Buffer.from([(fin ? 0x80 : 0) | opcode, 0x80 | body.length])
+      : Buffer.from([(fin ? 0x80 : 0) | opcode, 0x80 | 126, body.length >> 8, body.length & 0xff]);
+  return Buffer.concat([head, mask, body.map((b, i) => b ^ mask[i % 4])]);
+};
+
+const alive = async (env) => (await fetch(env.url("/"))).status === 200;
+
+test("a revoked phone loses control even when a new handshake refreshes the key first", async () => {
+  const env = await setup();
+  const old = await phone(env);
+  await until(() => old.powerStates().length, "initial");
+  writeFileSync(join(env.support, "pairing.json"), JSON.stringify({ key: "second-key" }));
+  const fresh = await phone(env, "second-key");
+  await until(() => old.closed(), "old phone dropped without waiting for the timer");
+  old.send("power");
+  await sleep(300);
+  assert.equal(env.appLog(), "");
+  await until(() => fresh.powerStates().length, "new phone works");
+  assert.equal(fresh.closed(), false);
+});
+
+test("an authenticated socket's power is refused after the key changed", async () => {
+  const env = await setup();
+  const c = await rawPhone(env);
+  writeFileSync(join(env.support, "pairing.json"), JSON.stringify({ key: "second-key" }));
+  c.socket.write(maskedFrame(1, JSON.stringify({ type: "command", command: "power" })));
+  await until(() => c.closed(), "closed");
+  await sleep(500);
+  assert.match(await (await fetch(env.url("/"))).text(), /OFFPAGE/, "power did not start the app");
+  assert.equal(env.appLog(), "");
+});
+
+test("malformed WebSocket frames never crash the listener", async () => {
+  const env = await setup();
+  const header = (b0, b1, ...rest) => Buffer.from([b0, b1, ...rest]);
+  const cases = [
+    header(0x81, 0xff, ...Array(8).fill(0xff), 1, 2, 3, 4),
+    header(0x81, 0xff, 0x80, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4),
+    header(0x81, 0xff, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff, 1, 2, 3, 4),
+    header(0x82, 0xfe, 0xff, 0xff, 1, 2, 3, 4),
+    header(0x89, 0xfe, 0, 200, 1, 2, 3, 4),
+    header(0x00, 0x80, 1, 2, 3, 4),
+    header(0xf1, 0x80, 1, 2, 3, 4),
+  ];
+  const rnd = () => Buffer.from(Array.from({ length: 64 }, () => Math.floor(Math.random() * 256)));
+  for (let i = 0; i < 40; i++) cases.push(rnd());
+  for (const bytes of cases) {
+    const c = await rawPhone(env);
+    c.socket.write(bytes);
+    await sleep(30);
+    c.socket.destroy();
+  }
+  assert.equal(env.child.exitCode, null, "listener still running");
+  assert.equal(await alive(env), true);
+});
+
+test("an oversize frame length closes with 1009 and a reserved bit is a protocol error", async () => {
+  const env = await setup();
+  const big = await rawPhone(env);
+  big.socket.write(Buffer.from([0x81, 0xff, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff, 1, 2, 3, 4]));
+  await until(() => big.closed(), "closed");
+  const tail = big.received().subarray(big.received().indexOf("\r\n\r\n") + 4);
+  assert.deepEqual([...tail.subarray(32, 36)], [0x88, 0x02, 0x03, 0xf1]);
+  const msb = await rawPhone(env);
+  msb.socket.write(Buffer.from([0x81, 0xff, 0xff, ...Array(7).fill(0xff), 1, 2, 3, 4]));
+  await until(() => msb.closed(), "closed");
+  const t2 = msb.received().subarray(msb.received().indexOf("\r\n\r\n") + 4);
+  assert.deepEqual([...t2.subarray(32, 36)], [0x88, 0x02, 0x03, 0xea]);
+});
+
+test("idle and header-stalled connections are dropped, and the unauthenticated count is capped", async () => {
+  const env = await setup({ extra: ["--header-timeout", "1"] });
+  const idle = Array.from({ length: 3 }, () => raw(env));
+  const slow = raw(env);
+  slow.socket.write("GET / HT");
+  await until(() => idle.every((c) => c.closed()) && slow.closed(), "timed out", 4000);
+  const flood = Array.from({ length: 60 }, () => raw(env));
+  await sleep(500);
+  assert.ok(flood.filter((c) => c.closed()).length >= 28, "oldest dropped past the cap");
+  assert.equal(await alive(env), true);
+});
+
+test("fragmented text frames are assembled, so a fragmented power works", async () => {
+  const env = await setup();
+  const c = await rawPhone(env);
+  const msg = Buffer.from(JSON.stringify({ type: "command", command: "power" }));
+  c.socket.write(maskedFrame(1, msg.subarray(0, 10), { fin: false }));
+  c.socket.write(maskedFrame(9, "hi"));
+  c.socket.write(maskedFrame(0, msg.subarray(10), { fin: true }));
+  await until(() => c.received().toString().includes("starting"), "power ran");
 });

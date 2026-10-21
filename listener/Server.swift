@@ -44,12 +44,16 @@ final class Server {
   private var sessions: [ObjectIdentifier: Session] = [:]
   private var phones: [ObjectIdentifier: PhoneSocket] = [:]
   private var proxies: [ObjectIdentifier: Session] = [:]
+  /// Connections that haven't sent a full request head yet, oldest first.
+  private var pending: [Incoming] = []
+  static let maxPending = 32
 
   init(q: DispatchQueue, cfg: Config, power: Power, pairing: Pairing) {
     self.q = q
     self.cfg = cfg
     self.power = power
     self.pairing = pairing
+    pairing.onChange = { [weak self] in self?.revokeAll() }
     power.onChange = { [weak self] state, failed in self?.powerChanged(state, failed: failed) }
   }
 
@@ -71,8 +75,12 @@ final class Server {
     l.start(queue: q)
   }
 
-  func tickPairing() {
-    if pairing.refresh() { for p in phones.values { p.cancel() } }
+  func tickPairing() { pairing.refresh() }
+
+  /// The key changed: nobody authenticated with the old one stays connected.
+  private func revokeAll() {
+    for p in Array(phones.values) { p.cancel() }
+    for p in Array(proxies.values) { p.cancel() }
   }
 
   // MARK: power
@@ -90,28 +98,32 @@ final class Server {
   // MARK: connections
 
   private func accept(_ conn: NWConnection) {
-    let s = Incoming(conn: conn, server: self, q: q)
+    while pending.count >= Server.maxPending { pending[0].cancel() }
+    let s = Incoming(conn: conn, server: self, q: q, timeout: cfg.headerTimeout)
     sessions[ObjectIdentifier(s)] = s
+    pending.append(s)
     s.start()
   }
 
   fileprivate func finished(_ s: Session) {
     let id = ObjectIdentifier(s)
     sessions[id] = nil
+    pending.removeAll { $0 === s }
     phones[id] = nil
     proxies[id] = nil
   }
 
   fileprivate func route(_ s: Incoming, head: Head, raw: Data) {
     let conn = s.conn
+    pending.removeAll { $0 === s }
     if head.isWebSocket {
-      guard pairing.accepts(head.key), let clientKey = head.headers["sec-websocket-key"] else {
+      guard pairing.accepts(head.key), let key = head.key, let clientKey = head.headers["sec-websocket-key"] else {
         return s.respond(status: "401 Unauthorized")
       }
-      if power.state == .on { return proxy(s, raw: raw, websocket: true) }
+      if power.state == .on { return proxy(s, raw: raw, websocket: true, key: key) }
       let reply =
         "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: \(WS.accept(for: clientKey))\r\n\r\n"
-      let phone = PhoneSocket(conn: conn, server: self, power: power, q: q)
+      let phone = PhoneSocket(conn: conn, server: self, power: power, pairing: pairing, key: key, q: q)
       sessions[ObjectIdentifier(s)] = nil
       sessions[ObjectIdentifier(phone)] = phone
       phones[ObjectIdentifier(phone)] = phone
@@ -120,7 +132,7 @@ final class Server {
       phone.start()
       return
     }
-    if power.state == .on { return proxy(s, raw: raw, websocket: false) }
+    if power.state == .on { return proxy(s, raw: raw, websocket: false, key: nil) }
     guard head.method == "GET" else { return s.respond(status: "404 Not Found") }
     switch head.path {
     case "/":
@@ -134,8 +146,10 @@ final class Server {
     }
   }
 
-  private func proxy(_ s: Incoming, raw: Data, websocket: Bool) {
-    let p = Proxy(client: s.conn, appPort: cfg.appPort, head: raw, websocket: websocket, server: self, power: power, q: q)
+  private func proxy(_ s: Incoming, raw: Data, websocket: Bool, key: String?) {
+    let p = Proxy(
+      client: s.conn, appPort: cfg.appPort, head: raw, websocket: websocket, server: self, power: power, pairing: pairing,
+      key: key, q: q)
     sessions[ObjectIdentifier(s)] = nil
     sessions[ObjectIdentifier(p)] = p
     proxies[ObjectIdentifier(p)] = p
@@ -150,17 +164,26 @@ final class Incoming: Session {
   private let q: DispatchQueue
   private var buffer = Data()
   private var done = false
+  private let timeout: Double
+  private var deadline: DispatchWorkItem?
 
-  init(conn: NWConnection, server: Server, q: DispatchQueue) {
+  init(conn: NWConnection, server: Server, q: DispatchQueue, timeout: Double) {
     self.conn = conn
     self.server = server
     self.q = q
+    self.timeout = timeout
   }
 
   func start() {
     conn.stateUpdateHandler = { [weak self] state in
       if case .failed = state { self?.cancel() }
     }
+    let item = DispatchWorkItem { [weak self] in
+      guard let self, !self.done else { return }
+      self.cancel()
+    }
+    deadline = item
+    q.asyncAfter(deadline: .now() + timeout, execute: item)
     conn.start(queue: q)
     read()
   }
@@ -173,6 +196,7 @@ final class Incoming: Session {
         let head = self.buffer.subdata(in: 0..<end.upperBound)
         guard let parsed = Head.parse(head) else { return self.respond(status: "400 Bad Request") }
         self.done = true
+        self.deadline?.cancel()
         return self.server.route(self, head: parsed, raw: self.buffer)
       }
       if complete || error != nil || self.buffer.count > 16384 { return self.cancel() }
@@ -199,6 +223,7 @@ final class Incoming: Session {
   }
 
   func cancel() {
+    deadline?.cancel()
     conn.cancel()
     server.finished(self)
   }
@@ -211,11 +236,15 @@ final class PhoneSocket: Session {
   private unowned let power: Power
   private let q: DispatchQueue
   private let filter = FrameFilter()
+  private unowned let pairing: Pairing
+  private let key: String
 
-  init(conn: NWConnection, server: Server, power: Power, q: DispatchQueue) {
+  init(conn: NWConnection, server: Server, power: Power, pairing: Pairing, key: String, q: DispatchQueue) {
     self.conn = conn
     self.server = server
     self.power = power
+    self.pairing = pairing
+    self.key = key
     self.q = q
   }
 
@@ -231,9 +260,12 @@ final class PhoneSocket: Session {
       guard let self else { return }
       for event in self.filter.feed(data ?? Data()) {
         switch event {
-        case .power: self.power.toggle()
+        case .power:
+          guard self.pairing.accepts(self.key) else { return self.cancel() }
+          self.power.toggle()
         case .ping(let payload): self.send(WS.frame(opcode: 10, payload: payload))
         case .close: return self.closeSoon()
+        case .violation(let code): return self.closeSoon(code: code)
         case .raw: break
         }
       }
@@ -244,8 +276,8 @@ final class PhoneSocket: Session {
 
   func send(_ data: Data) { conn.send(content: data, completion: .contentProcessed { _ in }) }
 
-  func closeSoon() {
-    conn.send(content: WS.frame(opcode: 8, payload: [0x03, 0xe9]), contentContext: .finalMessage, isComplete: true, completion: .contentProcessed { [weak self] _ in
+  func closeSoon(code: UInt16 = 1001) {
+    conn.send(content: WS.frame(opcode: 8, payload: [UInt8(code >> 8), UInt8(code & 0xff)]), contentContext: .finalMessage, isComplete: true, completion: .contentProcessed { [weak self] _ in
       self?.cancel()
     })
   }
@@ -264,10 +296,17 @@ final class Proxy: Session {
   private unowned let power: Power
   private let head: Data
   private let filter: FrameFilter?
+  private unowned let pairing: Pairing
+  private let key: String?
   private let q: DispatchQueue
   private var closed = false
 
-  init(client: NWConnection, appPort: UInt16, head: Data, websocket: Bool, server: Server, power: Power, q: DispatchQueue) {
+  init(
+    client: NWConnection, appPort: UInt16, head: Data, websocket: Bool, server: Server, power: Power, pairing: Pairing,
+    key: String?, q: DispatchQueue
+  ) {
+    self.pairing = pairing
+    self.key = key
     self.client = client
     self.upstream = NWConnection(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: appPort)!, using: .tcp)
     self.head = head
@@ -317,7 +356,10 @@ final class Proxy: Session {
         for event in filter.feed(data!) {
           switch event {
           case .raw(let d): out.append(d)
-          case .power: self.power.toggle()
+          case .power:
+            guard self.pairing.accepts(self.key) else { return self.cancel() }
+            self.power.toggle()
+          case .violation: return self.cancel()
           default: break
           }
         }

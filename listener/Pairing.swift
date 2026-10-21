@@ -6,6 +6,9 @@ final class Pairing {
   private var key: String?
   private var signature = ""
 
+  /// Called whenever the key changes, from whichever path noticed it first.
+  var onChange: (() -> Void)?
+
   init(support: String) { path = support + "/pairing.json" }
 
   /// True if the key changed since the last call.
@@ -23,12 +26,30 @@ final class Pairing {
     {
       key = k
     }
-    return old != key
+    let changed = old != key
+    if changed { onChange?() }
+    return changed
+  }
+
+  var isPaired: Bool {
+    refresh()
+    return key != nil
   }
 
   func accepts(_ given: String?) -> Bool {
     refresh()
     guard let given, !given.isEmpty, let key else { return false }
-    return given == key
+    return constantTimeEqual(given, key)
   }
+}
+
+/// Compares without stopping at the first difference.
+func constantTimeEqual(_ a: String, _ b: String) -> Bool {
+  let x = Array(a.utf8)
+  let y = Array(b.utf8)
+  var diff = x.count ^ y.count
+  for i in 0..<max(x.count, y.count) {
+    diff |= Int(i < x.count ? x[i] : 0) ^ Int(i < y.count ? y[i] : 0)
+  }
+  return diff == 0
 }
