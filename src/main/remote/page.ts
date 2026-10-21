@@ -88,8 +88,19 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .upn .e span { display:block; font-size:12px; margin-top:4px; color:var(--t2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .upn .e.seen { opacity:.55; }
   .other { margin-top:16px; padding:12px 16px; border-radius:14px; background:var(--card); font-size:14px; color:var(--t2); }
+  .pbtn { width:40px; height:40px; border-radius:20px; display:grid; place-items:center; font-size:20px; color:var(--t2); background:var(--glass); box-shadow:var(--glass-edge); margin-left:12px; }
+  .pbtn:active { background:rgba(255,255,255,.14); }
+  .topr { display:flex; align-items:center; }
+  .pw { position:fixed; inset:0; z-index:8; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; background:radial-gradient(80% 60% at 50% 0%, var(--card), #000 70%); padding:24px; }
+  .pw img { width:84px; height:84px; border-radius:20px; box-shadow:0 12px 30px rgba(0,0,0,.5); }
+  .pw h1 { margin:8px 0 0; font-size:26px; font-weight:600; }
+  .pw p { margin:0; font-size:15px; color:var(--t3); }
+  .pw .big { margin-top:22px; width:120px; height:120px; border-radius:60px; display:grid; place-items:center; font-size:52px; background:var(--glass-strong); backdrop-filter:blur(40px) saturate(1.8); -webkit-backdrop-filter:blur(40px) saturate(1.8); box-shadow:var(--glass-edge); transition:transform .12s; }
+  .pw .big:active { transform:scale(.94); }
+  .spin { width:34px; height:34px; margin-top:22px; border-radius:50%; border:3px solid rgba(255,255,255,.18); border-top-color:#fff; animation:spin .9s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
   .sheet { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:flex-end; z-index:5; }
-  .sheet form { width:100%; max-width:480px; margin:0 auto; padding:22px 20px; background:var(--card); border-radius:30px 30px 0 0; display:grid; gap:12px; box-shadow:0 -20px 50px rgba(0,0,0,.5); }
+  .sheet form, .sheet .form { width:100%; max-width:480px; margin:0 auto; padding:22px 20px; background:var(--card); border-radius:30px 30px 0 0; display:grid; gap:12px; box-shadow:0 -20px 50px rgba(0,0,0,.5); }
   .sheet input { width:100%; height:56px; border-radius:16px; border:0; background:#1c1c1e; color:#fff; font:inherit; font-size:19px; padding:0 16px; user-select:text; -webkit-user-select:text; caret-color:#0a84ff; }
   .sheet .btns { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .sheet .btns .k { background:var(--card-2); border-radius:16px; height:56px; font-size:17px; }
@@ -97,7 +108,20 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 </style>
 </head>
 <body>
-<div class="top"><div>On the Screen<b id="where"></b></div><div class="live"><i></i><span id="status">Connecting…</span><span id="count"></span></div></div>
+<div class="top"><div>On the Screen<b id="where"></b></div><div class="topr"><div class="live"><i></i><span id="status">Connecting…</span><span id="count"></span></div><button class="pbtn" id="pbtn" aria-label="Power" data-i="power"></button></div></div>
+<div class="pw" id="pw" hidden>
+  <img src="/touch-icon.png" alt="">
+  <h1 id="pw-title">Couch is off</h1>
+  <p id="pw-sub">Press Power to turn it on.</p>
+  <button class="big" id="pw-btn" data-cmd="power" aria-label="Power" data-i="power"></button>
+  <div class="spin" id="pw-spin" hidden></div>
+</div>
+<div class="sheet" id="confirm" hidden>
+  <div class="form" role="dialog" aria-label="Turn Couch off?">
+    <b style="font-size:19px">Turn Couch off?</b>
+    <div class="btns"><button type="button" class="k txt" id="confirm-cancel">Cancel</button><button type="button" class="k hero txt" id="confirm-off" data-cmd="power">Turn off</button></div>
+  </div>
+</div>
 <div class="banner" id="banner" hidden>Can't reach Couch. Is the Mac awake and Couch open?</div>
 <div class="note" id="hint" hidden>Still nothing? Scan the QR code on the Screen again to pair this phone.</div>
 <main id="controls">
@@ -269,6 +293,24 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     if (!mine) { $("sheet").hidden = true; $("text").blur(); }
   }
 
+  var failTimer = null;
+  function setPower(state, failed) {
+    clearTimeout(failTimer);
+    var off = state === "off", starting = state === "starting";
+    $("pw").hidden = !(off || starting);
+    $("confirm").hidden = true;
+    $("pw-spin").hidden = !starting;
+    $("pw-btn").hidden = !off;
+    if (starting) { $("pw-title").textContent = "Starting Couch…"; $("pw-sub").textContent = "This takes a few seconds."; }
+    else if (off && failed) {
+      $("pw-title").textContent = "Couch didn't start"; $("pw-sub").textContent = "Try again in a moment.";
+      failTimer = setTimeout(function () { setPower("off"); }, 4000);
+    } else if (off) { $("pw-title").textContent = "Couch is off"; $("pw-sub").textContent = "Press Power to turn it on."; }
+  }
+  $("pbtn").addEventListener("click", function () { $("confirm").hidden = false; });
+  $("confirm-off").addEventListener("click", function () { $("confirm").hidden = true; });
+  $("confirm-cancel").addEventListener("click", function () { $("confirm").hidden = true; });
+
   function sendArgs(command, args) {
     if (!open) return;
     if (navigator.vibrate) navigator.vibrate(12);
@@ -327,10 +369,12 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     ws.onopen = function () { retry = 0; setOnline(true); };
     ws.onmessage = function (e) {
       var msg = JSON.parse(e.data);
-      if (msg.type === "snapshot") render(msg);
+      if (msg.type === "snapshot") { setPower("on"); render(msg); }
+      else if (msg.type === "power") setPower(msg.state, msg.failed);
     };
     ws.onclose = function () {
       setOnline(false);
+      $("confirm").hidden = true;
       var wait = Math.min(1000 * Math.pow(1.6, retry++), 8000);
       clearTimeout(timer);
       timer = setTimeout(connect, wait);
