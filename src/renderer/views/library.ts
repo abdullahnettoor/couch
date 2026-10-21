@@ -186,13 +186,14 @@ function syncBackdrop(e: LibraryEntry | undefined, poster: boolean): void {
 function fitFeatured(featured: HTMLElement): void {
   const title = featured.querySelector<HTMLElement>("h1");
   if (!title) return;
+  const pad = parseFloat(getComputedStyle(title).paddingBottom);
   for (const step of ["", "s1", "s2"]) {
     title.className = step;
-    if (title.scrollHeight <= title.clientHeight + 1) break;
+    // A clamped title's scrollHeight counts the padding on top of its box.
+    if (title.scrollHeight <= title.clientHeight + pad + 1) break;
   }
-  const line = parseFloat(getComputedStyle(title).fontSize) * 1;
-  const padding = parseFloat(getComputedStyle(title).paddingBottom);
-  featured.classList.toggle("two", (title.clientHeight - padding) / line > 1.5);
+  const size = parseFloat(getComputedStyle(title).fontSize);
+  featured.classList.toggle("two", (title.clientHeight - pad) / size > 1.5);
 }
 
 function renderRoot(payload: ScreenPayload): void {
