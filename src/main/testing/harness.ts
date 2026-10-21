@@ -138,7 +138,7 @@ export interface Harness {
  */
 export async function startHarness(
   given?: Store,
-  options: { tmdbProjectKey?: string } = {},
+  options: { tmdbProjectKey?: string; metadata?: (fake: FakeMetadata) => void } = {},
 ): Promise<Harness> {
   const tmp = given ? undefined : mkdtempSync(join(tmpdir(), "couch-store-"));
   const store = given ?? new FileStore(tmp!);
@@ -148,6 +148,7 @@ export async function startHarness(
   const clock = new FakeClock();
   const thumbnails = new FakeThumbnails();
   const metadata = new FakeMetadata();
+  options.metadata?.(metadata);
   const thumbDir = mkdtempSync(join(tmpdir(), "couch-thumbs-"));
   const app = await startApp({
     player,

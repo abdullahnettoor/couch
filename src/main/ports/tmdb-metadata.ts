@@ -35,6 +35,8 @@ interface Raw {
   poster_path?: string | null;
   backdrop_path?: string | null;
   popularity?: number;
+  genres?: { id?: number; name?: string }[];
+  original_language?: string;
   results?: Raw[];
   episodes?: {
     episode_number: number;
@@ -133,6 +135,8 @@ export class TmdbMetadata implements Metadata {
       overview: raw.overview || undefined,
       posterPath: raw.poster_path ?? undefined,
       backdropPath: raw.backdrop_path ?? undefined,
+      genres: (raw.genres ?? []).flatMap((g) => (g.name ? [g.name] : [])),
+      language: raw.original_language || undefined,
       seasons: out,
     };
   }

@@ -9,6 +9,7 @@ import {
   type SeasonDetails,
 } from "../ports/metadata.ts";
 import type { Store } from "../ports/store.ts";
+import { languageName } from "./language.ts";
 import type { MediaLibrary } from "./media-library.ts";
 
 const DAY_MS = 24 * 60 * 60_000;
@@ -37,6 +38,8 @@ interface Entry {
   overview?: string;
   posterPath?: string;
   backdropPath?: string;
+  genres?: string[];
+  language?: string;
   seasons?: SeasonDetails[];
 }
 
@@ -82,6 +85,23 @@ export interface DetailsSettings {
 
 interface Doc {
   items: Record<string, Entry>;
+  /** The one-time genres and languages backfill has finished. */
+  genresBackfilled?: boolean;
+}
+
+/** A language or genre in the household's Library, with how many titles have it. */
+export interface FacetCount {
+  /** ISO 639-1 code for languages, the TMDB name for genres. */
+  key: string;
+  /** English display name. */
+  name: string;
+  count: number;
+}
+
+export interface TitleFilter {
+  language?: string;
+  genre?: string;
+  kind?: MetadataKind;
 }
 
 /** "2005–2008", "2021–" (still running), or one year. */
@@ -89,6 +109,12 @@ export function yearsLabel(year?: number, endYear?: number, ongoing?: boolean): 
   if (!year) return undefined;
   if (ongoing) return `${year}–`;
   return endYear && endYear !== year ? `${year}–${endYear}` : String(year);
+}
+
+function rank(counts: Map<string, number>, name: (key: string) => string): FacetCount[] {
+  return [...counts]
+    .map(([key, count]) => ({ key, name: name(key), count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
 function normalise(text: string): string {
@@ -109,7 +135,10 @@ export class MetadataService {
   #items: Record<string, Entry>;
   #ownKey: string | undefined;
   #enabled: boolean;
-  #queue: { item: Item; force: boolean }[] = [];
+  #queue: { item: Item; force: boolean; backfill?: boolean }[] = [];
+  #backfilled: boolean;
+  #backfillLeft = 0;
+  #backfillFailed = false;
   #queued = new Set<string>();
   #running = 0;
   #idle: (() => void)[] = [];
@@ -135,6 +164,7 @@ export class MetadataService {
     const doc = deps.store.read<Partial<Doc>>("metadata", {});
     this.#items = doc.items && typeof doc.items === "object" ? doc.items : {};
     const settings = deps.store.read<{ key?: unknown; enabled?: unknown }>("tmdb", {});
+    this.#backfilled = doc.genresBackfilled === true;
     this.#ownKey = typeof settings.key === "string" && settings.key ? settings.key : undefined;
     this.#enabled = settings.enabled !== false;
   }
@@ -234,6 +264,51 @@ export class MetadataService {
       if (!e || ((e.state === "none" || e.state === "failed") && now - e.triedAt >= DAY_MS))
         this.#enqueue(item, false);
     }
+    this.#backfill();
+  }
+
+  /** Once: fetches only the details endpoint for matched titles saved before genres existed. */
+  #backfill(): void {
+    if (this.#backfilled) return;
+    for (const item of this.#libraryItems()) {
+      const e = this.#items[item.id];
+      if (e?.state !== "matched" || e.tmdbId === undefined || e.genres) continue;
+      if (this.#queued.has(item.id)) continue;
+      this.#backfillLeft++;
+      this.#enqueue(item, false, true);
+    }
+    if (this.#backfillLeft === 0) this.#finishBackfill();
+  }
+
+  #finishBackfill(): void {
+    if (this.#backfillFailed) return;
+    this.#backfilled = true;
+    this.#writeDoc();
+  }
+
+  async #fill(item: Item): Promise<void> {
+    const key = this.#key();
+    const e = this.#items[item.id];
+    if (!key || this.#blocked() || e?.state !== "matched" || e.tmdbId === undefined) {
+      this.#backfillFailed = true;
+      return;
+    }
+    const stale = this.#staleCheck(item.id);
+    const tmdbId = e.tmdbId;
+    try {
+      const d = await this.#call(() => this.#port.details(key.value, item.kind, tmdbId, []));
+      if (stale()) return;
+      const now = this.#items[item.id];
+      if (now?.state !== "matched") return;
+      this.#save(item.id, { ...now, genres: d.genres, language: d.language });
+    } catch (error) {
+      this.#backfillFailed = true;
+      if (
+        error instanceof MetadataError &&
+        (error.status === 401 || error.status === 403 || error.status === 429)
+      )
+        this.#problem = { source: key.source, at: this.#clock.now() };
+    }
   }
 
   /** Fetches everything again. Matches chosen with Fix match are kept (and re-fetched). */
@@ -256,10 +331,10 @@ export class MetadataService {
     this.#timers.clear();
   }
 
-  #enqueue(item: Item, force: boolean): void {
+  #enqueue(item: Item, force: boolean, backfill = false): void {
     if (this.#queued.has(item.id)) return;
     this.#queued.add(item.id);
-    this.#queue.push({ item, force });
+    this.#queue.push({ item, force, backfill });
     this.#pump();
   }
 
@@ -267,9 +342,10 @@ export class MetadataService {
     while (this.#running < PARALLEL && this.#queue.length > 0) {
       const next = this.#queue.shift()!;
       this.#running++;
-      void this.#lookup(next.item, next.force)
+      void (next.backfill ? this.#fill(next.item) : this.#lookup(next.item, next.force))
         .catch(() => {})
         .finally(() => {
+          if (next.backfill && --this.#backfillLeft === 0) this.#finishBackfill();
           this.#running--;
           this.#queued.delete(next.item.id);
           this.#pump();
@@ -369,6 +445,8 @@ export class MetadataService {
       overview: d.overview,
       posterPath: d.posterPath,
       backdropPath: d.backdropPath,
+      genres: d.genres,
+      language: d.language,
       seasons: d.seasons,
     };
   }
@@ -380,8 +458,15 @@ export class MetadataService {
 
   #save(id: string, entry: Entry): void {
     this.#items[id] = entry;
-    this.#store.write("metadata", { items: this.#items } satisfies Doc);
+    this.#writeDoc();
     this.#changed();
+  }
+
+  #writeDoc(): void {
+    this.#store.write("metadata", {
+      items: this.#items,
+      ...(this.#backfilled ? { genresBackfilled: true } : {}),
+    } satisfies Doc);
   }
 
   async #downloadImages(id: string): Promise<void> {
@@ -421,6 +506,41 @@ export class MetadataService {
         })),
       })),
     };
+  }
+
+  /** The Library's languages with title counts, biggest first. */
+  languages(): FacetCount[] {
+    const counts = new Map<string, number>();
+    for (const e of this.#libraryEntries().map((x) => x.entry))
+      if (e.language) counts.set(e.language, (counts.get(e.language) ?? 0) + 1);
+    return rank(counts, languageName);
+  }
+
+  /** The Library's genres with title counts, biggest first. */
+  genres(): FacetCount[] {
+    const counts = new Map<string, number>();
+    for (const { entry } of this.#libraryEntries())
+      for (const g of new Set(entry.genres ?? [])) counts.set(g, (counts.get(g) ?? 0) + 1);
+    return rank(counts, (g) => g);
+  }
+
+  /** Ids (show ids, film paths) of titles matching every given filter; no filter means all matched titles. */
+  filter(by: TitleFilter): string[] {
+    return this.#libraryEntries()
+      .filter(
+        ({ item, entry }) =>
+          (!by.kind || item.kind === by.kind) &&
+          (!by.language || entry.language === by.language) &&
+          (!by.genre || (entry.genres ?? []).includes(by.genre)),
+      )
+      .map(({ item }) => item.id);
+  }
+
+  #libraryEntries(): { item: Item; entry: Entry }[] {
+    return this.#libraryItems().flatMap((item) => {
+      const entry = this.#items[item.id];
+      return entry?.state === "matched" ? [{ item, entry }] : [];
+    });
   }
 
   /** The household chose "Use video frames" for this title. */
