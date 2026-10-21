@@ -47,6 +47,9 @@ const HOME_VIDEOS = 3;
 const TILE_COLUMNS = 4;
 const LIBRARY_VIEWS = ["library", "folder", "libraryFolders"];
 /** Views where a phone's Search button opens the Library search. */
+const TYPING_VIEW = { search: "youtube", tmdbKey: "details", librarySearch: "librarySearch" };
+/** Views the Library search's query and focus survive, so Back returns to them. */
+const SEARCH_KEEPS: View[] = ["librarySearch", "show", "fixMatch", "player"];
 const SEARCH_FROM: View[] = ["library", "folder", "show", "librarySearch"];
 
 export interface Ports {
@@ -1089,10 +1092,15 @@ export class Core {
   #type(command: Command, from: Source): void {
     const yt = this.#ports.youtube;
     const owner = this.#state.typingBy;
-    if (this.#state.view === "details") return this.#detailsPage.typeKey(command, from);
-    if (SEARCH_FROM.includes(this.#state.view)) {
-      if (this.#state.view !== "librarySearch" && command.command !== "typeOpen") return;
-      return this.#search.type(command, from);
+    const purpose = owner === undefined ? undefined : this.#typingFor;
+    if (purpose === "tmdbKey") return this.#detailsPage.typeKey(command, from);
+    if (purpose === "librarySearch") return this.#search.type(command, from);
+    if (purpose === undefined) {
+      if (this.#state.view === "details") return this.#detailsPage.typeKey(command, from);
+      if (SEARCH_FROM.includes(this.#state.view)) {
+        if (this.#state.view !== "librarySearch" && command.command !== "typeOpen") return;
+        return this.#search.type(command, from);
+      }
     }
     if (owner !== undefined && this.#typingFor !== "search") return;
     switch (command.command) {
@@ -1262,10 +1270,7 @@ export class Core {
     }
     this.#state.view = view;
     if (view === "home") this.#chip = undefined;
-    if (from === "librarySearch" && view !== "show") {
-      this.#search.reset();
-      if (this.#typingFor === "librarySearch") this.#state.typingBy = undefined;
-    }
+    this.#releaseStrayTyping();
     if (from === "details") this.#detailsPage.cancel();
     if (view === "library") void this.library.refresh(this.#libraryFolders);
   }
@@ -1379,7 +1384,18 @@ export class Core {
     }, wait);
   }
 
+  /** Typing belongs to one view; leaving it closes the sheet. The search query outlives it only for Back. */
+  #releaseStrayTyping(): void {
+    const { view, typingBy } = this.#state;
+    if (typingBy !== undefined && TYPING_VIEW[this.#typingFor ?? "search"] !== view) {
+      this.#state.typingBy = undefined;
+      this.#typingFor = undefined;
+    }
+    if (!SEARCH_KEEPS.includes(view)) this.#search.reset();
+  }
+
   #emit(): void {
+    this.#releaseStrayTyping();
     const raised =
       this.#state.controls !== "hidden" &&
       this.#state.controls !== "next" &&

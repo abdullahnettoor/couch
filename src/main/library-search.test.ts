@@ -223,4 +223,85 @@ describe("Library search", () => {
     await type("x");
     expect(screen().search!.query).toBe("");
   });
+
+  describe("typing purpose never leaks", () => {
+    async function otherPhoneToDetails() {
+      const b = await h.connectPhone();
+      await b.press("home");
+      await b.press("up");
+      await b.press("ok");
+      for (let i = 0; i < 3; i++) await b.press("down");
+      await b.press("ok");
+      expect(screen().state.view).toBe("details");
+      return b;
+    }
+
+    test("Settings → Details on another phone releases the search sheet; nothing is saved as a key", async () => {
+      await start({ key: true });
+      await openSearch();
+      await phone.press("typeOpen");
+      await type("arc");
+      const b = await otherPhoneToDetails();
+      expect(phone.last!.typing).toBe("none");
+      await type("stolen-key");
+      await phone.press("typeSubmit");
+      await b.press("typeSubmit");
+      expect(screen().state.toast).not.toBe("TMDB key saved");
+      expect(JSON.stringify(h.screen.payloads)).not.toContain("stolen-key");
+    });
+
+    test("search → playback closes the sheet, so Cancel is not stuck", async () => {
+      await start();
+      await openSearch();
+      await phone.press("typeOpen");
+      await type("kung");
+      await phone.press("typeSubmit");
+      await phone.press("typeOpen");
+      await phone.press("ok");
+      expect(screen().state.view).toBe("player");
+      expect(phone.last!.typing).toBe("none");
+    });
+
+    test("a stale search owner does not block YouTube typing, and nothing reaches the port", async () => {
+      await start();
+      await openSearch();
+      await phone.press("typeOpen");
+      await type("panda");
+      await phone.press("home");
+      expect(phone.last!.typing).toBe("none");
+      expect(screen().state.view).toBe("home");
+      await focusId("youtube");
+      await phone.press("ok");
+      expect(screen().state.view).toBe("youtube");
+      await phone.press("typeOpen");
+      expect(phone.last!.typing).toBe("you");
+      await type("cats");
+      expect(h.youtube.calls.filter((c) => c.call === "setSearchText").map((c) => c.args[0])).toEqual(["cats"]);
+    });
+
+    test("Back from a show restores query and focus without the sheet", async () => {
+      await start();
+      await openSearch();
+      await phone.press("typeOpen");
+      await type("arcane");
+      await phone.press("typeSubmit");
+      await phone.press("typeOpen");
+      await phone.press("ok");
+      expect(phone.last!.typing).toBe("none");
+      await phone.press("back");
+      expect(screen().search!.query).toBe("arcane");
+    });
+
+    test("Home clears the query", async () => {
+      await start();
+      await openSearch();
+      await phone.press("typeOpen");
+      await type("panda");
+      await phone.press("home");
+      await focusId("library");
+      await phone.press("ok");
+      await openSearch();
+      expect(screen().search!.query).toBe("");
+    });
+  });
 });
