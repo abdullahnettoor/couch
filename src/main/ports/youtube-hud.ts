@@ -1,4 +1,5 @@
 import { COLORS } from "../../shared/glass-tokens.ts";
+import type { Confirmation } from "../../shared/protocol.ts";
 import { ICON_PATHS, ICON_VIEWBOX } from "../../shared/icons.ts";
 
 /**
@@ -73,4 +74,24 @@ d.animate([{opacity:0,transform:'translateX(-50%) translateY('+px(-40)+')'},{opa
 var tx=d.querySelector('[data-role=text]'),ph=${JSON.stringify(text)}==='';
 tx.textContent=ph?'Search YouTube':${JSON.stringify(text)};tx.style.setProperty('color',ph?${JSON.stringify(COLORS.t3)}:'inherit');
 })()`;
+}
+
+/** Script that draws the question (title and two buttons, one focused) over the page, or removes it when undefined. */
+export function confirmScript(confirm: Confirmation | undefined): string {
+  if (confirm === undefined) {
+    return `(function(){var e=document.getElementById('couch-confirm');if(e)e.remove()})()`;
+  }
+  return `(function(){${HELPERS}
+var o=document.getElementById('couch-confirm');if(o)o.remove();
+var w=document.createElement('div');w.id='couch-confirm';
+css(w,{position:'fixed',inset:'0','z-index':'2147483647','pointer-events':'none',display:'grid','place-items':'center',background:'rgba(0,0,0,.45)'});
+var d=document.createElement('div');glass(d);
+css(d,{position:'static',display:'flex','flex-direction':'column','align-items':'center',gap:px(40),padding:px(56)+' '+px(72),'border-radius':px(48),'font-size':px(44),'font-weight':'700'});
+var t=document.createElement('span');t.textContent=${JSON.stringify(confirm.title)};
+var r=document.createElement('div');css(r,{display:'flex',gap:px(24)});
+${JSON.stringify(confirm.buttons)}.forEach(function(label,i){var b=document.createElement('span');b.textContent=label;
+var on=i===${confirm.focus};
+css(b,{display:'inline-flex','align-items':'center',height:px(84),padding:'0 '+px(40),'border-radius':px(42),'font-size':px(30),'font-weight':'600',
+background:on?'#fff':'rgba(255,255,255,.16)',color:on?'#000':${JSON.stringify(COLORS.t2)},transform:on?'scale(1.06)':'none'});r.appendChild(b)});
+d.appendChild(t);d.appendChild(r);w.appendChild(d);document.body.appendChild(w)})()`;
 }

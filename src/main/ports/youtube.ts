@@ -1,4 +1,5 @@
 import type { CommandName } from "../../shared/protocol.ts";
+import type { Confirmation } from "../../shared/protocol.ts";
 import type { TextEdit } from "../../shared/keyboard.ts";
 
 export type YouTubeKey = "up" | "down" | "left" | "right" | "ok" | "back";
@@ -8,8 +9,8 @@ export type YouTubeEvent =
   | { type: "key"; command: CommandName }
   | { type: "loaded" }
   | { type: "failed" }
-  /** The view navigated; `topLevel` is true on YouTube's home/browse screens. */
-  | { type: "route"; topLevel: boolean }
+  /** The view navigated; `home` is true only on YouTube's home screen. */
+  | { type: "route"; home: boolean }
   | { type: "searchOpened" }
   /** ⌘F or / on the Mac keyboard: the household wants to type a search with it. */
   | { type: "find" }
@@ -34,6 +35,8 @@ export interface YouTube {
   seekBy(seconds: number): void;
   /** Draws the volume level above the view, or removes it when undefined. */
   showVolume(percent: number | undefined): void;
+  /** Draws Couch's question over the view, or removes it when undefined. */
+  showConfirm(confirm: Confirmation | undefined): void;
   restart(): void;
   onEvent(listener: (event: YouTubeEvent) => void): () => void;
 }

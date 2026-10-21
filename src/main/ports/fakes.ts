@@ -108,6 +108,9 @@ export class FakeYouTube implements YouTube {
   showVolume(percent: number | undefined) {
     this.#record("showVolume", percent);
   }
+  showConfirm(confirm: unknown) {
+    this.#record("showConfirm", confirm);
+  }
   restart() {
     this.#record("restart");
   }

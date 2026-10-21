@@ -2,7 +2,7 @@ import type { GridItem, ScreenPayload } from "../shared/protocol.ts";
 import type { CouchApi } from "../shared/ipc.ts";
 import { screenKeyCommand } from "../shared/keyboard.ts";
 import { VIEWS } from "./views/index.ts";
-import { renderHud } from "./hud.ts";
+import { renderConfirm, renderHud } from "./hud.ts";
 import { isTypingTarget, syncTyping } from "./views/typing.ts";
 import { renderOverlay, setNativeGlass, setVideoTint } from "./player-overlay.ts";
 import { darkTint } from "../shared/glass-tint.ts";
@@ -126,6 +126,7 @@ window.couch.onScreen((payload) => {
   document.body.classList.toggle("video-pending", payload.state.view === "player" && !playing);
   renderOverlay(payload.state.view === "player" ? payload.overlay : undefined);
   renderHud(payload);
+  renderConfirm(payload);
 });
 
 window.couch.onTint((rgb) => setVideoTint(rgb ? darkTint(rgb) : undefined));

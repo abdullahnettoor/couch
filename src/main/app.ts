@@ -12,6 +12,10 @@ export interface CouchApp {
   reportGrid(viewKey: string, items: GridItem[]): void;
   /** What the Screen renderer would draw right now. */
   screen(): ScreenPayload;
+  /** ⌘Q: true when Couch may quit now; otherwise it asks "Quit Couch?" and returns false. */
+  requestQuit(): boolean;
+  /** A system quit (log out, shut down): the next quit won't ask. */
+  approveQuit(): void;
   /** Saves playback state and stops the player; called on ⌘Q. */
   beforeQuit(): void;
   /** Subscribe to what the renderer should draw. */
@@ -79,6 +83,8 @@ export async function startApp(options: AppOptions): Promise<CouchApp> {
     screenCommand: (command) => core.handle(command, screenSource),
     reportGrid: (viewKey, items) => core.reportGrid(viewKey, items),
     screen: () => core.screen(),
+    requestQuit: () => core.requestQuit(),
+    approveQuit: () => core.approveQuit(),
     beforeQuit: () => core.beforeQuit(),
     onScreen(listener) {
       return core.onChange(() => listener(core.screen()));

@@ -1,4 +1,6 @@
-import { noteScript, searchBarScript, volumeScript } from "./youtube-hud.ts";
+import { confirmScript, noteScript, searchBarScript, volumeScript } from "./youtube-hud.ts";
+import { SHORTS_OPEN_SCRIPT, isYouTubeHome } from "./youtube-route.ts";
+import type { Confirmation } from "../../shared/protocol.ts";
 import { join } from "node:path";
 import { app, BrowserWindow, WebContentsView, clipboard, session } from "electron";
 import { SCREEN_KEYS, textEditFor } from "../../shared/keyboard.ts";
@@ -35,14 +37,6 @@ export function isSearchUrl(url: string): boolean {
   return /#\/search\b/.test(url);
 }
 
-/** YouTube's home and browse screens; anything else (watch, search, settings...) is deeper. */
-export function isTopLevelUrl(url: string): boolean {
-  const hash = url.includes("#") ? url.slice(url.indexOf("#")) : "";
-  return (
-    hash === "" || hash === "#" || /^#\/?(\?.*)?$/.test(hash) || /^#\/(browse|home)\b/.test(hash)
-  );
-}
-
 /** The YouTube port in Electron: one persistent, always-loaded view over the Screen window. */
 export class ElectronYouTube implements YouTube {
   #win: BrowserWindow;
@@ -55,6 +49,9 @@ export class ElectronYouTube implements YouTube {
   #inSearch = false;
   #skipTimer: ReturnType<typeof setTimeout> | undefined;
   #lastSkipAt = 0;
+  #shortsOpen = false;
+  #home: boolean | undefined;
+  #routeTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor(win: BrowserWindow) {
     this.#win = win;
@@ -89,7 +86,7 @@ export class ElectronYouTube implements YouTube {
     wc.on("did-finish-load", () => {
       if (this.#failed || !wc.getURL().startsWith("https:")) return;
       this.#emit({ type: "loaded" });
-      this.#emit({ type: "route", topLevel: isTopLevelUrl(wc.getURL()) });
+      this.#syncRoute();
     });
     wc.on("did-fail-load", (_e, code, _desc, _url, isMainFrame) => {
       if (!isMainFrame || code === -3) return;
@@ -131,7 +128,7 @@ export class ElectronYouTube implements YouTube {
     });
     const route = (_e: unknown, url: string) => {
       if (!url.startsWith("https:")) return;
-      this.#emit({ type: "route", topLevel: isTopLevelUrl(url) });
+      this.#syncRoute();
       const entering = isSearchUrl(url) && !this.#inSearch;
       this.#inSearch = isSearchUrl(url);
       // Only arriving at search counts; Couch's own query updates also change the route.
@@ -139,6 +136,25 @@ export class ElectronYouTube implements YouTube {
     };
     wc.on("did-navigate", route);
     wc.on("did-navigate-in-page", route);
+  }
+
+  /** Tells the core whether YouTube is on its home screen (a Short keeps Home's URL, so the page is asked too). */
+  #syncRoute(): void {
+    const home = isYouTubeHome(this.#view.webContents.getURL(), this.#shortsOpen);
+    if (home === this.#home) return;
+    this.#home = home;
+    this.#emit({ type: "route", home });
+  }
+
+  #pollShorts(): void {
+    void this.#view.webContents
+      .executeJavaScript(SHORTS_OPEN_SCRIPT)
+      .then((open: boolean) => {
+        if (open === this.#shortsOpen) return;
+        this.#shortsOpen = open;
+        this.#syncRoute();
+      })
+      .catch(() => {});
   }
 
   /** Starts loading in the background so opening YouTube is instant. */
@@ -172,6 +188,7 @@ export class ElectronYouTube implements YouTube {
 
   show(note?: string): void {
     this.#visible = true;
+    this.#routeTimer ??= setInterval(() => this.#pollShorts(), 400);
     this.#fit();
     this.#view.setVisible(true);
     void revealScreen(this.#win).then(() => this.#view.webContents.focus());
@@ -180,6 +197,8 @@ export class ElectronYouTube implements YouTube {
 
   hide(): void {
     this.#visible = false;
+    clearInterval(this.#routeTimer);
+    this.#routeTimer = undefined;
     this.#pause();
     this.#view.setVisible(false);
     this.#win.webContents.focus();
@@ -197,6 +216,10 @@ export class ElectronYouTube implements YouTube {
 
   async #showNote(note: string): Promise<void> {
     await this.#view.webContents.executeJavaScript(noteScript(note)).catch(() => {});
+  }
+
+  showConfirm(confirm: Confirmation | undefined): void {
+    void this.#view.webContents.executeJavaScript(confirmScript(confirm)).catch(() => {});
   }
 
   sendKey(key: YouTubeKey): void {

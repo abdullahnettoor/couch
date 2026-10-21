@@ -12,6 +12,7 @@ import {
   type RemoteSnapshot,
   type ScreenPayload,
   type ScreenState,
+  type Confirmation,
   type View,
 } from "../../shared/protocol.ts";
 import {
@@ -91,6 +92,8 @@ const OVERLAY_MS = 3000;
 const SAVE_EVERY_MS = 5000;
 const MPV_MISSING = "Couch needs mpv to play videos. Install it with: brew install mpv";
 const VOLUME_STEP = 5;
+/** A Back sent to YouTube that changed no route within this long counts as already at home. */
+const YT_BACK_SETTLE_MS = 800;
 const TYPING_HINT = "Typing works inside YouTube search";
 const YOUTUBE_NOTE = "Press Home on your phone to come back";
 
@@ -118,7 +121,12 @@ export class Core {
   #forgetListeners = new Set<() => void>();
   #ytFailed = false;
   #lastFrom: RemoteId | undefined;
-  #ytTopLevel = true;
+  #ytHome = true;
+  /** Back was sent to YouTube at this time and no route change has followed. */
+  #ytBackAt: number | undefined;
+  #quitApproved = false;
+  #shownYtConfirm: Confirmation | undefined;
+  #confirmAnswers: [() => void, () => void] | undefined;
   #ytOff: () => void;
   #libraryFolders: string[];
   /** The open folder's contents, read fresh each time it is opened. */
@@ -1046,6 +1054,7 @@ export class Core {
             },
           }
         : {}),
+      ...(s.confirm ? { confirm: s.confirm } : {}),
       typeAvailable: s.view === "youtube" || s.view === "details" || searchable,
       ...(this.#show.fixTarget() ? { fixAvailable: true } : {}),
       ...(s.view === "details" ? { typeLabel: "Type TMDB key" } : {}),
@@ -1117,6 +1126,7 @@ export class Core {
     }
     this.#armAmbient();
     if (command.command === "showControls" && !this.#state.player) return;
+    if (this.#confirmCommand(command)) return;
     if (command.command === "focusAt") return this.#focusAt(command.args?.r, command.args?.c);
     if (this.#typingKeys(command, from)) return;
     if (this.#state.player && this.#playbackCommand(command)) {
@@ -1309,8 +1319,69 @@ export class Core {
 
   /** The same path as Settings → Quit (beforeQuit then runs through the app's before-quit). */
   quit(): void {
+    this.#quitApproved = true;
     this.savePlayingPosition();
     this.#ports.mac.quit();
+  }
+
+  /** ⌘Q: true when Couch may quit now; otherwise "Quit Couch?" is up. */
+  requestQuit(): boolean {
+    if (this.#quitApproved) return true;
+    this.#askQuit();
+    return false;
+  }
+
+  /** The system is quitting Couch (log out, shut down): nothing to ask. */
+  approveQuit(): void {
+    this.#quitApproved = true;
+  }
+
+  #askQuit(): void {
+    this.#ask("Quit Couch?", ["Cancel", "Quit"], [() => {}, () => this.quit()]);
+    this.#emit();
+  }
+
+  #ask(title: string, buttons: [string, string], answers: [() => void, () => void]): void {
+    this.#state.confirm = { title, buttons, focus: 0 };
+    this.#confirmAnswers = answers;
+  }
+
+  #dismissConfirm(): void {
+    this.#state.confirm = undefined;
+    this.#confirmAnswers = undefined;
+  }
+
+  /** D-pad, OK and Back answer the question; other commands (Home, volume...) carry on. */
+  #confirmCommand(command: Command): boolean {
+    const c = this.#state.confirm;
+    if (!c) return false;
+    switch (command.command) {
+      case "left":
+      case "up":
+        c.focus = 0;
+        break;
+      case "right":
+      case "down":
+        c.focus = 1;
+        break;
+      case "ok": {
+        const answer = this.#confirmAnswers?.[c.focus];
+        this.#dismissConfirm();
+        answer?.();
+        break;
+      }
+      case "back":
+        this.#dismissConfirm();
+        break;
+      case "home":
+      case "power":
+        this.#dismissConfirm();
+        return false;
+      default:
+        return false;
+    }
+    this.#emit();
+    return true;
   }
 
   /** ⌘Q and Settings → Quit: end playback (saving the position) and stop the player. */
@@ -1434,8 +1505,19 @@ export class Core {
 
   #back(): void {
     if (this.#state.view === "youtube") {
-      if (this.#ytTopLevel) this.#setView("home");
-      else this.#ports.youtube.sendKey("back");
+      const now = this.#ports.clock.now();
+      const stuck = this.#ytBackAt !== undefined && now - this.#ytBackAt >= YT_BACK_SETTLE_MS;
+      if (this.#ytHome || stuck) {
+        this.#ytBackAt = undefined;
+        this.#ask(
+          "Leave YouTube?",
+          ["Stay", "Go to Home"],
+          [() => {}, () => this.#setView("home")],
+        );
+        return;
+      }
+      this.#ytBackAt ??= now;
+      this.#ports.youtube.sendKey("back");
       return;
     }
     if (this.#state.view === "folder") {
@@ -1477,6 +1559,7 @@ export class Core {
     }
     if (from === view) return;
     if (from === "youtube") {
+      if (this.#state.confirm?.title === "Leave YouTube?") this.#dismissConfirm();
       this.#state.typingBy = undefined;
       this.#ports.youtube.hide();
     }
@@ -1523,7 +1606,8 @@ export class Core {
         this.#onEdit(event.edit);
         break;
       case "route":
-        this.#ytTopLevel = event.topLevel;
+        this.#ytHome = event.home;
+        this.#ytBackAt = undefined;
         break;
       case "searchOpened":
         if (
@@ -1550,6 +1634,15 @@ export class Core {
     if (level === this.#shownYtVolume) return;
     this.#shownYtVolume = level;
     this.#ports.youtube.showVolume(level);
+  }
+
+  /** YouTube covers the Screen, so over it the port draws the question. */
+  #syncYouTubeConfirm(): void {
+    const c = this.#state.view === "youtube" ? this.#state.confirm : undefined;
+    if (c?.title === this.#shownYtConfirm?.title && c?.focus === this.#shownYtConfirm?.focus)
+      return;
+    this.#shownYtConfirm = c && { ...c };
+    this.#ports.youtube.showConfirm(c && { ...c });
   }
 
   /** The floating search bar draws over YouTube only while a search session types for it. */
@@ -1591,7 +1684,7 @@ export class Core {
       toast: (text) => this.#toast(text),
       forgetAllPhones: () => this.forgetAllPhones(),
       toggleListener: () => void this.#toggleListener(),
-      quit: () => this.quit(),
+      quit: () => this.#askQuit(),
     };
   }
 
@@ -1664,6 +1757,7 @@ export class Core {
     this.#syncDisplayAwake();
     this.#syncYouTubeVolume();
     this.#syncYouTubeBar();
+    this.#syncYouTubeConfirm();
     this.#syncCapture();
     for (const l of [...this.#listeners]) l();
   }

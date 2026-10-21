@@ -127,9 +127,11 @@ describe("Settings", () => {
     expect(h.screen.last.state.view).toBe("settings");
   });
 
-  test("Quit Couch quits", async () => {
+  test("Quit Couch asks, then quits", async () => {
     const phone = await openSettings();
     for (let i = 0; i < 6; i++) await phone.press("down");
+    await phone.press("ok");
+    await phone.press("right");
     await phone.press("ok");
     expect(h.mac.calls.some((c) => c.call === "quit")).toBe(true);
   });

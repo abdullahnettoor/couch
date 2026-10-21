@@ -29,7 +29,7 @@ describe("YouTube App", () => {
   test("arrows, OK and Back are forwarded; Home is not", async () => {
     await openYouTube();
     for (const c of ["up", "down", "left", "right", "ok"] as const) await phone.press(c);
-    h.youtube.emit({ type: "route", topLevel: false });
+    h.youtube.emit({ type: "route", home: false });
     await phone.press("back");
     await phone.press("playpause");
     expect(calls("sendKey").map((c) => c.args[0])).toEqual([
@@ -49,7 +49,7 @@ describe("YouTube App", () => {
     await openYouTube();
     h.youtube.emit({ type: "key", command: "down" });
     expect(calls("sendKey").map((c) => c.args[0])).toEqual(["down"]);
-    h.youtube.emit({ type: "route", topLevel: false });
+    h.youtube.emit({ type: "route", home: false });
     h.youtube.emit({ type: "key", command: "back" });
     expect(calls("sendKey").map((c) => c.args[0])).toEqual(["down", "back"]);
     h.youtube.emit({ type: "key", command: "home" });
@@ -57,10 +57,11 @@ describe("YouTube App", () => {
     expect(calls("hide")).toHaveLength(1);
   });
 
-  test("keyboard Back at YouTube's top level goes Home", async () => {
+  test("keyboard Back at YouTube's home asks before leaving", async () => {
     await openYouTube();
     h.youtube.emit({ type: "key", command: "back" });
-    await phone.waitFor(() => phone.last?.view === "home");
+    await phone.waitFor(() => phone.last?.confirm?.title === "Leave YouTube?");
+    expect(phone.last?.view).toBe("youtube");
   });
 
   test("the volume level is shown over YouTube and cleared after 3 s", async () => {
@@ -85,13 +86,15 @@ describe("YouTube App", () => {
     expect(calls("restart")).toHaveLength(0);
   });
 
-  test("Back at YouTube's top level goes Home; deeper Back is forwarded", async () => {
+  test("Back at YouTube's home asks first; deeper Back is forwarded", async () => {
     await openYouTube();
-    h.youtube.emit({ type: "route", topLevel: false });
+    h.youtube.emit({ type: "route", home: false });
     expect((await phone.press("back")).view).toBe("youtube");
     expect(calls("sendKey").at(-1)?.args[0]).toBe("back");
-    h.youtube.emit({ type: "route", topLevel: true });
-    const s = await phone.press("back");
+    h.youtube.emit({ type: "route", home: true });
+    await phone.press("back");
+    await phone.press("right");
+    const s = await phone.press("ok");
     expect(s.view).toBe("home");
     expect(calls("hide")).toHaveLength(1);
   });

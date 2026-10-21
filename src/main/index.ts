@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, screen } from "electron";
+import { app, BrowserWindow, ipcMain, powerMonitor, screen } from "electron";
 import { join } from "node:path";
 import { Channel, type GlassRect, type GridReport } from "../shared/ipc.ts";
 import type { Command } from "../shared/protocol.ts";
@@ -165,10 +165,14 @@ let quitting = false;
 app.on("before-quit", (event) => {
   if (quitting || !player) return;
   event.preventDefault();
+  if (couch && !couch.requestQuit()) return;
   quitting = true;
   couch?.beforeQuit();
   void Promise.all([player.dispose(), couch?.stop()]).finally(() => app.quit());
 });
+
+// Log out, restart and shut down must never be held up by a question.
+powerMonitor.on("shutdown", () => couch?.approveQuit());
 
 app.on("window-all-closed", () => app.quit());
 

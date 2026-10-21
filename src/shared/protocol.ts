@@ -87,6 +87,13 @@ export interface GridItem {
   initial?: boolean;
 }
 
+/** A two-button question drawn over whatever the Screen shows; `focus` is the highlighted button. */
+export interface Confirmation {
+  title: string;
+  buttons: [string, string];
+  focus: 0 | 1;
+}
+
 export interface ScreenState {
   view: View;
   /** Focused cell per view key, e.g. "home" or "folder:<path>". */
@@ -106,6 +113,7 @@ export interface ScreenState {
   volumeShown?: boolean;
   remotes: number;
   toast?: string;
+  confirm?: Confirmation;
 }
 
 /** A tile in the Library: a folder or a video file. */
@@ -320,6 +328,8 @@ export interface RemoteSnapshot {
   /** Home only, when a video is in progress. */
   continueCard?: RemoteContinueCard;
   typeAvailable: boolean;
+  /** A question is up on the Screen; the D-pad, OK and Back answer it. */
+  confirm?: Confirmation;
   /** A show or film tile is focused and details are on: the phone offers Fix match (command `menu`). */
   fixAvailable?: boolean;
   /** The Type button's label when it isn't YouTube search. */
