@@ -241,7 +241,8 @@ export class Core {
     this.#state.volume = this.#sound.volume;
     this.#addonsPage = new AddonsPage({
       store: ports.store,
-      apply: (app, ids) => this.#apps.get(app)?.setAddons?.(ids),
+      apply: (app, ids, note) => this.#apps.get(app)?.setAddons?.(ids, note),
+      isFront: (app) => this.#front()?.id === app,
       toast: (text) => this.#toast(text),
       changed: () => this.#emit(),
     });
@@ -1208,6 +1209,9 @@ export class Core {
         this.#setVolume(
           this.#state.volume + (command.command === "volUp" ? VOLUME_STEP : -VOLUME_STEP),
         );
+        break;
+      case "toggleAddon":
+        this.#addonsPage.toggle(command.args?.addon ?? "");
         break;
       case "volSet":
         this.#setVolume(command.args?.percent ?? this.#state.volume);

@@ -381,10 +381,12 @@ export class ElectronWebApp implements YouTube {
     }
   }
 
-  setAddons(ids: string[]): void {
+  setAddons(ids: string[], note?: string): void {
     this.#applyAddons(ids);
     const wc = this.#view.webContents;
-    if (wc.getURL().startsWith("https:")) wc.reload();
+    if (!wc.getURL().startsWith("https:")) return;
+    if (note) wc.once("did-finish-load", () => void this.#showNote(note));
+    wc.reload();
   }
 
   onEvent(listener: (event: YouTubeEvent) => void): () => void {

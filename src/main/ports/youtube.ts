@@ -52,7 +52,7 @@ export interface YouTube {
    */
   setOutputDevice(name: string | undefined): Promise<boolean>;
   restart(): void;
-  /** Runs exactly these add-ons (by id) from the next page load, and reloads the page now. */
-  setAddons(ids: string[]): void;
+  /** Runs exactly these add-ons (by id) from the next page load, and reloads the page now; `note` is overlaid once it has loaded. */
+  setAddons(ids: string[], note?: string): void;
   onEvent(listener: (event: YouTubeEvent) => void): () => void;
 }

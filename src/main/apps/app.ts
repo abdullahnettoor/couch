@@ -75,7 +75,7 @@ export interface App extends SoundSink {
   /** Draws Couch's question over the App, or removes it when undefined. */
   showConfirm(confirm: Confirmation | undefined): void;
   restart(): void;
-  /** Web Apps with add-ons: run exactly these (by id) and reload the page. */
-  setAddons?(ids: string[]): void;
+  /** Web Apps with add-ons: run exactly these (by id) and reload the page, then show `note` over it. */
+  setAddons?(ids: string[], note?: string): void;
   onEvent(listener: (event: AppEvent) => void): () => void;
 }

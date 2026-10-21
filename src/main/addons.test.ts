@@ -85,4 +85,25 @@ describe("YouTube add-ons in Settings", () => {
     await openAddons(phone);
     expect(h.screen.last.addons![0].on).toBe(false);
   });
+
+  test("from the phone while YouTube is in front: the note goes on YouTube and it reloads", async () => {
+    const phone = await start();
+    for (let i = 0; i < 20 && h.screen.last.focusedId !== "youtube"; i++)
+      await phone.press("right");
+    expect((await phone.press("ok")).view).toBe("app");
+    await phone.press({ command: "toggleAddon", args: { addon: "adblock" } });
+    expect(setCalls().at(-1)?.args).toEqual([["4k", "adblock"], "Ad blocker is on"]);
+    await phone.press({ command: "toggleAddon", args: { addon: "adblock" } });
+    expect(setCalls().at(-1)?.args).toEqual([["4k"], "Ad blocker is off"]);
+    expect(h.store.read("addons", {})).toEqual({ youtube: {} });
+  });
+
+  test("from the phone while YouTube is not in front: it reloads in the background, no note", async () => {
+    const phone = await start();
+    await phone.press({ command: "toggleAddon", args: { addon: "adblock" } });
+    expect(setCalls().at(-1)?.args).toEqual([["4k", "adblock"], undefined]);
+    expect(h.screen.last.state.toast).toBe("Ad blocker is on");
+    await phone.press({ command: "toggleAddon", args: { addon: "nope" } });
+    expect(setCalls()).toHaveLength(1);
+  });
 });

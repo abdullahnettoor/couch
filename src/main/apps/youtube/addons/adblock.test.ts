@@ -7,7 +7,7 @@ import search from "./fixtures/search.json" with { type: "json" };
 import shorts from "./fixtures/shorts.json" with { type: "json" };
 
 function page(body = "{}") {
-  return fakePage(body, [ADBLOCK.page]).run;
+  return fakePage(body, [ADBLOCK.page!]).run;
 }
 
 const parse = (run: (s: string) => any, v: unknown) =>
@@ -68,7 +68,7 @@ describe("ad blocker add-on", () => {
 
   test("a feed that is not valid JSON passes through untouched and is not reported as a failure", async () => {
     const bad = '{"adSlotRenderer": nope';
-    const p = fakePage(bad, [ADBLOCK.page]);
+    const p = fakePage(bad, [ADBLOCK.page!]);
     const res = await p.run('fetch("/youtubei/v1/browse")');
     expect(await res.text()).toBe(bad);
     expect(p.logs).toEqual([]);

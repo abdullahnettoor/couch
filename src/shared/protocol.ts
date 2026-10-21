@@ -46,6 +46,7 @@ export const COMMAND_NAMES = [
   "typeCancel",
   "menu",
   "power",
+  "toggleAddon",
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
@@ -63,6 +64,8 @@ export interface CommandArgs {
   percent?: number;
   /** playUpNext: position in the Up next list */
   index?: number;
+  /** toggleAddon: the add-on's id (YouTube's add-ons) */
+  addon?: string;
   /** typeText: the whole current text; typeOpen and screenKey (Screen only): the first character */
   text?: string;
 }

@@ -88,8 +88,8 @@ export class YouTubeApp implements App {
   restart() {
     this.#port.restart();
   }
-  setAddons(ids: string[]) {
-    this.#port.setAddons(ids);
+  setAddons(ids: string[], note?: string) {
+    this.#port.setAddons(ids, note);
   }
   onEvent(listener: (event: AppEvent) => void) {
     this.#listeners.add(listener);

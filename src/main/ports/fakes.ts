@@ -147,8 +147,8 @@ export class FakeYouTube implements YouTube {
     this.unmatchedOutputs.delete(name);
     if (this.outputName === name) this.emit({ type: "output", name, ok: true });
   }
-  setAddons(ids: string[]) {
-    this.#record("setAddons", ids);
+  setAddons(ids: string[], note?: string) {
+    this.#record("setAddons", ids, note);
   }
   setVolume(percent: number) {
     this.volume = percent;

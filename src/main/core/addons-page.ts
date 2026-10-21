@@ -8,8 +8,10 @@ const TOGGLE = "addons:toggle:";
 
 export interface AddonsPageHost {
   store: Store;
-  /** Runs exactly these add-ons in the web App and reloads its page. */
-  apply(app: string, ids: string[]): void;
+  /** Runs exactly these add-ons in the web App and reloads its page; `note` is shown over it (when it is in front). */
+  apply(app: string, ids: string[], note?: string): void;
+  /** The App is on the Screen now. */
+  isFront(app: string): boolean;
   toast(text: string): void;
   changed(): void;
 }
@@ -47,15 +49,21 @@ export class AddonsPage {
 
   action(action: string): boolean {
     if (!action.startsWith(TOGGLE)) return false;
-    const id = action.slice(TOGGLE.length);
+    this.toggle(action.slice(TOGGLE.length));
+    return true;
+  }
+
+  /** Turns one add-on on or off: Store, then the App reloads (with the note over it when it is in front). */
+  toggle(id: string): void {
     const row = this.payload().find((a) => a.id === id);
-    if (!row) return true;
+    if (!row) return;
     writeChoice(this.#h.store, YOUTUBE_ADDONS, APP, id, !row.on);
+    const note = `${row.label} is ${row.on ? "off" : "on"}`;
     this.#h.apply(
       APP,
       enabledAddons(YOUTUBE_ADDONS, readChoices(this.#h.store, APP)).map((a) => a.id),
+      this.#h.isFront(APP) ? note : undefined,
     );
-    this.#h.toast(`${row.label} is ${row.on ? "off" : "on"}`);
-    return true;
+    this.#h.toast(note);
   }
 }
