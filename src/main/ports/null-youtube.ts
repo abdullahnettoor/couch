@@ -12,6 +12,8 @@ export const nullYouTube: YouTube = {
   seekBy() {},
   showVolume() {},
   showConfirm() {},
+  setVolume() {},
+  setOutputDevice: () => Promise.resolve(true),
   restart() {},
   onEvent: () => () => {},
 };

@@ -8,6 +8,7 @@ const ITEMS: SettingsItem[] = [
   { id: "forget-phones", label: "Forget all phones", action: "settings:forget-phones" },
   { id: "library-folders", label: "Library folders", action: "settings:library-folders" },
   { id: "details", label: "Show and film details", action: "settings:details" },
+  { id: "sound", label: "Sound output", action: "settings:sound" },
   { id: "listener", label: "Start Couch Listener at login", action: "settings:listener" },
   { id: "restart-youtube", label: "Restart YouTube", action: "settings:restart-youtube" },
   { id: "quit", label: "Quit Couch", action: "settings:quit" },

@@ -5,6 +5,12 @@ import { join } from "node:path";
 import { app, BrowserWindow, WebContentsView, clipboard, session } from "electron";
 import { SCREEN_KEYS, textEditFor } from "../../shared/keyboard.ts";
 import { revealScreen } from "../reveal.ts";
+import {
+  LIST_OUTPUTS_SCRIPT,
+  pickOutputId,
+  soundScript,
+  type PageOutput,
+} from "./youtube-sound.ts";
 import { applyCompatPatch } from "./youtube-compat.ts";
 import { CONTROLS_HIDE_MS, SKIP_COMMIT_MS, skipKeys } from "./youtube-skip.ts";
 import { applyToRequestHeaders, buildIdentity } from "./youtube-identity.ts";
@@ -52,6 +58,8 @@ export class ElectronYouTube implements YouTube {
   #shortsOpen = false;
   #home: boolean | undefined;
   #routeTimer: ReturnType<typeof setInterval> | undefined;
+  #volume = 60;
+  #sinkId = "";
 
   constructor(win: BrowserWindow) {
     this.#win = win;
@@ -66,6 +74,12 @@ export class ElectronYouTube implements YouTube {
           details.requestHeaders,
         ),
       });
+    });
+    // The view may ask the Mac for nothing (no microphone, no camera). Its media permission *check*
+    // is answered yes only so the page can read output names (labels), to pick one for setSinkId.
+    ses.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+    ses.setPermissionCheckHandler((_wc, permission, origin) => {
+      return permission === "media" && /^https:\/\/www\.youtube\.com\/?/.test(origin);
     });
     applyCompatPatch(ses, join(app.getPath("userData"), "youtube"));
     this.#view = new WebContentsView({
@@ -88,6 +102,8 @@ export class ElectronYouTube implements YouTube {
       this.#emit({ type: "loaded" });
       this.#syncRoute();
     });
+    // A new document has none of Couch's volume or output yet.
+    wc.on("dom-ready", () => this.#applySound());
     wc.on("did-fail-load", (_e, code, _desc, _url, isMainFrame) => {
       if (!isMainFrame || code === -3) return;
       this.#failed = true;
@@ -212,6 +228,38 @@ export class ElectronYouTube implements YouTube {
 
   showVolume(percent: number | undefined): void {
     void this.#view.webContents.executeJavaScript(volumeScript(percent)).catch(() => {});
+  }
+
+  setVolume(percent: number): void {
+    this.#volume = percent;
+    this.#applySound();
+  }
+
+  #applySound(): void {
+    void this.#view.webContents
+      .executeJavaScript(soundScript(this.#volume, this.#sinkId))
+      .catch(() => {});
+  }
+
+  async setOutputDevice(name: string | undefined): Promise<boolean> {
+    if (name === undefined) {
+      this.#sinkId = "";
+      this.#applySound();
+      return true;
+    }
+    try {
+      const outputs = (await this.#view.webContents.executeJavaScript(
+        LIST_OUTPUTS_SCRIPT,
+      )) as PageOutput[];
+      const id = pickOutputId(name, outputs);
+      this.#sinkId = id ?? "";
+      this.#applySound();
+      return id !== undefined;
+    } catch {
+      this.#sinkId = "";
+      this.#applySound();
+      return false;
+    }
   }
 
   async #showNote(note: string): Promise<void> {

@@ -168,6 +168,16 @@ export class MpvPlayer implements Player {
     await this.send(["set_property", "sub-visibility", visible]);
   }
 
+  /** Couch's own volume: mpv's `volume`, never the Mac's. */
+  async setVolume(percent: number): Promise<void> {
+    await this.send(["set_property", "volume", Math.max(0, Math.min(100, percent))]);
+  }
+
+  /** `coreaudio/<UID>`, or `auto` (System default) when undefined. */
+  async setAudioDevice(uid: string | undefined): Promise<void> {
+    await this.send(["set_property", "audio-device", uid ? `coreaudio/${uid}` : "auto"]);
+  }
+
   setSubtitlesRaised(raised: boolean, aboveUpNext = false): void {
     this.send([
       "set_property",

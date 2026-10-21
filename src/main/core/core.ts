@@ -42,6 +42,7 @@ import { PlayerControls } from "./player-controls.ts";
 import { History } from "./history.ts";
 import { ShowView } from "./show-view.ts";
 import { DetailsPage } from "./details-page.ts";
+import { SoundOutput } from "./sound-output.ts";
 import { LibrarySearchView } from "./library-search-view.ts";
 import { AMBIENT_MS, filmAfterFocus, homeGrid } from "./home-view.ts";
 import type { TimeFormat } from "../../shared/clock-format.ts";
@@ -148,6 +149,7 @@ export class Core {
   readonly details: MetadataService;
   #show: ShowView;
   #detailsPage: DetailsPage;
+  #sound: SoundOutput;
   #search: LibrarySearchView;
   /** Where Back from a show page goes: the Library, or the search it was opened from. */
   /** The active filter chip on the Library's first page (a chip key), if any. */
@@ -204,7 +206,7 @@ export class Core {
       seekTo: (seconds) => this.#seekTo(seconds),
       togglePause: () => this.#togglePause(),
       toggleSubtitles: () => this.#toggleSubtitles(),
-      setVolume: (percent) => void this.#setVolume(percent),
+      setVolume: (percent) => this.#setVolume(percent),
       play: (path) => this.#play(path),
       leave: () => this.#endPlayback(undefined, true),
       changed: () => this.#emit(),
@@ -229,6 +231,15 @@ export class Core {
       toast: (text) => this.#toast(text),
       changed: () => this.#emit(),
     });
+    this.#sound = new SoundOutput({
+      store: ports.store,
+      mac: ports.mac,
+      player: ports.player,
+      youtube: ports.youtube,
+      toast: (text) => this.#toast(text),
+      changed: () => this.#emit(),
+    });
+    this.#state.volume = this.#sound.volume;
     this.#detailsPage = new DetailsPage(this.#state, {
       details: this.details,
       connectedPhone: () =>
@@ -280,13 +291,6 @@ export class Core {
     this.#armAmbient();
     this.#syncDisplayAwake();
     this.#ytOff = ports.youtube.onEvent((event) => this.#onYouTube(event));
-    void ports.mac
-      .getVolume()
-      .then((volume) => {
-        this.#state.volume = volume;
-        this.#emit();
-      })
-      .catch(() => {});
   }
 
   #newKey(): string {
@@ -541,6 +545,7 @@ export class Core {
     }
     if (this.#state.view === "player") return this.#controls.grid();
     if (this.#state.view === "details") return this.#detailsPage.grid();
+    if (this.#state.view === "soundOutput") return this.#sound.grid();
     if (this.#state.view === "show") return this.#show.grid();
     if (this.#state.view === "fixMatch") return this.#show.fixGrid();
     if (this.#state.view === "librarySearch") return this.#search.grid();
@@ -991,6 +996,9 @@ export class Core {
       this.#state.view === "credits"
         ? { details: this.details.settings() }
         : {}),
+      ...(this.#state.view === "settings" || this.#state.view === "soundOutput"
+        ? { sound: this.#sound.payload() }
+        : {}),
       ...(this.#state.view === "settings" ? { listener: { ...this.#loginItem } } : {}),
       continueCard: this.#continueEntries()[0],
       homeVideos,
@@ -1177,12 +1185,12 @@ export class Core {
         break;
       case "volUp":
       case "volDown":
-        void this.#setVolume(
+        this.#setVolume(
           this.#state.volume + (command.command === "volUp" ? VOLUME_STEP : -VOLUME_STEP),
         );
         break;
       case "volSet":
-        void this.#setVolume(command.args?.percent ?? this.#state.volume);
+        this.#setVolume(command.args?.percent ?? this.#state.volume);
         break;
       case "typeOpen":
       case "typeText":
@@ -1443,6 +1451,7 @@ export class Core {
 
   dispose(): void {
     this.details.dispose();
+    this.#sound.dispose();
     this.#thumbs.dispose();
     this.#unsubDisplays();
     this.#cancelIdle?.();
@@ -1493,6 +1502,7 @@ export class Core {
     if (
       this.#libraryAction(item.action) ||
       this.#detailsPage.action(item.action, this.#source) ||
+      this.#sound.action(item.action) ||
       this.#search.action(item.action, this.#source) ||
       this.#show.action(item.action)
     )
@@ -1658,9 +1668,10 @@ export class Core {
     this.#ports.youtube.showSearchBar(text);
   }
 
-  async #setVolume(percent: number): Promise<void> {
+  #setVolume(percent: number): void {
     const volume = Math.max(0, Math.min(100, Math.round(percent)));
     this.#state.volume = volume;
+    this.#sound.setVolume(volume);
     this.#state.volumeShown = true;
     this.#cancelVolume?.();
     this.#cancelVolume = this.#ports.clock.setTimeout(() => {
@@ -1668,7 +1679,6 @@ export class Core {
       this.#emit();
     }, OVERLAY_MS);
     this.#emit();
-    await this.#ports.mac.setVolume(volume).catch(() => {});
   }
 
   #actionContext(): ActionContext {

@@ -160,7 +160,8 @@ describe("Quit Couch?", () => {
 
   test("Settings → Quit asks first", async () => {
     await openSettings();
-    for (let i = 0; i < 6; i++) await phone.press("down");
+    for (let i = 0; i < 12 && h.screen.last.focusedLabel !== "Quit Couch"; i++)
+      await phone.press("down");
     await phone.press("ok");
     expect(h.screen.last.state.confirm?.title).toBe("Quit Couch?");
     expect(quits()).toHaveLength(0);
