@@ -138,7 +138,11 @@ export interface Harness {
  */
 export async function startHarness(
   given?: Store,
-  options: { tmdbProjectKey?: string; metadata?: (fake: FakeMetadata) => void } = {},
+  options: {
+    tmdbProjectKey?: string;
+    listener?: { publicPort: number; token: string };
+    metadata?: (fake: FakeMetadata) => void;
+  } = {},
 ): Promise<Harness> {
   const tmp = given ? undefined : mkdtempSync(join(tmpdir(), "couch-store-"));
   const store = given ?? new FileStore(tmp!);
@@ -159,6 +163,7 @@ export async function startHarness(
     thumbnails,
     metadata,
     tmdbProjectKey: options.tmdbProjectKey,
+    listener: options.listener,
     thumbnailDir: thumbDir,
     iconDir: join(import.meta.dirname, "../../renderer/public"),
     port: 0,

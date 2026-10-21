@@ -69,6 +69,8 @@ export interface Ports {
   metadata?: Metadata;
   /** The project's TMDB key, built into release builds; used when the household has none of its own. */
   tmdbProjectKey?: string;
+  /** A live listener (the always-on front door): its public port goes in the QR code and it handles `power`. */
+  listener?: { publicPort: number; token: string };
 }
 
 /** Who sent a command: a connected phone, or the Screen's own keyboard. */
@@ -283,7 +285,8 @@ export class Core {
   }
 
   get pairingUrl(): string {
-    return `http://${this.#ports.mac.localName()}:${this.#port}/?key=${this.#key}`;
+    const port = this.#ports.listener?.publicPort ?? this.#port;
+    return `http://${this.#ports.mac.localName()}:${port}/?key=${this.#key}`;
   }
 
   /** Called when every phone must be dropped (the key changed). */
@@ -1128,6 +1131,9 @@ export class Core {
       case "home":
         this.#setView("home");
         break;
+      case "power":
+        if (!this.#ports.listener) this.quit();
+        break;
       case "resume": {
         const newest = this.#continueEntries()[0];
         if (!newest) break;
@@ -1281,6 +1287,12 @@ export class Core {
         this.#state.typingBy = undefined;
         break;
     }
+  }
+
+  /** The same path as Settings → Quit (beforeQuit then runs through the app's before-quit). */
+  quit(): void {
+    this.savePlayingPosition();
+    this.#ports.mac.quit();
   }
 
   /** ⌘Q and Settings → Quit: end playback (saving the position) and stop the player. */
@@ -1559,10 +1571,7 @@ export class Core {
       },
       toast: (text) => this.#toast(text),
       forgetAllPhones: () => this.forgetAllPhones(),
-      quit: () => {
-        this.savePlayingPosition();
-        this.#ports.mac.quit();
-      },
+      quit: () => this.quit(),
     };
   }
 
