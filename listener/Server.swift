@@ -136,7 +136,7 @@ final class Server {
     guard head.method == "GET" else { return s.respond(status: "404 Not Found") }
     switch head.path {
     case "/":
-      s.respond(file: cfg.page, type: "text/html; charset=utf-8", cache: "no-store")
+      s.respond(file: cfg.page, type: "text/html; charset=utf-8", cache: "no-store", unpaired: !pairing.isPaired)
     case "/icon.png":
       s.respond(file: cfg.icons + "/icon-192.png", type: "image/png", cache: "public, max-age=86400")
     case "/touch-icon.png":
@@ -208,8 +208,13 @@ final class Incoming: Session {
     send("HTTP/1.1 \(status)\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", body: Data())
   }
 
-  func respond(file: String, type: String, cache: String) {
-    guard let body = FileManager.default.contents(atPath: file) else { return respond(status: "404 Not Found") }
+  func respond(file: String, type: String, cache: String, unpaired: Bool = false) {
+    guard var body = FileManager.default.contents(atPath: file) else { return respond(status: "404 Not Found") }
+    if unpaired {
+      // Tells the page nothing can be paired yet; no phone can connect until Couch has made a key.
+      let flag = Data("<script>window.COUCH_UNPAIRED=true</script>".utf8)
+      if let head = body.range(of: Data("<head>".utf8)) { body.insert(contentsOf: flag, at: head.upperBound) } else { body = flag + body }
+    }
     send(
       "HTTP/1.1 200 OK\r\nContent-Type: \(type)\r\nCache-Control: \(cache)\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n",
       body: body)

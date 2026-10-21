@@ -405,6 +405,17 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   });
 
   setOnline(false);
+  if (window.COUCH_UNPAIRED) {
+    $("pw").hidden = false;
+    $("pw-btn").hidden = true;
+    $("pw-spin").hidden = true;
+    $("pbtn").hidden = true;
+    $("banner").hidden = true;
+    $("status").textContent = "Not paired";
+    $("pw-title").textContent = "Couch isn't paired yet";
+    $("pw-sub").textContent = "Open Couch on the Mac once to pair a phone.";
+    return;
+  }
   connect();
 })();
 </script>

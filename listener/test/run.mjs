@@ -406,3 +406,11 @@ test("a client that half-closes after its request still gets the whole response"
   await until(() => c.received().toString().includes("FAKEAPP"), "response after half-close");
   await until(() => c.closed(), "then closed");
 });
+
+test("with no pairing key the page says to open Couch once, and nothing connects", async () => {
+  const bare = await setup({ key: null });
+  assert.match(await (await fetch(bare.url("/"))).text(), /COUCH_UNPAIRED/);
+  assert.equal(await rejected(bare, KEY), 401);
+  const paired = await setup();
+  assert.doesNotMatch(await (await fetch(paired.url("/"))).text(), /COUCH_UNPAIRED/);
+});
