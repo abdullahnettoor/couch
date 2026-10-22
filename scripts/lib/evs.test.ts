@@ -3,9 +3,9 @@ import { evsAvailable, packagingPlan, signDevPlan } from "./evs.mts";
 
 describe("evsAvailable", () => {
   it("is true with the CLI installed and EVS_* credentials in the environment", () => {
-    expect(evsAvailable({ cliInstalled: true, env: { EVS_ACCOUNT_NAME: "a", EVS_PASSWD: "b" } })).toBe(
-      true,
-    );
+    expect(
+      evsAvailable({ cliInstalled: true, env: { EVS_ACCOUNT_NAME: "a", EVS_PASSWD: "b" } }),
+    ).toBe(true);
   });
   it("is true with the CLI installed and a cached login", () => {
     expect(evsAvailable({ cliInstalled: true, loggedIn: true, env: {} })).toBe(true);
@@ -20,7 +20,11 @@ describe("evsAvailable", () => {
 describe("signDevPlan", () => {
   const ready = { cliInstalled: true, loggedIn: true, env: {} };
   it("explains the set-up when EVS isn't ready", () => {
-    const plan = signDevPlan({ evs: { cliInstalled: false, env: {} }, targets: [], validSignature: () => false });
+    const plan = signDevPlan({
+      evs: { cliInstalled: false, env: {} },
+      targets: [],
+      validSignature: () => false,
+    });
     expect(plan.action).toBe("skip");
   });
   it("signs only targets without a valid signature", () => {

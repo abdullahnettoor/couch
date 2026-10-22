@@ -13,7 +13,10 @@ const vmp = !evs.cliInstalled
     : "no valid production VMP signature (dev-signed only; run `pnpm sign:dev`)";
 console.log(`[drm-check] VMP status: ${vmp}`);
 
-const args = [new URL("./main.cjs", import.meta.url).pathname, ...process.argv.slice(2).filter((a) => a !== "--")];
+const args = [
+  new URL("./main.cjs", import.meta.url).pathname,
+  ...process.argv.slice(2).filter((a) => a !== "--"),
+];
 const child = spawn(electronBin, args, {
   stdio: "inherit",
   env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined },

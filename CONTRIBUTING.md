@@ -5,14 +5,25 @@ Couch is a Mac media centre for a TV, controlled from phones. Read `GLOSSARY.md`
 ## Set up
 
 ```sh
-pnpm install            # Electron's download is allowed in pnpm-workspace.yaml
+pnpm install            # installs castLabs' Electron (ECS, with Widevine); a postinstall step fetches its binary
 pnpm run build:native   # builds the embedded mpv player (needs mpv/libmpv installed, e.g. brew install mpv)
 vp check                # format, lint, type-check; must show 0 errors (vp check --fix auto-fixes)
 vp test run             # Vitest, once
 vp run start            # build and run Couch
 ```
 
+Couch runs on castLabs' Electron for Content Security (ECS), pinned in `package.json` as `github:castlabs/electron-releases#v<x>+wvcus` (currently v44.5.1; castLabs trails upstream Electron, so check their [releases](https://github.com/castlabs/electron-releases/releases) when upgrading). It behaves like stock Electron plus Widevine. `pnpm drm-check` plays Widevine's test stream and prints a report (`pnpm drm-check -- --url <service>` opens a service on its own partition).
+
 If `vp` isn't installed globally, run it as `pnpm exec vp …`. If `ELECTRON_RUN_AS_NODE` is set in your shell, unset it before `vp run start`.
+
+## Signing for DRM work
+
+Only needed when working on DRM Apps (Netflix, Prime Video, Disney+, Hotstar): they refuse the development VMP signature that ECS ships with. Everything else (YouTube, Library) needs none of this.
+
+- One castLabs EVS account per person: `python3 -m pip install castlabs-evs`, then `evs-account signup` (or `evs-account reauth` on a new Mac). Credentials stay in castLabs' own cache; never commit them.
+- `pnpm sign:dev` VMP-signs the dev Electron. Run it once per checkout and after each Electron upgrade. It does nothing (and exits 0) without EVS, and never re-signs a valid signature.
+- `pnpm package` VMP-signs before Apple code signing when EVS is available, then verifies; without EVS it builds a dev-signed app and warns that DRM services won't play. Set `COUCH_CODESIGN_IDENTITY` for a Developer ID signature (default is ad-hoc).
+- castLabs' rules of conduct: no extra accounts (reset the password instead), don't force a re-sign while the signature is valid.
 
 ## How work is tracked
 

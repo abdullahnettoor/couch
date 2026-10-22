@@ -33,6 +33,11 @@ const [appPath] = await packager({
   appBundleId: "local.couch.app",
   appCategoryType: "public.app-category.entertainment",
   overwrite: true,
+  // Electron for Content Security (Widevine) comes from castLabs' releases, not electron/electron.
+  download: {
+    mirrorOptions: { mirror: "https://github.com/castlabs/electron-releases/releases/download/" },
+    checksums: JSON.parse(readFileSync("node_modules/electron/checksums.json", "utf8")),
+  },
   prune: false,
   // The add-on must be a real file on disk; Electron loads it from app.asar.unpacked.
   asar: { unpack: "**/*.node" },
