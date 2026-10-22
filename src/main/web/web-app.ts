@@ -76,7 +76,7 @@ export interface WebAppDescription {
   seekKeys?: { back: AppKey; forward: AppKey };
   /** Load the site when the App is first shown, not at launch (a site that autoplays must not play unseen). */
   loadOnShow?: boolean;
-  /** Back sent to the page goes back in its history instead of pressing `keyCodes.back`. */
+  /** Back sent to the page goes back in its history instead of pressing `keyCodes.back`, except with a pop-up open (the page script says), which it closes with `keyCodes.back`. */
   backByHistory?: boolean;
   /** The App plays Widevine content: the host waits for the components before loading it. */
   drm?: boolean;

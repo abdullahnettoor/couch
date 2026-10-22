@@ -58,6 +58,8 @@ export interface FocusLayout {
   scopes?: string[];
   /** Rows of cards: Left/Right stay in the row, Up/Down leave it; at the row's end `next`/`prev` (inside the row) page it. */
   rows?: { row: string; next?: string; prev?: string };
+  /** RegExp source whose first group is a title's id in a link's `href`: how a control opened from a card is found again after the page redraws it. */
+  titleId?: string;
 }
 
 export const DEFAULT_FOCUS_SELECTORS = [
@@ -237,6 +239,74 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     var rowOf = function (el) {
       try { return LAYOUT.rows && el.closest ? el.closest(LAYOUT.rows.row) : null; } catch (e) { return null; }
     };
+    // Where a control sits, by more than the element: it is what finds the control again after the page redraws it.
+    var rowsAll = function () { try { return LAYOUT.rows ? document.querySelectorAll(LAYOUT.rows.row) : []; } catch (e) { return []; } };
+    var idOf = function (el) {
+      try {
+        if (!LAYOUT.titleId) return '';
+        var a = el.closest && el.closest('a[href]') || el.querySelector && el.querySelector('a[href]');
+        var m = a && new RegExp(LAYOUT.titleId).exec(String(a.getAttribute('href')));
+        return m ? m[1] : '';
+      } catch (e) { return ''; }
+    };
+    var posIn = function (row, el) {
+      try { return Array.prototype.indexOf.call(row.querySelectorAll(SELECTOR), el); } catch (e) { return -1; }
+    };
+    var pathTo = function (el) {
+      try {
+        var parts = [];
+        for (var e = el; e && e.parentElement; e = e.parentElement) {
+          parts.push(Array.prototype.indexOf.call(e.parentElement.children, e));
+        }
+        return parts.join('/');
+      } catch (e) { return ''; }
+    };
+    var keyOf = function (el) {
+      try {
+        var row = rowOf(el);
+        return {
+          id: idOf(el),
+          rowIndex: row ? Array.prototype.indexOf.call(rowsAll(), row) : -1,
+          rowCount: row ? rowsAll().length : 0,
+          pos: row ? posIn(row, el) : -1,
+          path: pathTo(el),
+        };
+      } catch (e) { return null; }
+    };
+    var refind = function (key) {
+      try {
+        if (!key) return null;
+        var list = candidates(), rows = rowsAll(), i, el;
+        if (key.id && key.rowIndex >= 0) {
+          for (i = 0; i < list.length; i++) {
+            el = list[i].el;
+            if (idOf(el) === key.id && rows[key.rowIndex] && rowOf(el) === rows[key.rowIndex]) return el;
+          }
+        }
+        // A row's number means something only while the page has as many rows as it had.
+        if (key.rowIndex >= 0 && rows[key.rowIndex] && rows.length === key.rowCount) {
+          for (i = 0; i < list.length; i++) {
+            el = list[i].el;
+            if (rowOf(el) === rows[key.rowIndex] && posIn(rows[key.rowIndex], el) === key.pos) return el;
+          }
+        }
+        if (key.id) {
+          for (i = 0; i < list.length; i++) if (idOf(list[i].el) === key.id) return list[i].el;
+        }
+        if (key.path) {
+          for (i = 0; i < list.length; i++) if (pathTo(list[i].el) === key.path) return list[i].el;
+        }
+      } catch (e) {}
+      return null;
+    };
+    // Back from a pop-up: make sure the control is on screen, where the household left it.
+    var reveal = function (el) {
+      try {
+        var r = rectOf(el);
+        if (r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth) return;
+        el.scrollIntoView({ block: rowOf(el) ? 'center' : 'nearest', inline: 'nearest' });
+      } catch (e) {}
+    };
     var editable = function (el) {
       return !!el && (isTextField(el) || el.tagName === 'SELECT');
     };
@@ -277,7 +347,9 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     var view = function () { return { width: innerWidth, height: innerHeight }; };
     // displaced: the control the household held until something (a dialog still sliding in) covered it.
     // layers: one frame per open modal, bottom first, each with the control held when it opened.
-    var layers = [], displaced = null;
+    var layers = [], displaced = null, displacedKey = null, heldKey = null;
+    // The control to give the highlight back to once the page has redrawn it (a pop-up just closed and it is not there yet).
+    var pending = null;
     var ensure = function () {
       try {
         if (noRing()) { current = null; draw(); return; }
@@ -288,23 +360,33 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
           var restore = null, kept = [];
           for (var n = 0; n < layers.length; n++) {
             if (shown(layers[n].modal)) kept.push(layers[n]);
-            else if (!restore && layers[n].opener) restore = layers[n].opener;
+            else if (!restore && layers[n].opener) restore = layers[n];
           }
           layers = kept;
           // A modal opened: remember what was held, and go inside.
           if (modal && !kept.some(function (l) { return l.modal === modal; })) {
-            layers.push({ modal: modal, opener: displaced || (current && current.isConnected ? current : null) });
+            var held = displaced || (current && current.isConnected ? current : null);
+            layers.push({ modal: modal, opener: held, key: displaced ? displacedKey : heldKey });
           }
-          if (restore && usable(restore)) current = restore;
+          if (restore) {
+            var back = restore.opener && usable(restore.opener) ? restore.opener : refind(restore.key);
+            if (back) { current = back; heldKey = keyOf(back); reveal(back); pending = null; }
+            else if (restore.key) pending = { key: restore.key, until: Date.now() + 3000 };
+          }
           displaced = null;
         }
+        if (pending) {
+          var found = Date.now() > pending.until ? null : refind(pending.key);
+          if (found) { current = found; heldKey = keyOf(found); reveal(found); pending = null; }
+          else if (Date.now() > pending.until) pending = null;
+        }
         if (current && usable(current)) { draw(); return; }
-        if (current && current.isConnected && !displaced) displaced = current;
+        if (current && current.isConnected && !displaced) { displaced = current; displacedKey = heldKey; }
         current = null;
         var list = candidates();
         if (list.length) {
           var i = pick(null, list.map(function (c) { return c.rect; }), 'down', view());
-          if (i >= 0) current = list[i].el;
+          if (i >= 0) { current = list[i].el; heldKey = keyOf(current); }
         }
         draw();
       } catch (e) {}
@@ -357,7 +439,9 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       var active = document.activeElement;
       if (editable(active) && active.blur) active.blur();
       current = list[i].el;
+      heldKey = keyOf(current);
       displaced = null;
+      pending = null;
       try { current.scrollIntoView({ block: row || rowOf(current) ? 'center' : 'nearest', inline: 'nearest' }); } catch (e) {}
       draw();
     };
@@ -395,6 +479,10 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         }
         ensure();
       } catch (e) {}
+    };
+    // Whether a pop-up is on screen: Back should close it the site's way instead of going back in history. Never in a player.
+    window.__couchPopupOpen = function () {
+      try { return !noRing() && !!scopeEl(); } catch (e) { return false; }
     };
     addEventListener('keydown', onKey, false);
     addEventListener('focusin', function (e) {
