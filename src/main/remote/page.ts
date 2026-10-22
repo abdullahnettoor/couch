@@ -18,6 +18,11 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 <title>Couch Remote</title>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon.png">
 <link rel="apple-touch-icon" href="/touch-icon.png">
+<link rel="manifest" id="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Couch">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
   __TOKENS__
   :root { font-family:-apple-system,"SF Pro Text",system-ui,sans-serif; -webkit-font-smoothing:antialiased; color:var(--t1); background:#000; }
@@ -239,6 +244,8 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     for (var i = 0; i < els.length; i++) els[i].insertAdjacentHTML("afterbegin", icon(els[i].getAttribute("data-i")));
   }
   fill(document);
+  var manifestLink = document.getElementById("manifest");
+  if (manifestLink && key) manifestLink.href = "/manifest.webmanifest?key=" + encodeURIComponent(key);
   function thumb(k) { return "url(/thumb/" + k + ".jpg?key=" + encodeURIComponent(key) + ")"; }
 
   function setOnline(on) {

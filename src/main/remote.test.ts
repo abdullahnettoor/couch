@@ -39,6 +39,37 @@ describe("Remote on Home", () => {
     expect(page).toContain('href="/touch-icon.png"');
   });
 
+  test("the manifest is served as application/manifest+json with the pairing key in its start URL", async () => {
+    const base = `http://127.0.0.1:${h.app.remote.port}`;
+    const res = await fetch(`${base}/manifest.webmanifest?key=${h.pairingKey()}`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/^application\/manifest\+json/);
+    const m = await res.json();
+    expect(m).toMatchObject({
+      name: "Couch Remote",
+      short_name: "Couch",
+      display: "standalone",
+      start_url: `/?key=${h.pairingKey()}`,
+      theme_color: "#161412",
+      background_color: "#000000",
+    });
+    expect(m.icons).toEqual([
+      { src: "/icon.png", sizes: "192x192", type: "image/png" },
+      { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ]);
+    const bad = await (await fetch(`${base}/manifest.webmanifest?key=nope`)).json();
+    expect(bad.start_url).toBe("/");
+    expect((await fetch(`${base}/icon-512.png`)).status).toBe(200);
+  });
+
+  test("the page links the manifest and has the iPhone home-screen tags", async () => {
+    const page = await (await fetch(`http://127.0.0.1:${h.app.remote.port}/`)).text();
+    expect(page).toContain('<link rel="manifest" id="manifest" href="/manifest.webmanifest">');
+    expect(page).toContain('name="apple-mobile-web-app-capable" content="yes"');
+    expect(page).toContain('name="apple-mobile-web-app-title" content="Couch"');
+    expect(page).toContain('name="apple-mobile-web-app-status-bar-style"');
+  });
+
   test("every connected phone gets a snapshot after each change", async () => {
     const a = await h.connectPhone();
     const b = await h.connectPhone();

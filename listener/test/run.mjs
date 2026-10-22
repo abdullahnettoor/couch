@@ -52,6 +52,11 @@ async function setup({
   writeFileSync(join(web, "page.html"), "<html>OFFPAGE</html>");
   writeFileSync(join(web, "icon-192.png"), "PNG192");
   writeFileSync(join(web, "touch-icon.png"), "PNGTOUCH");
+  writeFileSync(join(web, "icon-512.png"), "PNG512");
+  writeFileSync(
+    join(web, "manifest.webmanifest"),
+    JSON.stringify({ name: "Couch Remote", start_url: "__START_URL__" }),
+  );
   if (key) writeFileSync(join(support, "pairing.json"), JSON.stringify({ key }));
   const [port, appPort] = [await freePort(), await freePort()];
   const launchCmd =
@@ -148,6 +153,20 @@ test("wrong or missing keys get 401, and a missing pairing accepts nothing", asy
   const bare = await setup({ key: null });
   assert.equal(await rejected(bare, KEY), 401);
   assert.equal(await rejected(bare, ""), 401);
+});
+
+test("while off it serves the manifest with a start URL that keeps the pairing key", async () => {
+  const env = await setup();
+  const res = await fetch(env.url("/manifest.webmanifest?key=" + KEY));
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-type"), /^application\/manifest\+json/);
+  assert.equal((await res.json()).start_url, "/?key=" + KEY);
+  assert.equal(
+    (await (await fetch(env.url("/manifest.webmanifest?key=wrong"))).json()).start_url,
+    "/",
+  );
+  assert.equal((await (await fetch(env.url("/manifest.webmanifest"))).json()).start_url, "/");
+  assert.equal(await (await fetch(env.url("/icon-512.png"))).text(), "PNG512");
 });
 
 test("while off it serves the page and icons, and 404s the rest", async () => {

@@ -6,6 +6,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { COMMAND_NAMES, type Command, type CommandName } from "../../shared/protocol.ts";
 import type { Core } from "../core/core.ts";
 import { safeEqual } from "../constant-time.ts";
+import { remoteManifest } from "./manifest.ts";
 import { REMOTE_PAGE } from "./page.ts";
 
 export interface RemoteServer {
@@ -17,6 +18,7 @@ export interface RemoteServer {
 const ICON_FILES: Record<string, string> = {
   "/icon.png": "icon-192.png",
   "/touch-icon.png": "touch-icon.png",
+  "/icon-512.png": "icon-512.png",
 };
 
 export function parseCommand(raw: string): Command | undefined {
@@ -101,7 +103,15 @@ export async function startRemoteServer(
     const path = (req.url ?? "/").split("?")[0];
     if (path === "/local/quit") return localQuit(req, res);
     const icon = Object.hasOwn(ICON_FILES, path) ? ICON_FILES[path] : undefined;
-    if (path === "/") {
+    if (path === "/manifest.webmanifest") {
+      const key = new URL(req.url ?? "/", "http://localhost").searchParams.get("key");
+      const start = key && core.acceptsKey(key) ? `/?key=${encodeURIComponent(key)}` : "/";
+      res.writeHead(200, {
+        "content-type": "application/manifest+json; charset=utf-8",
+        "cache-control": "no-store",
+      });
+      res.end(remoteManifest(start));
+    } else if (path === "/") {
       res.writeHead(200, {
         "content-type": "text/html; charset=utf-8",
         "cache-control": "no-store",

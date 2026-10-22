@@ -79,7 +79,8 @@ execFileSync(
   { stdio: "inherit" },
 );
 copyFileSync("dist/remote/page.html", join(remote, "page.html"));
-for (const icon of ["icon-192.png", "touch-icon.png"])
+copyFileSync("dist/remote/manifest.webmanifest", join(remote, "manifest.webmanifest"));
+for (const icon of ["icon-192.png", "icon-512.png", "touch-icon.png"])
   copyFileSync(join("src/renderer/public", icon), join(remote, icon));
 // COUCH_CODESIGN_IDENTITY: a Developer ID identity; unset means an ad-hoc signature (runs here, can't be notarised).
 // disable-library-validation lets the Widevine CDM load under the hardened runtime.
