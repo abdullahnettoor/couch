@@ -108,6 +108,16 @@ function setup(els: El[], selectors?: string[], layout?: FocusLayout) {
     activeElement: null,
     readyState: "complete",
     body: { appendChild: () => {} },
+    documentElement: {
+      attrs: new Set<string>(),
+      appendChild() {},
+      setAttribute(n: string) {
+        this.attrs.add(n);
+      },
+      removeAttribute(n: string) {
+        this.attrs.delete(n);
+      },
+    },
     // The modal selector finds modals; any other selector finds the controls.
     querySelectorAll: (sel: string) =>
       els.filter((e) => e.connected && (/dialog|modal/.test(sel) ? e.modal : !e.modal && !e.plain)),
@@ -584,5 +594,43 @@ describe("typing into the page's focused field", () => {
     const box: any = new Input();
     box.type = "checkbox";
     expect(page(box)("x")).toBe(false);
+  });
+});
+
+describe("D-pad mode (no hover from a resting mouse)", () => {
+  const dpad = (d: any) => d.documentElement.attrs.has("data-couch-dpad");
+  const mv = (x: number, y: number, isTrusted = true) => ({ isTrusted, clientX: x, clientY: y });
+  const els = () => [new El("a", box(100, 100)), new El("b", box(300, 100))];
+  test("a key puts the page in D-pad mode", () => {
+    const { key, doc } = setup(els());
+    expect(dpad(doc)).toBe(false);
+    key("ArrowRight");
+    expect(dpad(doc)).toBe(true);
+  });
+  test("a real mouse movement beyond a small threshold ends it", () => {
+    const { key, fire, doc } = setup(els());
+    key("ArrowRight");
+    fire("mousemove", null, mv(500, 400));
+    expect(dpad(doc)).toBe(true);
+    fire("mousemove", null, mv(503, 402));
+    expect(dpad(doc)).toBe(true);
+    fire("mousemove", null, mv(540, 400));
+    expect(dpad(doc)).toBe(false);
+  });
+  test("synthetic pointer events neither end it nor are blocked", () => {
+    const { key, fire, doc } = setup(els());
+    key("ArrowRight");
+    fire("mousemove", null, mv(0, 0, false));
+    fire("mousemove", null, mv(900, 700, false));
+    expect(dpad(doc)).toBe(true);
+  });
+  test("a key after mouse use goes back to D-pad mode", () => {
+    const { key, fire, doc } = setup(els());
+    key("ArrowRight");
+    fire("mousemove", null, mv(500, 400));
+    fire("mousemove", null, mv(600, 400));
+    expect(dpad(doc)).toBe(false);
+    key("ArrowLeft");
+    expect(dpad(doc)).toBe(true);
   });
 });
