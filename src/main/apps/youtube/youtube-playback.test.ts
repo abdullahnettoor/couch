@@ -21,7 +21,10 @@ class FakePlayer {
     readyState: 4,
     getBoundingClientRect: () => ({ width: 1920, height: 1080 }),
   };
-  constructor(public hash: string) {}
+  hash: string;
+  constructor(hash: string) {
+    this.hash = hash;
+  }
   button() {
     if (this.captions === undefined) return null;
     const self = this;
@@ -51,7 +54,10 @@ class FakePlayer {
       },
       navigator: {},
       MouseEvent: class {
-        constructor(public type: string) {}
+        type: string;
+        constructor(type: string) {
+          this.type = type;
+        }
       },
     };
     sandbox.window = sandbox;
