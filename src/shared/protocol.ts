@@ -42,6 +42,7 @@ export const COMMAND_NAMES = [
   "seekBy",
   "seekTo",
   "setTrack",
+  "pressPrompt",
   "volSet",
   "playUpNext",
   "playNext",
@@ -60,6 +61,9 @@ export type CommandName = (typeof COMMAND_NAMES)[number];
 export type ScreenOnlyCommandName = "focusAt" | "showControls" | "find" | "screenKey";
 
 export type TrackKind = "subtitles" | "audio";
+
+/** A button a web App offers over the video: its own Skip Intro, Skip Recap or Next Episode. */
+export type PromptId = "skipIntro" | "skipRecap" | "nextEpisode";
 
 /** One subtitle or audio choice a web App offers; `on` marks the current one. */
 export interface Track {
@@ -80,6 +84,8 @@ export interface CommandArgs {
   /** setTrack: which list, and the track's id from the snapshot */
   kind?: TrackKind;
   track?: string;
+  /** pressPrompt: the prompt in the snapshot */
+  id?: PromptId;
   /** playUpNext: position in the Up next list */
   index?: number;
   /** toggleAddon: the add-on's id (YouTube's add-ons) */
@@ -402,6 +408,8 @@ export interface RemoteSnapshot {
     artwork?: string;
     /** "Animation · Comedy": up to three genres, when details have them. */
     genres?: string;
+    /** A web App's own button over the video right now (Netflix: Skip Intro, Skip Recap, Next Episode). */
+    prompt?: { id: PromptId; label: string };
   };
   /** The playing Library video's folder, while a video plays (and has company). */
   upNext?: UpNextItem[];

@@ -51,6 +51,27 @@ const HELPERS = `
   };
 `;
 
+/** Netflix's own overlay buttons (they need no control bar), by the prompt they stand for. */
+const PROMPTS: Record<string, string[]> = {
+  skipIntro: ["player-skip-intro"],
+  skipRecap: ["player-skip-recap"],
+  nextEpisode: ["next-episode-seamless-button", "next-episode-seamless-button-draining"],
+};
+
+const PROMPT_FINDER = `
+  var PROMPTS = ${JSON.stringify(PROMPTS)};
+  var shown = function (id) {
+    var names = PROMPTS[id] || [];
+    for (var i = 0; i < names.length; i++) {
+      var el = document.querySelector("[data-uia=" + names[i] + "]");
+      if (!el) continue;
+      var r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) return el;
+    }
+    return null;
+  };
+`;
+
 /**
  * Netflix's player breaks if the video's position is set directly, so everything goes through its
  * own controls: seek clicks the timeline, tracks and setTrack work its Audio & Subtitles menu.
@@ -74,6 +95,20 @@ export const NETFLIX_PLAYBACK: PlaybackAdapter = {
   var f = Math.min(1, Math.max(0, ${Number(seconds)} / total));
   var o = { bubbles: true, cancelable: true, view: window, clientX: r.left + r.width * f, clientY: r.top + r.height / 2, button: 0, buttons: 1, pointerId: 1, pointerType: "mouse", isPrimary: true };
   fire(tl, ["pointerover", "pointermove", "pointerdown", "mousedown", "pointerup", "mouseup", "click"], o);
+}catch(e){}})()`,
+  prompt: () =>
+    `(function(){try{${PROMPT_FINDER}
+  var FALLBACK = { skipIntro: "Skip Intro", skipRecap: "Skip Recap", nextEpisode: "Next Episode" };
+  var ids = ["skipIntro", "skipRecap", "nextEpisode"];
+  for (var i = 0; i < ids.length; i++) {
+    var el = shown(ids[i]);
+    if (el) return { id: ids[i], label: String(el.textContent || "").replace(/\\s+/g, " ").trim() || FALLBACK[ids[i]] };
+  }
+}catch(e){}})()`,
+  pressPrompt: (id) =>
+    `(function(){try{${PROMPT_FINDER}
+  var el = shown(${JSON.stringify(id)});
+  if (el) el.click();
 }catch(e){}})()`,
   playPause: () =>
     `(async function(){try{${HELPERS}

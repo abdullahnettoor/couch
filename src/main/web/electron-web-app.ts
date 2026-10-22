@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { app, BrowserWindow, WebContentsView, clipboard, components, session } from "electron";
-import type { Confirmation, TrackKind } from "../../shared/protocol.ts";
+import type { Confirmation, PromptId, TrackKind } from "../../shared/protocol.ts";
 import { SCREEN_KEYS, textEditFor } from "../../shared/keyboard.ts";
 import { revealScreen } from "../reveal.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
@@ -238,6 +238,7 @@ export class ElectronWebApp implements YouTube {
           tracks: askTracks ? adapter!.tracks!() : undefined,
           active: adapter?.active?.(),
           artwork: adapter?.artwork?.(),
+          prompt: adapter?.prompt?.(),
         }),
       )
       .then((found: PlaybackReport | undefined) => {
@@ -264,6 +265,11 @@ export class ElectronWebApp implements YouTube {
 
   seekTo(seconds: number): void {
     const script = this.#desc.playback?.seek?.(seconds);
+    if (script) void this.#view.webContents.executeJavaScript(script).catch(() => {});
+  }
+
+  pressPrompt(id: PromptId): void {
+    const script = this.#desc.playback?.pressPrompt?.(id);
     if (script) void this.#view.webContents.executeJavaScript(script).catch(() => {});
   }
 

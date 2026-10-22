@@ -1,4 +1,4 @@
-import type { TrackKind } from "../../shared/protocol.ts";
+import type { PromptId, TrackKind } from "../../shared/protocol.ts";
 import type { PlaybackReport } from "../apps/app.ts";
 import type { CommandName } from "../../shared/protocol.ts";
 import type { Confirmation } from "../../shared/protocol.ts";
@@ -58,6 +58,8 @@ export interface YouTube {
   seekTo?(seconds: number): void;
   /** Chooses a track through the App's adapter; does nothing without one. */
   setTrack?(kind: TrackKind, id: string): void;
+  /** Presses the App's own prompt button through its adapter; does nothing without one. */
+  pressPrompt?(id: PromptId): void;
   /** Draws the volume level above the view, or removes it when undefined. */
   showVolume(percent: number | undefined): void;
   /** Draws Couch's question over the view, or removes it when undefined. */

@@ -13,7 +13,7 @@ import type { DisplayInfo, Mac, OutputDevice } from "./mac.ts";
 import { RouteTracker, type PageState } from "../apps/youtube/youtube-route.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "./youtube.ts";
 import type { App, AppEvent, AppKey, AppTyping } from "../apps/app.ts";
-import type { Confirmation, RemoteLayout, TrackKind } from "../../shared/protocol.ts";
+import type { Confirmation, PromptId, RemoteLayout, TrackKind } from "../../shared/protocol.ts";
 
 function emitter<E>() {
   const listeners = new Set<(event: E) => void>();
@@ -134,6 +134,9 @@ export class FakeYouTube implements YouTube {
   setTrack(kind: TrackKind, id: string) {
     this.#record("setTrack", kind, id);
   }
+  pressPrompt(id: PromptId) {
+    this.#record("pressPrompt", id);
+  }
   submitSearch(text: string) {
     this.#record("submitSearch", text);
   }
@@ -219,6 +222,7 @@ export class FakeWebApp implements App {
   readonly seekBy: ((seconds: number) => void) | undefined;
   readonly seekTo: ((seconds: number) => void) | undefined;
   readonly setTrack: ((kind: TrackKind, id: string) => void) | undefined;
+  readonly pressPrompt: ((id: PromptId) => void) | undefined;
   constructor(id: string, label: string, options: FakeWebAppOptions = {}) {
     this.id = id;
     this.label = label;
@@ -238,6 +242,7 @@ export class FakeWebApp implements App {
     if (options.adapter) {
       this.seekTo = (seconds) => this.#record("seekTo", seconds);
       this.setTrack = (kind, id) => this.#record("setTrack", kind, id);
+      this.pressPrompt = (id) => this.#record("pressPrompt", id);
     }
   }
   get showVolume() {

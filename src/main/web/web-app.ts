@@ -1,5 +1,5 @@
 import type { AppKey } from "../apps/app.ts";
-import type { TrackKind } from "../../shared/protocol.ts";
+import type { PromptId, TrackKind } from "../../shared/protocol.ts";
 import type { Addon } from "./addon.ts";
 import type { FocusLayout } from "./page-focus.ts";
 
@@ -52,6 +52,10 @@ export interface PlaybackAdapter {
   playPause?(): string;
   /** An expression giving an artwork URL (or falsy) for what plays, when the page's media session names none. */
   artwork?(): string;
+  /** An expression giving `{ id, label }` for the App's own prompt button when one is visible (Skip Intro, Next Episode), else falsy. */
+  prompt?(): string;
+  /** Presses the prompt button with this id. */
+  pressPrompt?(id: PromptId): string;
   /** Chooses the track with this id from the list `tracks` gave. */
   setTrack?(kind: TrackKind, id: string): string;
 }

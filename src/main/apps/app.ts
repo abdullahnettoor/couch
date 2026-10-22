@@ -2,6 +2,7 @@ import type {
   CommandName,
   Confirmation,
   RemoteLayout,
+  PromptId,
   TrackKind,
   TrackList,
 } from "../../shared/protocol.ts";
@@ -19,6 +20,8 @@ export interface PlaybackReport {
   artwork?: string;
   /** Present when the App's adapter can list them. */
   tracks?: { subtitles: TrackList; audio: TrackList };
+  /** The App's own button over the video right now; absent when none is showing. */
+  prompt?: { id: PromptId; label: string };
   /** The App can seek to a point (its adapter's seek works); false or absent: key-based skips only. */
   canSeek?: boolean;
 }
@@ -97,6 +100,8 @@ export interface App extends SoundSink {
   seekTo?(seconds: number): void;
   /** Chooses a subtitle or audio track by the id its report listed; absent when the adapter can't. */
   setTrack?(kind: TrackKind, id: string): void;
+  /** Presses the App's own prompt button (as the report listed it); absent when the adapter has none. */
+  pressPrompt?(id: PromptId): void;
   /** Draws the volume level above the App, or removes it when undefined. */
   drawVolume(percent: number | undefined): void;
   /** Draws Couch's question over the App, or removes it when undefined. */

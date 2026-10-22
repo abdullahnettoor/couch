@@ -102,6 +102,44 @@ describe("Now Playing for a web App", () => {
     ]);
   });
 
+  test("a prompt shows while the App reports one; pressPrompt reaches the App for the showing id only", async () => {
+    const { tube, phone } = await start({ adapter: true });
+    const base = { position: 30, duration: 600, paused: false };
+    tube.emit({ type: "playback", playback: base });
+    await phone.waitFor(() => phone.last?.nowPlaying !== undefined);
+    expect(phone.last?.nowPlaying?.prompt).toBeUndefined();
+    await phone.press({ command: "pressPrompt", args: { id: "skipIntro" } });
+    expect(tube.calls.map((c) => c.call)).not.toContain("pressPrompt");
+
+    const prompt = { id: "skipIntro", label: "Skip Intro" } as const;
+    tube.emit({ type: "playback", playback: { ...base, prompt } });
+    await phone.waitFor(() => phone.last?.nowPlaying?.prompt !== undefined);
+    expect(phone.last?.nowPlaying?.prompt).toEqual(prompt);
+    await phone.press({ command: "pressPrompt", args: { id: "nextEpisode" } });
+    await phone.press({ command: "pressPrompt", args: { id: "skipIntro" } });
+    expect(tube.calls.filter((c) => c.call === "pressPrompt").map((c) => c.args)).toEqual([
+      ["skipIntro"],
+    ]);
+
+    tube.emit({ type: "playback", playback: base });
+    await phone.waitFor(() => phone.last?.nowPlaying?.prompt === undefined);
+  });
+
+  test("an App without an adapter shows no prompt", async () => {
+    const { tube, phone } = await start();
+    tube.emit({
+      type: "playback",
+      playback: {
+        position: 1,
+        duration: 9,
+        paused: false,
+        prompt: { id: "skipIntro", label: "x" },
+      },
+    });
+    await phone.waitFor(() => phone.last?.nowPlaying !== undefined);
+    expect(phone.last?.nowPlaying?.prompt).toBeUndefined();
+  });
+
   test("a report from an App that isn't in front is not shown", async () => {
     const { tube, phone } = await start();
     await phone.press("home");

@@ -1144,6 +1144,7 @@ export class Core {
         : {}),
       ...(report.tracks?.audio.length && front.setTrack ? { audio: report.tracks.audio } : {}),
       ...(report.artwork ? { artwork: report.artwork } : {}),
+      ...(report.prompt && front.pressPrompt ? { prompt: report.prompt } : {}),
     };
   }
 
@@ -1242,6 +1243,12 @@ export class Core {
         const { kind, track } = command.args ?? {};
         if ((kind === "subtitles" || kind === "audio") && track)
           this.#front()?.setTrack?.(kind, track);
+        break;
+      }
+      case "pressPrompt": {
+        const id = command.args?.id;
+        const shown = this.#front() && this.#playback.get(this.#front()!.id)?.prompt;
+        if (id && shown?.id === id) this.#front()?.pressPrompt?.(id);
         break;
       }
       case "volUp":

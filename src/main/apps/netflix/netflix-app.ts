@@ -1,4 +1,4 @@
-import type { Confirmation, TrackKind } from "../../../shared/protocol.ts";
+import type { Confirmation, PromptId, TrackKind } from "../../../shared/protocol.ts";
 import type { Clock } from "../../ports/clock.ts";
 import type { YouTube } from "../../ports/youtube.ts";
 import type { App, AppEvent, AppKey, AppTyping } from "../app.ts";
@@ -87,6 +87,9 @@ export class NetflixApp implements App {
   }
   seekTo(seconds: number) {
     this.#port.seekTo?.(seconds);
+  }
+  pressPrompt(id: PromptId) {
+    this.#port.pressPrompt?.(id);
   }
   setTrack(kind: TrackKind, id: string) {
     this.#port.setTrack?.(kind, id);

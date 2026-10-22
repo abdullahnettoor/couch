@@ -75,6 +75,18 @@ class FakeNetflix {
     this.menuOpened++;
   });
   menuOpened = 0;
+  /** Netflix's overlay buttons by data-uia (anonymised text); they sit outside the bar. */
+  overlays = new Map<string, El>();
+  addOverlay(uia: string, text: string, visible = true) {
+    const el = new El(uia, {}, text, () => this.overlays.delete(uia), {
+      left: 0,
+      top: 0,
+      width: visible ? 160 : 0,
+      height: visible ? 48 : 0,
+    });
+    this.overlays.set(uia, el);
+    return el;
+  }
   reveals = 0;
   seekClicks: { x: number; types: string[] }[] = [];
   video: any;
@@ -129,6 +141,7 @@ class FakeNetflix {
   query(sel: string): El | null {
     const uia = /^\[data-uia=([\w-]+)\]$/.exec(sel)?.[1];
     if (sel === "video") return this.video;
+    if (uia && this.overlays.has(uia)) return this.overlays.get(uia)!;
     if (uia === "selector-audio-subtitle") return this.menuOn ? (this.menuEl ?? this.menu()) : null;
     if (!this.barOn) return null;
     if (this.menuOn && (uia === "timeline" || uia === "timeline-knob")) return null;
@@ -337,5 +350,51 @@ describe("Netflix playback adapter", () => {
     expect(t).toEqual({ subtitles: [], audio: [], canSeek: true });
     expect(n.menuOpened).toBe(0);
     expect(n.reveals).toBe(0);
+  });
+});
+
+describe("Netflix prompts", () => {
+  const probe = (n: FakeNetflix) =>
+    n.run(playbackProbe({ active: playback.active!(), prompt: playback.prompt!() }));
+
+  test("no prompt while no overlay button is showing", async () => {
+    const n = new FakeNetflix();
+    expect((await probe(n)).prompt).toBeUndefined();
+    n.addOverlay("player-skip-intro", "Skip Intro", false);
+    expect((await probe(n)).prompt).toBeUndefined();
+  });
+
+  test.each([
+    ["player-skip-intro", "skipIntro", "Skip Intro"],
+    ["player-skip-recap", "skipRecap", "Skip Recap"],
+    ["next-episode-seamless-button", "nextEpisode", "Next Episode"],
+    ["next-episode-seamless-button-draining", "nextEpisode", "Next Episode"],
+  ])("%s is reported as %s with the page's own label", async (uia, id, label) => {
+    const n = new FakeNetflix();
+    n.addOverlay(uia, `  ${label}\n `);
+    expect((await probe(n)).prompt).toEqual({ id, label });
+  });
+
+  test("an empty label falls back to the prompt's name", async () => {
+    const n = new FakeNetflix();
+    n.addOverlay("player-skip-recap", "");
+    expect((await probe(n)).prompt).toEqual({ id: "skipRecap", label: "Skip Recap" });
+  });
+
+  test("pressPrompt clicks that button, and only a showing one", async () => {
+    const n = new FakeNetflix();
+    n.addOverlay("player-skip-intro", "Skip Intro");
+    n.run(playback.pressPrompt!("nextEpisode"));
+    expect(n.overlays.has("player-skip-intro")).toBe(true);
+    n.run(playback.pressPrompt!("skipIntro"));
+    expect(n.overlays.has("player-skip-intro")).toBe(false);
+    expect((await probe(n)).prompt).toBeUndefined();
+  });
+
+  test("the prompt survives composeReport", async () => {
+    const n = new FakeNetflix();
+    n.addOverlay("player-skip-intro", "Skip Intro");
+    const report = composeReport(await probe(n), undefined, true)!;
+    expect(report.prompt).toEqual({ id: "skipIntro", label: "Skip Intro" });
   });
 });

@@ -13,9 +13,9 @@ const MAIN_VIDEO_SHARE = 0.4;
  * while the App shows no real playback (a home-page preview), so nothing is reported then.
  */
 export function playbackProbe(
-  options: { tracks?: string; active?: string; artwork?: string } = {},
+  options: { tracks?: string; active?: string; artwork?: string; prompt?: string } = {},
 ): string {
-  const { tracks, active, artwork } = options;
+  const { tracks, active, artwork, prompt } = options;
   return `(async () => {
   ${active ? `try { if (!(${active})) return undefined; } catch (e) { return undefined; }` : ""}
   var area = window.innerWidth * window.innerHeight;
@@ -47,6 +47,7 @@ export function playbackProbe(
     }
   } catch (e) {}
   ${artwork ? `if (!report.artwork) { try { var own = ${artwork}; if (typeof own === "string") report.artwork = own; } catch (e) {} }` : ""}
+  ${prompt ? `try { var p = ${prompt}; if (p && typeof p.label === "string") report.prompt = { id: p.id, label: p.label }; } catch (e) {}` : ""}
   ${tracks ? `try { var t = await (${tracks}); if (t) report.tracks = t; } catch (e) {}` : ""}
   return report;
 })()`;
