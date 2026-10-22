@@ -52,6 +52,10 @@ export interface PlaybackAdapter {
   playPause?(): string;
   /** An expression giving an artwork URL (or falsy) for what plays, when the page's media session names none. */
   artwork?(): string;
+  /** The speeds the page's video can play at, when its `playbackRate` can be set directly (reported from the video). Without it an adapter's `tracks` may report `speed` and `speeds` itself. */
+  speeds?: number[];
+  /** Sets the playback speed (1 = normal). */
+  setSpeed?(speed: number): string;
   /** Chooses the track with this id from the list `tracks` gave. */
   setTrack?(kind: TrackKind, id: string): string;
 }

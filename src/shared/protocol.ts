@@ -42,6 +42,7 @@ export const COMMAND_NAMES = [
   "seekBy",
   "seekTo",
   "setTrack",
+  "setSpeed",
   "volSet",
   "playUpNext",
   "playNext",
@@ -80,6 +81,8 @@ export interface CommandArgs {
   /** setTrack: which list, and the track's id from the snapshot */
   kind?: TrackKind;
   track?: string;
+  /** setSpeed: the playback speed, e.g. 1.25 */
+  speed?: number;
   /** playUpNext: position in the Up next list */
   index?: number;
   /** toggleAddon: the add-on's id (YouTube's add-ons) */
@@ -398,6 +401,9 @@ export interface RemoteSnapshot {
     /** A web App's choices, when its adapter lists them. */
     subtitles?: TrackList;
     audio?: TrackList;
+    /** Playback speed now, and the choices; present only when the App can change speed (command `setSpeed`). */
+    speed?: number;
+    speeds?: number[];
     /** A web App's picture for the title (https). */
     artwork?: string;
     /** "Animation · Comedy": up to three genres, when details have them. */

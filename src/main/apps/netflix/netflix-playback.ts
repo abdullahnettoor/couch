@@ -19,6 +19,7 @@ const HELPERS = `
   var wakePointer = (${WAKE_POINTER_SOURCE});
   var reveal = async function () {
     if (barUp()) return;
+    window.__couchNfRevealAt = Date.now();
     for (var i = 1; i <= 6; i++) wakePointer(i);
     await sl(400);
   };
@@ -49,6 +50,49 @@ const HELPERS = `
     await sl(600);
     return menu();
   };
+  var speedMenu = function () { return $("watch-video-speed-controls"); };
+  var speedItems = function (m) {
+    var out = [];
+    Array.prototype.forEach.call(m.querySelectorAll("[data-uia^=playback-speed-item]"), function (li) {
+      var n = parseFloat(String(li.textContent || "").replace(",", "."));
+      if (n > 0) out.push({ n: n, on: /-active$/.test(li.getAttribute("data-uia") || ""), el: li });
+    });
+    return out;
+  };
+  var speedOpen = async function () {
+    var m = speedMenu();
+    if (m) return m;
+    var b = $("control-speed");
+    if (!b) return null;
+    b.click();
+    await sl(600);
+    return speedMenu();
+  };
+  var closeSpeed = function (m) { closeMenu($("playback-speed") || m); };
+  var speedKeep = function (items, on) {
+    var c = { speeds: items.map(function (i) { return i.n; }), speed: on };
+    c.key = location.pathname; c.at = Date.now(); c.ok = c.speeds.length > 0;
+    window.__couchNfSpeed = c;
+    return c;
+  };
+  var speedRead = async function () {
+    var c = window.__couchNfSpeed;
+    var m = speedMenu();
+    if (!m) {
+      if (c && c.key === location.pathname && (c.ok || Date.now() - c.at < 20000)) return c.ok ? c : null;
+      if (menu()) return null;
+      if (barUp() && !(Date.now() - (window.__couchNfRevealAt || 0) < 6000)) return null;
+      await reveal();
+      m = await speedOpen();
+      if (!m) { window.__couchNfSpeed = { key: location.pathname, at: Date.now(), ok: false }; return null; }
+      var open = false;
+    } else open = true;
+    var items = speedItems(m);
+    var cur = items.filter(function (i) { return i.on; })[0];
+    c = speedKeep(items, cur ? cur.n : 1);
+    if (!open) closeSpeed(m);
+    return c.ok ? c : null;
+  };
 `;
 
 /**
@@ -56,7 +100,10 @@ const HELPERS = `
  * own controls: seek clicks the timeline, tracks and setTrack work its Audio & Subtitles menu.
  * The controls are only in the page while the bar is up, so a missing one is only believed after
  * the bar was brought up. Subtitle and audio ids are Netflix's own item names. Only /watch counts
- * as playback: browse autoplays a billboard trailer.
+ * as playback: browse autoplays a billboard trailer. Speed is Netflix's own speed menu (0.5 to
+ * 1.5×), read with the tracks and set by clicking its items; the video's `playbackRate` is never
+ * written, and a title without the control offers no speed. Its menu only closes on an Escape
+ * sent to the inner `playback-speed` element.
  */
 export const NETFLIX_PLAYBACK: PlaybackAdapter = {
   active: () => `/^\\/watch\\//.test(location.pathname)`,
@@ -82,7 +129,8 @@ export const NETFLIX_PLAYBACK: PlaybackAdapter = {
   if (b) b.click();
 }catch(e){}})()`,
   tracks: () =>
-    `(async function(){try{${HELPERS}
+    `(async function(){${HELPERS}
+  var base = await (async function(){try{
   var key = location.pathname, c = window.__couchNfTracks;
   var out = function (x) { return { subtitles: x.subtitles, audio: x.audio, canSeek: x.canSeek }; };
   var m = menu();
@@ -100,7 +148,24 @@ export const NETFLIX_PLAYBACK: PlaybackAdapter = {
   c.key = key; c.at = Date.now();
   window.__couchNfTracks = c;
   return out(c);
-}catch(e){return { subtitles: [], audio: [], canSeek: false }}})()`,
+}catch(e){return { subtitles: [], audio: [], canSeek: false }}})();
+  try { var sp = await speedRead(); if (sp) { base.speed = sp.speed; base.speeds = sp.speeds; } } catch (e) {}
+  return base;
+})()`,
+  setSpeed: (speed) =>
+    `(async function(){try{${HELPERS}
+  var want = ${Number(speed)};
+  await reveal();
+  var open = !!speedMenu();
+  var m = await speedOpen();
+  if (!m) return;
+  var items = speedItems(m);
+  var hit = items.filter(function (i) { return Math.abs(i.n - want) < 0.001; })[0];
+  var cur = items.filter(function (i) { return i.on; })[0];
+  if (hit) { hit.el.click(); await sl(300); }
+  speedKeep(items, hit ? hit.n : cur ? cur.n : 1);
+  if (!open && speedMenu()) closeSpeed(speedMenu());
+}catch(e){}})()`,
   setTrack: (kind, id) =>
     `(async function(){try{${HELPERS}
   var kind = ${JSON.stringify(kind === "audio" ? "audio" : "subtitle")}, id = ${JSON.stringify(id)};

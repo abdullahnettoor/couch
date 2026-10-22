@@ -243,6 +243,26 @@ describe("playing a Library video", () => {
     expect(h.screen.last.state.volumeShown).toBe(false);
   });
 
+  test("setSpeed reaches mpv, the phone lists the choices, and each new video starts at 1×", async () => {
+    await start();
+    await playVideo();
+    expect(phone.last!.nowPlaying).toMatchObject({
+      speed: 1,
+      speeds: [0.5, 0.75, 1, 1.25, 1.5, 2],
+    });
+    expect(calls("setSpeed")).toHaveLength(0);
+    await phone.press({ command: "setSpeed", args: { speed: 1.5 } });
+    expect(calls("setSpeed").at(-1)!.args).toEqual([1.5]);
+    expect(phone.last!.nowPlaying!.speed).toBe(1.5);
+    await phone.press({ command: "setSpeed", args: { speed: 7 } });
+    expect(phone.last!.nowPlaying!.speed).toBe(1.5);
+    await phone.press("back");
+    await phone.press("ok");
+    expect(calls("load")).toHaveLength(2);
+    expect(calls("setSpeed").at(-1)!.args).toEqual([1]);
+    expect(phone.last!.nowPlaying!.speed).toBe(1);
+  });
+
   test("Back stops playback and returns to the folder", async () => {
     await start();
     await playVideo();

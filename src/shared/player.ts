@@ -74,6 +74,8 @@ export interface Player {
   seekBy(seconds: number): Promise<void>;
   seekTo(seconds: number): Promise<void>;
   setSubtitles(visible: boolean): Promise<void>;
+  /** Playback speed (mpv's `speed`), 1 = normal. */
+  setSpeed(speed: number): Promise<void>;
   /** Couch's own volume, 0-100: mpv's, never the Mac's. */
   setVolume(percent: number): Promise<void>;
   /** Play to this CoreAudio UID, or to the System default when undefined. */

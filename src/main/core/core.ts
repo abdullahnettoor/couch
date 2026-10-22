@@ -96,6 +96,9 @@ const OVERLAY_MS = 3000;
 const SAVE_EVERY_MS = 5000;
 const MPV_MISSING = "Couch needs mpv to play videos. Install it with: brew install mpv";
 const VOLUME_STEP = 5;
+const LIBRARY_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const SPEED_REAPPLY_MS = 3000;
+const videoKey = (report: PlaybackReport) => `${report.title ?? ""}|${report.duration}`;
 const APP_NOTE = "Press Home on your phone to come back";
 
 /** The single source of truth: holds the Screen state and turns commands into new state. */
@@ -128,6 +131,10 @@ export class Core {
   /** What each App was last told to draw over itself. */
   /** What each web App's page last reported playing; cleared when the App is hidden. */
   #playback = new Map<string, PlaybackReport>();
+  /** The speed the household chose for the playing Library video; 1 for every new video. */
+  #speed = 1;
+  /** A web App's chosen speed for the video it is playing (keyed by its title and length), and when it was last applied. */
+  #appSpeed = new Map<string, { speed: number; key: string; at: number }>();
   #shown = new Map<string, { volume?: number; confirm?: Confirmation; bar?: string }>();
   #confirmAnswers: [() => void, () => void] | undefined;
   /** The question core asked on behalf of an App's Back ("Leave <label>?"). */
@@ -705,6 +712,10 @@ export class Core {
     this.#upNextLabel = show?.name;
     const startSeconds = fromStart ? undefined : this.#history.resumeAt(path);
     this.#state.player = { path, pos: startSeconds ?? 0, dur: 0, paused: false };
+    if (this.#speed !== 1) {
+      this.#speed = 1;
+      this.#quiet(this.#ports.player.setSpeed(1));
+    }
     this.#state.view = "player";
     this.#controls.begin(upNext);
     this.#cancelNote?.();
@@ -1118,6 +1129,8 @@ export class Core {
             duration: s.player.dur,
             paused: s.player.paused,
             subtitlesOn: s.subtitlesOn,
+            speed: this.#speed,
+            speeds: LIBRARY_SPEEDS,
             ...this.#nowGenres(s.player.path),
           }
         : this.#appNowPlaying(front),
@@ -1125,6 +1138,44 @@ export class Core {
       volume: s.volume,
       remotes: s.remotes,
     };
+  }
+
+  #setSpeed(speed: number | undefined): void {
+    if (speed === undefined || !Number.isFinite(speed)) return;
+    const player = this.#state.player;
+    if (player) {
+      if (!LIBRARY_SPEEDS.includes(speed)) return;
+      this.#speed = speed;
+      this.#quiet(this.#ports.player.setSpeed(speed));
+      this.#emit();
+      return;
+    }
+    const front = this.#front();
+    const report = front && this.#playback.get(front.id);
+    if (!front?.setSpeed || !report?.speeds?.includes(speed)) return;
+    this.#appSpeed.set(front.id, { speed, key: videoKey(report), at: this.#ports.clock.now() });
+    front.setSpeed(speed);
+  }
+
+  /**
+   * A web App's video starts at 1× and keeps the chosen speed: a new video (another title or
+   * length) is set back to 1×, and a page that resets the rate is told again (at most every 3 s).
+   */
+  #holdAppSpeed(app: App, report: PlaybackReport): void {
+    if (!app.setSpeed || !report.speeds?.length || report.speed === undefined) return;
+    const now = this.#ports.clock.now();
+    const key = videoKey(report);
+    let want = this.#appSpeed.get(app.id);
+    if (want && want.key !== key) want = undefined;
+    if (!want) {
+      this.#appSpeed.delete(app.id);
+      if (report.speed === 1) return;
+      want = { speed: 1, key, at: 0 };
+      this.#appSpeed.set(app.id, want);
+    }
+    if (report.speed === want.speed || now - want.at < SPEED_REAPPLY_MS) return;
+    want.at = now;
+    app.setSpeed(want.speed);
   }
 
   /** Now Playing for the front web App, from what its page last reported. */
@@ -1143,6 +1194,9 @@ export class Core {
         ? { subtitles: report.tracks.subtitles }
         : {}),
       ...(report.tracks?.audio.length && front.setTrack ? { audio: report.tracks.audio } : {}),
+      ...(report.speeds?.length && front.setSpeed
+        ? { speed: report.speed ?? 1, speeds: report.speeds }
+        : {}),
       ...(report.artwork ? { artwork: report.artwork } : {}),
     };
   }
@@ -1244,6 +1298,9 @@ export class Core {
           this.#front()?.setTrack?.(kind, track);
         break;
       }
+      case "setSpeed":
+        this.#setSpeed(command.args?.speed);
+        break;
       case "volUp":
       case "volDown":
         this.#setVolume(
@@ -1633,6 +1690,7 @@ export class Core {
       if (this.#leaveConfirm && this.#state.confirm === this.#leaveConfirm) this.#dismissConfirm();
       this.#state.typingBy = undefined;
       this.#playback.delete(this.#state.app ?? "");
+      this.#appSpeed.delete(this.#state.app ?? "");
       this.#apps.get(this.#state.app ?? "")?.hide();
     }
     if (view !== "app" && view !== "appError") delete this.#state.app;
@@ -1702,8 +1760,13 @@ export class Core {
         this.#sound.appOutput(app.id, event.name, event.ok);
         return;
       case "playback":
-        if (event.playback) this.#playback.set(app.id, event.playback);
-        else this.#playback.delete(app.id);
+        if (event.playback) {
+          this.#playback.set(app.id, event.playback);
+          this.#holdAppSpeed(app, event.playback);
+        } else {
+          this.#playback.delete(app.id);
+          this.#appSpeed.delete(app.id);
+        }
         break;
       case "searchOpened":
         if (
