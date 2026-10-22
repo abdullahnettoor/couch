@@ -53,6 +53,11 @@ const fake = vi.hoisted(() => {
     }
     setUserAgent() {}
     setAudioMuted() {}
+    css: string[] = [];
+    async insertCSS(css: string) {
+      this.css.push(css);
+      return "key";
+    }
     focus() {}
     close() {}
     reload() {}
@@ -91,6 +96,7 @@ vi.mock("electron", () => {
 import { netflixDescription } from "../apps/netflix/netflix-web.ts";
 import { youtubeDescription } from "../apps/youtube/youtube-web.ts";
 import { ElectronWebApp } from "./electron-web-app.ts";
+import { HIDE_SCROLLBARS_CSS } from "./hide-scrollbars.ts";
 
 const win: any = {
   contentView: { addChildView() {}, removeChildView() {} },
@@ -186,5 +192,22 @@ describe("the phone's play/pause", () => {
       { type: "keyDown", keyCode: "MediaPlayPause" },
       { type: "keyUp", keyCode: "MediaPlayPause" },
     ]);
+  });
+});
+
+describe("desktop scrollbars", () => {
+  test("are hidden on every Netflix document", () => {
+    new ElectronWebApp(netflix, win);
+    const wc = fake.views.at(-1)!;
+    wc.emit("dom-ready");
+    wc.emit("dom-ready");
+    expect(wc.css).toEqual([HIDE_SCROLLBARS_CSS, HIDE_SCROLLBARS_CSS]);
+  });
+
+  test("are left alone for an App that doesn't ask (YouTube)", () => {
+    new ElectronWebApp(youtubeDescription("130.0.0.0"), win);
+    const wc = fake.views.at(-1)!;
+    wc.emit("dom-ready");
+    expect(wc.css).toEqual([]);
   });
 });

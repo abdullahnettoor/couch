@@ -17,6 +17,7 @@ import {
 } from "./page-focus.ts";
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import { requestHooksFor, type RequestHooks } from "./request-hooks.ts";
+import { HIDE_SCROLLBARS_CSS } from "./hide-scrollbars.ts";
 import { SessionPreloads } from "./session-preloads.ts";
 import type { IdleLifecycle } from "./idle-unload.ts";
 import { drmGate } from "./drm-gate.ts";
@@ -145,6 +146,8 @@ export class ElectronWebApp implements YouTube {
     });
     // A new document has none of Couch's volume or output yet.
     wc.on("dom-ready", () => {
+      // A style the page itself adds doesn't beat the site's own rules; Chromium's inserted CSS does.
+      if (this.#desc.hideScrollbars) void wc.insertCSS(HIDE_SCROLLBARS_CSS).catch(() => {});
       void this.#applySound();
       if (!this.#visible) this.#silence.hide();
     });

@@ -96,6 +96,8 @@ export interface WebAppDescription {
   drm?: boolean;
   /** App-specific main-world functions (source text) that run after `couchHooks` and before any add-on. */
   preloads: PagePreload[];
+  /** The site draws desktop scrollbars; hide them (scrolling still works). */
+  hideScrollbars?: boolean;
   /** Domains (with their subdomains) the App's own artwork comes from; Now Playing artwork from anywhere else is dropped, since every Remote fetches it. */
   artworkHosts?: string[];
   /** Present when the plain video isn't enough: seeking and tracks through the App's own player. */
