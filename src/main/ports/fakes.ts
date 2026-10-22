@@ -128,6 +128,12 @@ export class FakeYouTube implements YouTube {
   scrollToTop() {
     this.#record("scrollToTop");
   }
+  seekTo(seconds: number) {
+    this.#record("seekTo", seconds);
+  }
+  setTrack(kind: TrackKind, id: string) {
+    this.#record("setTrack", kind, id);
+  }
   submitSearch(text: string) {
     this.#record("submitSearch", text);
   }

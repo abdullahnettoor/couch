@@ -8,10 +8,12 @@ const MAIN_VIDEO_SHARE = 0.4;
 /**
  * Page script (an async expression) that finds the page's playing video and the site's
  * media-session title and artwork. `tracks` is an adapter's script (an expression); its answer
- * is added when it works.
+ * is added when it works. `active` is an adapter's expression that is false
+ * while the App shows no real playback (a home-page preview), so nothing is reported then.
  */
-export function playbackProbe(tracks?: string): string {
+export function playbackProbe(tracks?: string, active?: string): string {
   return `(async () => {
+  ${active ? `try { if (!(${active})) return undefined; } catch (e) { return undefined; }` : ""}
   var area = window.innerWidth * window.innerHeight;
   var best = null, bestArea = 0;
   Array.prototype.forEach.call(document.querySelectorAll("video"), function (v) {
