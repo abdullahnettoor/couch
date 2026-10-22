@@ -10,6 +10,7 @@ import { SessionPreloads } from "./session-preloads.ts";
 import type { WebAppDescription, WebIdentity } from "./web-app.ts";
 import { confirmScript, noteScript, searchBarScript, volumeScript } from "./web-hud.ts";
 import {
+  allowsPermission,
   LIST_OUTPUTS_SCRIPT,
   pickOutputId,
   SOUND_RECHECK,
@@ -58,11 +59,10 @@ export class ElectronWebApp implements YouTube {
       desc.identity.headersFor(new URL(details.url), details.requestHeaders),
     );
     // The view may ask the Mac for nothing (no microphone, no camera). Its media permission *check*
-    // is answered yes only while Couch itself lists the outputs (to read their names for setSinkId),
-    // and only for the App's own origin.
+    // is answered yes only for the App's own origin, and only for what choosing an output needs.
     ses.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
     ses.setPermissionCheckHandler((_wc, permission, origin) => {
-      return this.#enumerating && permission === "media" && desc.isOwnOrigin(origin);
+      return allowsPermission(permission, origin, this.#enumerating, (o) => desc.isOwnOrigin(o));
     });
     this.#hooks = hooks;
     this.#preloads = new SessionPreloads(ses, join(app.getPath("userData"), desc.id), desc.id);

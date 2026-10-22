@@ -33,6 +33,21 @@ export function pickOutputId(name: string, outputs: PageOutput[]): PickResult {
   return { error: found.length ? "ambiguous" : "none" };
 }
 
+/**
+ * The view's permission check. It may ask the Mac for nothing, except for its own origin: choosing
+ * an output (`speaker-selection`, which `setSinkId` checks itself; refused, the page stays on the
+ * System default) and, only while Couch lists the outputs, `media` (which unhides their names).
+ */
+export function allowsPermission(
+  permission: string,
+  origin: string,
+  enumerating: boolean,
+  isOwnOrigin: (origin: string) => boolean,
+): boolean {
+  if (!isOwnOrigin(origin)) return false;
+  return permission === "speaker-selection" || (enumerating && permission === "media");
+}
+
 /** Script that lists the page's audio outputs (labels need the view's narrow `media` permission check). */
 export const LIST_OUTPUTS_SCRIPT = `navigator.mediaDevices.enumerateDevices().then(function(d){return d.filter(function(x){return x.kind==='audiooutput'}).map(function(x){return {deviceId:x.deviceId,label:x.label}})})`;
 

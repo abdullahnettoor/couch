@@ -1,5 +1,6 @@
 import { expect, test } from "vite-plus/test";
-import { pickOutputId } from "./web-sound.ts";
+import { isYouTubeOrigin } from "../apps/youtube/youtube-route.ts";
+import { allowsPermission, pickOutputId } from "./web-sound.ts";
 
 // What Chromium reported for this Mac's outputs (labels as the view sees them).
 const OUTPUTS = [
@@ -39,4 +40,22 @@ test("a whole name beats a longer name that merely starts with it", () => {
     { deviceId: "b", label: "Studio Display Speakers (Built-in)" },
   ];
   expect(pickOutputId("Studio Display", outputs)).toEqual({ id: "a" });
+});
+
+const own = isYouTubeOrigin;
+
+test("the view may pick its output (speaker-selection) for its own origin, whenever setSinkId asks", () => {
+  expect(allowsPermission("speaker-selection", "https://www.youtube.com/", false, own)).toBe(true);
+  expect(allowsPermission("speaker-selection", "https://evil.example/", false, own)).toBe(false);
+});
+
+test("output names (media check) are readable only while Couch lists them, for the own origin", () => {
+  expect(allowsPermission("media", "https://www.youtube.com/", true, own)).toBe(true);
+  expect(allowsPermission("media", "https://www.youtube.com/", false, own)).toBe(false);
+  expect(allowsPermission("media", "https://evil.example/", true, own)).toBe(false);
+});
+
+test("nothing else is granted", () => {
+  for (const p of ["geolocation", "notifications", "background-sync"])
+    expect(allowsPermission(p, "https://www.youtube.com/", true, own)).toBe(false);
 });
