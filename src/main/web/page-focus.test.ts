@@ -47,11 +47,9 @@ class El {
   focused = false;
   tagName: string;
   isContentEditable = false;
-  constructor(
-    public name: string,
-    rect: Box,
-    tagName = "BUTTON",
-  ) {
+  name: string;
+  constructor(name: string, rect: Box, tagName = "BUTTON") {
+    this.name = name;
     this.rect = rect;
     this.tagName = tagName;
   }
