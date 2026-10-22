@@ -97,8 +97,8 @@ export function runFocusScript(script: string, env: FocusEnv) {
     }
     clock = end;
   };
-  const fire = (type: string, target: unknown) => {
-    for (const f of listeners[type] ?? []) f({ type, target });
+  const fire = (type: string, target: unknown, extra: object = {}) => {
+    for (const f of listeners[type] ?? []) f({ type, target, ...extra });
   };
   const run = (source: string): unknown => vm.runInContext(source, sandbox);
   return { key, ring, mutate, fire, flush, wait, logs, location, run };

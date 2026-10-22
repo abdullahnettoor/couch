@@ -690,6 +690,25 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     window.__couchPopupOpen = function () {
       try { return !noRing() && !!scopeEl(); } catch (e) { return false; }
     };
+    // D-pad mode: after a key the pointer is hidden and inert (a mouse resting over a row would otherwise
+    // hover it); real mouse movement beyond a few pixels ends it. Couch's synthetic events are untrusted: ignored.
+    var DPAD = 'data-couch-dpad', dpadAnchor = null;
+    try {
+      var de = document.documentElement, st = document.createElement('style');
+      st.textContent = 'html[' + DPAD + '] body, html[' + DPAD + '] body * { pointer-events: none !important; cursor: none !important; }';
+      if (de && de.appendChild) de.appendChild(st);
+    } catch (e) {}
+    var dpadOn = function () {
+      try { dpadAnchor = null; document.documentElement.setAttribute(DPAD, ''); } catch (e) {}
+    };
+    addEventListener('keydown', dpadOn, true);
+    addEventListener('mousemove', function (e) {
+      try {
+        if (!e.isTrusted) return;
+        if (!dpadAnchor) { dpadAnchor = { x: e.clientX, y: e.clientY }; return; }
+        if (Math.abs(e.clientX - dpadAnchor.x) + Math.abs(e.clientY - dpadAnchor.y) > 8) document.documentElement.removeAttribute(DPAD);
+      } catch (err) {}
+    }, true);
     addEventListener('keydown', onBarKey, true);
     addEventListener('keydown', onKey, false);
     addEventListener('focusin', function (e) {
