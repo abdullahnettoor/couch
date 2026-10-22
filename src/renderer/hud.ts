@@ -1,4 +1,4 @@
-import { describeConfirm } from "../shared/confirm-layout.ts";
+import { confirmMouseCommand, describeConfirm } from "../shared/confirm-layout.ts";
 import type { ScreenPayload } from "../shared/protocol.ts";
 import { ICON_PATHS } from "../shared/icons.ts";
 
@@ -47,6 +47,13 @@ export function renderConfirm(payload: ScreenPayload): void {
     const b = document.createElement("span");
     b.textContent = button.label;
     style(b, button.style);
+    b.addEventListener("mouseenter", () =>
+      window.couch.send(confirmMouseCommand("hover", button.index)),
+    );
+    b.addEventListener("click", (event) => {
+      event.stopPropagation();
+      window.couch.send(confirmMouseCommand("click", button.index));
+    });
     row.append(b);
   }
   box.append(title, row);

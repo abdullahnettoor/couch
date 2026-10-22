@@ -270,6 +270,7 @@ svg.i {
 }
 .confirm.show {
   opacity: 1;
+  pointer-events: auto;
 }
 .confirm .box {
   color: #fff;

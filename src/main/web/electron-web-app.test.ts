@@ -211,3 +211,17 @@ describe("desktop scrollbars", () => {
     expect(wc.css).toEqual([]);
   });
 });
+
+describe("the page's confirmation buttons", () => {
+  test("a click or hover in the page becomes an event", async () => {
+    const web = await startedNetflix();
+    const events: unknown[] = [];
+    web.onEvent((e) => events.push(e));
+    contents.emit("console-message", { message: "couch:confirm:1" });
+    contents.emit("console-message", { message: "couch:confirm-hover:0" });
+    expect(events).toEqual([
+      { type: "confirm", index: 1, answer: true },
+      { type: "confirm", index: 0, answer: false },
+    ]);
+  });
+});

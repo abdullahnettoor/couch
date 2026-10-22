@@ -33,6 +33,8 @@ export type YouTubeEvent =
   | { type: "output"; name: string; ok: boolean }
   /** ⌘F or / on the Mac keyboard: the household wants to type a search with it. */
   | { type: "find" }
+  /** A mouse hover (answer false) or click (true) on button `index` of the confirmation the page draws. */
+  | { type: "confirm"; index: number; answer: boolean }
   /** A key while text capture is on, already turned into an edit of the search text. */
   | { type: "edit"; edit: TextEdit };
 

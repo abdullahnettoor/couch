@@ -23,6 +23,9 @@ font:'600 '+px(22)+'/1 -apple-system,"SF Pro Text",system-ui,sans-serif',backgro
 'box-shadow':${JSON.stringify(COLORS["glass-edge"])}+',0 24px 70px rgba(0,0,0,.35)'})}
 `;
 
+/** Console messages the page's confirmation buttons send: `couch:confirm:N` (click), `couch:confirm-hover:N`. */
+export const CONFIRM_MESSAGE = /^couch:confirm(-hover)?:(\d+)$/;
+
 /** Script that shows the volume level, or removes it when `percent` is undefined. */
 export function volumeScript(percent: number | undefined): string {
   if (percent === undefined) {
@@ -92,6 +95,8 @@ var d=document.createElement('div');glass(d);
 css(d,{position:'static'});css(d,${obj(d.boxStyle)});
 var t=document.createElement('span');t.textContent=${JSON.stringify(d.title)};
 var r=document.createElement('div');css(r,${obj(d.rowStyle)});
-[${d.buttons.map((b) => `[${JSON.stringify(b.label)},${obj(b.style)}]`).join(",")}].forEach(function(x){var b=document.createElement('span');b.textContent=x[0];css(b,x[1]);r.appendChild(b)});
+[${d.buttons.map((b) => `[${JSON.stringify(b.label)},${obj(b.style)}]`).join(",")}].forEach(function(x,i){var b=document.createElement('span');b.textContent=x[0];css(b,x[1]);css(b,{'pointer-events':'auto'});
+b.addEventListener('mouseenter',function(){console.debug('couch:confirm-hover:'+i)});
+b.addEventListener('click',function(e){e.stopPropagation();console.debug('couch:confirm:'+i)});r.appendChild(b)});
 d.appendChild(t);d.appendChild(r);w.appendChild(d);document.body.appendChild(w)})()`;
 }

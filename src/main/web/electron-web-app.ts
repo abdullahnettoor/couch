@@ -31,7 +31,13 @@ import {
 } from "./playback.ts";
 import { seekPlan } from "./seek-plan.ts";
 import type { WebAppDescription, WebIdentity } from "./web-app.ts";
-import { confirmScript, noteScript, searchBarScript, volumeScript } from "./web-hud.ts";
+import {
+  CONFIRM_MESSAGE,
+  confirmScript,
+  noteScript,
+  searchBarScript,
+  volumeScript,
+} from "./web-hud.ts";
 import {
   allowsPermission,
   LIST_OUTPUTS_SCRIPT,
@@ -142,6 +148,9 @@ export class ElectronWebApp implements YouTube {
       const message = (event as { message?: string }).message;
       if (message === SOUND_RECHECK) void this.#resolveOutput();
       if (message === FIELD_FOCUSED) this.#fieldFocused = true;
+      const pick = message === undefined ? undefined : CONFIRM_MESSAGE.exec(message);
+      if (pick)
+        this.#emit({ type: "confirm", index: Number(pick[2]), answer: pick[1] === undefined });
       if (message === FIELD_BLURRED) this.#fieldFocused = false;
     });
     // A new document has none of Couch's volume or output yet.
