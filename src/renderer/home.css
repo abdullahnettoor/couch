@@ -185,8 +185,16 @@
   width: calc(76 * var(--u));
   height: calc(76 * var(--u));
 }
-.youtube-face {
-  background: linear-gradient(160deg, #ff3b30, #c4141f);
+.youtube-face,
+.netflix-face {
+  background: linear-gradient(160deg, #3a3a3e, #17171a);
+}
+.h-app .youtube-face svg {
+  width: calc(112 * var(--u));
+}
+.h-app .netflix-face svg {
+  width: calc(80 * var(--u));
+  height: calc(112 * var(--u));
 }
 .library-face {
   background: linear-gradient(160deg, #f5f5f7, #c9c9cf);
