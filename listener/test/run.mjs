@@ -55,7 +55,7 @@ async function setup({
   writeFileSync(join(web, "icon-512.png"), "PNG512");
   writeFileSync(
     join(web, "manifest.webmanifest"),
-    JSON.stringify({ name: "Couch Remote", start_url: "__START_URL__" }),
+    JSON.stringify({ name: "Couch", start_url: "/" }),
   );
   if (key) writeFileSync(join(support, "pairing.json"), JSON.stringify({ key }));
   const [port, appPort] = [await freePort(), await freePort()];
@@ -155,17 +155,15 @@ test("wrong or missing keys get 401, and a missing pairing accepts nothing", asy
   assert.equal(await rejected(bare, ""), 401);
 });
 
-test("while off it serves the manifest with a start URL that keeps the pairing key", async () => {
+test("while off it serves a key-free manifest", async () => {
   const env = await setup();
   const res = await fetch(env.url("/manifest.webmanifest?key=" + KEY));
   assert.equal(res.status, 200);
   assert.match(res.headers.get("content-type"), /^application\/manifest\+json/);
-  assert.equal((await res.json()).start_url, "/?key=" + KEY);
-  assert.equal(
-    (await (await fetch(env.url("/manifest.webmanifest?key=wrong"))).json()).start_url,
-    "/",
-  );
-  assert.equal((await (await fetch(env.url("/manifest.webmanifest"))).json()).start_url, "/");
+  const text = await res.text();
+  assert.ok(!text.includes(KEY));
+  assert.equal(JSON.parse(text).start_url, "/");
+  assert.equal(JSON.parse(text).name, "Couch");
   assert.equal(await (await fetch(env.url("/icon-512.png"))).text(), "PNG512");
 });
 

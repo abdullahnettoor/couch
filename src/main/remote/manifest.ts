@@ -1,9 +1,9 @@
-/** The Remote's web app manifest. `startUrl` carries the pairing key so a home-screen launch still connects. */
-export function remoteManifest(startUrl: string): string {
+/** The Remote's web app manifest. `start_url` is key-free: the page reads the pairing key saved in localStorage. */
+export function remoteManifest(): string {
   return JSON.stringify({
-    name: "Couch Remote",
+    name: "Couch",
     short_name: "Couch",
-    start_url: startUrl,
+    start_url: "/",
     scope: "/",
     display: "standalone",
     theme_color: "#161412",
@@ -14,6 +14,3 @@ export function remoteManifest(startUrl: string): string {
     ],
   });
 }
-
-/** What the listener's copy holds in place of the start URL; it fills this in per request. */
-export const START_URL_PLACEHOLDER = "__START_URL__";

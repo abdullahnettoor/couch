@@ -1,8 +1,9 @@
 import { glassTokensCss } from "../../shared/glass-tokens.ts";
 import { ICON_MARKUP } from "../../shared/icons.ts";
 
-/** Back, Home and Mute: the top of Now Playing and of its D-pad view. */
-const BAR = `<button data-cmd="back" aria-label="Back" data-i="backArrow"></button><button data-cmd="home" aria-label="Home" data-i="home"></button><button class="mutebtn" data-cmd="mute" aria-label="Mute" data-i="speaker"></button>`;
+/** Back, Home and Mute: the top of Now Playing, its D-pad view and the idle Remote; `p` keeps the Back ids apart. */
+const bar = (p: string) =>
+  `<button data-cmd="back" aria-label="Back" data-i="backArrow" id="${p}-back"></button><button data-cmd="home" aria-label="Home" data-i="home"></button><button class="mutebtn" data-cmd="mute" aria-label="Mute" data-i="speaker"></button>`;
 /** The compact volume pill (− level +) of Now Playing and the idle Remote; `p` keeps the ids apart. */
 const vpill = (p: string) =>
   `<div class="vpill" id="${p}-vol"><button data-cmd="volDown" aria-label="Volume down" data-i="minus"></button><b id="${p}-vol-n" role="status" aria-label="Volume"></b><button data-cmd="volUp" aria-label="Volume up" data-i="plus"></button></div>`;
@@ -67,25 +68,20 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .cw .txt b { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .cw .go { width:44px; height:44px; border-radius:22px; background:#fff; color:#000; display:grid; place-items:center; font-size:22px; flex:none; }
   .other { margin-top:16px; padding:12px 16px; border-radius:14px; background:var(--card); font-size:14px; color:var(--t2); }
-  body.idle { width:100%; height:100dvh; min-height:0; overflow:hidden; padding:max(10px, env(safe-area-inset-top)) 20px max(14px, env(safe-area-inset-bottom)); }
-  body.idle .top { font-size:12px; }
-  body.idle .top b { display:inline; font-size:13px; margin:0 0 0 6px; }
-  body.idle .pbtn { width:32px; height:32px; font-size:16px; margin-left:8px; }
+  body.idle, body.np { width:100%; height:100dvh; min-height:0; overflow:hidden; padding:max(10px, env(safe-area-inset-top)) 20px max(14px, env(safe-area-inset-bottom)); }
+  body.idle .top, body.np .top { font-size:12px; }
+  body.idle .top b, body.np .top b { display:inline; font-size:13px; margin:0 0 0 6px; }
+  body.idle .pbtn, body.np .pbtn { width:32px; height:32px; font-size:16px; margin-left:8px; }
   body.idle main { min-height:0; gap:8px; padding-top:8px; }
-  body.idle .bar { grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:1fr; }
   body.idle .cw, body.idle .search { margin:0; flex:none; }
   body.idle .search { height:52px; }
   .padwrap { flex:1; min-height:0; display:grid; place-items:center; }
   body.idle .pad { margin:0; width:min(320px, 82vw, 100%, 46dvh); }
   body.idle .other { margin:0; }
   body.idle .vpill { margin-top:2px; }
-  body.np { width:100%; height:100dvh; min-height:0; overflow:hidden; padding:max(10px, env(safe-area-inset-top)) 20px max(14px, env(safe-area-inset-bottom)); }
-  body.np .top { font-size:12px; }
-  body.np .top b { display:inline; font-size:13px; margin:0 0 0 6px; }
-  body.np .pbtn { width:32px; height:32px; font-size:16px; margin-left:8px; }
   .nowp, .npad { flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; padding-top:8px; transition:opacity .2s; }
   .off .nowp, .off .npad { opacity:.35; pointer-events:none; }
-  .bar { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; flex:none; }
+  .bar { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:10px; flex:none; }
   .bar button { height:44px; border-radius:22px; background:var(--glass); box-shadow:var(--glass-edge); backdrop-filter:blur(30px) saturate(1.6); -webkit-backdrop-filter:blur(30px) saturate(1.6); display:flex; align-items:center; justify-content:center; gap:8px; font-size:22px; color:var(--t1); transition:transform .12s; }
   .bar button:active { transform:scale(.95); background:rgba(255,255,255,.14); }
   .bar button.on { background:#fff; color:#000; }
@@ -180,7 +176,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 <div class="banner" id="banner" hidden>Can't reach Couch. Is the Mac awake and Couch open?</div>
 <div class="note" id="hint" hidden>Still nothing? Scan the QR code on the Screen again to pair this phone.</div>
 <section class="nowp" id="nowp" hidden>
-  <div class="bar">__BAR__</div>
+  <div class="bar">__BAR_NP__</div>
   <div class="art" id="np-art" role="button" aria-label="Play or pause. Swipe sideways to skip, up or down for volume.">
     <div class="face" id="np-face"></div>
     <div class="toast" id="np-toast" role="status" aria-live="polite"></div>
@@ -203,7 +199,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   __VPILL_NP__
 </section>
 <section class="npad" id="npad" hidden>
-  <div class="bar">__BAR__</div>
+  <div class="bar">__BAR_PAD__</div>
   <div class="hint">Menus on the Screen</div>
   <div class="pad">__PAD__</div>
   <button class="back" id="npad-back"><span data-i="monitorPlay"></span>Now Playing</button>
@@ -212,7 +208,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   <div class="rows" id="np-rows" role="dialog"></div>
 </div>
 <main id="controls">
-  <div class="bar" id="ibar">__BAR__<button id="gear" data-cmd="openSettings" aria-label="Settings" data-i="gear" hidden></button></div>
+  <div class="bar" id="ibar">__BAR_ID__<button id="gear" data-cmd="openSettings" aria-label="Settings" data-i="gear" hidden></button></div>
   <button class="cw" id="cw" data-cmd="resume" hidden><span class="pic" id="cw-pic"></span><span class="txt"><b id="cw-title"></b><span class="l" id="cw-left"></span></span><span class="go" data-i="play"></span></button>
   <button class="search" id="fixbtn" data-cmd="menu" hidden><span id="fix-label">Fix match</span></button>
   <button class="search" id="search" data-cmd="typeOpen" hidden><span data-i="search"></span><span id="search-label">Search</span></button>
@@ -244,8 +240,6 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     for (var i = 0; i < els.length; i++) els[i].insertAdjacentHTML("afterbegin", icon(els[i].getAttribute("data-i")));
   }
   fill(document);
-  var manifestLink = document.getElementById("manifest");
-  if (manifestLink && key) manifestLink.href = "/manifest.webmanifest?key=" + encodeURIComponent(key);
   function thumb(k) { return "url(/thumb/" + k + ".jpg?key=" + encodeURIComponent(key) + ")"; }
 
   function setOnline(on) {
@@ -379,6 +373,8 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     document.body.classList.toggle("np", !!np);
     document.body.classList.toggle("idle", !np);
     $("gear").hidden = L !== "home";
+    var noBack = L === "home" && !np && !s.confirm;
+    $("id-back").hidden = $("np-back").hidden = $("pad-back").hidden = noBack;
     $("nowp").hidden = !np || padOpen;
     $("npad").hidden = !np || !padOpen;
     $("controls").hidden = !!np;
@@ -396,7 +392,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       $("cw-pic").style.backgroundImage = s.continueCard.thumbKey ? thumb(s.continueCard.thumbKey) : "none";
     }
     $("fixbtn").hidden = !s.fixAvailable || !!np;
-    $("search").hidden = !(s.typeLabel && s.typeAvailable) || !!np;
+    $("search").hidden = !(s.typeLabel && s.typeAvailable) || !!np || !!s.fixAvailable;
     $("search-label").textContent = s.typeLabel || "Search";
     $("search").classList.toggle("dim", !s.typeAvailable);
     $("other").hidden = s.typing !== "other" && s.typing !== "screen";
@@ -557,7 +553,9 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 </body>
 </html>
 `
-  .replaceAll("__BAR__", BAR)
+  .replaceAll("__BAR_NP__", bar("np"))
+  .replaceAll("__BAR_PAD__", bar("pad"))
+  .replaceAll("__BAR_ID__", bar("id"))
   .replaceAll("__PAD__", PAD)
   .replace("__VPILL_NP__", vpill("np"))
   .replace("__VPILL_ID__", vpill("id"))

@@ -142,11 +142,7 @@ final class Server {
     case "/icon-512.png":
       s.respond(file: cfg.icons + "/icon-512.png", type: "image/png", cache: "public, max-age=86400")
     case "/manifest.webmanifest":
-      var start = "/"
-      if let k = head.key, pairing.accepts(k) {
-        start = "/?key=" + (k.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? "")
-      }
-      s.respond(file: cfg.icons + "/manifest.webmanifest", type: "application/manifest+json; charset=utf-8", cache: "no-store", replacing: ("__START_URL__", start))
+      s.respond(file: cfg.icons + "/manifest.webmanifest", type: "application/manifest+json; charset=utf-8", cache: "no-store")
     case "/touch-icon.png":
       s.respond(file: cfg.icons + "/touch-icon.png", type: "image/png", cache: "public, max-age=86400")
     default:
@@ -216,11 +212,8 @@ final class Incoming: Session {
     send("HTTP/1.1 \(status)\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", body: Data())
   }
 
-  func respond(file: String, type: String, cache: String, unpaired: Bool = false, replacing: (String, String)? = nil) {
+  func respond(file: String, type: String, cache: String, unpaired: Bool = false) {
     guard var body = FileManager.default.contents(atPath: file) else { return respond(status: "404 Not Found") }
-    if let (from, to) = replacing, let text = String(data: body, encoding: .utf8) {
-      body = Data(text.replacingOccurrences(of: from, with: to).utf8)
-    }
     if unpaired {
       // Tells the page nothing can be paired yet; no phone can connect until Couch has made a key.
       let flag = Data("<script>window.COUCH_UNPAIRED=true</script>".utf8)

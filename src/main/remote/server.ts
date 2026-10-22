@@ -104,13 +104,11 @@ export async function startRemoteServer(
     if (path === "/local/quit") return localQuit(req, res);
     const icon = Object.hasOwn(ICON_FILES, path) ? ICON_FILES[path] : undefined;
     if (path === "/manifest.webmanifest") {
-      const key = new URL(req.url ?? "/", "http://localhost").searchParams.get("key");
-      const start = key && core.acceptsKey(key) ? `/?key=${encodeURIComponent(key)}` : "/";
       res.writeHead(200, {
         "content-type": "application/manifest+json; charset=utf-8",
         "cache-control": "no-store",
       });
-      res.end(remoteManifest(start));
+      res.end(remoteManifest());
     } else if (path === "/") {
       res.writeHead(200, {
         "content-type": "text/html; charset=utf-8",

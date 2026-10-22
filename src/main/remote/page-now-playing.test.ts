@@ -220,6 +220,36 @@ describe("the idle Remote", () => {
     expect(hidden("fixbtn")).toBe(false);
   });
 
+  test("Library with both Fix match and Search available shows only Fix match", () => {
+    idle({
+      layout: "librarySearch",
+      typeLabel: "Search Library",
+      typeAvailable: true,
+      fixAvailable: true,
+    });
+    expect(hidden("fixbtn")).toBe(false);
+    expect(hidden("search")).toBe(true);
+  });
+
+  test("Back is hidden on Home with no question, and shown with a question or on any other page", () => {
+    const backs = () => ["id-back", "np-back", "pad-back"].map(hidden);
+    idle({ layout: "home", where: "Home" });
+    expect(backs()).toEqual([true, true, true]);
+    expect(hidden("gear")).toBe(false);
+    idle({
+      layout: "home",
+      where: "Home",
+      confirm: { title: "Turn off?", buttons: ["Stay"], focus: 0 },
+    });
+    expect(backs()).toEqual([false, false, false]);
+    idle({ layout: "home", where: "Home" });
+    expect(backs()).toEqual([true, true, true]);
+    for (const layout of ["app", "other", "librarySearch"]) {
+      idle({ layout });
+      expect(backs()).toEqual([false, false, false]);
+    }
+  });
+
   test("Settings and other pages show no card", () => {
     idle({ layout: "other", where: "Settings", view: "settings" });
     expect(hidden("cw")).toBe(true);

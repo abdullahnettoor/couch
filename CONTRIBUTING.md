@@ -106,3 +106,7 @@ For a site that plays Widevine video (Netflix is the model: `src/main/apps/netfl
 - An add-on or hook must not throw into the page: guard with checks and return `undefined` when unsure. (A throwing modifier is skipped and warned about once, but don't rely on that.)
 - UI words follow `GLOSSARY.md`. Settings strings are short, plain and in the household's words.
 - Keep changes small and in the surrounding style; `vp check` must show 0 errors and `vp test run` must pass.
+
+## Remote home-screen app
+
+The manifest never holds the pairing key: `start_url` is `/` and the page reads the key saved in localStorage. An Android home-screen app shares the browser's storage; an iPhone home-screen app has its own, so it may need one QR scan from inside it.
