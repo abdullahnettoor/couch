@@ -256,3 +256,54 @@ describe("Quit Couch?", () => {
     expect(h.screen.last.state.confirm).toBeUndefined();
   });
 });
+
+describe("answering with the mouse (Screen only)", () => {
+  test("hovering a button focuses it without answering", () => {
+    h.app.askQuit();
+    h.app.screenCommand({ command: "focusAt", args: { r: 0, c: 1 } });
+    expect(h.screen.last.state.confirm?.focus).toBe(1);
+    expect(quits()).toHaveLength(0);
+    h.app.screenCommand({ command: "focusAt", args: { r: 0, c: 0 } });
+    expect(h.screen.last.state.confirm?.focus).toBe(0);
+  });
+
+  test("clicking Quit answers it like OK on that button", () => {
+    h.app.askQuit();
+    h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
+    expect(quits()).toHaveLength(1);
+    expect(h.screen.last.state.confirm).toBeUndefined();
+  });
+
+  test("clicking Cancel dismisses Quit Couch? without quitting", () => {
+    h.app.askQuit();
+    h.app.screenCommand({ command: "confirmAt", args: { index: 0 } });
+    expect(quits()).toHaveLength(0);
+    expect(h.screen.last.state.confirm).toBeUndefined();
+  });
+
+  test("a phone cannot answer by index", async () => {
+    h.app.askQuit();
+    phone.send({ command: "confirmAt", args: { index: 1 } } as never);
+    await phone.settle();
+    expect(quits()).toHaveLength(0);
+    expect(h.screen.last.state.confirm?.title).toBe("Quit Couch?");
+  });
+
+  test("clicking Go to Home on Leave YouTube? leaves", async () => {
+    await openYouTube();
+    route(true);
+    await phone.press("back");
+    h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
+    expect(h.screen.last.state.confirm).toBeUndefined();
+    expect(h.screen.last.state.view).toBe("home");
+  });
+
+  test("the page's confirmation buttons report a click and hover back", async () => {
+    await openYouTube();
+    route(true);
+    await phone.press("back");
+    h.youtube.emit({ type: "confirm", index: 1, answer: true });
+    expect(h.screen.last.state.confirm).toBeUndefined();
+    expect(h.screen.last.state.view).toBe("home");
+  });
+});

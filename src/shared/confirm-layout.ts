@@ -1,5 +1,5 @@
 import { COLORS } from "./glass-tokens.ts";
-import type { Confirmation } from "./protocol.ts";
+import type { Command, Confirmation } from "./protocol.ts";
 
 /** Design pixels (a 1920-wide Screen) and colours of the question box, shared by the Screen and the YouTube page. */
 export const CONFIRM_LAYOUT = {
@@ -20,7 +20,15 @@ export const CONFIRM_LAYOUT = {
   },
 } as const;
 
+/** What the Screen sends when the mouse hovers (focus) or clicks (answer) confirmation button `index`. */
+export function confirmMouseCommand(kind: "hover" | "click", index: number): Command {
+  return kind === "hover"
+    ? { command: "focusAt", args: { r: 0, c: index } }
+    : { command: "confirmAt", args: { index } };
+}
+
 export interface ConfirmButtonView {
+  index: number;
   label: string;
   focused: boolean;
   /** Style properties for this button, lengths in design pixels converted by `px`. */
@@ -33,9 +41,11 @@ export function describeConfirm(confirm: Confirmation, px: (n: number) => string
   const buttons: ConfirmButtonView[] = confirm.buttons.map((label, i) => {
     const focused = i === confirm.focus;
     return {
+      index: i,
       label,
       focused,
       style: {
+        cursor: "pointer",
         display: "inline-flex",
         "align-items": "center",
         height: px(b.height),

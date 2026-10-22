@@ -60,7 +60,7 @@ const LIBRARY_VIEWS = ["library", "folder", "libraryFolders"];
 /** Views where a phone's Search button opens the Library search. */
 const TYPING_VIEW = { search: "app", tmdbKey: "details", librarySearch: "librarySearch" };
 type Purpose = keyof typeof TYPING_VIEW;
-const SCREEN_ONLY = ["focusAt", "showControls", "find", "screenKey"];
+const SCREEN_ONLY = ["focusAt", "showControls", "find", "screenKey", "confirmAt"];
 const NAV = ["up", "down", "left", "right"];
 /** Views the Library search's query and focus survive, so Back returns to them. */
 const SEARCH_KEEPS: View[] = ["librarySearch", "show", "fixMatch", "player"];
@@ -1565,6 +1565,19 @@ export class Core {
     const c = this.#state.confirm;
     if (!c) return false;
     switch (command.command) {
+      case "focusAt": {
+        const i = command.args?.c;
+        if (i === 0 || i === 1) c.focus = i;
+        break;
+      }
+      case "confirmAt": {
+        const i = command.args?.index;
+        if (i !== 0 && i !== 1) return true;
+        const answer = this.#confirmAnswers?.[i];
+        this.#dismissConfirm();
+        answer?.();
+        break;
+      }
       case "left":
       case "up":
         c.focus = 0;
@@ -1831,6 +1844,15 @@ export class Core {
         break;
       case "key":
         this.handle({ command: event.command }, "screen");
+        return;
+      case "confirm":
+        if (!front || !this.#state.confirm) return;
+        this.handle(
+          event.answer
+            ? { command: "confirmAt", args: { index: event.index } }
+            : { command: "focusAt", args: { r: 0, c: event.index } },
+          "screen",
+        );
         return;
       case "find":
         if (this.#state.view === "app" && front) this.handle({ command: "find" }, "screen");

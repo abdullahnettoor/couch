@@ -62,7 +62,7 @@ export const COMMAND_NAMES = [
 export type CommandName = (typeof COMMAND_NAMES)[number];
 
 /** Commands only the Screen itself may send (mouse hover). Never in COMMAND_NAMES, so Remotes can't. */
-export type ScreenOnlyCommandName = "focusAt" | "showControls" | "find" | "screenKey";
+export type ScreenOnlyCommandName = "focusAt" | "showControls" | "find" | "screenKey" | "confirmAt";
 
 export type PromptId = "skipIntro" | "skipRecap" | "nextEpisode";
 
@@ -91,7 +91,7 @@ export interface CommandArgs {
   speed?: number;
   /** pressPrompt: which prompt (nowPlaying.prompt.id) */
   id?: PromptId;
-  /** playUpNext: position in the Up next list */
+  /** playUpNext: position in the Up next list; confirmAt (Screen only): the confirmation button clicked */
   index?: number;
   /** toggleAddon: the add-on's id (YouTube's add-ons) */
   addon?: string;
