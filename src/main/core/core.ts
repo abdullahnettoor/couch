@@ -31,6 +31,7 @@ import { randomBytes } from "node:crypto";
 import type { Store } from "../ports/store.ts";
 import type { Thumbnails } from "../ports/thumbnails.ts";
 import { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
+import { confirmMouseCommand } from "../../shared/confirm-layout.ts";
 import { appSettingsItems } from "../../shared/settings-grid.ts";
 import { actionFor, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
@@ -54,6 +55,13 @@ import { MetadataService } from "./metadata-service.ts";
 import { nullMetadata, type Metadata } from "../ports/metadata.ts";
 
 /** In-progress videos shown on Home. */
+/** The key a phone fetches a picture by: the file name of its URL, without `.jpg`. */
+const phoneKey = (url: string | undefined): string | undefined =>
+  url
+    ?.split("/")
+    .pop()
+    ?.replace(/\.jpg$/, "");
+
 const HOME_VIDEOS = 3;
 const TILE_COLUMNS = 4;
 const LIBRARY_VIEWS = ["library", "folder", "libraryFolders"];
@@ -1011,19 +1019,13 @@ export class Core {
   /** The phone fetches pictures by key: a frame's, or a cached TMDB still or poster's. */
   #thumbKey(path: string): string | undefined {
     const { details, episode } = this.#art(path);
-    return (episode?.still ?? details?.poster ?? this.#thumbs.urlFor(path))
-      ?.split("/")
-      .pop()
-      ?.replace(/\.jpg$/, "");
+    return phoneKey(episode?.still ?? details?.poster ?? this.#thumbs.urlFor(path));
   }
 
   /** The playing video's TMDB picture (episode still, else backdrop, else poster) as a phone key; none for frames. */
   #artKey(path: string): { artKey?: string } {
     const { details, episode } = this.#art(path);
-    const key = (episode?.still ?? details?.backdrop ?? details?.poster)
-      ?.split("/")
-      .pop()
-      ?.replace(/\.jpg$/, "");
+    const key = phoneKey(episode?.still ?? details?.backdrop ?? details?.poster);
     return key ? { artKey: key } : {};
   }
 
@@ -1573,9 +1575,7 @@ export class Core {
       case "confirmAt": {
         const i = command.args?.index;
         if (i !== 0 && i !== 1) return true;
-        const answer = this.#confirmAnswers?.[i];
-        this.#dismissConfirm();
-        answer?.();
+        this.#answerConfirm(i);
         break;
       }
       case "left":
@@ -1587,9 +1587,7 @@ export class Core {
         c.focus = 1;
         break;
       case "ok": {
-        const answer = this.#confirmAnswers?.[c.focus];
-        this.#dismissConfirm();
-        answer?.();
+        this.#answerConfirm(c.focus);
         break;
       }
       case "back":
@@ -1604,6 +1602,12 @@ export class Core {
     }
     this.#emit();
     return true;
+  }
+
+  #answerConfirm(index: number): void {
+    const answer = this.#confirmAnswers?.[index];
+    this.#dismissConfirm();
+    answer?.();
   }
 
   /** ⌘Q and Settings → Quit: end playback (saving the position) and stop the player. */
@@ -1847,12 +1851,7 @@ export class Core {
         return;
       case "confirm":
         if (!front || !this.#state.confirm) return;
-        this.handle(
-          event.answer
-            ? { command: "confirmAt", args: { index: event.index } }
-            : { command: "focusAt", args: { r: 0, c: event.index } },
-          "screen",
-        );
+        this.handle(confirmMouseCommand(event.answer ? "click" : "hover", event.index), "screen");
         return;
       case "find":
         if (this.#state.view === "app" && front) this.handle({ command: "find" }, "screen");

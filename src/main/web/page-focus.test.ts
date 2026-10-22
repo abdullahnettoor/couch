@@ -110,7 +110,10 @@ function setup(els: El[], selectors?: string[], layout?: FocusLayout) {
     body: { appendChild: () => {} },
     documentElement: {
       attrs: new Set<string>(),
-      appendChild() {},
+      children: [] as any[],
+      appendChild(n: any) {
+        this.children.push(n);
+      },
       setAttribute(n: string) {
         this.attrs.add(n);
       },
@@ -121,16 +124,23 @@ function setup(els: El[], selectors?: string[], layout?: FocusLayout) {
     // The modal selector finds modals; any other selector finds the controls.
     querySelectorAll: (sel: string) =>
       els.filter((e) => e.connected && (/dialog|modal/.test(sel) ? e.modal : !e.modal && !e.plain)),
-    elementFromPoint: (x: number, y: number) => {
-      let top: El | null = null;
-      for (const e of els) {
-        const r = e.rect;
-        if (!e.connected || e.hidden) continue;
-        if (x < r.left || x >= r.right || y < r.top || y >= r.bottom) continue;
-        if (!top || e.layer >= top.layer) top = e;
-      }
-      return top;
+    // Hit-testing as the browser does it: a live shield (full viewport, pointer events on) is topmost.
+    elementsFromPoint: (x: number, y: number) => {
+      const hits: any[] = els
+        .filter((e) => {
+          const r = e.rect;
+          return (
+            e.connected && !e.hidden && x >= r.left && x < r.right && y >= r.top && y < r.bottom
+          );
+        })
+        .reverse() // later in the document paints over earlier at the same layer
+        .sort((a, b) => b.layer - a.layer);
+      const shield = doc.documentElement.children.find(
+        (n: any) => n.id === "couch-shield" && !n.removed,
+      );
+      return shield ? [shield, ...hits] : hits;
     },
+    elementFromPoint: (x: number, y: number) => doc.elementsFromPoint(x, y)[0] ?? null,
   };
   const run = runFocusScript(pageFocusFunction(selectors, layout), {
     document: doc,
@@ -598,6 +608,39 @@ describe("typing into the page's focused field", () => {
 });
 
 describe("D-pad mode (no hover from a resting mouse)", () => {
+  const shieldOf = (d: any) =>
+    d.documentElement.children.find((n: any) => n.id === "couch-shield" && !n.removed);
+  test("a key raises one transparent, cursorless shield over the viewport, with no <style>", () => {
+    const { key, doc } = setup([new El("a", box(100, 100)), new El("b", box(300, 100))]);
+    key("ArrowRight");
+    key("ArrowRight");
+    const live = doc.documentElement.children.filter(
+      (n: any) => n.id === "couch-shield" && !n.removed,
+    );
+    expect(live).toHaveLength(1);
+    expect(live[0].style.cursor).toBe("none");
+    expect(live[0].style.pointerEvents).toBe("auto");
+    expect(live[0].style.position).toBe("fixed");
+    expect(doc.documentElement.children.some((n: any) => n.textContent !== undefined)).toBe(false);
+  });
+  test("navigation still finds candidates while the shield is up", () => {
+    const [a, b] = [new El("a", box(100, 100)), new El("b", box(300, 100))];
+    const { key, doc } = setup([a, b]);
+    key("ArrowRight");
+    expect(shieldOf(doc)).toBeTruthy();
+    key("Enter");
+    expect(b.clicks).toBe(1);
+    key("ArrowLeft");
+    key("Enter");
+    expect(a.clicks).toBe(1);
+  });
+  test("real mouse movement removes the shield", () => {
+    const { key, fire, doc } = setup([new El("a", box(100, 100)), new El("b", box(300, 100))]);
+    key("ArrowRight");
+    fire("mousemove", null, mv(500, 400));
+    fire("mousemove", null, mv(560, 400));
+    expect(shieldOf(doc)).toBeUndefined();
+  });
   const dpad = (d: any) => d.documentElement.attrs.has("data-couch-dpad");
   const mv = (x: number, y: number, isTrusted = true) => ({ isTrusted, clientX: x, clientY: y });
   const els = () => [new El("a", box(100, 100)), new El("b", box(300, 100))];

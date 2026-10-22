@@ -1,4 +1,4 @@
-import { WAKE_POINTER_SOURCE } from "./pointer-wake.ts";
+import { SHIELD_ID, WAKE_POINTER_SOURCE } from "./pointer-wake.ts";
 
 export interface Box {
   left: number;
@@ -161,6 +161,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     var isTextField = (${TEXT_FIELD_SOURCE});
     var SELECTOR = ${JSON.stringify(selector)};
     var LAYOUT = ${JSON.stringify(layout)};
+    var SHIELD_ID = ${JSON.stringify(SHIELD_ID)};
     var DIRS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
     var current = null;
     var ring = null;
@@ -187,9 +188,18 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       return false;
     };
     var MODALS = ['[role=dialog]', '[role=alertdialog]', '[aria-modal="true"]'].concat(LAYOUT.scopes || []).join(',');
+    // What the page paints at a point, looking through Couch's own D-pad shield.
+    var hitAt = function (x, y) {
+      if (typeof document.elementsFromPoint === 'function') {
+        var all = document.elementsFromPoint(x, y);
+        for (var i = 0; i < all.length; i++) if (all[i].id !== SHIELD_ID) return all[i];
+        return null;
+      }
+      return document.elementFromPoint(x, y);
+    };
     // Whether el is what the browser paints at a point: the element itself or something inside it.
     var paintedAt = function (el, x, y) {
-      var hit = document.elementFromPoint(x, y);
+      var hit = hitAt(x, y);
       return !!hit && (hit === el || el.contains(hit));
     };
     // The topmost modal on screen, or null: a top-layer dialog if any; else the one painted over the most
@@ -228,7 +238,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         if (r.right <= 0 || r.bottom <= 0 || r.left >= innerWidth || r.top >= innerHeight) return false;
         var x = Math.min(Math.max((Math.max(r.left, 0) + Math.min(r.right, innerWidth)) / 2, 0), innerWidth - 1);
         var y = Math.min(Math.max((Math.max(r.top, 0) + Math.min(r.bottom, innerHeight)) / 2, 0), innerHeight - 1);
-        var top = document.elementFromPoint(x, y);
+        var top = hitAt(x, y);
         return !!top && top !== el && !el.contains(top);
       } catch (e) { return false; }
     };
@@ -692,21 +702,38 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     };
     // D-pad mode: after a key the pointer is hidden and inert (a mouse resting over a row would otherwise
     // hover it); real mouse movement beyond a few pixels ends it. Couch's synthetic events are untrusted: ignored.
-    var DPAD = 'data-couch-dpad', dpadAnchor = null;
-    try {
-      var de = document.documentElement, st = document.createElement('style');
-      st.textContent = 'html[' + DPAD + '] body, html[' + DPAD + '] body * { pointer-events: none !important; cursor: none !important; }';
-      if (de && de.appendChild) de.appendChild(st);
-    } catch (e) {}
+    // The pointer is hidden and made inert by a transparent shield over the viewport, built through the CSSOM
+    // (YouTube's CSP ignores an injected <style>). hitAt() and the pointer wake look through it.
+    var DPAD = 'data-couch-dpad', dpadAnchor = null, shield = null;
+    var shieldUp = function () {
+      try {
+        if (shield) return;
+        var de = document.documentElement;
+        if (!de || !de.appendChild) return;
+        shield = document.createElement('div');
+        shield.id = SHIELD_ID;
+        var s = shield.style;
+        s.position = 'fixed'; s.left = '0'; s.top = '0'; s.width = '100vw'; s.height = '100vh';
+        s.background = 'transparent'; s.cursor = 'none'; s.pointerEvents = 'auto'; s.zIndex = '2147483646';
+        de.appendChild(shield);
+      } catch (e) {}
+    };
+    var shieldDown = function () {
+      try { if (shield && shield.remove) shield.remove(); } catch (e) {}
+      shield = null;
+    };
     var dpadOn = function () {
-      try { dpadAnchor = null; document.documentElement.setAttribute(DPAD, ''); } catch (e) {}
+      try { dpadAnchor = null; document.documentElement.setAttribute(DPAD, ''); shieldUp(); } catch (e) {}
     };
     addEventListener('keydown', dpadOn, true);
     addEventListener('mousemove', function (e) {
       try {
         if (!e.isTrusted) return;
         if (!dpadAnchor) { dpadAnchor = { x: e.clientX, y: e.clientY }; return; }
-        if (Math.abs(e.clientX - dpadAnchor.x) + Math.abs(e.clientY - dpadAnchor.y) > 8) document.documentElement.removeAttribute(DPAD);
+        if (Math.abs(e.clientX - dpadAnchor.x) + Math.abs(e.clientY - dpadAnchor.y) > 8) {
+          document.documentElement.removeAttribute(DPAD);
+          shieldDown();
+        }
       } catch (err) {}
     }, true);
     addEventListener('keydown', onBarKey, true);

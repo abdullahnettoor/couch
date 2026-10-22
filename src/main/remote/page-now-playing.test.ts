@@ -417,6 +417,18 @@ describe("Now Playing", () => {
     expect(art.classes.has("has")).toBe(false);
   });
 
+  test("a Library video shows its TMDB art, never the Up Next frame, and the logo without art", () => {
+    const upNext = [{ title: "Film", playing: true, thumbKey: "frame-1" }];
+    const library = { id: "library", label: "Library", icon: "" };
+    const art = page.els.get("np-art")!;
+    page.playing({ artKey: "tmdb-poster-abc", app: library }, { upNext });
+    expect(art.style.backgroundImage).toContain("/thumb/tmdb-poster-abc.jpg?key=");
+    expect(art.style.backgroundImage).not.toContain("frame-1");
+    page.playing({ app: library }, { upNext });
+    expect(art.classes.has("has")).toBe(false);
+    expect(art.style.backgroundImage).toBe("");
+  });
+
   test("tap on the artwork plays or pauses; swipes seek and change volume", () => {
     page.playing({});
     const art = page.els.get("np-art")!.handlers;

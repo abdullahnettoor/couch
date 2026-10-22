@@ -21,7 +21,18 @@ export function runFocusScript(script: string, env: FocusEnv) {
   const observers: Function[] = [];
   const logs: string[] = [];
   const ring: any = { style: {}, remove() {}, setAttribute() {} };
-  env.document.createElement = () => ring;
+  let made = 0;
+  env.document.createElement = () =>
+    made++ === 0
+      ? ring
+      : {
+          style: {},
+          remove() {
+            this.removed = true;
+          },
+          setAttribute() {},
+          removed: false,
+        };
   const location = { href: env.href };
   const sandbox: any = {
     document: env.document,
