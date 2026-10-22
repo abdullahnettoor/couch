@@ -212,6 +212,43 @@ describe("playing a Library video", () => {
     expect(raised().at(-1)).toBe(false);
   });
 
+  test("Now Playing lists mpv's subtitle and audio tracks; setTrack reaches mpv", async () => {
+    await start();
+    await playVideo();
+    expect(phone.last!.nowPlaying).not.toHaveProperty("audio");
+    h.player.emit({
+      type: "tracks",
+      subtitles: [{ id: "2", label: "English", selected: true }],
+      audio: [
+        { id: "1", label: "Malayalam", selected: true },
+        { id: "2", label: "English", selected: false },
+      ],
+    });
+    await phone.settle();
+    expect(phone.last!.nowPlaying).toMatchObject({
+      subtitles: [
+        { id: "off", label: "Off", on: false },
+        { id: "2", label: "English", on: true },
+      ],
+      audio: [
+        { id: "1", label: "Malayalam", on: true },
+        { id: "2", label: "English", on: false },
+      ],
+    });
+    await phone.press({ command: "setTrack", args: { kind: "audio", track: "2" } });
+    expect(calls("setTrack").at(-1)!.args).toEqual(["audio", "2"]);
+    await phone.press({ command: "setTrack", args: { kind: "subtitles", track: "off" } });
+    expect(calls("setSubtitles").at(-1)!.args).toEqual([false]);
+    expect(phone.last!.nowPlaying!.subtitles).toEqual([
+      { id: "off", label: "Off", on: true },
+      { id: "2", label: "English", on: false },
+    ]);
+    await phone.press({ command: "setTrack", args: { kind: "subtitles", track: "2" } });
+    expect(calls("setTrack").at(-1)!.args).toEqual(["subtitles", "2"]);
+    expect(calls("setSubtitles").at(-1)!.args).toEqual([true]);
+    expect(phone.last!.nowPlaying!.subtitles![1]).toMatchObject({ id: "2", on: true });
+  });
+
   test("the subtitles toggle reaches the Player and is remembered after a restart", async () => {
     await start();
     await playVideo();

@@ -52,6 +52,9 @@ export class FakePlayer implements Player {
   setSubtitles(visible: boolean) {
     return this.#record("setSubtitles", visible);
   }
+  setTrack(kind: "subtitles" | "audio", id: string) {
+    return this.#record("setTrack", kind, id);
+  }
   setSpeed(speed: number) {
     return this.#record("setSpeed", speed);
   }

@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { afterEach, expect, test } from "vite-plus/test";
 import type { PlayerEvent } from "../../shared/player.ts";
 import { findMpv } from "./find-mpv.ts";
-import { buildMpvArgs, MpvPlayer } from "./mpv-player.ts";
+import { buildMpvArgs, MpvPlayer, parseTrackList } from "./mpv-player.ts";
 
 const mpvPath = findMpv();
 const sample = ".dev/sample.mkv";
@@ -20,6 +20,30 @@ test("builds headless options with the IPC socket and no window flags", () => {
   expect(args).toContain("--idle=yes");
   expect(args).toContain("--input-ipc-server=/tmp/x.sock");
   expect(args.some((a) => a.startsWith("--fs") || a.startsWith("--force-window"))).toBe(false);
+});
+
+test("parseTrackList reads mpv's audio and subtitle tracks with names and the selected one", () => {
+  expect(
+    parseTrackList([
+      { id: 1, type: "video", selected: true },
+      { id: 1, type: "audio", lang: "mal", selected: true },
+      { id: 2, type: "audio", lang: "eng", title: "Commentary", selected: false },
+      { id: 1, type: "sub", lang: "eng", selected: false },
+      { id: 2, type: "sub", selected: true },
+      { id: 3, type: "sub", lang: "und", title: "Forced", selected: false },
+    ]),
+  ).toEqual({
+    audio: [
+      { id: "1", label: "Malayalam", selected: true },
+      { id: "2", label: "English · Commentary", selected: false },
+    ],
+    subtitles: [
+      { id: "1", label: "English", selected: false },
+      { id: "2", label: "Track 2", selected: true },
+      { id: "3", label: "Forced", selected: false },
+    ],
+  });
+  expect(parseTrackList("nope")).toEqual({ audio: [], subtitles: [] });
 });
 
 test("emits `missing` when libmpv can't be loaded for embedding", async () => {

@@ -74,11 +74,14 @@ export function glassPill(
   return focusable(pill, id);
 }
 
+type SplitArt =
+  | { icon: IconName }
+  | { image: string; alt: string }
+  | { html: string }
+  | { logo: string };
+
 /** Big art on the left, content on the right. `art` is an icon name, an image, or ready-made HTML (QR). */
-export function splitPage(
-  art: { icon: IconName } | { image: string; alt: string } | { html: string } | { logo: string },
-  content: HTMLElement[],
-): void {
+export function splitPage(art: SplitArt, content: HTMLElement[]): void {
   root.replaceChildren();
   const page = el("div", "screen-glass");
   page.append(splitArt(art));
@@ -88,9 +91,7 @@ export function splitPage(
   root.append(page);
 }
 
-function splitArt(
-  art: { icon: IconName } | { image: string; alt: string } | { html: string } | { logo: string },
-) {
+function splitArt(art: SplitArt) {
   if ("icon" in art) return el("div", "split-art", iconSvg(art.icon));
   if ("logo" in art) return el("div", "split-art logo-art", art.logo);
   if ("html" in art) return el("div", "split-art qr-art", art.html);

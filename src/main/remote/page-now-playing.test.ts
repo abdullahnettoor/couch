@@ -212,12 +212,32 @@ describe("Now Playing", () => {
     expect(page.els.get("chip-spd-t")!.textContent).toBe("1.25×");
   });
 
-  test("the Library (no canSeek) has Subtitles, no D-pad, and Subtitles toggles", () => {
-    page.playing({ canSeek: undefined, subtitlesOn: true });
+  test("the Library has the same buttons: Subtitles and Audio open lists, and the D-pad button", () => {
+    const off = { id: "off", label: "Off", on: false };
+    page.playing({
+      canSeek: undefined,
+      subtitles: [off, { id: "2", label: "English", on: true }],
+      audio: [{ id: "1", label: "Malayalam", on: true }],
+    });
     expect(hidden("chip-subs")).toBe(false);
-    expect(hidden("chip-pad")).toBe(true);
+    expect(hidden("chip-aud")).toBe(false);
+    expect(hidden("chip-pad")).toBe(false);
     page.tap("chip-subs");
-    expect(commands()).toEqual([{ type: "command", command: "subtitles" }]);
+    expect(hidden("np-sheet")).toBe(false);
+    expect(page.els.get("np-rows")!.innerHTML).toContain("Off");
+    page.tapRow("setTrack", { kind: "subtitles", track: "off" });
+    expect(commands()).toEqual([
+      { type: "command", command: "setTrack", args: { kind: "subtitles", track: "off" } },
+    ]);
+    page.tap("chip-pad");
+    expect(hidden("npad")).toBe(false);
+  });
+
+  test("a Library video without subtitle or audio tracks hides those buttons", () => {
+    page.playing({ canSeek: undefined });
+    expect(hidden("chip-subs")).toBe(true);
+    expect(hidden("chip-aud")).toBe(true);
+    expect(hidden("chip-pad")).toBe(false);
   });
 
   test("Speed opens a list and picking a row sends setSpeed and closes it", () => {
@@ -297,5 +317,19 @@ describe("Now Playing", () => {
       ["volUp", undefined],
       ["volUp", undefined],
     ]);
+  });
+
+  test("the volume swipe's toast counts steps once, even when snapshots arrive mid-gesture", () => {
+    page.playing({}, { volume: 40 });
+    const art = page.els.get("np-art")!.handlers;
+    const ev = (y: number) => ({ clientX: 100, clientY: y, pointerId: 1, target: {} });
+    const toast = page.els.get("np-toast")!;
+    art.pointerdown!(ev(100));
+    art.pointermove!(ev(40));
+    expect(toast.textContent).toBe("Volume 50");
+    page.playing({}, { volume: 45 });
+    art.pointermove!(ev(10));
+    expect(toast.textContent).toBe("Volume 55");
+    art.pointerup!(ev(10));
   });
 });

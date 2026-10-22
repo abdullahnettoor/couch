@@ -163,6 +163,29 @@ describe("Now Playing for a web App", () => {
     });
   });
 
+  test("a missing playback report keeps the chosen speed for the same video", async () => {
+    const { tube, phone } = await start({ adapter: true });
+    const base = {
+      position: 30,
+      duration: 600,
+      paused: false,
+      title: "One",
+      speeds: [0.5, 1, 1.5],
+    };
+    tube.emit({ type: "playback", playback: { ...base, speed: 1 } });
+    await phone.settle();
+    await phone.press({ command: "setSpeed", args: { speed: 1.5 } });
+    tube.emit({ type: "playback", playback: undefined });
+    await phone.settle();
+    tube.emit({ type: "playback", playback: { ...base, speed: 1.5 } });
+    await phone.settle();
+    h.clock.advance(3500);
+    tube.emit({ type: "playback", playback: { ...base, speed: 1 } });
+    await phone.settle();
+    const calls = tube.calls.filter((c) => c.call === "setSpeed").map((c) => c.args[0]);
+    expect(calls).toEqual([1.5, 1.5]);
+  });
+
   test("a prompt shows while the App reports one; pressPrompt reaches the App for the showing id only", async () => {
     const { tube, phone } = await start({ adapter: true });
     const base = { position: 30, duration: 600, paused: false };

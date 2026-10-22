@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { OutputDevice } from "../ports/mac.ts";
 import type { GlassRect } from "../../shared/ipc.ts";
-import type { LoadOptions, Player, PlayerEvent } from "../../shared/player.ts";
+import type { LoadOptions, Player, PlayerEvent, PlayerTrack } from "../../shared/player.ts";
 import { MpvIpcClient, type MpvEvent } from "./ipc-client.ts";
 
 /** Bottom margin (mpv OSD pixels) that keeps subtitles above the overlay bar, and mpv's default. */
@@ -72,6 +72,35 @@ export function parseAudioDeviceList(data: unknown): OutputDevice[] {
   return devices;
 }
 
+function languageName(code: unknown): string | undefined {
+  if (typeof code !== "string" || code === "" || code === "und") return undefined;
+  try {
+    const name = new Intl.DisplayNames(["en"], { type: "language" }).of(code);
+    return name && name !== code ? name : code;
+  } catch {
+    return code;
+  }
+}
+
+/** The audio and subtitle entries of mpv's `track-list` property, named for the phone. */
+export function parseTrackList(data: unknown): { subtitles: PlayerTrack[]; audio: PlayerTrack[] } {
+  const out = { subtitles: [] as PlayerTrack[], audio: [] as PlayerTrack[] };
+  if (!Array.isArray(data)) return out;
+  for (const t of data as Array<Record<string, unknown>>) {
+    const list = t?.type === "audio" ? out.audio : t?.type === "sub" ? out.subtitles : undefined;
+    if (!list || typeof t.id !== "number") continue;
+    const parts = [languageName(t.lang), typeof t.title === "string" ? t.title : undefined].filter(
+      (x): x is string => !!x,
+    );
+    list.push({
+      id: String(t.id),
+      label: parts.length ? parts.join(" · ") : `Track ${t.id}`,
+      selected: t.selected === true,
+    });
+  }
+  return out;
+}
+
 export class MpvPlayer implements Player {
   private listeners = new Set<(event: PlayerEvent) => void>();
   private child: ChildProcess | undefined;
@@ -125,6 +154,7 @@ export class MpvPlayer implements Player {
       await client.command(["observe_property", 2, "pause"]);
       await client.command(["observe_property", 3, "duration"]);
       await client.command(["observe_property", 4, "audio-device-list"]);
+      await client.command(["observe_property", 5, "track-list"]);
     } catch {
       // child exit handler reports the failure
     }
@@ -180,6 +210,10 @@ export class MpvPlayer implements Player {
 
   async setSubtitles(visible: boolean): Promise<void> {
     await this.send(["set_property", "sub-visibility", visible]);
+  }
+
+  async setTrack(kind: "subtitles" | "audio", id: string): Promise<void> {
+    await this.send(["set_property", kind === "audio" ? "aid" : "sid", Number(id)]);
   }
 
   async setSpeed(speed: number): Promise<void> {
@@ -277,6 +311,8 @@ export class MpvPlayer implements Player {
   private onMpvEvent(e: MpvEvent): void {
     if (e.event === "property-change" && e.name === "audio-device-list") {
       for (const l of [...this.audioListeners]) l();
+    } else if (e.event === "property-change" && e.name === "track-list") {
+      this.emit({ type: "tracks", ...parseTrackList(e.data) });
     } else if (e.event === "property-change") {
       if (typeof e.data !== "number" && typeof e.data !== "boolean") return;
       if (e.name === "time-pos" && typeof e.data === "number")

@@ -44,11 +44,20 @@ The single card on Home for the most recent unfinished Library video. Pressing i
 _Avoid_: recents, history, up next
 
 **Now Playing**:
-The Remote's playback screen, shown while a video plays in the Library or in a web App (design A, spec 081): Back, Home and **Mute** on top; the artwork (the App's logo on its colour when there is none), which also takes taps and swipes (tap = play/pause, ←/→ = 10 s, ↑/↓ = volume); title, seek bar, play/pause with −10/+10; one row of Subtitles, Audio, Speed and D-pad (each shown only when the App offers it); a compact volume pill; and a **prompt** (Skip Intro, Skip Recap, Next Episode) when the App offers one. There is no D-pad while playing; the D-pad button opens a full-screen D-pad with a way back. For a web App the position comes from the page's video; seeking and the pickers appear only where that App has a playback adapter, otherwise the bar is read-only.
+The Remote's playback screen, shown while a video plays in the Library or in a web App (design A, spec 081): Back, Home and **Mute** on top; the artwork (the App's logo on its colour when there is none), which also takes taps and swipes (tap = play/pause, ←/→ = 10 s, ↑/↓ = volume); title, seek bar, play/pause with −10/+10; one row of Subtitles, Audio, Speed and D-pad (the Library lists mpv's tracks, subtitles with Off; each button shows only when the App offers it); a compact volume pill; and a **Prompt** button above the controls when the App offers one. There is no D-pad while playing; the D-pad button opens a full-screen D-pad with a way back. For a web App the position comes from the page's video; seeking and the pickers appear only where that App has a playback adapter, otherwise the bar is read-only.
+_Avoid_: player controls, transport
 
 **Mute**:
-Couch's own volume set to silence. It remembers the level, silences mpv and every web App, and unmuting restores the level; changing the volume while muted unmutes. It is kept across restarts like the volume.
-_Avoid_: player controls, transport
+Couch's own volume set to silence. It remembers the level, silences mpv and every web App, and unmuting restores the level; changing the volume while muted unmutes. It is kept across restarts like the volume. The phone's Mute button sits next to Back and Home.
+_Avoid_: silence, volume off
+
+**Speed**:
+How fast the video plays (0.5× to 2× in the Library, the App's own choices in a web App), shown on the phone's Speed button and picked from a list. Every new video starts at 1×; the choice holds for that video even if the page resets it. Netflix's speed is set through its own menu.
+_Avoid_: playback rate, tempo
+
+**Prompt**:
+A button the App itself offers over the video, shown by the phone above the Now Playing controls only while it is up: **Skip Intro**, **Skip Recap** or **Next Episode** (Netflix today). Pressing it presses the App's own button.
+_Avoid_: skip button, overlay button
 
 **Settings**:
 The one page for setup chores, opened from the gear on Home: adding phones, Library folders, restarting YouTube, and quitting.

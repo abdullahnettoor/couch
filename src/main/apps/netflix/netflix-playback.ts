@@ -95,17 +95,24 @@ const HELPERS = `
   };
 `;
 
-/** Netflix's own overlay buttons (they need no control bar), by the prompt they stand for. */
-const PROMPTS: Record<string, string[]> = {
-  skipIntro: ["player-skip-intro"],
-  skipRecap: ["player-skip-recap"],
-  nextEpisode: ["next-episode-seamless-button", "next-episode-seamless-button-draining"],
-};
+/** Netflix's own overlay buttons (they need no control bar), in the order the phone shows them. */
+const PROMPTS = [
+  { id: "skipIntro", selectors: ["player-skip-intro"], fallback: "Skip Intro" },
+  { id: "skipRecap", selectors: ["player-skip-recap"], fallback: "Skip Recap" },
+  {
+    id: "nextEpisode",
+    selectors: ["next-episode-seamless-button", "next-episode-seamless-button-draining"],
+    fallback: "Next Episode",
+  },
+];
 
 const PROMPT_FINDER = `
   var PROMPTS = ${JSON.stringify(PROMPTS)};
+  var promptFor = function (id) {
+    return PROMPTS.filter(function (p) { return p.id === id; })[0];
+  };
   var shown = function (id) {
-    var names = PROMPTS[id] || [];
+    var names = (promptFor(id) || { selectors: [] }).selectors;
     for (var i = 0; i < names.length; i++) {
       var el = document.querySelector("[data-uia=" + names[i] + "]");
       if (!el) continue;
@@ -145,11 +152,9 @@ export const NETFLIX_PLAYBACK: PlaybackAdapter = {
 }catch(e){}})()`,
   prompt: () =>
     `(function(){try{${PROMPT_FINDER}
-  var FALLBACK = { skipIntro: "Skip Intro", skipRecap: "Skip Recap", nextEpisode: "Next Episode" };
-  var ids = ["skipIntro", "skipRecap", "nextEpisode"];
-  for (var i = 0; i < ids.length; i++) {
-    var el = shown(ids[i]);
-    if (el) return { id: ids[i], label: String(el.textContent || "").replace(/\\s+/g, " ").trim() || FALLBACK[ids[i]] };
+  for (var i = 0; i < PROMPTS.length; i++) {
+    var el = shown(PROMPTS[i].id);
+    if (el) return { id: PROMPTS[i].id, label: String(el.textContent || "").replace(/\\s+/g, " ").trim() || PROMPTS[i].fallback };
   }
 }catch(e){}})()`,
   pressPrompt: (id) =>

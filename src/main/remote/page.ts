@@ -356,18 +356,16 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       pb.setAttribute("data-args", prompt.args ? JSON.stringify(prompt.args) : "");
     }
 
-    var subs = web ? !!(np.subtitles && np.subtitles.length) : true;
+    var subs = !!(np.subtitles && np.subtitles.length);
     var aud = !!(np.audio && np.audio.length);
     var spd = !!(np.speeds && np.speeds.length && typeof np.speed === "number");
-    var pad = web;
+    var pad = true;
     $("chip-subs").hidden = !subs;
     $("chip-aud").hidden = !aud;
     $("chip-spd").hidden = !spd;
     $("chip-pad").hidden = !pad;
     $("np-chips").style.setProperty("--n", String(Math.max(1, (subs ? 1 : 0) + (aud ? 1 : 0) + (spd ? 1 : 0) + (pad ? 1 : 0))));
-    if (web) $("chip-subs-t").textContent = current(np.subtitles, "Subtitles");
-    else $("chip-subs-t").textContent = np.subtitlesOn ? "Subtitles on" : "Subtitles";
-    $("chip-subs").classList.toggle("on", !web && np.subtitlesOn);
+    $("chip-subs-t").textContent = current(np.subtitles, "Subtitles");
     $("chip-aud-t").textContent = current(np.audio, "Audio");
     if (spd) $("chip-spd-t").textContent = speedLabel(np.speed);
     $("np-more").hidden = !s.upNext || s.upNext.length < 2;
@@ -487,11 +485,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   vtrack.addEventListener("pointercancel", function () { volDragging = false; });
 
 
-  $("chip-subs").addEventListener("click", function () {
-    if (!last || !last.nowPlaying) return;
-    if (typeof last.nowPlaying.canSeek === "boolean") openSheet("subs");
-    else sendArgs("subtitles");
-  });
+  $("chip-subs").addEventListener("click", function () { openSheet("subs"); });
   $("chip-aud").addEventListener("click", function () { openSheet("aud"); });
   $("chip-spd").addEventListener("click", function () { openSheet("spd"); });
   $("np-more").addEventListener("click", function () { openSheet("upn"); });
@@ -502,7 +496,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   var art = $("np-art"), g = null;
   art.addEventListener("pointerdown", function (e) {
     if (!open || (e.target.closest && e.target.closest(".prompt"))) return;
-    g = { x: e.clientX, y: e.clientY, axis: "", vy: 0 };
+    g = { x: e.clientX, y: e.clientY, axis: "", vy: 0, level: last ? Math.round(last.volume) : 0 };
     art.setPointerCapture(e.pointerId);
   });
   art.addEventListener("pointermove", function (e) {
@@ -513,7 +507,10 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       var steps = Math.trunc((g.y - e.clientY) / 28) - g.vy;
       for (var i = 0; i < Math.abs(steps); i++) sendArgs(steps > 0 ? "volUp" : "volDown");
       g.vy += steps;
-      if (steps && last) toast("Volume " + Math.max(0, Math.min(100, Math.round(last.volume) + g.vy * 5)));
+      if (steps) {
+        g.level = Math.max(0, Math.min(100, g.level + steps * 5));
+        toast("Volume " + g.level);
+      }
     }
   });
   art.addEventListener("pointerup", function (e) {

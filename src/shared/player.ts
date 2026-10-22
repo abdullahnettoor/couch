@@ -1,5 +1,12 @@
 import type { CommandName } from "./protocol.ts";
 
+/** One of mpv's subtitle or audio tracks; `selected` is what mpv plays now. */
+export interface PlayerTrack {
+  id: string;
+  label: string;
+  selected: boolean;
+}
+
 export type PlayerEvent =
   | { type: "position"; seconds: number }
   | { type: "pause"; paused: boolean }
@@ -7,6 +14,8 @@ export type PlayerEvent =
   | { type: "ended"; reason: "eof" | "stop" | "error" }
   | { type: "exited" }
   | { type: "missing" }
+  /** The loaded video's subtitle and audio tracks (mpv's `track-list`), again when the choice changes. */
+  | { type: "tracks"; subtitles: PlayerTrack[]; audio: PlayerTrack[] }
   /** A Screen key pressed while the video window has keyboard focus. */
   | { type: "key"; command: CommandName };
 
@@ -74,6 +83,8 @@ export interface Player {
   seekBy(seconds: number): Promise<void>;
   seekTo(seconds: number): Promise<void>;
   setSubtitles(visible: boolean): Promise<void>;
+  /** Pick a subtitle or audio track (mpv's `sid` / `aid`) by its `PlayerTrack` id. */
+  setTrack(kind: "subtitles" | "audio", id: string): Promise<void>;
   /** Playback speed (mpv's `speed`), 1 = normal. */
   setSpeed(speed: number): Promise<void>;
   /** Couch's own volume, 0-100: mpv's, never the Mac's. */

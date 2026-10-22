@@ -20,6 +20,7 @@ import {
   type Player,
   type PlayerEvent,
   type PlayerOverlay,
+  type PlayerTrack,
 } from "../../shared/player.ts";
 import type { Clock } from "../ports/clock.ts";
 import type { Mac } from "../ports/mac.ts";
@@ -39,7 +40,7 @@ import { libraryRows, tileAction, topGenres } from "./library-rows.ts";
 import { autoRows, chipsFor, keepFor } from "./library-chips.ts";
 import { presentation, hueFor, listFolder, mosaicSources, rootEntries } from "./library.ts";
 import { applyEdit, type TextEdit } from "../../shared/keyboard.ts";
-import type { LibraryChip, UpNextItem } from "../../shared/protocol.ts";
+import type { LibraryChip, TrackList, UpNextItem } from "../../shared/protocol.ts";
 import { PlayerControls } from "./player-controls.ts";
 import { History } from "./history.ts";
 import { ShowView } from "./show-view.ts";
@@ -134,6 +135,8 @@ export class Core {
   #playback = new Map<string, PlaybackReport>();
   /** The speed the household chose for the playing Library video; 1 for every new video. */
   #speed = 1;
+  /** The playing Library video's subtitle and audio tracks, as mpv last listed them. */
+  #tracks: { subtitles: PlayerTrack[]; audio: PlayerTrack[] } = { subtitles: [], audio: [] };
   /** A web App's chosen speed for the video it is playing (keyed by its title and length), and when it was last applied. */
   #appSpeed = new Map<string, { speed: number; key: string; at: number }>();
   #shown = new Map<string, { volume?: number; confirm?: Confirmation; bar?: string }>();
@@ -713,6 +716,7 @@ export class Core {
     this.#upNextLabel = show?.name;
     const startSeconds = fromStart ? undefined : this.#history.resumeAt(path);
     this.#state.player = { path, pos: startSeconds ?? 0, dur: 0, paused: false };
+    this.#tracks = { subtitles: [], audio: [] };
     if (this.#speed !== 1) {
       this.#speed = 1;
       this.#quiet(this.#ports.player.setSpeed(1));
@@ -823,6 +827,12 @@ export class Core {
         if (changed) this.#emit();
         break;
       }
+      case "tracks":
+        if (p) {
+          this.#tracks = { subtitles: event.subtitles, audio: event.audio };
+          this.#emit();
+        }
+        break;
       case "duration":
         if (p) {
           p.dur = event.seconds;
@@ -871,6 +881,23 @@ export class Core {
     this.#state.subtitlesOn = !this.#state.subtitlesOn;
     this.#ports.store.write("playback", { subtitlesOn: this.#state.subtitlesOn });
     this.#quiet(this.#ports.player.setSubtitles(this.#state.subtitlesOn));
+  }
+
+  /** Library Now Playing's choice: "off" hides subtitles, any other subtitle id shows them; audio goes straight to mpv. */
+  #setTrack(kind: "subtitles" | "audio", id: string): void {
+    const list = this.#tracks[kind];
+    if (kind === "subtitles" && id === "off") {
+      if (this.#state.subtitlesOn) this.#toggleSubtitles();
+    } else {
+      if (!list.some((t) => t.id === id)) return;
+      if (kind === "subtitles" && !this.#state.subtitlesOn) this.#toggleSubtitles();
+      this.#quiet(this.#ports.player.setTrack(kind, id));
+      this.#tracks = {
+        ...this.#tracks,
+        [kind]: list.map((t) => ({ ...t, selected: t.id === id })),
+      };
+    }
+    this.#emit();
   }
 
   /** Commands while a video plays. Returns false for the ones handled like anywhere else. */
@@ -1133,6 +1160,7 @@ export class Core {
             subtitlesOn: s.subtitlesOn,
             speed: this.#speed,
             speeds: LIBRARY_SPEEDS,
+            ...this.#libraryTracks(s.subtitlesOn),
             ...this.#nowGenres(s.player.path),
             app: this.#appFace("library", "Library"),
           }
@@ -1141,6 +1169,24 @@ export class Core {
       volume: s.volume,
       muted: this.#sound.muted,
       remotes: s.remotes,
+    };
+  }
+
+  #libraryTracks(subtitlesOn: boolean): { subtitles?: TrackList; audio?: TrackList } {
+    const { subtitles, audio } = this.#tracks;
+    const shown = subtitlesOn && subtitles.some((t) => t.selected);
+    return {
+      ...(subtitles.length
+        ? {
+            subtitles: [
+              { id: "off", label: "Off", on: !shown },
+              ...subtitles.map((t) => ({ id: t.id, label: t.label, on: shown && t.selected })),
+            ],
+          }
+        : {}),
+      ...(audio.length
+        ? { audio: audio.map((t) => ({ id: t.id, label: t.label, on: t.selected })) }
+        : {}),
     };
   }
 
@@ -1305,8 +1351,10 @@ export class Core {
         break;
       case "setTrack": {
         const { kind, track } = command.args ?? {};
-        if ((kind === "subtitles" || kind === "audio") && track)
-          this.#front()?.setTrack?.(kind, track);
+        if ((kind === "subtitles" || kind === "audio") && track) {
+          if (this.#state.player) this.#setTrack(kind, track);
+          else this.#front()?.setTrack?.(kind, track);
+        }
         break;
       }
       case "pressPrompt": {
@@ -1785,7 +1833,6 @@ export class Core {
           this.#holdAppSpeed(app, event.playback);
         } else {
           this.#playback.delete(app.id);
-          this.#appSpeed.delete(app.id);
         }
         break;
       case "searchOpened":
