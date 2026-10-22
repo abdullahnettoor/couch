@@ -8,7 +8,8 @@ export type YouTubeEvent =
   /** A key pressed on the Mac keyboard while YouTube has focus, already mapped to a command. */
   | { type: "key"; command: CommandName }
   | { type: "loaded" }
-  | { type: "failed" }
+  /** `note` says why, in words for the App's error screen; without it the screen blames the internet. */
+  | { type: "failed"; note?: string }
   /**
    * The view's address, Shorts player or guide changed; `home` is true only on YouTube's home screen.
    * `shorts` and `guideOpen` come from the page (a Short keeps Home's URL).

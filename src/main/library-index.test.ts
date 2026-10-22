@@ -238,6 +238,7 @@ describe("index", () => {
     touch("Film C.mkv");
     const phone = await h.connectPhone();
     await phone.press("right");
+    await phone.press("right");
     await phone.press("ok");
     await phone.press("ok");
     await h.app.core.library.settled();

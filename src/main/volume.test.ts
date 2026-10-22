@@ -44,7 +44,7 @@ describe("phone volume slider", () => {
     h = await startHarness(new FileStore(storeDir));
     const a = await h.connectPhone();
     const b = await h.connectPhone();
-    for (const c of ["right", "ok", "ok", "ok", "ok"] as const) await a.press(c);
+    for (const c of ["right", "right", "ok", "ok", "ok", "ok"] as const) await a.press(c);
     expect(a.last!.layout).toBe("player");
     await a.press({ command: "volSet", args: { percent: 33 } });
     expect(h.player.calls.at(-1)).toEqual({ call: "setVolume", args: [33] });

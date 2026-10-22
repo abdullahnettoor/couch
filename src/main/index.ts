@@ -10,6 +10,8 @@ import { systemClock } from "./ports/clock.ts";
 import { createElectronMac } from "./ports/electron-mac.ts";
 import { ElectronWebApp } from "./web/electron-web-app.ts";
 import { youtubeDescription } from "./apps/youtube/youtube-web.ts";
+import { netflixDescription } from "./apps/netflix/netflix-web.ts";
+import { NetflixApp } from "./apps/netflix/netflix-app.ts";
 import { YouTubeApp } from "./apps/youtube/youtube-app.ts";
 import { FileStore } from "./ports/store.ts";
 import { readChoices } from "./web/addon.ts";
@@ -139,6 +141,8 @@ async function createScreen(): Promise<void> {
     win,
   );
   const youtubeApp = new YouTubeApp(youtube, systemClock);
+  const netflix = new ElectronWebApp(netflixDescription(), win);
+  const netflixApp = new NetflixApp(netflix, systemClock);
   mac.keepAwake(true);
   const listener = await detectListener({
     store,
@@ -146,7 +150,7 @@ async function createScreen(): Promise<void> {
   });
   couch = await startApp({
     player,
-    apps: [youtubeApp],
+    apps: [youtubeApp, netflixApp],
     mac,
     clock: systemClock,
     store,

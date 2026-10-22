@@ -1,6 +1,6 @@
 # Couch
 
-A home TV experience on a MacBook driving an external monitor, controlled from an Android phone. Covers YouTube, local video folders and other Apps.
+A home TV experience on a MacBook driving an external monitor, controlled from an Android phone. Covers YouTube, Netflix, local video folders and other Apps.
 
 ## Language
 
@@ -21,12 +21,15 @@ A full-screen experience launched from Home, such as YouTube or the Library. It 
 _Avoid_: tile, channel, section
 
 **Web App**:
-An App that is a website shown in Couch's web view (YouTube now; later others). Couch's core talks to it only through the App interface.
+An App that is a website shown in Couch's web view (YouTube and Netflix now; later others). Couch's core talks to it only through the App interface.
 _Avoid_: channel, site
 
 **Add-on**:
 An optional change to one Web App's page, such as an ad blocker, turned on or off in Settings. Shipped with Couch; never downloaded.
 _Avoid_: extension (clashes with file extensions in the Library), plugin (in UI copy)
+
+**Netflix**:
+The App that shows Netflix's own website inside the Screen, driven from the Remote with a visible focus ring; sign-in and profile choice happen on the Screen.
 
 **YouTube**:
 The App that presents YouTube's TV experience inside the Screen, looking and behaving like the YouTube app on a smart TV.

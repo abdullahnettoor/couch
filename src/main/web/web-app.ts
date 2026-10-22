@@ -55,6 +55,10 @@ export interface WebAppDescription {
   };
   /** Without `skip`: the App's own seek keys, sent once per skip. */
   seekKeys?: { back: AppKey; forward: AppKey };
+  /** Load the site when the App is first shown, not at launch (a site that autoplays must not play unseen). */
+  loadOnShow?: boolean;
+  /** Back sent to the page goes back in its history instead of pressing `keyCodes.back`. */
+  backByHistory?: boolean;
   /** The App plays Widevine content: the host waits for the components before loading it. */
   drm?: boolean;
   /** App-specific main-world functions (source text) that run after `couchHooks` and before any add-on. */
@@ -95,9 +99,10 @@ export function urlRoute(isHome: (url: URL) => boolean): RouteSignals {
   };
 }
 
-export type DrmGate = { ok: true } | { ok: false; note: string };
+export type DrmGate = { ok: true } | { ok: false; note: string; detail?: string };
 
-const NO_WIDEVINE = "Widevine isn't available on this Mac, so this App can't play video.";
+/** Shown on the App's error screen, so plain words and no error text. */
+export const NO_WIDEVINE = "Widevine isn't available on this Mac, so this App can't play video.";
 
 /** Whether a `drm` App may load: the components (Widevine) must be ready. */
 export async function drmGate(
@@ -110,6 +115,6 @@ export async function drmGate(
     await components.whenReady();
     return { ok: true };
   } catch (error) {
-    return { ok: false, note: `${NO_WIDEVINE} (${String(error)})` };
+    return { ok: false, note: NO_WIDEVINE, detail: String(error) };
   }
 }

@@ -27,6 +27,7 @@ export class ElectronWebApp implements YouTube {
   #listeners = new Set<(event: YouTubeEvent) => void>();
   #visible = false;
   #failed = false;
+  #started = false;
   #sending = false;
   #capturing = false;
   #inSearch = false;
@@ -164,6 +165,7 @@ export class ElectronWebApp implements YouTube {
 
   /** Starts loading in the background so opening YouTube is instant. */
   start(): void {
+    this.#started = true;
     const wc = this.#view.webContents;
     // DevTools commands only answer once the view has a renderer, so give it a blank page first.
     void wc
@@ -179,9 +181,9 @@ export class ElectronWebApp implements YouTube {
       .then(() => drmGate(this.#desc, components))
       .then((gate) => {
         if (gate.ok) return this.#load();
-        console.warn(`[web] ${this.#desc.id}: ${gate.note}`);
+        console.warn(`[web] ${this.#desc.id}: ${gate.note} ${gate.detail ?? ""}`.trim());
         this.#failed = true;
-        this.#emit({ type: "failed" });
+        this.#emit({ type: "failed", note: gate.note });
       });
   }
 
@@ -203,6 +205,7 @@ export class ElectronWebApp implements YouTube {
   }
 
   show(note?: string): void {
+    if (this.#desc.loadOnShow && !this.#started) this.start();
     this.#visible = true;
     this.#routeTimer ??= setInterval(() => this.#pollShorts(), 400);
     this.#fit();
@@ -313,6 +316,13 @@ export class ElectronWebApp implements YouTube {
   sendKey(key: YouTubeKey): void {
     const keyCode = this.#desc.keyCodes[key];
     const wc = this.#view.webContents;
+    if (key === "back" && this.#desc.backByHistory) {
+      // The blank page the view starts on is not somewhere to go back to.
+      const history = wc.navigationHistory;
+      const before = history.getEntryAtIndex(history.getActiveIndex() - 1);
+      if (before?.url.startsWith("https:")) history.goBack();
+      return;
+    }
     this.#sending = true;
     try {
       wc.sendInputEvent({ type: "keyDown", keyCode });
@@ -378,6 +388,7 @@ export class ElectronWebApp implements YouTube {
   }
 
   restart(): void {
+    if (!this.#started) return this.start();
     this.#load();
   }
 

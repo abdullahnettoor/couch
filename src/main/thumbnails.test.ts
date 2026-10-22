@@ -74,6 +74,7 @@ describe("thumbnails through the Remote", () => {
     await phone.press("home");
     await phone.press("down");
     await phone.press("right");
+    await phone.press("right");
     await phone.press("ok"); // Library
     await focusFolders(h, phone);
     await phone.press("ok"); // the folder
@@ -137,6 +138,7 @@ describe("folder mosaics", () => {
     await phone.settle();
     await phone.press("home");
     await phone.press("down");
+    await phone.press("right");
     await phone.press("right");
     await phone.press("ok");
     return phone;

@@ -33,6 +33,7 @@ describe("Titles shown for files and folders", () => {
     h = await startHarness(store);
     const phone = await h.connectPhone();
     await phone.press("right");
+    await phone.press("right");
     await phone.press("ok");
     await focusFolders(h, phone);
     await phone.press("ok");
@@ -139,6 +140,7 @@ describe("Library through the Remote", () => {
     await phone.press("home");
     await phone.press("down");
     await phone.press("right"); // → Library
+    await phone.press("right");
     await phone.press("ok");
     await focusFolders(h, phone);
     return phone;

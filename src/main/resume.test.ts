@@ -187,7 +187,7 @@ describe("thresholds", () => {
       watchAndLeave(p, 600);
     }
     expect(screen().homeVideos!.map((e) => e.path)).toEqual([d(), c(), b()]);
-    expect(screen().grid.filter((i) => i.r === 2).length).toBe(5);
+    expect(screen().grid.filter((i) => i.r === 2).length).toBe(6);
   });
 
   test("From start passes no start position; Resume passes the saved one", async () => {

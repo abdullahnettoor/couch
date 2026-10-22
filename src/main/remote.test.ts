@@ -54,6 +54,8 @@ describe("Remote on Home", () => {
     const phone = await h.connectPhone();
     expect(focused(h)).toBe("YouTube");
     await phone.press("right");
+    expect(focused(h)).toBe("Netflix");
+    await phone.press("right");
     expect(focused(h)).toBe("Library");
     await phone.press("right");
     expect(focused(h)).toBe("Library");

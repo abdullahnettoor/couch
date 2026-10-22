@@ -113,6 +113,8 @@ export interface ScreenState {
   showTab?: string;
   /** The front web App's id, while the view is "app" or "appError". */
   app?: string;
+  /** Why the front App didn't load, in words for the error screen, while the view is "appError". */
+  appNote?: string;
   typingBy?: RemoteId;
   query: string;
   player?: { path: string; pos: number; dur: number; paused: boolean };

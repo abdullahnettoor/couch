@@ -53,6 +53,7 @@ describe("calm Home", () => {
     expect(screen().hero).toBeUndefined();
     press("right");
     press("right");
+    press("right");
     expect(screen().focusedId).toBe(a());
     expect(screen().hero?.path).toBe(a());
     press("left");
@@ -67,6 +68,7 @@ describe("calm Home", () => {
 
   test("returning from a video started on Home focuses its card", async () => {
     await start();
+    press("right");
     press("right");
     press("right");
     press("ok");
@@ -94,7 +96,8 @@ describe("ambient mode", () => {
     expect(screen().ambient).toBe(true);
     await phone.press("right");
     expect(screen().ambient).toBe(false);
-    expect(screen().focusedId).toBe("library");
+    expect(screen().focusedId).toBe("netflix");
+    await phone.press("right");
     await phone.press("right");
     expect(screen().focusedId).toBe(a());
     h.clock.advance(2 * MIN);
@@ -111,6 +114,7 @@ describe("ambient mode", () => {
 
   test("not while a video plays", async () => {
     await start();
+    press("right");
     press("right");
     press("right");
     press("ok");

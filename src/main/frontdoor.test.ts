@@ -72,6 +72,7 @@ describe("toggling the listener while Couch runs", () => {
     await phone.press("home");
     await phone.press("down");
     await phone.press("right");
+    await phone.press("right");
     await phone.press("ok");
     await phone.press("up");
     await phone.press("ok");
@@ -160,6 +161,7 @@ describe("Settings reads the listener live", () => {
   async function openSettings(phone: Awaited<ReturnType<Harness["connectPhone"]>>) {
     await phone.press("home");
     await phone.press("down");
+    await phone.press("right");
     await phone.press("right");
     await phone.press("ok");
     await phone.press("up");

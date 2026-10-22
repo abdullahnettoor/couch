@@ -42,6 +42,7 @@ async function playE01() {
   );
   phone = await h.connectPhone();
   await phone.press("right");
+  await phone.press("right");
   await phone.press("ok");
   await focusFolders(h, phone);
   await phone.press("ok");

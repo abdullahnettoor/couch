@@ -29,6 +29,7 @@ const awake = () =>
 
 async function playVideo() {
   await phone.press("right");
+  await phone.press("right");
   await phone.press("ok");
   await phone.press("ok");
   await phone.press("ok");

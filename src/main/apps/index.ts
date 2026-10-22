@@ -1,4 +1,5 @@
 import { iconSvg } from "../../shared/icons.ts";
+import { NETFLIX_MARK } from "./netflix/icon.ts";
 import { YOUTUBE_MARK } from "./youtube/icon.ts";
 
 /** One App on Home: what the tile shows and what OK on it does. Pure data, safe for the renderer. */
@@ -23,6 +24,13 @@ export const APP_ENTRIES: AppEntry[] = [
     action: "app:open:youtube",
     web: true,
     addons: true,
+  },
+  {
+    id: "netflix",
+    label: "Netflix",
+    icon: NETFLIX_MARK,
+    action: "app:open:netflix",
+    web: true,
   },
   { id: "library", label: "Library", icon: iconSvg("folder"), action: "open:library", web: false },
 ];

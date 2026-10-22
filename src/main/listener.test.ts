@@ -69,6 +69,7 @@ describe("with a listener", () => {
   test("the right token quits, saving the playing position", async () => {
     const phone = await h.connectPhone();
     await phone.press("right");
+    await phone.press("right");
     await phone.press("ok"); // Library
     await focusFolders(h, phone);
     await phone.press("ok"); // the library folder

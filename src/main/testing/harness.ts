@@ -8,6 +8,7 @@ import {
   SETTINGS_ITEMS,
 } from "../../shared/settings-grid.ts";
 import { APP_ERROR_ITEMS } from "../../shared/app-grid.ts";
+import { NetflixApp } from "../apps/netflix/netflix-app.ts";
 import { YouTubeApp } from "../apps/youtube/youtube-app.ts";
 import type { App } from "../apps/app.ts";
 import { APP_ENTRIES, type AppEntry } from "../apps/index.ts";
@@ -127,6 +128,7 @@ export interface Harness {
   screen: FakeScreen;
   player: FakePlayer;
   youtube: FakeYouTube;
+  netflix: FakeYouTube;
   mac: FakeMac;
   clock: FakeClock;
   thumbnails: FakeThumbnails;
@@ -166,6 +168,7 @@ export async function startHarness(
   const store = given ?? new FileStore(tmp!);
   const player = new FakePlayer();
   const youtube = new FakeYouTube();
+  const netflix = new FakeYouTube();
   const mac = new FakeMac();
   const clock = new FakeClock();
   const thumbnails = new FakeThumbnails();
@@ -188,7 +191,11 @@ export async function startHarness(
     },
     frontdoorSetup: options.frontdoor,
     player,
-    apps: [new YouTubeApp(youtube, clock), ...(options.apps ?? []).map((a) => a.app)],
+    apps: [
+      new YouTubeApp(youtube, clock),
+      new NetflixApp(netflix, clock),
+      ...(options.apps ?? []).map((a) => a.app),
+    ],
     mac,
     clock,
     store,
@@ -211,6 +218,7 @@ export async function startHarness(
     screen,
     player,
     youtube,
+    netflix,
     mac,
     clock,
     thumbnails,

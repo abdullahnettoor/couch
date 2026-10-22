@@ -33,6 +33,7 @@ async function start() {
 /** Home → Library → root → Movies → the video, then OK. */
 async function playVideo() {
   await phone.press("right");
+  await phone.press("right");
   await phone.press("ok"); // Library
   await focusFolders(h, phone);
   await phone.press("ok"); // the library folder

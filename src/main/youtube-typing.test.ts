@@ -87,7 +87,7 @@ describe("YouTube typing", () => {
     expect(a.last!.typeAvailable).toBe(false);
     await a.press("typeOpen");
     expect(a.last!.typing).toBe("none");
-    expect(h.screen.last.state.toast).toBe("Typing works inside YouTube search");
+    expect(h.screen.last.state.toast).toBe("Typing works inside YouTube search or Netflix search");
   });
 
   test("YouTube's search screen opening replays nothing", async () => {

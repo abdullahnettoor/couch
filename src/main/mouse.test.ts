@@ -9,7 +9,7 @@ describe("mouse focus (Screen only)", () => {
   afterEach(() => h.stop());
 
   test("focusAt from the Screen moves focus to that cell, then OK activates it", () => {
-    h.app.screenCommand({ command: "focusAt", args: { r: 1, c: 1 } });
+    h.app.screenCommand({ command: "focusAt", args: { r: 1, c: 2 } });
     expect(h.screen.last.focusedLabel).toBe("Library");
     h.app.screenCommand({ command: "focusAt", args: { r: 0, c: 0 } });
     expect(h.screen.last.focusedLabel).toBe("Settings");

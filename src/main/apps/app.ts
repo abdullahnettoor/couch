@@ -8,7 +8,8 @@ export type AppEvent =
   /** A key pressed on the Mac keyboard while the App has focus, already mapped to a command. */
   | { type: "key"; command: CommandName }
   | { type: "loaded" }
-  | { type: "failed" }
+  /** `note` says why, in words for the App's error screen; without it the screen blames the internet. */
+  | { type: "failed"; note?: string }
   | { type: "searchOpened" }
   /** The view found (ok) or still can't find the output it was asked for; sent whenever it looks again. */
   | { type: "output"; name: string; ok: boolean }

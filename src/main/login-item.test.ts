@@ -107,6 +107,7 @@ describe("Settings item", () => {
     await phone.press("home");
     await phone.press("down");
     await phone.press("right");
+    await phone.press("right");
     await phone.press("ok");
     await phone.press("up");
     await phone.press("ok");

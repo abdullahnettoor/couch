@@ -36,6 +36,7 @@ async function playEp(n: number) {
   h = await startHarness(store);
   phone = await h.connectPhone();
   await phone.press("right");
+  await phone.press("right");
   await phone.press("ok");
   await focusFolders(h, phone);
   await phone.press("ok");
@@ -180,6 +181,7 @@ describe("Show order", () => {
     h = await startHarness(store);
     phone = await h.connectPhone();
     await h.app.core.library.refresh([root]);
+    await phone.press("right");
     await phone.press("right");
     await phone.press("ok");
     await focusFolders(h, phone);

@@ -122,7 +122,8 @@ export class Core {
   #forgetListeners = new Set<() => void>();
   #apps = new Map<string, App>();
   /** Apps that failed to load and have not loaded since. */
-  #appsFailed = new Set<string>();
+  /** Apps that failed to load, with why when the App said so. */
+  #appsFailed = new Map<string, string | undefined>();
   #lastFrom: RemoteId | undefined;
   /** What each App was last told to draw over itself. */
   #shown = new Map<string, { volume?: number; confirm?: Confirmation; bar?: string }>();
@@ -1601,6 +1602,7 @@ export class Core {
       this.#apps.get(this.#state.app ?? "")?.hide();
     }
     if (view !== "app" && view !== "appError") delete this.#state.app;
+    if (view !== "appError") delete this.#state.appNote;
     this.#state.view = view;
     this.#ambient = false;
     this.#armAmbient();
@@ -1615,6 +1617,7 @@ export class Core {
     if (!app) return;
     this.#state.app = id;
     if (this.#appsFailed.has(id)) {
+      this.#state.appNote = this.#appsFailed.get(id);
       this.#setView("appError");
       return;
     }
@@ -1646,8 +1649,11 @@ export class Core {
         this.#appsFailed.delete(app.id);
         break;
       case "failed":
-        this.#appsFailed.add(app.id);
-        if (this.#state.view === "app" && front) this.#setView("appError");
+        this.#appsFailed.set(app.id, event.note);
+        if (this.#state.view === "app" && front) {
+          this.#state.appNote = event.note;
+          this.#setView("appError");
+        }
         break;
       case "key":
         this.handle({ command: event.command }, "screen");
