@@ -100,7 +100,14 @@ function setup(els: El[], selectors?: string[]) {
   vm.createContext(sandbox);
   vm.runInContext(`(${pageFocusFunction(selectors)})()`, sandbox);
   const key = (k: string, extra: any = {}) => {
-    const e = { key: k, defaultPrevented: false, preventDefault() { e.defaultPrevented = true; }, ...extra };
+    const e = {
+      key: k,
+      defaultPrevented: false,
+      preventDefault() {
+        e.defaultPrevented = true;
+      },
+      ...extra,
+    };
     for (const f of listeners.keydown ?? []) f(e);
     return e;
   };
