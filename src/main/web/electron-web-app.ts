@@ -237,6 +237,7 @@ export class ElectronWebApp implements YouTube {
         playbackProbe({
           tracks: askTracks ? adapter!.tracks!() : undefined,
           active: adapter?.active?.(),
+          speeds: adapter?.speeds,
           artwork: adapter?.artwork?.(),
           prompt: adapter?.prompt?.(),
         }),
@@ -270,6 +271,11 @@ export class ElectronWebApp implements YouTube {
 
   pressPrompt(id: PromptId): void {
     const script = this.#desc.playback?.pressPrompt?.(id);
+    if (script) void this.#view.webContents.executeJavaScript(script).catch(() => {});
+  }
+
+  setSpeed(speed: number): void {
+    const script = this.#desc.playback?.setSpeed?.(speed);
     if (script) void this.#view.webContents.executeJavaScript(script).catch(() => {});
   }
 

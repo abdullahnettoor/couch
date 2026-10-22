@@ -17,6 +17,9 @@ export const YOUTUBE_PLAYBACK: PlaybackAdapter = {
   tracks: () =>
     `(function(){var b=${CAPTIONS};if(!b)return null;var on=b.getAttribute("aria-pressed")==="true";` +
     `return {subtitles:[{id:"off",label:"Off",on:!on},{id:"on",label:"On",on:on}],audio:[]}})()`,
+  speeds: [0.5, 0.75, 1, 1.25, 1.5, 2],
+  setSpeed: (speed) =>
+    `(function(){var v=document.querySelector("video");if(v)v.playbackRate=${Number(speed)}})()`,
   setTrack: (kind, id) =>
     kind === "subtitles" && (id === "on" || id === "off")
       ? `(function(){var b=${CAPTIONS};if(!b)return;if((b.getAttribute("aria-pressed")==="true")!==${id === "on"}){${PRESS}}})()`

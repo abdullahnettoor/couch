@@ -83,6 +83,9 @@ export class YouTubeApp implements App {
   setTrack(kind: TrackKind, id: string) {
     this.#port.setTrack?.(kind, id);
   }
+  setSpeed(speed: number) {
+    this.#port.setSpeed?.(speed);
+  }
   drawVolume(percent: number | undefined) {
     this.#port.showVolume(percent);
   }

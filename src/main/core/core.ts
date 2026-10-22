@@ -24,6 +24,7 @@ import {
 import type { Clock } from "../ports/clock.ts";
 import type { Mac } from "../ports/mac.ts";
 import { pickTargetDisplay } from "../display.ts";
+import { appEntry } from "../apps/index.ts";
 import type { App, AppEvent, AppTyping, PlaybackReport } from "../apps/app.ts";
 import { randomBytes } from "node:crypto";
 import type { Store } from "../ports/store.ts";
@@ -96,6 +97,9 @@ const OVERLAY_MS = 3000;
 const SAVE_EVERY_MS = 5000;
 const MPV_MISSING = "Couch needs mpv to play videos. Install it with: brew install mpv";
 const VOLUME_STEP = 5;
+const LIBRARY_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const SPEED_REAPPLY_MS = 3000;
+const videoKey = (report: PlaybackReport) => `${report.title ?? ""}|${report.duration}`;
 const APP_NOTE = "Press Home on your phone to come back";
 
 /** The single source of truth: holds the Screen state and turns commands into new state. */
@@ -128,6 +132,10 @@ export class Core {
   /** What each App was last told to draw over itself. */
   /** What each web App's page last reported playing; cleared when the App is hidden. */
   #playback = new Map<string, PlaybackReport>();
+  /** The speed the household chose for the playing Library video; 1 for every new video. */
+  #speed = 1;
+  /** A web App's chosen speed for the video it is playing (keyed by its title and length), and when it was last applied. */
+  #appSpeed = new Map<string, { speed: number; key: string; at: number }>();
   #shown = new Map<string, { volume?: number; confirm?: Confirmation; bar?: string }>();
   #confirmAnswers: [() => void, () => void] | undefined;
   /** The question core asked on behalf of an App's Back ("Leave <label>?"). */
@@ -705,6 +713,10 @@ export class Core {
     this.#upNextLabel = show?.name;
     const startSeconds = fromStart ? undefined : this.#history.resumeAt(path);
     this.#state.player = { path, pos: startSeconds ?? 0, dur: 0, paused: false };
+    if (this.#speed !== 1) {
+      this.#speed = 1;
+      this.#quiet(this.#ports.player.setSpeed(1));
+    }
     this.#state.view = "player";
     this.#controls.begin(upNext);
     this.#cancelNote?.();
@@ -918,7 +930,7 @@ export class Core {
               position: p.pos,
               duration: p.dur,
               subtitlesOn: this.#state.subtitlesOn,
-              level: this.#state.volume,
+              level: this.#level(),
               focusedId: this.#controls.focusedDock(),
               upNext: this.#controls.upNextAvailable,
             }
@@ -927,7 +939,7 @@ export class Core {
       next: this.#nextCard(),
       paused: p.paused,
       note: this.#resumeNote,
-      volume: this.#state.volumeShown ? this.#state.volume : undefined,
+      volume: this.#state.volumeShown ? this.#level() : undefined,
     };
   }
 
@@ -1007,6 +1019,7 @@ export class Core {
     if (this.#state.view === "library") this.#rootFocusId = focused?.id;
     const homeVideos = this.#continueEntries().slice(0, HOME_VIDEOS);
     return {
+      muted: this.#sound.muted,
       library: this.#library(focused?.id),
       ...(this.#state.view === "show" ? this.#show.payload() : {}),
       ...(this.#state.view === "fixMatch" ? this.#show.fixPayload() : {}),
@@ -1118,13 +1131,60 @@ export class Core {
             duration: s.player.dur,
             paused: s.player.paused,
             subtitlesOn: s.subtitlesOn,
+            speed: this.#speed,
+            speeds: LIBRARY_SPEEDS,
             ...this.#nowGenres(s.player.path),
+            app: this.#appFace("library", "Library"),
           }
         : this.#appNowPlaying(front),
       ...(s.player && this.#controls.upNextAvailable ? { upNext: this.#upNextItems() } : {}),
       volume: s.volume,
+      muted: this.#sound.muted,
       remotes: s.remotes,
     };
+  }
+
+  #appFace(id: string, label: string): { id: string; label: string; icon: string } | undefined {
+    const icon = appEntry(id)?.icon;
+    return icon ? { id, label, icon } : undefined;
+  }
+
+  #setSpeed(speed: number | undefined): void {
+    if (speed === undefined || !Number.isFinite(speed)) return;
+    const player = this.#state.player;
+    if (player) {
+      if (!LIBRARY_SPEEDS.includes(speed)) return;
+      this.#speed = speed;
+      this.#quiet(this.#ports.player.setSpeed(speed));
+      this.#emit();
+      return;
+    }
+    const front = this.#front();
+    const report = front && this.#playback.get(front.id);
+    if (!front?.setSpeed || !report?.speeds?.includes(speed)) return;
+    this.#appSpeed.set(front.id, { speed, key: videoKey(report), at: this.#ports.clock.now() });
+    front.setSpeed(speed);
+  }
+
+  /**
+   * A web App's video starts at 1× and keeps the chosen speed: a new video (another title or
+   * length) is set back to 1×, and a page that resets the rate is told again (at most every 3 s).
+   */
+  #holdAppSpeed(app: App, report: PlaybackReport): void {
+    if (!app.setSpeed || !report.speeds?.length || report.speed === undefined) return;
+    const now = this.#ports.clock.now();
+    const key = videoKey(report);
+    let want = this.#appSpeed.get(app.id);
+    if (want && want.key !== key) want = undefined;
+    if (!want) {
+      this.#appSpeed.delete(app.id);
+      if (report.speed === 1) return;
+      want = { speed: 1, key, at: 0 };
+      this.#appSpeed.set(app.id, want);
+    }
+    if (report.speed === want.speed || now - want.at < SPEED_REAPPLY_MS) return;
+    want.at = now;
+    app.setSpeed(want.speed);
   }
 
   /** Now Playing for the front web App, from what its page last reported. */
@@ -1138,11 +1198,15 @@ export class Core {
       duration: report.duration,
       paused: report.paused,
       subtitlesOn: false,
+      app: this.#appFace(front.id, front.label),
       canSeek: report.canSeek === true && !!front.seekTo,
       ...(report.tracks?.subtitles.length && front.setTrack
         ? { subtitles: report.tracks.subtitles }
         : {}),
       ...(report.tracks?.audio.length && front.setTrack ? { audio: report.tracks.audio } : {}),
+      ...(report.speeds?.length && front.setSpeed
+        ? { speed: report.speed ?? 1, speeds: report.speeds }
+        : {}),
       ...(report.artwork ? { artwork: report.artwork } : {}),
       ...(report.prompt && front.pressPrompt ? { prompt: report.prompt } : {}),
     };
@@ -1251,6 +1315,9 @@ export class Core {
         if (id && shown?.id === id) this.#front()?.pressPrompt?.(id);
         break;
       }
+      case "setSpeed":
+        this.#setSpeed(command.args?.speed);
+        break;
       case "volUp":
       case "volDown":
         this.#setVolume(
@@ -1262,6 +1329,9 @@ export class Core {
         break;
       case "volSet":
         this.#setVolume(command.args?.percent ?? this.#state.volume);
+        break;
+      case "mute":
+        this.#toggleMute();
         break;
       case "typeOpen":
       case "typeText":
@@ -1640,6 +1710,7 @@ export class Core {
       if (this.#leaveConfirm && this.#state.confirm === this.#leaveConfirm) this.#dismissConfirm();
       this.#state.typingBy = undefined;
       this.#playback.delete(this.#state.app ?? "");
+      this.#appSpeed.delete(this.#state.app ?? "");
       this.#apps.get(this.#state.app ?? "")?.hide();
     }
     if (view !== "app" && view !== "appError") delete this.#state.app;
@@ -1709,8 +1780,13 @@ export class Core {
         this.#sound.appOutput(app.id, event.name, event.ok);
         return;
       case "playback":
-        if (event.playback) this.#playback.set(app.id, event.playback);
-        else this.#playback.delete(app.id);
+        if (event.playback) {
+          this.#playback.set(app.id, event.playback);
+          this.#holdAppSpeed(app, event.playback);
+        } else {
+          this.#playback.delete(app.id);
+          this.#appSpeed.delete(app.id);
+        }
         break;
       case "searchOpened":
         if (
@@ -1737,7 +1813,7 @@ export class Core {
     for (const app of this.#apps.values()) {
       const shown = this.#shown.get(app.id) ?? {};
       const on = app === front;
-      const volume = on && this.#state.volumeShown ? this.#state.volume : undefined;
+      const volume = on && this.#state.volumeShown ? this.#level() : undefined;
       if (volume !== shown.volume) {
         shown.volume = volume;
         app.drawVolume(volume);
@@ -1759,10 +1835,24 @@ export class Core {
     }
   }
 
+  /** What the volume indicator shows: nothing while muted. */
+  #level(): number {
+    return this.#sound.muted ? 0 : this.#state.volume;
+  }
+
+  #toggleMute(): void {
+    this.#sound.toggleMute();
+    this.#showVolume();
+  }
+
   #setVolume(percent: number): void {
     const volume = Math.max(0, Math.min(100, Math.round(percent)));
     this.#state.volume = volume;
     this.#sound.setVolume(volume);
+    this.#showVolume();
+  }
+
+  #showVolume(): void {
     this.#state.volumeShown = true;
     this.#cancelVolume?.();
     this.#cancelVolume = this.#ports.clock.setTimeout(() => {

@@ -22,6 +22,9 @@ export interface PlaybackReport {
   tracks?: { subtitles: TrackList; audio: TrackList };
   /** The App's own button over the video right now; absent when none is showing. */
   prompt?: { id: PromptId; label: string };
+  /** Playback speed now and the choices, when the App can change it. */
+  speed?: number;
+  speeds?: number[];
   /** The App can seek to a point (its adapter's seek works); false or absent: key-based skips only. */
   canSeek?: boolean;
 }
@@ -102,6 +105,8 @@ export interface App extends SoundSink {
   setTrack?(kind: TrackKind, id: string): void;
   /** Presses the App's own prompt button (as the report listed it); absent when the adapter has none. */
   pressPrompt?(id: PromptId): void;
+  /** Sets the playback speed (1 = normal); absent when the App can't. */
+  setSpeed?(speed: number): void;
   /** Draws the volume level above the App, or removes it when undefined. */
   drawVolume(percent: number | undefined): void;
   /** Draws Couch's question over the App, or removes it when undefined. */

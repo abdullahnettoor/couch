@@ -60,6 +60,8 @@ export interface YouTube {
   setTrack?(kind: TrackKind, id: string): void;
   /** Presses the App's own prompt button through its adapter; does nothing without one. */
   pressPrompt?(id: PromptId): void;
+  /** Sets the playback speed through the App's adapter; does nothing without one. */
+  setSpeed?(speed: number): void;
   /** Draws the volume level above the view, or removes it when undefined. */
   showVolume(percent: number | undefined): void;
   /** Draws Couch's question over the view, or removes it when undefined. */

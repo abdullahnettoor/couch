@@ -19,6 +19,7 @@ export interface SoundOutputHost {
 
 interface Saved {
   volume?: unknown;
+  muted?: unknown;
   output?: unknown;
 }
 
@@ -34,6 +35,7 @@ function isDevice(value: unknown): value is OutputDevice {
 export class SoundOutput {
   #h: SoundOutputHost;
   #volume: number;
+  #muted: boolean;
   /** What the household chose (kept by UID and name); undefined is System default. */
   #chosen: OutputDevice | undefined;
   #devices: OutputDevice[] = [];
@@ -54,6 +56,7 @@ export class SoundOutput {
     const saved = host.store.read<Saved>("sound", {});
     const volume = typeof saved.volume === "number" ? saved.volume : DEFAULT_VOLUME;
     this.#volume = Math.max(0, Math.min(100, Math.round(volume)));
+    this.#muted = saved.muted === true;
     this.#chosen = isDevice(saved.output)
       ? { uid: saved.output.uid, name: saved.output.name }
       : undefined;
@@ -66,16 +69,30 @@ export class SoundOutput {
     return this.#volume;
   }
 
+  get muted(): boolean {
+    return this.#muted;
+  }
+
+  /** Changing the volume unmutes. */
   setVolume(volume: number): void {
     this.#volume = volume;
+    this.#muted = false;
+    this.#save();
+    this.applyVolume();
+  }
+
+  /** Mute remembers the level and silences everything; unmute brings it back. */
+  toggleMute(): void {
+    this.#muted = !this.#muted;
     this.#save();
     this.applyVolume();
   }
 
   /** Pushes the volume to mpv and every web App (also before each video, in case mpv restarted). */
   applyVolume(): void {
-    this.#h.player.setVolume(this.#volume).catch(() => {});
-    for (const sink of this.#h.sinks) sink.setVolume(this.#volume);
+    const level = this.#muted ? 0 : this.#volume;
+    this.#h.player.setVolume(level).catch(() => {});
+    for (const sink of this.#h.sinks) sink.setVolume(level);
   }
 
   /** The chosen device when it is connected; otherwise System default. */
@@ -172,7 +189,11 @@ export class SoundOutput {
   }
 
   #save(): void {
-    this.#h.store.write("sound", { volume: this.#volume, output: this.#chosen });
+    this.#h.store.write("sound", {
+      volume: this.#volume,
+      muted: this.#muted,
+      output: this.#chosen,
+    });
   }
 
   grid(): GridItem[] {

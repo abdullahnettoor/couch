@@ -1,5 +1,6 @@
 import type { ScreenPayload, View } from "../../shared/protocol.ts";
 import { VIEW_LABELS } from "../../shared/protocol.ts";
+import { appEntry } from "../../main/apps/index.ts";
 import { el } from "./dom.ts";
 import { glassRow, splitPage } from "./glass.ts";
 
@@ -9,7 +10,8 @@ export function render(payload: ScreenPayload): void {
   const l = payload.listener;
   const title =
     view === "settingsApp" ? (payload.appSettings?.label ?? "App") : VIEW_LABELS[view as View];
-  splitPage({ icon: "gear" }, [
+  const logo = view === "settingsApp" ? appEntry(payload.appSettings?.id)?.icon : undefined;
+  splitPage(logo ? { logo } : { icon: "gear" }, [
     el("h1", "", title),
     ...payload.grid.map((item) =>
       glassRow({
@@ -17,6 +19,7 @@ export function render(payload: ScreenPayload): void {
         label: item.label,
         focused: item.id === payload.focusedId,
         value: rowValue(item.id, payload),
+        logo: view === "settingsApps" ? appEntry(item.id)?.icon : undefined,
       }),
     ),
     ...(view === "settingsRemotes" && l

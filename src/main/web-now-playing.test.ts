@@ -102,6 +102,67 @@ describe("Now Playing for a web App", () => {
     ]);
   });
 
+  describe("speed", () => {
+    const speeds = [0.5, 1, 1.5];
+    const report = (speed: number, title = "One") => ({
+      type: "playback" as const,
+      playback: { position: 30, duration: 600, paused: false, title, speed, speeds },
+    });
+    const speedCalls = () => tubeCalls().filter((c) => c[0] === "setSpeed");
+    let tubeRef: FakeWebApp;
+    const tubeCalls = () => tubeRef.calls.map((c) => [c.call, ...c.args]);
+
+    test("the phone gets the App's speed and choices; setSpeed reaches the App", async () => {
+      const { tube, phone } = await start({ adapter: true });
+      tubeRef = tube;
+      tube.emit(report(1));
+      await phone.waitFor(() => phone.last?.nowPlaying !== undefined);
+      expect(phone.last!.nowPlaying).toMatchObject({ speed: 1, speeds });
+      await phone.press({ command: "setSpeed", args: { speed: 1.5 } });
+      expect(speedCalls()).toEqual([["setSpeed", 1.5]]);
+      await phone.press({ command: "setSpeed", args: { speed: 3 } });
+      expect(speedCalls()).toHaveLength(1);
+    });
+
+    test("no speed in the report: no speed on the phone", async () => {
+      const { tube, phone } = await start({ adapter: true });
+      tube.emit({ type: "playback", playback: { position: 1, duration: 9, paused: false } });
+      await phone.waitFor(() => phone.last?.nowPlaying !== undefined);
+      expect(phone.last!.nowPlaying).not.toHaveProperty("speeds");
+    });
+
+    test("an App that can't set speed: no speed on the phone", async () => {
+      const { tube, phone } = await start();
+      tube.emit(report(1));
+      await phone.waitFor(() => phone.last?.nowPlaying !== undefined);
+      expect(phone.last!.nowPlaying).not.toHaveProperty("speeds");
+    });
+
+    test("a page that resets the speed is told again; a new video goes back to 1×", async () => {
+      const { tube, phone } = await start({ adapter: true });
+      tubeRef = tube;
+      tube.emit(report(1));
+      await phone.settle();
+      await phone.press({ command: "setSpeed", args: { speed: 1.5 } });
+      tube.emit(report(1));
+      await phone.settle();
+      expect(speedCalls()).toHaveLength(1);
+      h.clock.advance(3500);
+      tube.emit(report(1));
+      await phone.settle();
+      expect(speedCalls()).toEqual([
+        ["setSpeed", 1.5],
+        ["setSpeed", 1.5],
+      ]);
+      tube.emit(report(1.5));
+      await phone.settle();
+      expect(speedCalls()).toHaveLength(2);
+      tube.emit(report(1.5, "Two"));
+      await phone.settle();
+      expect(speedCalls().at(-1)).toEqual(["setSpeed", 1]);
+    });
+  });
+
   test("a prompt shows while the App reports one; pressPrompt reaches the App for the showing id only", async () => {
     const { tube, phone } = await start({ adapter: true });
     const base = { position: 30, duration: 600, paused: false };

@@ -13,9 +13,15 @@ const MAIN_VIDEO_SHARE = 0.4;
  * while the App shows no real playback (a home-page preview), so nothing is reported then.
  */
 export function playbackProbe(
-  options: { tracks?: string; active?: string; artwork?: string; prompt?: string } = {},
+  options: {
+    tracks?: string;
+    active?: string;
+    artwork?: string;
+    speeds?: number[];
+    prompt?: string;
+  } = {},
 ): string {
-  const { tracks, active, artwork, prompt } = options;
+  const { tracks, active, artwork, speeds, prompt } = options;
   return `(async () => {
   ${active ? `try { if (!(${active})) return undefined; } catch (e) { return undefined; }` : ""}
   var area = window.innerWidth * window.innerHeight;
@@ -33,6 +39,7 @@ export function playbackProbe(
     duration: Math.floor(best.duration),
     paused: !!best.paused,
   };
+  ${speeds?.length ? `report.speed = best.playbackRate || 1; report.speeds = ${JSON.stringify(speeds)};` : ""}
   try {
     var meta = navigator.mediaSession && navigator.mediaSession.metadata;
     if (meta) {
@@ -64,8 +71,10 @@ export function ownArtwork(url: string, hosts: string[]): boolean {
   }
 }
 
-/** What an adapter's `tracks` script answers; `canSeek: false` says its seek control isn't on the page. */
+/** What an adapter's `tracks` script answers; `canSeek: false` says its seek control isn't on the page; `speed` and `speeds` say what its speed control offers. */
 export interface TrackReport {
+  speed?: number;
+  speeds?: number[];
   subtitles: TrackList;
   audio: TrackList;
   canSeek?: boolean;
@@ -88,6 +97,7 @@ export function composeReport(
     ...rest,
     ...(artwork && ownArtwork(artwork, artworkHosts) ? { artwork } : {}),
     ...(adapterSeeks && tracks?.canSeek !== false ? { canSeek: true } : {}),
+    ...(tracks?.speeds?.length ? { speed: tracks.speed ?? 1, speeds: tracks.speeds } : {}),
     ...(tracks ? { tracks: { subtitles: tracks.subtitles, audio: tracks.audio } } : {}),
   };
 }

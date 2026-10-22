@@ -87,6 +87,45 @@ class FakeNetflix {
     this.overlays.set(uia, el);
     return el;
   }
+  /** Netflix's own speed menu; `hasSpeed` false models a title without the control. */
+  hasSpeed = true;
+  speed = 1;
+  speedMenuOn = false;
+  speedOpened = 0;
+  /** Menu choices in Netflix's order: the labels it shows. */
+  speedLabels = ["0.5×", "0.75×", "1× (Normal)", "1.25×", "1.5×"];
+  speedButton = new El("control-speed", {}, "", () => {
+    this.speedMenuOn = true;
+    this.speedOpened++;
+  });
+  speedMenuEl: El | undefined;
+  /** Netflix's popup inside the menu: Escape closes the menu only when it is sent here. */
+  speedPopup = (() => {
+    const el = new El("playback-speed");
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") this.speedMenuOn = false;
+    });
+    return el;
+  })();
+  speedMenu() {
+    const m = new El("watch-video-speed-controls");
+    (m as any).querySelectorAll = (s: string) =>
+      s === "[data-uia^=playback-speed-item]"
+        ? this.speedLabels.map((label) => {
+            const n = parseFloat(label);
+            return new El(
+              `playback-speed-item${n === this.speed ? "-active" : ""}`,
+              {},
+              label,
+              () => {
+                this.speed = n;
+                this.speedMenuOn = false;
+              },
+            );
+          })
+        : [];
+    return (this.speedMenuEl = m);
+  }
   reveals = 0;
   seekClicks: { x: number; types: string[] }[] = [];
   video: any;
@@ -142,6 +181,9 @@ class FakeNetflix {
     const uia = /^\[data-uia=([\w-]+)\]$/.exec(sel)?.[1];
     if (sel === "video") return this.video;
     if (uia && this.overlays.has(uia)) return this.overlays.get(uia)!;
+    if (uia === "watch-video-speed-controls")
+      return this.speedMenuOn ? (this.speedMenuEl ?? this.speedMenu()) : null;
+    if (uia === "playback-speed") return this.speedMenuOn ? this.speedPopup : null;
     if (uia === "selector-audio-subtitle") return this.menuOn ? (this.menuEl ?? this.menu()) : null;
     if (!this.barOn) return null;
     if (this.menuOn && (uia === "timeline" || uia === "timeline-knob")) return null;
@@ -154,6 +196,7 @@ class FakeNetflix {
         : null;
     }
     if (uia === "control-audio-subtitle") return this.hasMenuButton ? this.menuButton : null;
+    if (uia === "control-speed") return this.hasSpeed ? this.speedButton : null;
     return null;
   }
   run(source: string): any {
@@ -267,6 +310,8 @@ describe("Netflix playback adapter", () => {
   test("tracks: reads the audio and subtitle menu, then puts it away", async () => {
     const n = new FakeNetflix();
     expect(await tracks(n)).toEqual({
+      speed: 1,
+      speeds: [0.5, 0.75, 1, 1.25, 1.5],
       canSeek: true,
       audio: [
         { id: "One", label: "One", on: true },
@@ -318,10 +363,63 @@ describe("Netflix playback adapter", () => {
     expect(n.audioOn).toBe("Three");
   });
 
+  test("speed: the menu's choices and the current one come with the tracks, read once per title", async () => {
+    const n = new FakeNetflix();
+    n.speed = 1.25;
+    expect(await tracks(n)).toMatchObject({ speed: 1.25, speeds: [0.5, 0.75, 1, 1.25, 1.5] });
+    expect(n.speedMenuOn).toBe(false);
+    await tracks(n);
+    await tracks(n);
+    expect(n.speedOpened).toBe(1);
+  });
+
+  test("setSpeed clicks the item in Netflix's own menu, never the video's rate", async () => {
+    const n = new FakeNetflix();
+    n.video.playbackRate = 1;
+    Object.defineProperty(n.video, "playbackRate", {
+      get: () => 1,
+      set: () => {
+        throw new Error("writing playbackRate breaks Netflix's player");
+      },
+    });
+    await tracks(n);
+    await n.run(playback.setSpeed!(1.5));
+    expect(n.speed).toBe(1.5);
+    expect(n.speedMenuOn).toBe(false);
+    expect(await tracks(n)).toMatchObject({ speed: 1.5 });
+    await n.run(playback.setSpeed!(1));
+    expect(n.speed).toBe(1);
+    expect(await tracks(n)).toMatchObject({ speed: 1 });
+    await n.run(playback.setSpeed!(3));
+    expect(n.speed).toBe(1);
+  });
+
+  test("a title without a speed control offers no speed, and setSpeed does nothing", async () => {
+    const n = new FakeNetflix();
+    n.hasSpeed = false;
+    const t = await tracks(n);
+    expect(t).not.toHaveProperty("speeds");
+    expect(t.audio).toHaveLength(3);
+    await expect(n.run(playback.setSpeed!(1.5))).resolves.toBeUndefined();
+    expect(n.speed).toBe(1);
+  });
+
+  test("composeReport carries Netflix's speed to the report", async () => {
+    const n = new FakeNetflix();
+    const found = await n.run(
+      playbackProbe({ tracks: playback.tracks!(), active: playback.active!() }),
+    );
+    expect(composeReport(found, found.tracks, true)).toMatchObject({
+      speed: 1,
+      speeds: [0.5, 0.75, 1, 1.25, 1.5],
+    });
+  });
+
   test("controls that aren't there: nothing offered, and the seek bar is read-only", async () => {
     const n = new FakeNetflix();
     n.hasTimeline = false;
     n.hasMenuButton = false;
+    n.hasSpeed = false;
     const t = await tracks(n);
     expect(t).toEqual({ subtitles: [], audio: [], canSeek: false });
     const found = await n.run(

@@ -52,6 +52,9 @@ export class FakePlayer implements Player {
   setSubtitles(visible: boolean) {
     return this.#record("setSubtitles", visible);
   }
+  setSpeed(speed: number) {
+    return this.#record("setSpeed", speed);
+  }
   volume: number | undefined;
   /** The CoreAudio UID mpv was last pointed at; undefined is the System default. */
   audioDevice: string | undefined;
@@ -136,6 +139,9 @@ export class FakeYouTube implements YouTube {
   }
   pressPrompt(id: PromptId) {
     this.#record("pressPrompt", id);
+  }
+  setSpeed(speed: number) {
+    this.#record("setSpeed", speed);
   }
   submitSearch(text: string) {
     this.#record("submitSearch", text);
@@ -223,6 +229,7 @@ export class FakeWebApp implements App {
   readonly seekTo: ((seconds: number) => void) | undefined;
   readonly setTrack: ((kind: TrackKind, id: string) => void) | undefined;
   readonly pressPrompt: ((id: PromptId) => void) | undefined;
+  readonly setSpeed: ((speed: number) => void) | undefined;
   constructor(id: string, label: string, options: FakeWebAppOptions = {}) {
     this.id = id;
     this.label = label;
@@ -243,6 +250,7 @@ export class FakeWebApp implements App {
       this.seekTo = (seconds) => this.#record("seekTo", seconds);
       this.setTrack = (kind, id) => this.#record("setTrack", kind, id);
       this.pressPrompt = (id) => this.#record("pressPrompt", id);
+      this.setSpeed = (speed) => this.#record("setSpeed", speed);
     }
   }
   get showVolume() {

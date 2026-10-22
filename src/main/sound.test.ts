@@ -78,6 +78,49 @@ describe("Couch's own volume", () => {
   });
 });
 
+describe("Mute", () => {
+  test("silences mpv and the web Apps, and unmute restores the level", async () => {
+    await start();
+    await phone.press({ command: "volSet", args: { percent: 40 } });
+    expect(phone.last!.muted).toBe(false);
+    await phone.press("mute");
+    expect(h.player.volume).toBe(0);
+    expect(h.youtube.volume).toBe(0);
+    expect(phone.last!.muted).toBe(true);
+    expect(phone.last!.volume).toBe(40);
+    await phone.press("mute");
+    expect(h.player.volume).toBe(40);
+    expect(h.youtube.volume).toBe(40);
+    expect(phone.last!.muted).toBe(false);
+  });
+
+  test("changing the volume while muted unmutes", async () => {
+    await start();
+    await phone.press({ command: "volSet", args: { percent: 40 } });
+    await phone.press("mute");
+    await phone.press("volUp");
+    expect(phone.last!.muted).toBe(false);
+    expect(h.player.volume).toBe(45);
+    await phone.press("mute");
+    await phone.press({ command: "volSet", args: { percent: 20 } });
+    expect(phone.last!.muted).toBe(false);
+    expect(h.youtube.volume).toBe(20);
+  });
+
+  test("survives a restart", async () => {
+    await start();
+    await phone.press({ command: "volSet", args: { percent: 35 } });
+    await phone.press("mute");
+    await h.stop();
+    await start();
+    expect(phone.last!.muted).toBe(true);
+    expect(h.player.volume).toBe(0);
+    expect(h.youtube.volume).toBe(0);
+    await phone.press("mute");
+    expect(h.player.volume).toBe(35);
+  });
+});
+
 describe("Sound output", () => {
   test("the page shows System default, then each device", async () => {
     await start();

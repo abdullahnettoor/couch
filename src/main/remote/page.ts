@@ -1,6 +1,10 @@
 import { glassTokensCss } from "../../shared/glass-tokens.ts";
 import { ICON_MARKUP } from "../../shared/icons.ts";
 
+/** Back, Home and Mute: the top of Now Playing and of its D-pad view. */
+const BAR = `<button data-cmd="back" aria-label="Back" data-i="backArrow"></button><button data-cmd="home" aria-label="Home" data-i="home"></button><button class="mutebtn" data-cmd="mute" aria-label="Mute" data-i="speaker"></button>`;
+const PAD = `<button class="dir u" data-cmd="up" aria-label="Up" data-i="up"></button><button class="dir d" data-cmd="down" aria-label="Down" data-i="down"></button><button class="dir l" data-cmd="left" aria-label="Left" data-i="left"></button><button class="dir r" data-cmd="right" aria-label="Right" data-i="right"></button><button class="ok" data-cmd="ok">OK</button>`;
+
 /** The Remote page, served as one self-contained document (no build step for it). Plain ES5-ish JS, no template literals. */
 export const REMOTE_PAGE = String.raw`<!doctype html>
 <html lang="en">
@@ -62,36 +66,71 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .cw .txt { min-width:0; flex:1; }
   .cw .txt b { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .cw .go { width:44px; height:44px; border-radius:22px; background:#fff; color:#000; display:grid; place-items:center; font-size:22px; flex:none; }
-  .art { margin-top:18px; height:180px; border-radius:20px; overflow:hidden; background:linear-gradient(135deg,#3a3a3c,#1c1c1e) center/cover; }
-  .np h3 { margin:14px 0 0; font-size:21px; }
-  .np .f { color:var(--t3); font-size:14px; margin-top:2px; }
-  .seek { margin-top:6px; padding:14px 0; touch-action:none; cursor:pointer; position:relative; }
-  .seek .bar { height:8px; border-radius:4px; background:rgba(255,255,255,.2); position:relative; }
+  .other { margin-top:16px; padding:12px 16px; border-radius:14px; background:var(--card); font-size:14px; color:var(--t2); }
+  body.np { width:100%; height:100dvh; min-height:0; overflow:hidden; padding:max(10px, env(safe-area-inset-top)) 20px max(14px, env(safe-area-inset-bottom)); }
+  body.np .top { font-size:12px; }
+  body.np .top b { display:inline; font-size:13px; margin:0 0 0 6px; }
+  body.np .pbtn { width:32px; height:32px; font-size:16px; margin-left:8px; }
+  .nowp, .npad { flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; padding-top:8px; transition:opacity .2s; }
+  .off .nowp, .off .npad { opacity:.35; pointer-events:none; }
+  .bar { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; flex:none; }
+  .bar button { height:44px; border-radius:22px; background:var(--glass); box-shadow:var(--glass-edge); backdrop-filter:blur(30px) saturate(1.6); -webkit-backdrop-filter:blur(30px) saturate(1.6); display:flex; align-items:center; justify-content:center; gap:8px; font-size:22px; color:var(--t1); transition:transform .12s; }
+  .bar button:active { transform:scale(.95); background:rgba(255,255,255,.14); }
+  .bar button.on { background:#fff; color:#000; }
+  .art { position:relative; flex:1; min-height:72px; border-radius:22px; overflow:hidden; background:var(--card) center/cover; touch-action:none; box-shadow:0 18px 40px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.06); cursor:pointer; }
+  .art .face { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:#fff; font-size:15px; font-weight:600; }
+  .art .face svg { width:clamp(36px, 18vmin, 76px); height:clamp(36px, 18vmin, 76px); }
+  .art.has .face { display:none; }
+  .art[data-app="youtube"] { background-image:linear-gradient(160deg,#ff3b30,#c4141f); }
+  .art[data-app="netflix"] { background-image:linear-gradient(160deg,#2a2a2d,#0b0b0c); }
+  .art[data-app="library"] { background-image:linear-gradient(160deg,#f5f5f7,#c9c9cf); }
+  .art[data-app="library"] .face { color:#1c1c1e; }
+  .art.has { background-size:cover; }
+  .toast { position:absolute; top:12px; left:50%; transform:translateX(-50%) scale(.9); padding:8px 16px; border-radius:18px; background:rgba(0,0,0,.62); color:#fff; font-size:14px; font-weight:600; opacity:0; pointer-events:none; transition:opacity .15s, transform .15s; white-space:nowrap; }
+  .toast.show { opacity:1; transform:translateX(-50%) scale(1); }
+  .prompt { position:absolute; left:12px; right:12px; bottom:12px; height:48px; border-radius:24px; background:#fff; color:#000; font-size:16px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 8px 24px rgba(0,0,0,.4); }
+  .prompt:active { transform:scale(.97); }
+  .ttlrow { display:flex; align-items:center; gap:10px; flex:none; margin-top:2px; }
+  .ttlrow .t { min-width:0; flex:1; }
+  .ttlrow h3 { margin:0; font-size:20px; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ttlrow .f { color:var(--t3); font-size:14px; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ttlrow .more { width:40px; height:40px; border-radius:20px; display:grid; place-items:center; font-size:20px; color:var(--t2); background:var(--glass); box-shadow:var(--glass-edge); flex:none; }
+  .seek { flex:none; padding:10px 0; touch-action:none; cursor:pointer; position:relative; }
+  .seek .bar2 { height:8px; border-radius:4px; background:rgba(255,255,255,.2); position:relative; }
   .seek .fill { position:absolute; inset:0 auto 0 0; width:0; background:#fff; border-radius:4px; }
   .seek .knob { position:absolute; top:-7px; left:0; width:22px; height:22px; margin-left:-11px; border-radius:11px; background:#fff; box-shadow:0 2px 6px rgba(0,0,0,.4); }
-  .tm { display:flex; justify-content:space-between; font-size:13px; color:var(--t3); font-weight:600; font-variant-numeric:tabular-nums; }
-  .tr { display:flex; justify-content:space-around; align-items:center; margin-top:8px; font-size:38px; }
-  .tr button { width:64px; height:64px; display:grid; place-items:center; border-radius:50%; }
-  .tr button:active { background:rgba(255,255,255,.12); }
-  .tr .pp { font-size:56px; }
   .seek.ro { cursor:default; }
   .seek.ro .knob { display:none; }
-  .pick { display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(--t3); text-align:left; }
-  .pick select { height:48px; border-radius:14px; font-size:16px; color:#fff; background:rgba(255,255,255,.12); border:0; padding:0 12px; }
-  .ex { display:grid; grid-template-columns:1fr; gap:10px; margin-top:10px; }
-  .ex .k { height:52px; border-radius:16px; font-size:22px; }
-  .ex .k.txt { font-size:15px; }
-  .upn { margin-top:16px; }
-  .upn .h { font-size:14px; font-weight:600; color:var(--t3); margin-bottom:8px; }
-  .upn .list { display:flex; gap:10px; overflow-x:auto; scrollbar-width:none; }
-  .upn .e { width:120px; flex:none; text-align:left; }
-  .upn .e .pic { width:120px; height:68px; border-radius:10px; background:#3a3a3c center/cover; position:relative; }
-  .upn .e .prog { position:absolute; left:6px; right:6px; bottom:6px; height:3px; border-radius:2px; background:rgba(255,255,255,.3); }
-  .upn .e .prog i { display:block; height:100%; border-radius:2px; background:#fff; }
-  .upn .e.now .pic { box-shadow:0 0 0 2px #fff; }
-  .upn .e span { display:block; font-size:12px; margin-top:4px; color:var(--t2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .upn .e.seen { opacity:.55; }
-  .other { margin-top:16px; padding:12px 16px; border-radius:14px; background:var(--card); font-size:14px; color:var(--t2); }
+  .tm { display:flex; justify-content:space-between; font-size:13px; color:var(--t3); font-weight:600; font-variant-numeric:tabular-nums; flex:none; margin-top:-4px; }
+  .tr { display:flex; justify-content:space-around; align-items:center; flex:none; font-size:34px; }
+  .tr button { width:56px; height:56px; display:grid; place-items:center; border-radius:50%; }
+  .tr button:active { background:rgba(255,255,255,.12); }
+  .tr .pp { width:76px; height:76px; background:#fff; color:#000; font-size:36px; transition:transform .12s; }
+  .tr .pp:active { transform:scale(.94); background:#e5e5e5; }
+  .chips { display:flex; gap:8px; flex:none; }
+  .chip { flex:1 1 auto; height:44px; border-radius:22px; background:var(--card); display:flex; align-items:center; justify-content:center; gap:5px; padding:0 5px; font-size:13px; font-weight:600; min-width:0; box-shadow:inset 0 1px 0 rgba(255,255,255,.07); }
+  .chip svg { font-size:17px; }
+  .chip.pad-chip { flex:0 0 52px; }
+  .chip.pad-chip svg { font-size:22px; }
+  .chip span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+  .chip:active { background:var(--card-2); }
+  .chip.on { background:#fff; color:#000; }
+  .vpill { align-self:center; flex:none; height:44px; width:176px; border-radius:22px; background:var(--glass); box-shadow:var(--glass-edge); display:flex; align-items:center; justify-content:space-between; padding:0 4px; }
+  .vpill button { width:40px; height:40px; border-radius:20px; display:grid; place-items:center; font-size:20px; color:var(--t2); }
+  .vpill button:active { background:rgba(255,255,255,.14); }
+  .vpill b { font-size:16px; font-variant-numeric:tabular-nums; }
+  .vpill.muted b { color:var(--t3); }
+  .npad { align-items:stretch; }
+  .npad .pad { margin:auto; width:min(270px, 70vw, 40vh); }
+  .npad .back { height:56px; border-radius:28px; background:#fff; color:#000; font-size:17px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:10px; flex:none; margin-top:auto; }
+  .npad .back svg { font-size:24px; }
+  .npad .hint { text-align:center; color:var(--t3); font-size:14px; flex:none; }
+  .sheet .rows { width:100%; max-width:480px; margin:0 auto; padding:18px 16px max(22px, env(safe-area-inset-bottom)); background:var(--card); border-radius:30px 30px 0 0; display:grid; gap:6px; box-shadow:0 -20px 50px rgba(0,0,0,.5); max-height:70dvh; overflow-y:auto; animation:rise .22s ease-out; }
+  .sheet .rows .h { font-size:14px; font-weight:600; color:var(--t3); padding:0 8px 6px; }
+  .sheet .rows button { height:52px; border-radius:16px; background:var(--card-2); text-align:left; padding:0 16px; font-size:17px; display:flex; align-items:center; justify-content:space-between; }
+  .sheet .rows button.cur { background:#fff; color:#000; font-weight:700; }
+  @keyframes rise { from { transform:translateY(40px); opacity:0; } to { transform:none; opacity:1; } }
+  @media (prefers-reduced-motion:reduce) { .sheet .rows { animation:none; } .toast { transition:none; } }
   .pbtn { width:40px; height:40px; border-radius:20px; display:grid; place-items:center; font-size:20px; color:var(--t2); background:var(--glass); box-shadow:var(--glass-edge); margin-left:12px; }
   .pbtn:active { background:rgba(255,255,255,.14); }
   .topr { display:flex; align-items:center; }
@@ -128,35 +167,43 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 </div>
 <div class="banner" id="banner" hidden>Can't reach Couch. Is the Mac awake and Couch open?</div>
 <div class="note" id="hint" hidden>Still nothing? Scan the QR code on the Screen again to pair this phone.</div>
+<section class="nowp" id="nowp" hidden>
+  <div class="bar">__BAR__</div>
+  <div class="art" id="np-art" role="button" aria-label="Play or pause. Swipe sideways to skip, up or down for volume.">
+    <div class="face" id="np-face"></div>
+    <div class="toast" id="np-toast" role="status" aria-live="polite"></div>
+    <button class="prompt" id="np-prompt" hidden></button>
+  </div>
+  <div class="ttlrow"><div class="t"><h3 id="np-title"></h3><div class="f" id="np-line"></div></div><button class="more" id="np-more" aria-label="Up next" data-i="list" hidden></button></div>
+  <div class="seek" id="seek"><div class="bar2"><div class="fill" id="np-fill"></div><div class="knob" id="np-knob"></div></div></div>
+  <div class="tm"><span id="np-elapsed"></span><span id="np-remaining"></span></div>
+  <div class="tr">
+    <button data-cmd="seekBy" data-seconds="-10" aria-label="Back 10 seconds" data-i="back10"></button>
+    <button class="pp" data-cmd="playpause" aria-label="Play or pause" id="np-pp"></button>
+    <button data-cmd="seekBy" data-seconds="10" aria-label="Forward 10 seconds" data-i="fwd10"></button>
+  </div>
+  <div class="chips" id="np-chips">
+    <button class="chip" id="chip-subs" hidden><span data-i="cc"></span><span id="chip-subs-t">Subtitles</span></button>
+    <button class="chip" id="chip-aud" hidden><span data-i="headphones"></span><span id="chip-aud-t">Audio</span></button>
+    <button class="chip" id="chip-spd" hidden><span data-i="gauge"></span><span id="chip-spd-t">1×</span></button>
+    <button class="chip pad-chip" id="chip-pad" aria-label="D-pad" hidden><span data-i="dpad"></span></button>
+  </div>
+  <div class="vpill" id="np-vol"><button data-cmd="volDown" aria-label="Volume down" data-i="minus"></button><b id="np-vol-n" role="status" aria-label="Volume"></b><button data-cmd="volUp" aria-label="Volume up" data-i="plus"></button></div>
+</section>
+<section class="npad" id="npad" hidden>
+  <div class="bar">__BAR__</div>
+  <div class="hint">Menus on the Screen</div>
+  <div class="pad">__PAD__</div>
+  <button class="back" id="npad-back"><span data-i="monitorPlay"></span>Now Playing</button>
+</section>
+<div class="sheet" id="np-sheet" hidden>
+  <div class="rows" id="np-rows" role="dialog"></div>
+</div>
 <main id="controls">
   <button class="cw" id="cw" data-cmd="resume" hidden><span class="pic" id="cw-pic"></span><span class="txt"><b id="cw-title"></b><span class="l" id="cw-left"></span></span><span class="go" data-i="play"></span></button>
   <button class="search" id="fixbtn" data-cmd="menu" hidden><span id="fix-label">Fix match</span></button>
   <button class="search" id="search" data-cmd="typeOpen" hidden><span data-i="search"></span><span id="search-label">Search</span></button>
-  <div class="np" id="np" hidden>
-    <div class="art" id="np-art"></div>
-    <h3 id="np-title"></h3><div class="f" id="np-folder"></div><div class="f" id="np-genres" hidden></div>
-    <button class="cw nx" id="nx" data-cmd="playNext" hidden><span class="pic" id="nx-pic"></span><span class="txt"><b id="nx-title"></b><span class="l" id="nx-line">Play next</span></span><span class="go" data-i="play"></span></button>
-    <div class="seek" id="seek"><div class="bar"><div class="fill" id="np-fill"></div><div class="knob" id="np-knob"></div></div></div>
-    <div class="tm"><span id="np-elapsed"></span><span id="np-remaining"></span></div>
-    <div class="tr">
-      <button data-cmd="seekBy" data-seconds="-10" aria-label="Back 10 seconds" data-i="back10"></button>
-      <button class="pp" data-cmd="playpause" aria-label="Play or pause" id="np-pp"></button>
-      <button data-cmd="seekBy" data-seconds="10" aria-label="Forward 10 seconds" data-i="fwd10"></button>
-    </div>
-    <div class="ex">
-      <button class="k txt" data-cmd="subtitles" id="np-subs"><span data-i="cc" style="font-size:26px"></span>Subtitles</button>
-      <label class="pick" id="np-sub-box" hidden>Subtitles<select id="np-sub-pick" aria-label="Subtitles"></select></label>
-      <label class="pick" id="np-aud-box" hidden>Audio<select id="np-aud-pick" aria-label="Audio"></select></label>
-    </div>
-    <div class="upn" id="upn" hidden><div class="h">Up next</div><div class="list" id="upn-list"></div></div>
-  </div>
-  <div class="pad" id="dpad">
-    <button class="dir u" data-cmd="up" aria-label="Up" data-i="up"></button>
-    <button class="dir d" data-cmd="down" aria-label="Down" data-i="down"></button>
-    <button class="dir l" data-cmd="left" aria-label="Left" data-i="left"></button>
-    <button class="dir r" data-cmd="right" aria-label="Right" data-i="right"></button>
-    <button class="ok" data-cmd="ok">OK</button>
-  </div>
+  <div class="pad" id="dpad">__PAD__</div>
   <div class="vslider" id="vol">
     <button data-cmd="volDown" aria-label="Volume down" data-i="minus"></button>
     <div class="vtrack" id="vtrack" role="slider" aria-label="Volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="vbar"><div class="vfill" id="vfill"></div></div></div>
@@ -226,54 +273,125 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     $("vtrack").setAttribute("aria-valuenow", String(Math.round(v)));
   }
 
-  function renderUpNext(items) {
-    var box = $("upn-list");
-    $("upn").hidden = !items || items.length < 2;
-    box.textContent = "";
-    if (!items) return;
-    items.forEach(function (it, i) {
-      var b = document.createElement("button");
-      b.className = "e" + (it.playing ? " now" : "") + (it.watched && !it.playing ? " seen" : "");
-      var pic = document.createElement("div");
-      pic.className = "pic";
-      if (it.thumbKey) pic.style.backgroundImage = thumb(it.thumbKey);
-      if (typeof it.progress === "number") {
-        var prog = document.createElement("div");
-        prog.className = "prog";
-        var bar = document.createElement("i");
-        bar.style.width = Math.round(it.progress * 100) + "%";
-        prog.appendChild(bar);
-        pic.appendChild(prog);
-      }
-      var t = document.createElement("span");
-      t.textContent = it.title;
-      b.appendChild(pic); b.appendChild(t);
-      b.addEventListener("click", function () { sendArgs("playUpNext", { index: i }); });
-      box.appendChild(b);
-    });
+  var last = null, sheetKind = "";
+  function esc(t) { return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function speedLabel(x) { return x + "×"; }
+  function current(tracks, fallback) {
+    var on = (tracks || []).filter(function (t) { return t.on; })[0];
+    return on ? on.label : fallback;
+  }
+  function row(cmd, args, label, cur) {
+    return '<button data-cmd="' + cmd + '" data-args="' + esc(JSON.stringify(args)) + '" data-close="1"' + (cur ? ' class="cur"' : "") + ">" + esc(label) + "</button>";
+  }
+  function sheetHtml(kind, s) {
+    var np = s.nowPlaying, h = "";
+    if (kind === "subs") {
+      h = '<div class="h">Subtitles</div>';
+      (np.subtitles || []).forEach(function (t) { h += row("setTrack", { kind: "subtitles", track: t.id }, t.label, t.on); });
+    } else if (kind === "aud") {
+      h = '<div class="h">Audio</div>';
+      (np.audio || []).forEach(function (t) { h += row("setTrack", { kind: "audio", track: t.id }, t.label, t.on); });
+    } else if (kind === "spd") {
+      h = '<div class="h">Speed</div>';
+      (np.speeds || []).forEach(function (x) { h += row("setSpeed", { speed: x }, speedLabel(x), x === np.speed); });
+    } else if (kind === "upn") {
+      h = '<div class="h">Up next</div>';
+      (s.upNext || []).forEach(function (u, i) { h += row("playUpNext", { index: i }, u.title, u.playing); });
+    }
+    return h;
+  }
+  function openSheet(kind) {
+    if (!last || !last.nowPlaying) return;
+    sheetKind = kind;
+    $("np-rows").innerHTML = sheetHtml(kind, last);
+    $("np-sheet").hidden = false;
+  }
+  function closeSheet() { sheetKind = ""; $("np-sheet").hidden = true; }
+
+  var toastTimer = null;
+  function toast(text) {
+    var t = $("np-toast");
+    t.textContent = text;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove("show"); }, 900);
   }
 
-  function fillPicker(id, tracks, kind) {
-    var box = $("np-" + id + "-box"), pick = $("np-" + id + "-pick");
-    box.hidden = !tracks || !tracks.length;
-    if (box.hidden || document.activeElement === pick) return;
-    pick.textContent = "";
-    tracks.forEach(function (t) {
-      var o = document.createElement("option");
-      o.value = t.id; o.textContent = t.label; o.selected = t.on;
-      pick.appendChild(o);
-    });
-    pick.onchange = function () { sendArgs("setTrack", { kind: kind, track: pick.value }); };
+  var padOpen = false;
+  function setMute(on) {
+    var els = document.querySelectorAll(".mutebtn");
+    for (var i = 0; i < els.length; i++) {
+      els[i].classList.toggle("on", on);
+      els[i].setAttribute("aria-pressed", String(on));
+      els[i].innerHTML = icon(on ? "speakerMute" : "speaker");
+    }
+  }
+
+  function renderNow(s) {
+    var np = s.nowPlaying;
+    var web = typeof np.canSeek === "boolean";
+    duration = np.duration;
+    canSeek = !web || np.canSeek;
+    seek.classList.toggle("ro", !canSeek);
+    $("np-title").textContent = np.title;
+    $("np-line").textContent = np.line || np.folder || "";
+    if (!dragging) showProgress(np.position);
+    $("np-pp").innerHTML = icon(np.paused ? "play" : "pause");
+    $("np-pp").setAttribute("aria-label", np.paused ? "Play" : "Pause");
+
+    var art = $("np-art");
+    var playing = (s.upNext || []).filter(function (u) { return u.playing && u.thumbKey; })[0];
+    var pic = playing ? thumb(playing.thumbKey) : np.artwork ? "url(" + JSON.stringify(np.artwork) + ")" : "";
+    art.classList.toggle("has", !!pic);
+    art.style.backgroundImage = pic;
+    art.setAttribute("data-app", np.app ? np.app.id : "");
+    $("np-face").innerHTML = np.app ? np.app.icon + "<span>" + esc(np.app.label) + "</span>" : "";
+
+    var prompt = np.prompt ? { cmd: "pressPrompt", args: { id: np.prompt.id }, label: np.prompt.label } : s.next ? { cmd: "playNext", label: "Play next" } : null;
+    var pb = $("np-prompt");
+    pb.hidden = !prompt;
+    if (prompt) {
+      pb.textContent = prompt.label;
+      pb.setAttribute("data-cmd", prompt.cmd);
+      pb.setAttribute("data-args", prompt.args ? JSON.stringify(prompt.args) : "");
+    }
+
+    var subs = web ? !!(np.subtitles && np.subtitles.length) : true;
+    var aud = !!(np.audio && np.audio.length);
+    var spd = !!(np.speeds && np.speeds.length && typeof np.speed === "number");
+    var pad = web;
+    $("chip-subs").hidden = !subs;
+    $("chip-aud").hidden = !aud;
+    $("chip-spd").hidden = !spd;
+    $("chip-pad").hidden = !pad;
+    $("np-chips").style.setProperty("--n", String(Math.max(1, (subs ? 1 : 0) + (aud ? 1 : 0) + (spd ? 1 : 0) + (pad ? 1 : 0))));
+    if (web) $("chip-subs-t").textContent = current(np.subtitles, "Subtitles");
+    else $("chip-subs-t").textContent = np.subtitlesOn ? "Subtitles on" : "Subtitles";
+    $("chip-subs").classList.toggle("on", !web && np.subtitlesOn);
+    $("chip-aud-t").textContent = current(np.audio, "Audio");
+    if (spd) $("chip-spd-t").textContent = speedLabel(np.speed);
+    $("np-more").hidden = !s.upNext || s.upNext.length < 2;
+    if (sheetKind && !$("np-sheet").hidden) $("np-rows").innerHTML = sheetHtml(sheetKind, s);
   }
 
   function render(s) {
+    last = s;
     var L = s.layout || "other";
     $("where").textContent = s.where;
     $("count").textContent = s.remotes === 1 ? " · 1 phone" : " · " + s.remotes + " phones";
     var np = s.nowPlaying;
-    $("np").hidden = !np;
-    var web = !!np && typeof np.canSeek === "boolean";
-    $("dpad").hidden = !!np && !web;
+    if (!np) { padOpen = false; closeSheet(); }
+    document.body.classList.toggle("np", !!np);
+    $("nowp").hidden = !np || padOpen;
+    $("npad").hidden = !np || !padOpen;
+    $("controls").hidden = !!np;
+    setMute(!!s.muted);
+    if (np) {
+      renderNow(s);
+      if (typeof s.volume === "number" && !volDragging) showVolume(s.volume);
+      $("np-vol-n").textContent = s.muted ? "Muted" : String(Math.round(s.volume));
+      $("np-vol").classList.toggle("muted", !!s.muted);
+    }
     $("cw").hidden = L !== "home" || !s.continueCard;
     if (s.continueCard) {
       $("cw-title").textContent = s.continueCard.title;
@@ -286,30 +404,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     $("search").classList.toggle("dim", !s.typeAvailable);
     if (typeof s.volume === "number" && !volDragging) showVolume(s.volume);
     $("skip").hidden = !s.showSkip || !!np;
-    if (np) {
-      duration = np.duration;
-      canSeek = !web || np.canSeek;
-      seek.classList.toggle("ro", !canSeek);
-      $("np-subs").hidden = web;
-      fillPicker("sub", np.subtitles, "subtitles");
-      fillPicker("aud", np.audio, "audio");
-      $("np-title").textContent = np.title;
-      $("np-folder").textContent = np.line || np.folder;
-      $("np-genres").textContent = np.genres || "";
-      $("np-genres").hidden = !np.genres;
-      if (!dragging) showProgress(np.position);
-      $("np-pp").innerHTML = icon(np.paused ? "play" : "pause");
-      $("np-subs").classList.toggle("on", np.subtitlesOn);
-      var playing = (s.upNext || []).filter(function (u) { return u.playing && u.thumbKey; })[0];
-      $("np-art").style.backgroundImage = playing ? thumb(playing.thumbKey) : np.artwork ? "url(" + JSON.stringify(np.artwork) + ")" : "none";
-      renderUpNext(s.upNext);
-    }
-    $("nx").hidden = !s.next;
-    if (s.next) {
-      $("nx-title").textContent = s.next.title;
-      $("nx-line").textContent = s.next.line || "Play next";
-      $("nx-pic").style.backgroundImage = s.next.thumbKey ? thumb(s.next.thumbKey) : "none";
-    }
+    $("dpad").hidden = !!np;
     $("other").hidden = s.typing !== "other" && s.typing !== "screen";
     $("other").textContent = s.typing === "screen" ? "Typing on the Screen" : "Typing on another phone";
     var mine = s.typing === "you";
@@ -391,6 +486,51 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   });
   vtrack.addEventListener("pointercancel", function () { volDragging = false; });
 
+
+  $("chip-subs").addEventListener("click", function () {
+    if (!last || !last.nowPlaying) return;
+    if (typeof last.nowPlaying.canSeek === "boolean") openSheet("subs");
+    else sendArgs("subtitles");
+  });
+  $("chip-aud").addEventListener("click", function () { openSheet("aud"); });
+  $("chip-spd").addEventListener("click", function () { openSheet("spd"); });
+  $("np-more").addEventListener("click", function () { openSheet("upn"); });
+  $("chip-pad").addEventListener("click", function () { padOpen = true; if (last) render(last); });
+  $("npad-back").addEventListener("click", function () { padOpen = false; if (last) render(last); });
+  $("np-sheet").addEventListener("click", function (e) { if (e.target === $("np-sheet")) closeSheet(); });
+
+  var art = $("np-art"), g = null;
+  art.addEventListener("pointerdown", function (e) {
+    if (!open || (e.target.closest && e.target.closest(".prompt"))) return;
+    g = { x: e.clientX, y: e.clientY, axis: "", vy: 0 };
+    art.setPointerCapture(e.pointerId);
+  });
+  art.addEventListener("pointermove", function (e) {
+    if (!g) return;
+    var dx = e.clientX - g.x, dy = e.clientY - g.y;
+    if (!g.axis && Math.max(Math.abs(dx), Math.abs(dy)) > 14) g.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+    if (g.axis === "y") {
+      var steps = Math.trunc((g.y - e.clientY) / 28) - g.vy;
+      for (var i = 0; i < Math.abs(steps); i++) sendArgs(steps > 0 ? "volUp" : "volDown");
+      g.vy += steps;
+      if (steps && last) toast("Volume " + Math.max(0, Math.min(100, Math.round(last.volume) + g.vy * 5)));
+    }
+  });
+  art.addEventListener("pointerup", function (e) {
+    if (!g) return;
+    var dx = e.clientX - g.x, axis = g.axis;
+    g = null;
+    if (axis === "x" && Math.abs(dx) >= 40) {
+      var secs = dx > 0 ? 10 : -10;
+      sendArgs("seekBy", { seconds: secs });
+      toast(secs > 0 ? "+10 s" : "−10 s");
+    } else if (!axis) {
+      sendArgs("playpause");
+      toast(last && last.nowPlaying && last.nowPlaying.paused ? "Playing" : "Paused");
+    }
+  });
+  art.addEventListener("pointercancel", function () { g = null; });
+
   function connect() {
     var proto = location.protocol === "https:" ? "wss:" : "ws:";
     ws = new WebSocket(proto + "//" + location.host + "/ws?key=" + encodeURIComponent(key));
@@ -426,6 +566,9 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     var msg = { type: "command", command: el.getAttribute("data-cmd") };
     var secs = el.getAttribute("data-seconds");
     if (secs) msg.args = { seconds: Number(secs) };
+    var raw = el.getAttribute("data-args");
+    if (raw) msg.args = JSON.parse(raw);
+    if (el.getAttribute("data-close")) closeSheet();
     ws.send(JSON.stringify(msg));
   });
 
@@ -447,5 +590,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 </body>
 </html>
 `
+  .replaceAll("__BAR__", BAR)
+  .replaceAll("__PAD__", PAD)
   .replace("__ICONS__", JSON.stringify(ICON_MARKUP))
   .replace("__TOKENS__", glassTokensCss({ unit: "1px" }));
