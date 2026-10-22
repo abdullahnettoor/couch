@@ -550,12 +550,13 @@ svg.i {
     linear-gradient(90deg, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.4) 40%, rgba(0, 0, 0, 0) 65%),
     linear-gradient(0deg, #000 0%, rgba(0, 0, 0, 0.85) 38%, rgba(0, 0, 0, 0) 62%);
 }
-/* Laid out from the bottom up: the last line sits a fixed gap above the chips (or the first row). */
+/* Laid out from the bottom up: the last line sits a fixed gap above the chips (or the first row).
+   Anchored from the top only: --u is width-based, so a bottom offset would drift onto the chips in a taller window. */
 .lf-feat {
   position: absolute;
   left: calc(96 * var(--u));
   top: calc(130 * var(--u));
-  bottom: calc((1080 - 520 + 28) * var(--u));
+  height: calc((520 - 28 - 130) * var(--u));
   width: calc(860 * var(--u));
   display: flex;
   flex-direction: column;
