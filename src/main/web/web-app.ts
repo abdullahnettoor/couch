@@ -59,6 +59,8 @@ export interface WebAppDescription {
   drm?: boolean;
   /** App-specific main-world functions (source text) that run after `couchHooks` and before any add-on. */
   preloads: PagePreload[];
+  /** Turns on Couch's focus for the page: D-pad moves a ring between controls, OK clicks. */
+  focus?: { selectors?: string[] };
   /** The add-ons this host can run, and the ids of those that are on now. */
   addons: Addon[];
   enabledAddons: string[];
