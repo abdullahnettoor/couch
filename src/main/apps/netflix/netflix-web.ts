@@ -29,6 +29,8 @@ export const NETFLIX_LAYOUT: FocusLayout = {
   // Duplicates and helpers the carousel pages by itself.
   ignore: ['[tabindex="-1"]', '[data-uia^="carousel-hawkins"]'],
   scopes: ['[data-uia^="modal-motion-container"]'],
+  // A card links to /browse?jbv=<id> (older ones /watch/<id> or /title/<id>): that id, with its row, finds the card again after Netflix redraws the row.
+  titleId: "(?:/(?:watch|title)/|[?&]jbv=)(\\d+)",
   rows: {
     row: '[data-uia^="carousel-row-section"]',
     next: '[data-uia="carousel-hawkins-right-button"]',
@@ -51,7 +53,7 @@ export function netflixDescription(version?: string): WebAppDescription {
       ok: "Return",
       back: "Escape",
     },
-    // Back is the browser's: it closes the player and the title modal (both are history entries).
+    // Back is the browser's for the player and pages Couch doesn't know; a title's pop-up closes with Netflix's own Escape.
     backByHistory: true,
     isOwnOrigin: isNetflixOrigin,
     search: {

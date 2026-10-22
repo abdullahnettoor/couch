@@ -368,12 +368,25 @@ export class ElectronWebApp implements YouTube {
     const keyCode = this.#desc.keyCodes[key];
     const wc = this.#view.webContents;
     if (key === "back" && this.#desc.backByHistory) {
-      // The blank page the view starts on is not somewhere to go back to.
-      const history = wc.navigationHistory;
-      const before = history.getEntryAtIndex(history.getActiveIndex() - 1);
-      if (before?.url.startsWith("https:")) history.goBack();
+      // A pop-up closes the site's own way (its Escape); history back is for the player and pages Couch doesn't know.
+      void wc
+        .executeJavaScript("!!(window.__couchPopupOpen && window.__couchPopupOpen())")
+        .catch(() => false)
+        .then((popup) => (popup ? this.#press(keyCode) : this.#goBack()));
       return;
     }
+    this.#press(keyCode);
+  }
+
+  #goBack(): void {
+    // The blank page the view starts on is not somewhere to go back to.
+    const history = this.#view.webContents.navigationHistory;
+    const before = history.getEntryAtIndex(history.getActiveIndex() - 1);
+    if (before?.url.startsWith("https:")) history.goBack();
+  }
+
+  #press(keyCode: string): void {
+    const wc = this.#view.webContents;
     this.#sending = true;
     try {
       wc.sendInputEvent({ type: "keyDown", keyCode });
