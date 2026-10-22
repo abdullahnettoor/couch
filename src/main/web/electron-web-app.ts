@@ -19,7 +19,7 @@ import { requestHooksFor, type RequestHooks } from "./request-hooks.ts";
 import { SessionPreloads } from "./session-preloads.ts";
 import type { IdleLifecycle } from "./idle-unload.ts";
 import { drmGate } from "./drm-gate.ts";
-import { playbackProbe, sameReport, type PlaybackReport } from "./playback.ts";
+import { composeReport, playbackProbe, sameReport, type PlaybackReport, type TrackReport } from "./playback.ts";
 import { seekPlan } from "./seek-plan.ts";
 import type { WebAppDescription, WebIdentity } from "./web-app.ts";
 import { confirmScript, noteScript, searchBarScript, volumeScript } from "./web-hud.ts";
@@ -57,7 +57,7 @@ export class ElectronWebApp implements YouTube {
   #routes: ReturnType<WebAppDescription["route"]["tracker"]>;
   #report: PlaybackReport | undefined;
   #probing = false;
-  #tracks: PlaybackReport["tracks"];
+  #tracks: TrackReport | undefined;
   #tracksAt = 0;
   #routeTimer: ReturnType<typeof setInterval> | undefined;
   #volume = 60;
@@ -215,19 +215,14 @@ export class ElectronWebApp implements YouTube {
     const askTracks = !!adapter?.tracks && now - this.#tracksAt >= TRACKS_EVERY_MS;
     this.#probing = true;
     void this.#view.webContents
-      .executeJavaScript(playbackProbe(askTracks ? adapter!.tracks!() : undefined))
+      .executeJavaScript(playbackProbe(askTracks ? adapter!.tracks!() : undefined, adapter?.active?.()))
       .then((found: PlaybackReport | undefined) => {
         if (!this.#visible) return;
         if (askTracks) {
           this.#tracksAt = now;
-          this.#tracks = found?.tracks;
+          this.#tracks = found?.tracks as TrackReport | undefined;
         }
-        const next = found && {
-          ...found,
-          ...(adapter?.seek ? { canSeek: true } : {}),
-          ...(this.#tracks ? { tracks: this.#tracks } : {}),
-        };
-        this.#reportPlayback(next);
+        this.#reportPlayback(composeReport(found, this.#tracks, !!adapter?.seek));
       })
       .catch(() => this.#reportPlayback(undefined))
       .finally(() => {

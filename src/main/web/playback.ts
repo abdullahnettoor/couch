@@ -1,4 +1,5 @@
 import type { PlaybackReport } from "../apps/app.ts";
+import type { TrackList } from "../../shared/protocol.ts";
 
 export type { PlaybackReport };
 
@@ -45,6 +46,32 @@ export function playbackProbe(tracks?: string, active?: string): string {
   ${tracks ? `try { var t = await (${tracks}); if (t) report.tracks = t; } catch (e) {}` : ""}
   return report;
 })()`;
+}
+
+/** What an adapter's `tracks` script answers; `canSeek: false` says its seek control isn't on the page. */
+export interface TrackReport {
+  subtitles: TrackList;
+  audio: TrackList;
+  canSeek?: boolean;
+}
+
+/**
+ * The probe's report plus what the adapter adds. The seek bar is live only when the adapter can
+ * seek and hasn't said its seek control is missing; otherwise it is read-only and the phone's
+ * ±10 s stay on the App's keys.
+ */
+export function composeReport(
+  found: PlaybackReport | undefined,
+  tracks: TrackReport | undefined,
+  adapterSeeks: boolean,
+): PlaybackReport | undefined {
+  if (!found) return undefined;
+  const { tracks: _own, ...rest } = found;
+  return {
+    ...rest,
+    ...(adapterSeeks && tracks?.canSeek !== false ? { canSeek: true } : {}),
+    ...(tracks ? { tracks: { subtitles: tracks.subtitles, audio: tracks.audio } } : {}),
+  };
 }
 
 export function sameReport(a: PlaybackReport | undefined, b: PlaybackReport | undefined): boolean {

@@ -1,6 +1,6 @@
 import vm from "node:vm";
 import { describe, expect, test } from "vite-plus/test";
-import { playbackProbe, sameReport, type PlaybackReport } from "./playback.ts";
+import { composeReport, playbackProbe, sameReport, type PlaybackReport } from "./playback.ts";
 
 interface FakeVideo {
   currentTime: number;
@@ -113,5 +113,25 @@ describe("sameReport", () => {
     expect(sameReport(a, { ...a, paused: true })).toBe(false);
     expect(sameReport(a, undefined)).toBe(false);
     expect(sameReport(undefined, undefined)).toBe(true);
+  });
+});
+
+describe("composeReport", () => {
+  const found = { position: 5, duration: 60, paused: false };
+  const lists = { subtitles: [{ id: "off", label: "Off", on: true }], audio: [] };
+
+  test("a seeking adapter makes the bar live and adds the pickers", () => {
+    expect(composeReport(found, lists, true)).toEqual({ ...found, canSeek: true, tracks: lists });
+  });
+
+  test("the adapter saying its seek control is missing leaves the bar read-only", () => {
+    const r = composeReport(found, { ...lists, canSeek: false }, true)!;
+    expect(r.canSeek).toBeUndefined();
+    expect(r.tracks).toEqual(lists);
+  });
+
+  test("no adapter seek: read-only; nothing playing: nothing", () => {
+    expect(composeReport(found, undefined, false)).toEqual(found);
+    expect(composeReport(undefined, lists, true)).toBeUndefined();
   });
 });

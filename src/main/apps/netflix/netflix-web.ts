@@ -1,6 +1,7 @@
 import { chromeIdentity } from "../../web/chrome-identity.ts";
 import type { FocusLayout } from "../../web/page-focus.ts";
 import type { WebAppDescription } from "../../web/web-app.ts";
+import { NETFLIX_PLAYBACK } from "./netflix-playback.ts";
 import {
   isNetflixOrigin,
   isNetflixSearchUrl,
@@ -51,7 +52,7 @@ export const NETFLIX_LAYOUT: FocusLayout = {
   },
 };
 
-/** Netflix as a web App: its normal website as Chrome, Widevine, Couch's focus, seek by arrow keys. */
+/** Netflix as a web App: its normal website as Chrome, Widevine, Couch's focus, ±10 s by arrow keys, seek, subtitles and audio through its own controls. */
 export function netflixDescription(version?: string): WebAppDescription {
   return {
     id: "netflix",
@@ -81,6 +82,7 @@ export function netflixDescription(version?: string): WebAppDescription {
     loadOnShow: true,
     focus: { selectors: FOCUS_SELECTORS, layout: NETFLIX_LAYOUT },
     preloads: [],
+    playback: NETFLIX_PLAYBACK,
     addons: [],
     enabledAddons: [],
   };
