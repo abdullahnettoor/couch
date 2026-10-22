@@ -25,6 +25,8 @@ export type YouTubeEvent =
       url?: string;
     }
   | { type: "searchOpened" }
+  /** Back closed something in the page (a player menu, the bar, a pop-up) without changing its route. */
+  | { type: "backHandled" }
   /** What the page is playing, or undefined when nothing is. */
   | { type: "playback"; playback: PlaybackReport | undefined }
   /** The view found (ok) or still can't find the output it was asked for; sent whenever it looks again. */

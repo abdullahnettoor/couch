@@ -1,3 +1,4 @@
+import { WAKE_POINTER_SOURCE } from "../../web/pointer-wake.ts";
 import type { PlaybackAdapter } from "../../web/web-app.ts";
 
 /**
@@ -14,23 +15,22 @@ const HELPERS = `
     });
   };
   var barUp = function () { return !!($("timeline") || $("control-audio-subtitle")); };
+  var wakePointer = (${WAKE_POINTER_SOURCE});
   var reveal = async function () {
     if (barUp()) return;
-    var t = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2) || document.body;
-    for (var i = 0; i < 6; i++)
-      fire(t, ["pointerover", "pointermove", "mouseover", "mousemove"], {
-        bubbles: true, cancelable: true, view: window,
-        clientX: window.innerWidth / 2 + i * 7, clientY: window.innerHeight / 2 + i * 5, movementX: 7, movementY: 5,
-      });
+    for (var i = 1; i <= 6; i++) wakePointer(i);
     await sl(400);
   };
   var menu = function () { return $("selector-audio-subtitle"); };
+  var item = function (li) {
+    var x = /^(audio|subtitle)-item(-selected)?-(.*)$/.exec(li.getAttribute("data-uia") || "");
+    return x ? { kind: x[1], id: x[3], on: !!x[2], label: li.textContent || x[3] } : null;
+  };
   var read = function (m, canSeek) {
     var out = { subtitles: [], audio: [], canSeek: canSeek };
     Array.prototype.forEach.call(m.querySelectorAll("li"), function (li) {
-      var x = /^(audio|subtitle)-item(-selected)?-(.*)$/.exec(li.getAttribute("data-uia") || "");
-      if (!x) return;
-      (x[1] === "audio" ? out.audio : out.subtitles).push({ id: x[3], label: li.textContent || x[3], on: !!x[2] });
+      var i = item(li);
+      if (i) (i.kind === "audio" ? out.audio : out.subtitles).push({ id: i.id, label: i.label, on: i.on });
     });
     return out;
   };
@@ -103,8 +103,8 @@ export const NETFLIX_PLAYBACK: PlaybackAdapter = {
   if (!m) return;
   var hit = null;
   Array.prototype.forEach.call(m.querySelectorAll("li"), function (li) {
-    var x = /^(audio|subtitle)-item(-selected)?-(.*)$/.exec(li.getAttribute("data-uia") || "");
-    if (x && x[1] === kind && x[3] === id) hit = li;
+    var i = item(li);
+    if (i && i.kind === kind && i.id === id) hit = li;
   });
   if (hit) { hit.click(); await sl(300); }
   var old = window.__couchNfTracks;

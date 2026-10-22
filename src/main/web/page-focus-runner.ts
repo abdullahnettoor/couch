@@ -7,6 +7,8 @@ export interface FocusEnv {
   width: number;
   height: number;
   getComputedStyle: (el: any) => Record<string, unknown>;
+  /** The page's vertical scroll, as the suite's DOM model keeps it. */
+  scroll?: { y: number };
 }
 
 /** Runs a page focus script in a VM against a suite's DOM model; drives keys, timers and the mutation observer. */
@@ -26,6 +28,13 @@ export function runFocusScript(script: string, env: FocusEnv) {
     location,
     innerWidth: env.width,
     innerHeight: env.height,
+    scrollX: 0,
+    get scrollY() {
+      return env.scroll?.y ?? 0;
+    },
+    scrollTo: (o: { top?: number }) => {
+      if (env.scroll && typeof o.top === "number") env.scroll.y = o.top;
+    },
     console: { warn() {}, debug: (m: string) => logs.push(m) },
     addEventListener: (t: string, f: Function) => (listeners[t] ??= []).push(f),
     getComputedStyle: env.getComputedStyle,

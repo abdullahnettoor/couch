@@ -84,6 +84,8 @@ export interface WebAppDescription {
   drm?: boolean;
   /** App-specific main-world functions (source text) that run after `couchHooks` and before any add-on. */
   preloads: PagePreload[];
+  /** Domains (with their subdomains) the App's own artwork comes from; Now Playing artwork from anywhere else is dropped, since every Remote fetches it. */
+  artworkHosts?: string[];
   /** Present when the plain video isn't enough: seeking and tracks through the App's own player. */
   playback?: PlaybackAdapter;
   /** Turns on Couch's focus for the page: D-pad moves a ring between controls, OK clicks. */

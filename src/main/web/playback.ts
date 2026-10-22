@@ -9,7 +9,7 @@ const MAIN_VIDEO_SHARE = 0.4;
 /**
  * Page script (an async expression) that finds the page's playing video and the site's
  * media-session title and artwork. `tracks` is an adapter's script (an expression); its answer
- * is added when it works. `active` is an adapter's expression that is false
+ * is added when it works. Artwork is whatever the page names; `composeReport` keeps only the App's own. `active` is an adapter's expression that is false
  * while the App shows no real playback (a home-page preview), so nothing is reported then.
  */
 export function playbackProbe(tracks?: string, active?: string): string {
@@ -48,6 +48,17 @@ export function playbackProbe(tracks?: string, active?: string): string {
 })()`;
 }
 
+/** Whether an artwork URL is https on one of the App's own hosts (a listed domain or a subdomain of it). Every Remote fetches it. */
+export function ownArtwork(url: string, hosts: string[]): boolean {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:") return false;
+    return hosts.some((h) => u.hostname === h || u.hostname.endsWith(`.${h}`));
+  } catch {
+    return false;
+  }
+}
+
 /** What an adapter's `tracks` script answers; `canSeek: false` says its seek control isn't on the page. */
 export interface TrackReport {
   subtitles: TrackList;
@@ -64,11 +75,13 @@ export function composeReport(
   found: PlaybackReport | undefined,
   tracks: TrackReport | undefined,
   adapterSeeks: boolean,
+  artworkHosts: string[] = [],
 ): PlaybackReport | undefined {
   if (!found) return undefined;
-  const { tracks: _own, ...rest } = found;
+  const { tracks: _own, artwork, ...rest } = found;
   return {
     ...rest,
+    ...(artwork && ownArtwork(artwork, artworkHosts) ? { artwork } : {}),
     ...(adapterSeeks && tracks?.canSeek !== false ? { canSeek: true } : {}),
     ...(tracks ? { tracks: { subtitles: tracks.subtitles, audio: tracks.audio } } : {}),
   };
@@ -76,4 +89,13 @@ export function composeReport(
 
 export function sameReport(a: PlaybackReport | undefined, b: PlaybackReport | undefined): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/** Where a skip of `seconds` lands, for an App that seeks through its adapter; undefined when nothing is playing. */
+export function skipTarget(
+  report: PlaybackReport | undefined,
+  seconds: number,
+): number | undefined {
+  if (!report) return undefined;
+  return Math.min(report.duration, Math.max(0, report.position + seconds));
 }

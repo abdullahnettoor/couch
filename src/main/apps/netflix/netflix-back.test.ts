@@ -27,7 +27,15 @@ const row = (n: number, top: number, ids: number[]): SnapNode => ({
   t: "section",
   a: { "data-uia": `carousel-row-section-${n}` },
   r: [0, top, 1280, 178],
-  c: ids.map((id, i) => card(id, i, top + 40)),
+  c: [
+    ...ids.map((id, i) => card(id, i, top + 40)),
+    {
+      t: "button",
+      a: { "data-uia": "carousel-hawkins-right-button" },
+      r: [1240, top + 40, 40, 133],
+    },
+    { t: "button", a: { "data-uia": "carousel-hawkins-left-button" }, r: [0, top + 40, 40, 133] },
+  ],
 });
 const modal = (name: string, left: number, close: string): SnapNode => ({
   t: "div",
@@ -73,6 +81,7 @@ function page() {
     href: snap.url,
     width: 1280,
     height: 720,
+    scroll: p.scroll,
     getComputedStyle: () => ({
       visibility: "visible",
       display: "block",
@@ -154,18 +163,83 @@ describe("Back returns the highlight to the card you opened", () => {
     p.mutate();
     expect(p.onWhat()).toBe(p.cardOf(p.r2b, 203));
   });
-  test("a redrawn row whose card ids changed still gives the card at the same position", () => {
+  test("the saved title is waited for: the title now in its slot is not taken for it", () => {
+    const p = page();
+    const c = p.cardOf(p.r2, 203);
+    goTo(p, c);
+    p.set(p.mA, true);
+    p.mutate();
+    p.set(p.mA, false);
+    p.set(p.r2, false);
+    // The redrawn row has other titles where 203 was; 203 itself has not arrived yet.
+    p.r2b.querySelectorAll("a").forEach((a, i) => (a.attrs.href = `/browse?jbv=${900 + i}`));
+    p.set(p.r2b, true);
+    p.mutate();
+    const slotCard = p.r2b.querySelectorAll("a")[2]!;
+    expect(p.onWhat()).not.toBe(slotCard);
+    p.wait(1500);
+    p.mutate();
+    expect(p.onWhat()).not.toBe(slotCard);
+    // 203 turns up in another slot a moment later: that is where the highlight goes.
+    p.r2b.querySelectorAll("a")[1]!.attrs.href = "/browse?jbv=203";
+    p.mutate();
+    expect(p.onWhat()).toBe(p.r2b.querySelectorAll("a")[1]);
+  });
+  test("a title that never comes back: after the wait the card in the same row and slot gets it", () => {
     const p = page();
     goTo(p, p.cardOf(p.r2, 203));
     p.set(p.mA, true);
     p.mutate();
     p.set(p.mA, false);
     p.set(p.r2, false);
-    p.cardOf(p.r2b, 202).attrs.href = "/browse?jbv=999";
-    p.cardOf(p.r2b, 203).attrs.href = "/browse?jbv=888";
+    p.r2b.querySelectorAll("a").forEach((a, i) => (a.attrs.href = `/browse?jbv=${900 + i}`));
     p.set(p.r2b, true);
     p.mutate();
-    expect(p.onWhat()).toBe(p.cardOf(p.r2b, 999));
+    p.wait(3100);
+    p.mutate();
+    expect(p.onWhat()).toBe(p.r2b.querySelectorAll("a")[2]);
+  });
+  test("the page comes back scrolled exactly as it was, not just with the card in view", () => {
+    const p = page();
+    const c = p.cardOf(p.r3, 302);
+    goTo(p, c);
+    p.scroll.y = 240;
+    p.fire("scroll", c);
+    p.set(p.mA, true);
+    p.mutate();
+    p.set(p.mA, false);
+    // Netflix throws the page back to the top while it closes the pop-up.
+    p.scroll.y = 0;
+    p.mutate();
+    expect(p.scroll.y).toBe(240);
+    expect(p.onWhat()).toBe(c);
+  });
+  test("the row's carousel comes back to the page it was on", () => {
+    const p = page();
+    const opener = p.cardOf(p.r2, 203);
+    goTo(p, opener);
+    const left = opener.rect.left;
+    const next = p.r2b
+      .querySelectorAll("button")
+      .find((b) => b.uia === "carousel-hawkins-right-button")!;
+    p.set(p.mA, true);
+    p.mutate();
+    p.set(p.mA, false);
+    p.set(p.r2, false);
+    // The redrawn row starts at its first page: the card sits a card-width to the right of where it was.
+    const held = p.cardOf(p.r2b, 203);
+    held.rect.right = left + 238 + (held.rect.right - held.rect.left);
+    held.rect.left = left + 238;
+    next.click = () => {
+      next.clicks++;
+      held.rect.left -= 238;
+      held.rect.right -= 238;
+    };
+    p.set(p.r2b, true);
+    p.mutate();
+    p.wait(1000);
+    expect(next.clicks).toBe(1);
+    expect(held.rect.left).toBe(left);
   });
   test("the opener is scrolled back into view", () => {
     const p = page();

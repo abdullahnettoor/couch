@@ -3,7 +3,7 @@ import type { Clock } from "../../ports/clock.ts";
 import type { YouTube } from "../../ports/youtube.ts";
 import type { App, AppEvent, AppKey, AppTyping } from "../app.ts";
 
-/** A Back sent to Netflix that changed no route within this long counts as already at home. */
+/** A Back sent to Netflix that changed no route within this long, and that the page did not handle itself, counts as already at home. */
 const BACK_SETTLE_MS = 800;
 
 /**
@@ -35,6 +35,10 @@ export class NetflixApp implements App {
       captureText: (on) => port.captureText(on),
     };
     port.onEvent((event) => {
+      if (event.type === "backHandled") {
+        this.#backAt = undefined;
+        return;
+      }
       if (event.type !== "route") return this.#emit(event);
       // The host re-checks the page often; only a real change of route is news.
       const key = `${event.home}|${event.scrolled === true}|${event.url ?? ""}`;

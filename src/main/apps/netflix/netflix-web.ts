@@ -82,6 +82,7 @@ export function netflixDescription(version?: string): WebAppDescription {
     loadOnShow: true,
     focus: { selectors: FOCUS_SELECTORS, layout: NETFLIX_LAYOUT },
     preloads: [],
+    artworkHosts: ["nflximg.net", "nflxso.net", "nflxext.com"],
     playback: NETFLIX_PLAYBACK,
     addons: [],
     enabledAddons: [],

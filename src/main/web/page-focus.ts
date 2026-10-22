@@ -1,3 +1,5 @@
+import { WAKE_POINTER_SOURCE } from "./pointer-wake.ts";
+
 export interface Box {
   left: number;
   top: number;
@@ -293,10 +295,19 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         return parts.join('/');
       } catch (e) { return ''; }
     };
+    // Where the page and the card's row were scrolled when the card was held: what puts the card back in the same place.
+    var viewOf = function (el) {
+      try {
+        var sc = {}, r = rectOf(el);
+        for (var e = el, d = 0; e && e.parentElement; e = e.parentElement, d++) if (e.scrollLeft > 0) sc[d] = e.scrollLeft;
+        return { x: window.scrollX || 0, y: window.scrollY || 0, left: r.left, sc: sc };
+      } catch (err) { return null; }
+    };
     var keyOf = function (el) {
       try {
         var row = rowOf(el);
         return {
+          view: viewOf(el),
           id: idOf(el),
           rowIndex: row ? Array.prototype.indexOf.call(rowsAll(), row) : -1,
           rowCount: row ? rowsAll().length : 0,
@@ -305,7 +316,8 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         };
       } catch (e) { return null; }
     };
-    var refind = function (key) {
+    // Strictly the saved title (in its row, or anywhere); loosely, whatever sits in its row and slot now.
+    var refind = function (key, loose) {
       try {
         if (!key) return null;
         var list = candidates(), rows = rowsAll(), i, el;
@@ -315,15 +327,16 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
             if (idOf(el) === key.id && rows[key.rowIndex] && rowOf(el) === rows[key.rowIndex]) return el;
           }
         }
+        if (key.id) {
+          for (i = 0; i < list.length; i++) if (idOf(list[i].el) === key.id) return list[i].el;
+        }
+        if (!loose) return null;
         // A row's number means something only while the page has as many rows as it had.
         if (key.rowIndex >= 0 && rows[key.rowIndex] && rows.length === key.rowCount) {
           for (i = 0; i < list.length; i++) {
             el = list[i].el;
             if (rowOf(el) === rows[key.rowIndex] && posIn(rows[key.rowIndex], el) === key.pos) return el;
           }
-        }
-        if (key.id) {
-          for (i = 0; i < list.length; i++) if (idOf(list[i].el) === key.id) return list[i].el;
         }
         if (key.path) {
           for (i = 0; i < list.length; i++) if (pathTo(list[i].el) === key.path) return list[i].el;
@@ -338,6 +351,30 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         if (r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth) return;
         el.scrollIntoView({ block: rowOf(el) ? 'center' : 'nearest', inline: 'nearest' });
       } catch (e) {}
+    };
+    // The page and the row's carousel go back to how they were when the card was held, so the card is where it was, not merely somewhere on screen.
+    var putBack = function (el, key) {
+      try {
+        var v = key && key.view;
+        if (!v) return;
+        for (var e = el, d = 0; e && e.parentElement; e = e.parentElement, d++) {
+          if (v.sc && v.sc[d] !== undefined && e.scrollLeft !== undefined) e.scrollLeft = v.sc[d];
+        }
+        if ((window.scrollX || 0) !== v.x || (window.scrollY || 0) !== v.y) window.scrollTo({ left: v.x, top: v.y, behavior: 'instant' });
+        var row = rowOf(el), pages = 0;
+        var step = function () {
+          try {
+            if (!row || !LAYOUT.rows || !el.isConnected || pages++ >= 4) return;
+            var dx = rectOf(el).left - v.left;
+            if (Math.abs(dx) <= 8) return;
+            var handle = row.querySelector(dx > 0 ? LAYOUT.rows.next : LAYOUT.rows.prev);
+            if (!handle || !shown(handle)) return;
+            handle.click();
+            setTimeout(step, 750);
+          } catch (err) {}
+        };
+        step();
+      } catch (err) {}
     };
     var editable = function (el) {
       return !!el && (isTextField(el) || el.tagName === 'SELECT');
@@ -402,20 +439,26 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
             layers.push({ modal: modal, opener: held, key: displaced ? displacedKey : heldKey });
           }
           if (restore) {
-            var back = restore.opener && usable(restore.opener) ? restore.opener : refind(restore.key);
-            if (back) { current = back; heldKey = keyOf(back); reveal(back); pending = null; }
-            else if (restore.key) pending = { key: restore.key, until: Date.now() + 3000 };
+            var back = restore.opener && usable(restore.opener) ? restore.opener : refind(restore.key, !restore.key || !restore.key.id);
+            if (back) { current = back; putBack(back, restore.key); reveal(back); heldKey = keyOf(back); pending = null; }
+            else if (restore.key) {
+              // The title is waited for, not swapped for whatever is in its slot yet; after 3 s the slot is all there is.
+              var wait = { key: restore.key, expired: false };
+              pending = wait;
+              setTimeout(function () { if (pending === wait) { wait.expired = true; ensure(); } }, 3000);
+            }
           }
           displaced = null;
         }
         if (pending) {
-          var found = Date.now() > pending.until ? null : refind(pending.key);
-          if (found) { current = found; heldKey = keyOf(found); reveal(found); pending = null; }
-          else if (Date.now() > pending.until) pending = null;
+          var found = refind(pending.key, pending.expired || !pending.key.id);
+          if (found) { current = found; putBack(found, pending.key); reveal(found); heldKey = keyOf(found); pending = null; }
+          else if (pending.expired) pending = null;
         }
         if (current && usable(current)) { draw(); return; }
         if (current && current.isConnected && !displaced) { displaced = current; displacedKey = heldKey; }
         current = null;
+        if (pending && pending.key.id) { draw(); return; }
         var list = candidates();
         if (list.length) {
           var i = pick(null, list.map(function (c) { return c.rect; }), 'down', view());
@@ -449,19 +492,9 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       return out;
     };
     // Moves the pointer over the player: the site shows its bar for it, and keeps it up while it keeps moving.
+    var wakePointer = (${WAKE_POINTER_SOURCE});
     var wake = function () {
-      try {
-        var cx = innerWidth / 2, cy = innerHeight / 2;
-        var t = document.elementFromPoint(cx, cy) || document.body;
-        if (!t || !t.dispatchEvent) return;
-        var Pointer = typeof PointerEvent === 'function' ? PointerEvent : MouseEvent;
-        ['pointerover', 'pointermove', 'mouseover', 'mousemove'].forEach(function (n) {
-          barMoves++;
-          var x = cx + (barMoves % 12) * 3, y = cy + (barMoves % 7) * 2;
-          var C = n.indexOf('pointer') === 0 ? Pointer : MouseEvent;
-          t.dispatchEvent(new C(n, { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, screenX: x, screenY: y, movementX: 3, movementY: 2 }));
-        });
-      } catch (e) {}
+      try { wakePointer(++barMoves); } catch (e) {}
     };
     var touch = function () {
       var token = ++barIdle;
@@ -536,9 +569,13 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       e.preventDefault();
       if (e.stopImmediatePropagation) e.stopImmediatePropagation();
     };
+    // The host sends keys of its own (a skip's arrows) for the player: for this long they are not Couch's to take.
+    var rawUntil = 0;
+    window.__couchRawKeys = function (ms) { rawUntil = Date.now() + ms; };
     // Before the player's own handlers: with the bar up the arrows and OK are the bar's; Down brings it up.
     var onBarKey = function (e) {
       try {
+        if (Date.now() < rawUntil) return;
         if (!BAR || !inPlayer()) return;
         var dir = DIRS[e.key];
         if (!barOn) {
@@ -551,13 +588,13 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         if (dir) barMove(dir); else barPress();
       } catch (err) {}
     };
-    // Back in the player: 'escape' (the host presses the site's Escape: close the menu), 'handled' (the bar hid), '' (leave).
+    // Back in the player: 'escape' (the host presses the site's Escape: it closes the menu, or hides the bar Netflix keeps up after Couch stops moving the pointer), '' (leave).
     window.__couchPlayerBack = function () {
       try {
         if (!barOn || !inPlayer()) return '';
         if (barMenu()) { touch(); return 'escape'; }
         barOff();
-        return 'handled';
+        return 'escape';
       } catch (e) { return ''; }
     };
     var paging = false;
@@ -621,7 +658,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     };
     var onKey = function (e) {
       try {
-        if (e.defaultPrevented) return;
+        if (e.defaultPrevented || Date.now() < rawUntil) return;
         if (noRing()) return;
         var dir = DIRS[e.key];
         if (!dir && e.key !== 'Enter') return;
@@ -670,7 +707,10 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'open', 'hidden', 'aria-modal', 'aria-hidden'],
       });
     } catch (e) {}
-    addEventListener('scroll', draw, true);
+    addEventListener('scroll', function () {
+      draw();
+      try { if (current && heldKey && !scopeEl() && !pending) heldKey.view = viewOf(current); } catch (e) {}
+    }, true);
     addEventListener('resize', draw, true);
     addEventListener('popstate', changed, true);
     addEventListener('hashchange', changed, true);

@@ -22,6 +22,7 @@ import { drmGate } from "./drm-gate.ts";
 import {
   composeReport,
   playbackProbe,
+  skipTarget,
   sameReport,
   type PlaybackReport,
   type TrackReport,
@@ -202,7 +203,7 @@ export class ElectronWebApp implements YouTube {
     if (route) this.#emit({ type: "route", ...route });
   }
 
-  #pollShorts(): void {
+  #pollPage(): void {
     this.#pollPlayback();
     void this.#view.webContents
       .executeJavaScript(this.#desc.route.script)
@@ -230,7 +231,9 @@ export class ElectronWebApp implements YouTube {
           this.#tracksAt = now;
           this.#tracks = found?.tracks as TrackReport | undefined;
         }
-        this.#reportPlayback(composeReport(found, this.#tracks, !!adapter?.seek));
+        this.#reportPlayback(
+          composeReport(found, this.#tracks, !!adapter?.seek, this.#desc.artworkHosts),
+        );
       })
       .catch(() => this.#reportPlayback(undefined))
       .finally(() => {
@@ -319,7 +322,7 @@ export class ElectronWebApp implements YouTube {
     if ((this.#desc.loadOnShow || this.#unloaded) && !this.#started) this.start();
     this.#lifecycle?.shown();
     this.#visible = true;
-    this.#routeTimer ??= setInterval(() => this.#pollShorts(), 400);
+    this.#routeTimer ??= setInterval(() => this.#pollPage(), 400);
     this.#fit();
     this.#view.setVisible(true);
     this.#silence.show();
@@ -434,8 +437,9 @@ export class ElectronWebApp implements YouTube {
         .catch(() => "")
         .then((answer) => {
           const todo = backAction(answer);
+          if (todo === "history") return this.#goBack();
           if (todo === "press") this.#press(keyCode);
-          else if (todo === "history") this.#goBack();
+          this.#emit({ type: "backHandled" });
         });
       return;
     }
@@ -477,6 +481,16 @@ export class ElectronWebApp implements YouTube {
    * j/l, media fast-forward keys and bare arrows do not seek in the TV player.
    */
   seekBy(seconds: number): void {
+    const target = this.#desc.playback?.seek ? skipTarget(this.#report, seconds) : undefined;
+    if (target !== undefined) return this.seekTo(target);
+    // Keys for the player, not for Couch's focus layer (which would move its highlight over the bar).
+    if (this.#desc.focus) {
+      void this.#view.webContents
+        .executeJavaScript(
+          `window.__couchRawKeys && window.__couchRawKeys(${(this.#desc.skip?.commitMs ?? 0) + 1500})`,
+        )
+        .catch(() => {});
+    }
     const now = Date.now();
     const skip = this.#desc.skip;
     const plan = seekPlan(

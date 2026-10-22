@@ -1,4 +1,5 @@
 import { expect, test } from "vite-plus/test";
+import { ownArtwork } from "../../web/playback.ts";
 import { seekPlan } from "../../web/seek-plan.ts";
 import { netflixDescription } from "./netflix-web.ts";
 
@@ -29,4 +30,11 @@ test("typing searches Netflix", () => {
   expect(desc.search?.placeholder).toBe("Search Netflix");
   expect(desc.search?.urlFor("dark")).toBe("https://www.netflix.com/search?q=dark");
   expect(desc.search?.isSearchUrl("https://www.netflix.com/search?q=dark")).toBe(true);
+});
+
+test("only Netflix's own image hosts supply Now Playing artwork", () => {
+  const ok = (u: string) => ownArtwork(u, desc.artworkHosts ?? []);
+  expect(ok("https://occ-0-1.1.nflxso.net/dnm/api/v6/abc.jpg")).toBe(true);
+  expect(ok("https://assets.nflxext.com/a.png")).toBe(true);
+  expect(ok("https://tracker.example/a.png")).toBe(false);
 });

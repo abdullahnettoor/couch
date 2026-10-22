@@ -77,6 +77,17 @@ describe("Netflix App", () => {
     expect(s.confirm?.title).toBe("Leave Netflix?");
   });
 
+  test("Back that closed a player menu or bar changed no route and is not a stuck Back", async () => {
+    await openNetflix();
+    navigate("https://www.netflix.com/watch/80100172");
+    await phone.press("back");
+    h.netflix.emit({ type: "backHandled" });
+    h.clock.advance(1000);
+    const s = await phone.press("back");
+    expect(s.confirm).toBeUndefined();
+    expect(keys()).toEqual(["back", "back"]);
+  });
+
   test("Back where Netflix keeps announcing the same route still leaves", async () => {
     await openNetflix();
     navigate("https://www.netflix.com/title/80100172");

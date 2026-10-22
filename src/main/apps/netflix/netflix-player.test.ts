@@ -229,15 +229,18 @@ describe("the subtitles menu", () => {
 });
 
 describe("Back with the bar up", () => {
-  test("closes the menu (the page's own Escape), then hides the bar, then leaves the player", () => {
+  test("closes the menu (the page's own Escape), then hides the bar (Escape again, and Couch stops waking it), then leaves the player", () => {
     const p = open();
     p.bringUp();
     for (let i = 0; i < 6 && uia(p.on()) !== "control-audio-subtitle"; i++) p.key("ArrowRight");
     p.key("Enter");
     expect(p.back()).toBe("escape");
     p.closeMenu();
-    expect(p.back()).toBe("handled");
+    expect(p.back()).toBe("escape");
     expect(p.ring.style.display).not.toBe("block");
+    const n = p.moves();
+    p.wait(3000);
+    expect(p.moves()).toBe(n);
     expect(p.key("ArrowLeft").defaultPrevented).toBe(false);
     expect(p.key("Enter").defaultPrevented).toBe(false);
     expect(p.back()).toBeFalsy();
@@ -248,6 +251,17 @@ describe("Back with the bar up", () => {
     expect(backAction("")).toBe("history");
     expect(backAction(undefined)).toBe("history");
     expect(backAction(false)).toBe("history");
+  });
+});
+
+describe("keys the host sends for a skip", () => {
+  test("pass through the bar to the player while the host says so, then the bar has the arrows again", () => {
+    const p = open();
+    p.bringUp();
+    p.run("window.__couchRawKeys(5000)");
+    expect(p.key("ArrowRight").defaultPrevented).toBe(false);
+    p.run("window.__couchRawKeys(0)");
+    expect(p.key("ArrowRight").defaultPrevented).toBe(true);
   });
 });
 

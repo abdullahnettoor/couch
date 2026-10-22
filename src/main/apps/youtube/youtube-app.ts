@@ -31,6 +31,10 @@ export class YouTubeApp implements App {
       captureText: (on) => port.captureText(on),
     };
     port.onEvent((event) => {
+      if (event.type === "backHandled") {
+        this.#backAt = undefined;
+        return;
+      }
       if (event.type !== "route") return this.#emit(event);
       this.#home = event.home;
       // YouTube's Back out of a Short leaves its guide open; close that too, back to where the Short began.

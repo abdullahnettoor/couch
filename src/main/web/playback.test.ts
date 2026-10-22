@@ -1,6 +1,12 @@
 import vm from "node:vm";
 import { describe, expect, test } from "vite-plus/test";
-import { composeReport, playbackProbe, sameReport, type PlaybackReport } from "./playback.ts";
+import {
+  composeReport,
+  playbackProbe,
+  sameReport,
+  skipTarget,
+  type PlaybackReport,
+} from "./playback.ts";
 
 interface FakeVideo {
   currentTime: number;
@@ -133,5 +139,51 @@ describe("composeReport", () => {
   test("no adapter seek: read-only; nothing playing: nothing", () => {
     expect(composeReport(found, undefined, false)).toEqual(found);
     expect(composeReport(undefined, lists, true)).toBeUndefined();
+  });
+});
+
+describe("artwork", () => {
+  const found = { position: 5, duration: 60, paused: false };
+  const hosts = ["ytimg.com"];
+  const art = (artwork: string) => composeReport({ ...found, artwork }, undefined, false, hosts);
+  test("from the App's own image hosts it is kept", () => {
+    expect(art("https://i.ytimg.com/vi/abc/maxres.jpg")?.artwork).toBe(
+      "https://i.ytimg.com/vi/abc/maxres.jpg",
+    );
+  });
+  test("from anywhere else it is dropped from the report", () => {
+    for (const u of [
+      "https://tracker.example/pixel.png",
+      "https://ytimg.com.evil.example/a.jpg",
+      "https://evilytimg.com/a.jpg",
+      "http://i.ytimg.com/a.jpg",
+      "data:image/png;base64,AAAA",
+      "not a url",
+    ])
+      expect(art(u)).toEqual(found);
+  });
+  test("an App that names no hosts gets none", () => {
+    expect(
+      composeReport({ ...found, artwork: "https://i.ytimg.com/a.jpg" }, undefined, false),
+    ).toEqual(found);
+  });
+});
+
+describe("skipTarget", () => {
+  const at = (position: number, duration = 600): PlaybackReport => ({
+    position,
+    duration,
+    paused: false,
+  });
+  test("is the reported position moved by the skip", () => {
+    expect(skipTarget(at(100), 10)).toBe(110);
+    expect(skipTarget(at(100), -10)).toBe(90);
+  });
+  test("stays inside the video", () => {
+    expect(skipTarget(at(4), -10)).toBe(0);
+    expect(skipTarget(at(595), 10)).toBe(600);
+  });
+  test("is nothing without a report", () => {
+    expect(skipTarget(undefined, 10)).toBeUndefined();
   });
 });

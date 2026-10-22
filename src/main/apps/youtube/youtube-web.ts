@@ -54,6 +54,7 @@ export function youtubeDescription(
     },
     skip: { keys: skipKeys, controlsHideMs: CONTROLS_HIDE_MS, commitMs: SKIP_COMMIT_MS },
     preloads: [],
+    artworkHosts: ["ytimg.com"],
     playback: YOUTUBE_PLAYBACK,
     // COUCH_YOUTUBE_PATCH=off keeps the stock 720p behaviour whatever Settings says.
     addons: YOUTUBE_ADDONS.filter((a) => a.id !== "4k" || compatEnabled(env)),
