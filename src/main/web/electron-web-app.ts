@@ -59,7 +59,7 @@ export class ElectronWebApp implements YouTube {
   #resolving: Promise<boolean> | undefined;
   #again = false;
   #ready = false;
-  #silence: HiddenAudio;
+  #silence!: HiddenAudio;
   #hooks: RequestHooks;
   #preloads: SessionPreloads;
   #addonRequests: Array<() => void> = [];
