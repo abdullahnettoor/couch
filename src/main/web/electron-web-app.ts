@@ -4,6 +4,7 @@ import type { Confirmation } from "../../shared/protocol.ts";
 import { SCREEN_KEYS, textEditFor } from "../../shared/keyboard.ts";
 import { revealScreen } from "../reveal.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
+import { pageFocusFunction } from "./page-focus.ts";
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import { requestHooksFor, type RequestHooks } from "./request-hooks.ts";
 import { SessionPreloads } from "./session-preloads.ts";
@@ -370,6 +371,9 @@ export class ElectronWebApp implements YouTube {
     this.#preloads.set([
       { name: "Page hooks", func: PAGE_HOOKS_FUNCTION },
       ...this.#desc.preloads,
+      ...(this.#desc.focus
+        ? [{ name: "Couch focus", func: pageFocusFunction(this.#desc.focus.selectors) }]
+        : []),
       ...on.flatMap((a) => (a.page ? [{ name: a.label, func: a.page }] : [])),
     ]);
     for (const off of this.#addonRequests.splice(0)) off();
