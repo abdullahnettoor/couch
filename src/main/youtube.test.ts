@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
+import { APP_ENTRIES } from "./apps/index.ts";
 import { startHarness, type FakePhone, type Harness } from "./testing/harness.ts";
 
 let h: Harness;
@@ -80,6 +81,17 @@ describe("YouTube App", () => {
     await phone.press({ command: "setTrack", args: { kind: "subtitles", track: "on" } });
     expect(calls("seekTo").map((c) => c.args)).toEqual([[120]]);
     expect(calls("setTrack").map((c) => c.args)).toEqual([["subtitles", "on"]]);
+  });
+
+  test("Now Playing carries the App's logo from its entry", async () => {
+    await openYouTube();
+    h.youtube.emit({ type: "playback", playback: { position: 1, duration: 10, paused: false } });
+    await phone.waitFor(() => phone.last?.nowPlaying !== undefined);
+    expect(phone.last!.nowPlaying!.app).toEqual({
+      id: "youtube",
+      label: "YouTube",
+      icon: APP_ENTRIES.find((e) => e.id === "youtube")!.icon,
+    });
   });
 
   test("keyboard Back at YouTube's home asks before leaving", async () => {

@@ -52,12 +52,17 @@ export const COMMAND_NAMES = [
   "menu",
   "power",
   "toggleAddon",
+  "mute",
+  "setSpeed",
+  "pressPrompt",
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
 
 /** Commands only the Screen itself may send (mouse hover). Never in COMMAND_NAMES, so Remotes can't. */
 export type ScreenOnlyCommandName = "focusAt" | "showControls" | "find" | "screenKey";
+
+export type PromptId = "skipIntro" | "skipRecap" | "nextEpisode";
 
 export type TrackKind = "subtitles" | "audio";
 
@@ -80,6 +85,10 @@ export interface CommandArgs {
   /** setTrack: which list, and the track's id from the snapshot */
   kind?: TrackKind;
   track?: string;
+  /** setSpeed: the playback speed (one of nowPlaying.speeds) */
+  speed?: number;
+  /** pressPrompt: which prompt (nowPlaying.prompt.id) */
+  id?: PromptId;
   /** playUpNext: position in the Up next list */
   index?: number;
   /** toggleAddon: the add-on's id (YouTube's add-ons) */
@@ -294,6 +303,8 @@ export interface SoundPayload {
 
 /** Core → Screen renderer. */
 export interface ScreenPayload {
+  /** Couch is muted (the level is `state.volume`). */
+  muted: boolean;
   state: ScreenState;
   viewKey: string;
   grid: GridItem[];
@@ -402,6 +413,13 @@ export interface RemoteSnapshot {
     artwork?: string;
     /** "Animation · Comedy": up to three genres, when details have them. */
     genres?: string;
+    /** The App playing: its logo (SVG markup from its App entry), for the no-artwork picture. */
+    app?: { id: string; label: string; icon: string };
+    /** Playback speed, and the speeds on offer (present only when the App can change speed). */
+    speed?: number;
+    speeds?: number[];
+    /** A button the App offers right now (Netflix: Skip Intro, Skip Recap, Next Episode). */
+    prompt?: { id: PromptId; label: string };
   };
   /** The playing Library video's folder, while a video plays (and has company). */
   upNext?: UpNextItem[];
@@ -410,6 +428,8 @@ export interface RemoteSnapshot {
   /** The Remote shows its −10 s / +10 s pair (a web App). */
   showSkip: boolean;
   volume: number;
+  /** Couch is muted; `volume` is the level unmute restores. */
+  muted: boolean;
   remotes: number;
 }
 
