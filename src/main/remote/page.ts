@@ -332,7 +332,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 
     var art = $("np-art");
     var playing = (s.upNext || []).filter(function (u) { return u.playing && u.thumbKey; })[0];
-    var pic = playing ? thumb(playing.thumbKey) : np.artwork ? "url(" + JSON.stringify(np.artwork) + ")" : "";
+    var pic = playing ? thumb(playing.thumbKey) : np.artKey ? thumb(np.artKey) : np.artwork ? "url(" + JSON.stringify(np.artwork) + ")" : "";
     art.classList.toggle("has", !!pic);
     art.style.backgroundImage = pic;
     art.setAttribute("data-app", np.app ? np.app.id : "");

@@ -1017,6 +1017,16 @@ export class Core {
       ?.replace(/\.jpg$/, "");
   }
 
+  /** The playing video's TMDB picture (episode still, else backdrop, else poster) as a phone key; none for frames. */
+  #artKey(path: string): { artKey?: string } {
+    const { details, episode } = this.#art(path);
+    const key = (episode?.still ?? details?.backdrop ?? details?.poster)
+      ?.split("/")
+      .pop()
+      ?.replace(/\.jpg$/, "");
+    return key ? { artKey: key } : {};
+  }
+
   #upNextItems(): UpNextItem[] {
     const playing = this.#state.player?.path;
     return this.#controls.upNext.map((e) => {
@@ -1162,6 +1172,7 @@ export class Core {
             speeds: LIBRARY_SPEEDS,
             ...this.#libraryTracks(s.subtitlesOn),
             ...this.#nowGenres(s.player.path),
+            ...this.#artKey(s.player.path),
             app: this.#appFace("library", "Library"),
           }
         : this.#appNowPlaying(front),

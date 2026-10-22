@@ -175,6 +175,22 @@ describe("TMDB art in payloads", () => {
     expect(phone.last!.upNext![0]!.thumbKey).toBe("still1");
   });
 
+  test("Now Playing carries the TMDB art key for a Library video", async () => {
+    await start({ key: true });
+    await focusId("shows:show:arcane");
+    await phone.press("ok");
+    await phone.press("ok");
+    expect(phone.last!.nowPlaying!.artKey).toBe("still1");
+  });
+
+  test("Now Playing has no art key without details", async () => {
+    await start({ key: false });
+    await focusId("shows:show:arcane");
+    await phone.press("ok");
+    await phone.press("ok");
+    expect(phone.last!.nowPlaying!.artKey).toBeUndefined();
+  });
+
   test("frames fallback when there are no details", async () => {
     await start({ key: false });
     const arcane = tile("shows", "show:arcane");

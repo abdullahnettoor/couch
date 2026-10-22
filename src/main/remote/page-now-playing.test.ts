@@ -405,6 +405,18 @@ describe("Now Playing", () => {
     expect(art.classes.has("has")).toBe(true);
   });
 
+  test("a Library video's art key shows its picture from /thumb, key-checked", () => {
+    page.playing({
+      artKey: "tmdb-backdrop-abc",
+      app: { id: "library", label: "Library", icon: "" },
+    });
+    const art = page.els.get("np-art")!;
+    expect(art.classes.has("has")).toBe(true);
+    expect(art.style.backgroundImage).toContain("/thumb/tmdb-backdrop-abc.jpg?key=");
+    page.playing({ app: { id: "library", label: "Library", icon: "" } });
+    expect(art.classes.has("has")).toBe(false);
+  });
+
   test("tap on the artwork plays or pauses; swipes seek and change volume", () => {
     page.playing({});
     const art = page.els.get("np-art")!.handlers;
