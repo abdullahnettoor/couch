@@ -52,6 +52,15 @@ const [appPath] = await packager({
   ],
 });
 
+// Packager writes an asar integrity digest into the Electron Framework binary (Electron 41+), and castLabs' EVS
+// refuses to VMP-sign a modified binary ("Binary signature denied"). Put the release's own binary back; the digest
+// is only enforced with the EnableEmbeddedAsarIntegrityValidation fuse, which Couch leaves off.
+const FRAMEWORK = join("Contents", "Frameworks", "Electron Framework.framework", "Versions", "A");
+copyFileSync(
+  join("node_modules", "electron", "dist", "Electron.app", FRAMEWORK, "Electron Framework"),
+  join(appPath, "Couch.app", FRAMEWORK, "Electron Framework"),
+);
+
 // macOS order matters: VMP-sign first, then Apple code signing (which would be broken by a later VMP signature).
 const plan = packagingPlan(evsState());
 if (plan.warning) console.warn(`\n!! ${plan.warning}\n`);
