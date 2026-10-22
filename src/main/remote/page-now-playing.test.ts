@@ -168,12 +168,88 @@ const hidden = (id: string) => page.els.get(id)!.hidden;
 const commands = () => page.sent.map((s) => JSON.parse(s));
 
 describe("the page's markup", () => {
-  test("the top bar has Back, Home and Mute, in both views", () => {
+  test("the top bar has Back, Home and Mute, in all three views", () => {
     const bars = REMOTE_PAGE.match(/data-cmd="mute"/g) ?? [];
-    expect(bars.length).toBe(2);
+    expect(bars.length).toBe(3);
     expect(REMOTE_PAGE.match(/data-cmd="back" aria-label="Back" data-i="backArrow"/g)?.length).toBe(
       3,
     );
+  });
+});
+
+describe("the idle Remote", () => {
+  const idle = (extra: Record<string, unknown>) =>
+    page.send({ ...page.base, typeAvailable: false, ...extra });
+  const card = { title: "Dark", left: "38 min left" };
+
+  test("has the top bar, the D-pad and the volume pill, and no Play/Pause or slider", () => {
+    const main = REMOTE_PAGE.slice(
+      REMOTE_PAGE.indexOf('<main id="controls">'),
+      REMOTE_PAGE.indexOf("</main>"),
+    );
+    expect(main).toContain('data-cmd="back"');
+    expect(main).toContain('data-cmd="home"');
+    expect(main).toContain('data-cmd="mute"');
+    expect(main).toContain('data-cmd="ok"');
+    expect(main).toContain('data-cmd="volUp"');
+    expect(main).not.toContain("playpause");
+    expect(main).not.toContain("vslider");
+  });
+
+  test("Home with Continue watching shows that card; without it, no card", () => {
+    idle({ layout: "home", where: "Home", continueCard: card });
+    expect(hidden("cw")).toBe(false);
+    expect(hidden("search")).toBe(true);
+    expect(hidden("fixbtn")).toBe(true);
+    idle({ layout: "home", where: "Home" });
+    expect(hidden("cw")).toBe(true);
+    expect(hidden("search")).toBe(true);
+  });
+
+  test("a web App shows its Type label as the one card", () => {
+    idle({ typeLabel: "Search Netflix", typeAvailable: true });
+    expect(hidden("search")).toBe(false);
+    expect(page.els.get("search-label")!.textContent).toBe("Search Netflix");
+    expect(hidden("cw")).toBe(true);
+  });
+
+  test("Library shows Search; Fix match shows where it does today", () => {
+    idle({ layout: "librarySearch", typeLabel: "Search Library", typeAvailable: true });
+    expect(page.els.get("search-label")!.textContent).toBe("Search Library");
+    idle({ layout: "other", fixAvailable: true });
+    expect(hidden("fixbtn")).toBe(false);
+  });
+
+  test("Settings and other pages show no card", () => {
+    idle({ layout: "other", where: "Settings", view: "settings" });
+    expect(hidden("cw")).toBe(true);
+    expect(hidden("search")).toBe(true);
+    expect(hidden("fixbtn")).toBe(true);
+  });
+
+  test("the gear shows only on Home and sends openSettings", () => {
+    idle({ layout: "home", where: "Home" });
+    expect(hidden("gear")).toBe(false);
+    page.tap("gear");
+    expect(commands()).toEqual([{ type: "command", command: "openSettings" }]);
+    idle({ layout: "app" });
+    expect(hidden("gear")).toBe(true);
+    idle({ layout: "other", view: "settings" });
+    expect(hidden("gear")).toBe(true);
+  });
+
+  test("the volume pill shows the level and Muted, and Mute marks pressed", () => {
+    idle({ volume: 30 });
+    expect(page.els.get("id-vol-n")!.textContent).toBe("30");
+    idle({ muted: true });
+    expect(page.els.get("id-vol-n")!.textContent).toBe("Muted");
+  });
+
+  test("uses the fixed no-scroll layout", () => {
+    idle({ layout: "home" });
+    expect(page.bodyClasses.has("idle")).toBe(true);
+    page.playing({});
+    expect(page.bodyClasses.has("idle")).toBe(false);
   });
 });
 

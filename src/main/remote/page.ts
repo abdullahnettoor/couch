@@ -3,6 +3,9 @@ import { ICON_MARKUP } from "../../shared/icons.ts";
 
 /** Back, Home and Mute: the top of Now Playing and of its D-pad view. */
 const BAR = `<button data-cmd="back" aria-label="Back" data-i="backArrow"></button><button data-cmd="home" aria-label="Home" data-i="home"></button><button class="mutebtn" data-cmd="mute" aria-label="Mute" data-i="speaker"></button>`;
+/** The compact volume pill (− level +) of Now Playing and the idle Remote; `p` keeps the ids apart. */
+const vpill = (p: string) =>
+  `<div class="vpill" id="${p}-vol"><button data-cmd="volDown" aria-label="Volume down" data-i="minus"></button><b id="${p}-vol-n" role="status" aria-label="Volume"></b><button data-cmd="volUp" aria-label="Volume up" data-i="plus"></button></div>`;
 const PAD = `<button class="dir u" data-cmd="up" aria-label="Up" data-i="up"></button><button class="dir d" data-cmd="down" aria-label="Down" data-i="down"></button><button class="dir l" data-cmd="left" aria-label="Left" data-i="left"></button><button class="dir r" data-cmd="right" aria-label="Right" data-i="right"></button><button class="ok" data-cmd="ok">OK</button>`;
 
 /** The Remote page, served as one self-contained document (no build step for it). Plain ES5-ish JS, no template literals. */
@@ -41,20 +44,12 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .dir.u { left:38%; top:2%; } .dir.d { left:38%; bottom:2%; } .dir.l { left:2%; top:38%; } .dir.r { right:2%; top:38%; }
   .ok { position:absolute; left:25%; top:25%; width:50%; height:50%; border-radius:50%; background:var(--card-2); box-shadow:inset 0 1px 0 rgba(255,255,255,.12); font-size:19px; font-weight:600; }
   .ok:active { background:#5a5a5c; }
-  .keys { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:22px; }
-  .k { height:64px; border-radius:32px; background:var(--card); display:flex; align-items:center; justify-content:center; gap:8px; font-size:15px; font-weight:600; box-shadow:inset 0 1px 0 rgba(255,255,255,.07); font-size:26px; transition:transform .12s; }
+  .vslider button { width:44px; height:44px; flex:none; display:grid; place-items:center; font-size:22px; color:var(--t2); border-radius:22px; }
+  .vslider button:active { background:rgba(255,255,255,.14); }
+  .k { height:64px; border-radius:32px; background:var(--card); display:flex; align-items:center; justify-content:center; gap:8px; font-weight:600; box-shadow:inset 0 1px 0 rgba(255,255,255,.07); transition:transform .12s; }
   .k:active { transform:scale(.95); background:var(--card-2); }
   .k.hero { background:#fff; color:#000; }
   .k.txt { font-size:15px; }
-  .k.on { background:#fff; color:#000; }
-  .skip { grid-template-columns:1fr 1fr; }
-  .vslider { margin-top:22px; height:56px; border-radius:28px; background:var(--glass); box-shadow:var(--glass-edge); backdrop-filter:blur(30px) saturate(1.6); -webkit-backdrop-filter:blur(30px) saturate(1.6); display:flex; align-items:center; padding:0 6px; }
-  .vslider button { width:44px; height:44px; flex:none; display:grid; place-items:center; font-size:22px; color:var(--t2); border-radius:22px; }
-  .vslider button:active { background:rgba(255,255,255,.14); }
-  .vtrack { flex:1; align-self:stretch; display:flex; align-items:center; touch-action:none; cursor:pointer; }
-  .vbar { flex:1; height:10px; border-radius:5px; background:rgba(255,255,255,.2); overflow:hidden; }
-  .vfill { height:100%; width:0; background:#fff; border-radius:5px; }
-  .bottom { margin-top:auto; padding-top:22px; }
   .search { margin-top:18px; height:56px; border-radius:28px; background:var(--card); display:flex; align-items:center; gap:12px; padding:0 20px; color:var(--t3); font-size:17px; width:100%; }
   .search svg { font-size:22px; }
   .search.dim { opacity:.35; }
@@ -67,6 +62,18 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .cw .txt b { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .cw .go { width:44px; height:44px; border-radius:22px; background:#fff; color:#000; display:grid; place-items:center; font-size:22px; flex:none; }
   .other { margin-top:16px; padding:12px 16px; border-radius:14px; background:var(--card); font-size:14px; color:var(--t2); }
+  body.idle { width:100%; height:100dvh; min-height:0; overflow:hidden; padding:max(10px, env(safe-area-inset-top)) 20px max(14px, env(safe-area-inset-bottom)); }
+  body.idle .top { font-size:12px; }
+  body.idle .top b { display:inline; font-size:13px; margin:0 0 0 6px; }
+  body.idle .pbtn { width:32px; height:32px; font-size:16px; margin-left:8px; }
+  body.idle main { min-height:0; gap:8px; padding-top:8px; }
+  body.idle .bar { grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:1fr; }
+  body.idle .cw, body.idle .search { margin:0; flex:none; }
+  body.idle .search { height:52px; }
+  .padwrap { flex:1; min-height:0; display:grid; place-items:center; }
+  body.idle .pad { margin:0; width:min(320px, 82vw, 100%, 46dvh); }
+  body.idle .other { margin:0; }
+  body.idle .vpill { margin-top:2px; }
   body.np { width:100%; height:100dvh; min-height:0; overflow:hidden; padding:max(10px, env(safe-area-inset-top)) 20px max(14px, env(safe-area-inset-bottom)); }
   body.np .top { font-size:12px; }
   body.np .top b { display:inline; font-size:13px; margin:0 0 0 6px; }
@@ -188,7 +195,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     <button class="chip" id="chip-spd" hidden><span data-i="gauge"></span><span id="chip-spd-t">1×</span></button>
     <button class="chip pad-chip" id="chip-pad" aria-label="D-pad" hidden><span data-i="dpad"></span></button>
   </div>
-  <div class="vpill" id="np-vol"><button data-cmd="volDown" aria-label="Volume down" data-i="minus"></button><b id="np-vol-n" role="status" aria-label="Volume"></b><button data-cmd="volUp" aria-label="Volume up" data-i="plus"></button></div>
+  __VPILL_NP__
 </section>
 <section class="npad" id="npad" hidden>
   <div class="bar">__BAR__</div>
@@ -200,25 +207,13 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   <div class="rows" id="np-rows" role="dialog"></div>
 </div>
 <main id="controls">
+  <div class="bar" id="ibar">__BAR__<button id="gear" data-cmd="openSettings" aria-label="Settings" data-i="gear" hidden></button></div>
   <button class="cw" id="cw" data-cmd="resume" hidden><span class="pic" id="cw-pic"></span><span class="txt"><b id="cw-title"></b><span class="l" id="cw-left"></span></span><span class="go" data-i="play"></span></button>
   <button class="search" id="fixbtn" data-cmd="menu" hidden><span id="fix-label">Fix match</span></button>
   <button class="search" id="search" data-cmd="typeOpen" hidden><span data-i="search"></span><span id="search-label">Search</span></button>
-  <div class="pad" id="dpad">__PAD__</div>
-  <div class="vslider" id="vol">
-    <button data-cmd="volDown" aria-label="Volume down" data-i="minus"></button>
-    <div class="vtrack" id="vtrack" role="slider" aria-label="Volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="vbar"><div class="vfill" id="vfill"></div></div></div>
-    <button data-cmd="volUp" aria-label="Volume up" data-i="plus"></button>
-  </div>
-  <div class="keys skip" id="skip" hidden>
-    <button class="k" data-cmd="seekBy" data-seconds="-10" aria-label="Back 10 seconds" data-i="back10"></button>
-    <button class="k" data-cmd="seekBy" data-seconds="10" aria-label="Forward 10 seconds" data-i="fwd10"></button>
-  </div>
   <div class="other" id="other" hidden>Typing on another phone</div>
-  <div class="keys bottom">
-    <button class="k" data-cmd="back" aria-label="Back" data-i="backArrow"></button>
-    <button class="k" data-cmd="home" aria-label="Home" data-i="home"></button>
-    <button class="k" data-cmd="playpause" aria-label="Play or pause" data-i="playpause"></button>
-  </div>
+  <div class="padwrap"><div class="pad" id="dpad">__PAD__</div></div>
+  __VPILL_ID__
 </main>
 <div class="sheet" id="sheet" hidden>
   <form id="form" autocomplete="off">
@@ -229,7 +224,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 <script>
 (function () {
   var ICONS = __ICONS__;
-  var ws = null, retry = 0, timer = null, open = false, duration = 0, canSeek = true, dragging = false, volDragging = false, volSent = 0;
+  var ws = null, retry = 0, timer = null, open = false, duration = 0, canSeek = true, dragging = false;
   var KEY = "couch-key";
   var fromUrl = new URLSearchParams(location.search).get("key");
   if (fromUrl) {
@@ -266,11 +261,6 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     $("np-knob").style.left = pct + "%";
     $("np-elapsed").textContent = fmt(pos);
     $("np-remaining").textContent = "-" + fmt(Math.max(0, duration - pos));
-  }
-
-  function showVolume(v) {
-    $("vfill").style.width = v + "%";
-    $("vtrack").setAttribute("aria-valuenow", String(Math.round(v)));
   }
 
   var last = null, sheetKind = "";
@@ -380,16 +370,18 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     var np = s.nowPlaying;
     if (!np) { padOpen = false; closeSheet(); }
     document.body.classList.toggle("np", !!np);
+    document.body.classList.toggle("idle", !np);
+    $("gear").hidden = L !== "home";
     $("nowp").hidden = !np || padOpen;
     $("npad").hidden = !np || !padOpen;
     $("controls").hidden = !!np;
     setMute(!!s.muted);
     if (np) {
       renderNow(s);
-      if (typeof s.volume === "number" && !volDragging) showVolume(s.volume);
-      $("np-vol-n").textContent = s.muted ? "Muted" : String(Math.round(s.volume));
-      $("np-vol").classList.toggle("muted", !!s.muted);
     }
+    $("id-vol-n").textContent = $("np-vol-n").textContent = s.muted ? "Muted" : String(Math.round(s.volume));
+    $("id-vol").classList.toggle("muted", !!s.muted);
+    $("np-vol").classList.toggle("muted", !!s.muted);
     $("cw").hidden = L !== "home" || !s.continueCard;
     if (s.continueCard) {
       $("cw-title").textContent = s.continueCard.title;
@@ -400,9 +392,6 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     $("search").hidden = !(s.typeLabel && s.typeAvailable) || !!np;
     $("search-label").textContent = s.typeLabel || "Search";
     $("search").classList.toggle("dim", !s.typeAvailable);
-    if (typeof s.volume === "number" && !volDragging) showVolume(s.volume);
-    $("skip").hidden = !s.showSkip || !!np;
-    $("dpad").hidden = !!np;
     $("other").hidden = s.typing !== "other" && s.typing !== "screen";
     $("other").textContent = s.typing === "screen" ? "Typing on the Screen" : "Typing on another phone";
     var mine = s.typing === "you";
@@ -458,32 +447,6 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     sendArgs("seekTo", { seconds: Math.round(fracAt(e) * duration) });
   });
   seek.addEventListener("pointercancel", function () { dragging = false; });
-
-  var vtrack = $("vtrack");
-  function volAt(e) {
-    var r = vtrack.getBoundingClientRect();
-    return Math.round(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * 100);
-  }
-  function volMove(e, final) {
-    var v = volAt(e);
-    showVolume(v);
-    var now = Date.now();
-    if (final || now - volSent >= 80) { volSent = now; if (open) ws.send(JSON.stringify({ type: "command", command: "volSet", args: { percent: v } })); }
-  }
-  vtrack.addEventListener("pointerdown", function (e) {
-    if (!open) return;
-    volDragging = true;
-    vtrack.setPointerCapture(e.pointerId);
-    volMove(e, false);
-  });
-  vtrack.addEventListener("pointermove", function (e) { if (volDragging) volMove(e, false); });
-  vtrack.addEventListener("pointerup", function (e) {
-    if (!volDragging) return;
-    volDragging = false;
-    volMove(e, true);
-  });
-  vtrack.addEventListener("pointercancel", function () { volDragging = false; });
-
 
   $("chip-subs").addEventListener("click", function () { openSheet("subs"); });
   $("chip-aud").addEventListener("click", function () { openSheet("aud"); });
@@ -589,5 +552,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 `
   .replaceAll("__BAR__", BAR)
   .replaceAll("__PAD__", PAD)
+  .replace("__VPILL_NP__", vpill("np"))
+  .replace("__VPILL_ID__", vpill("id"))
   .replace("__ICONS__", JSON.stringify(ICON_MARKUP))
   .replace("__TOKENS__", glassTokensCss({ unit: "1px" }));

@@ -56,6 +56,7 @@ export const COMMAND_NAMES = [
   "mute",
   "setSpeed",
   "pressPrompt",
+  "openSettings",
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];

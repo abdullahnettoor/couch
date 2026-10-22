@@ -1381,6 +1381,9 @@ export class Core {
       case "mute":
         this.#toggleMute();
         break;
+      case "openSettings":
+        if (this.#state.view === "home") this.#setView("settings");
+        break;
       case "typeOpen":
       case "typeText":
       case "typeSubmit":

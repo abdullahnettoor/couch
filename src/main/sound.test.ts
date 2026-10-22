@@ -267,3 +267,14 @@ describe("Sound output", () => {
     expect(h.screen.last.state.view).toBe("settings");
   });
 });
+
+describe("Settings from the phone's Home", () => {
+  test("openSettings opens Settings on the Screen, only from Home", async () => {
+    await start();
+    expect(h.screen.last.state.view).toBe("home");
+    await phone.press("openSettings");
+    expect(h.screen.last.state.view).toBe("settings");
+    await phone.press("openSettings");
+    expect(h.screen.last.state.view).toBe("settings");
+  });
+});
