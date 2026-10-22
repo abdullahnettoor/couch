@@ -9,7 +9,7 @@ export default defineConfig({
   root: "src/renderer",
   base: "./",
   build: { outDir: "../../dist/renderer", emptyOutDir: true },
-  test: { root: import.meta.dirname, include: ["src/**/*.test.ts"] },
+  test: { root: import.meta.dirname, include: ["src/**/*.test.ts", "scripts/**/*.test.ts"] },
   pack: [
     {
       entry: { index: "src/main/index.ts" },

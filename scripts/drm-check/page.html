@@ -1,0 +1,68 @@
+<!doctype html>
+<meta charset="utf-8" />
+<video id="v" muted autoplay style="width: 1280px; height: 720px; background: #000"></video>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.12.6/shaka-player.compiled.js"></script>
+<script>
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const CONFIG = [
+    {
+      initDataTypes: ["cenc"],
+      videoCapabilities: [{ contentType: 'video/mp4; codecs="avc1.42E01E"', robustness: "" }],
+    },
+  ];
+
+  async function keySystems() {
+    const out = {};
+    for (const [name, robustness] of [
+      ["com.widevine.alpha", ""],
+      ["com.widevine.alpha", "SW_SECURE_DECODE"],
+      ["com.widevine.alpha", "HW_SECURE_ALL"],
+      ["com.apple.fps", ""],
+      ["org.w3.clearkey", ""],
+    ]) {
+      const cfg = [
+        { ...CONFIG[0], videoCapabilities: [{ ...CONFIG[0].videoCapabilities[0], robustness }] },
+      ];
+      try {
+        await navigator.requestMediaKeySystemAccess(name, cfg);
+        out[`${name} ${robustness || "(any)"}`] = "yes";
+      } catch (e) {
+        out[`${name} ${robustness || "(any)"}`] = "no: " + e.name;
+      }
+    }
+    return out;
+  }
+
+  window.runSpike = async () => {
+    const report = { keySystems: await keySystems() };
+    try {
+      shaka.polyfill.installAll();
+      const video = document.getElementById("v");
+      const player = new shaka.Player();
+      await player.attach(video);
+      player.configure({
+        drm: { servers: { "com.widevine.alpha": "https://cwip-shaka-proxy.appspot.com/no_auth" } },
+      });
+      await player.load(
+        "https://storage.googleapis.com/shaka-demo-assets/angel-one-widevine/dash.mpd",
+      );
+      await video.play().catch((e) => (report.playError = String(e)));
+      await sleep(15000);
+      const q = video.getVideoPlaybackQuality();
+      report.playback = {
+        currentTime: video.currentTime,
+        decodedFrames: q.totalVideoFrames,
+        dropped: q.droppedVideoFrames,
+        size: `${video.videoWidth}x${video.videoHeight}`,
+        drmInfo: player.drmInfo() && player.drmInfo().keySystem,
+        stats: (({ width, height, streamBandwidth }) => ({ width, height, streamBandwidth }))(
+          player.getStats(),
+        ),
+      };
+    } catch (e) {
+      report.error =
+        e && (e.code ? `shaka ${e.code} ${JSON.stringify(e.data).slice(0, 300)}` : String(e));
+    }
+    return report;
+  };
+</script>

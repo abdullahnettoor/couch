@@ -9,6 +9,9 @@
     "build": "sh native/mpv-embed/build.sh && vp build && vp pack && node scripts/write-remote-page.mjs",
     "start": "vp run build && node scripts/dev-electron.mjs",
     "package": "vp run build && node scripts/package.mjs",
+    "postinstall": "node scripts/ensure-electron.mjs",
+    "sign:dev": "node scripts/sign-dev.mjs",
+    "drm-check": "node scripts/drm-check/run.mjs",
     "sample": "sh scripts/make-sample.sh",
     "icons": "sh scripts/make-icons.sh",
     "listener": "sh listener/build.sh",
@@ -25,7 +28,7 @@
     "@types/node": "^26.6.5",
     "@types/qrcode": "^1.5.6",
     "@types/ws": "^8.18.2",
-    "electron": "^44.9.0",
+    "electron": "github:castlabs/electron-releases#v44.5.1+wvcus",
     "typescript": "~7.0.2",
     "vite": "catalog:",
     "vite-plus": "catalog:"

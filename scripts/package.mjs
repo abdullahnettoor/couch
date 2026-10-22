@@ -3,6 +3,8 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { builtinModules } from "node:module";
 import { join } from "node:path";
+import { evsState, signPkg, verifyPkg } from "./lib/evs-cli.mts";
+import { packagingPlan } from "./lib/evs.mts";
 
 // Couch.app has no node_modules: refuse to package a main bundle that still imports a package.
 for (const file of ["dist/main/index.mjs", "dist/preload/index.cjs"]) {
@@ -34,7 +36,7 @@ const [appPath] = await packager({
   prune: false,
   // The add-on must be a real file on disk; Electron loads it from app.asar.unpacked.
   asar: { unpack: "**/*.node" },
-  // Unsigned on purpose in v1: no osxSign, no osxNotarize.
+  // Signing happens below, after VMP signing: packager's own osxSign would run first.
   ignore: [
     /^\/\.(?!$)/,
     /^\/(node_modules|src|scripts|build|out|\.issues|\.wayfinder)(\/|$)/,
@@ -44,6 +46,14 @@ const [appPath] = await packager({
     /^\/native\/mpv-embed\/(?!mpv_embed\.node$)/,
   ],
 });
+
+// macOS order matters: VMP-sign first, then Apple code signing (which would be broken by a later VMP signature).
+const plan = packagingPlan(evsState());
+if (plan.warning) console.warn(`\n!! ${plan.warning}\n`);
+for (const step of plan.steps) {
+  const ok = step === "vmp-sign" ? signPkg(appPath) : verifyPkg(appPath);
+  if (!ok) throw new Error(`${step} failed for ${appPath}`);
+}
 
 // The listener can't read inside app.asar: it sits in Resources as real files, with the page and icons in remote/.
 const resources = join(appPath, "Couch.app", "Contents", "Resources");
@@ -57,4 +67,21 @@ execFileSync(
 copyFileSync("dist/remote/page.html", join(remote, "page.html"));
 for (const icon of ["icon-192.png", "touch-icon.png"])
   copyFileSync(join("src/renderer/public", icon), join(remote, icon));
+// COUCH_CODESIGN_IDENTITY: a Developer ID identity; unset means an ad-hoc signature (runs here, can't be notarised).
+// disable-library-validation lets the Widevine CDM load under the hardened runtime.
+execFileSync(
+  "codesign",
+  [
+    "--force",
+    "--deep",
+    "--options",
+    "runtime",
+    "--entitlements",
+    "build/entitlements.plist",
+    "--sign",
+    process.env.COUCH_CODESIGN_IDENTITY || "-",
+    join(appPath, "Couch.app"),
+  ],
+  { stdio: "inherit" },
+);
 console.log(`Built ${appPath}/Couch.app`);
