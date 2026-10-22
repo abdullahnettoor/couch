@@ -7,8 +7,8 @@ export type EvsState = {
 
 export const SETUP_HELP = `VMP signing is only needed for DRM Apps (Netflix, Prime Video, Disney+, Hotstar).
 To set it up (once per person):
-  python3 -m pip install castlabs-evs
-  evs-account signup        # or: evs-account login
+  brew install pipx && pipx install castlabs-evs && pipx ensurepath
+  evs-account signup        # or, on a new Mac: evs-account reauth
 Then run \`pnpm sign:dev\` again. Credentials stay in castLabs' own cache; Couch never stores them.`;
 
 export const DEV_SIGNED_WARNING =

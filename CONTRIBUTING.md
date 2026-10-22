@@ -20,7 +20,7 @@ If `vp` isn't installed globally, run it as `pnpm exec vp …`. If `ELECTRON_RUN
 
 Only needed when working on DRM Apps (Netflix, Prime Video, Disney+, Hotstar): they refuse the development VMP signature that ECS ships with. Everything else (YouTube, Library) needs none of this.
 
-- One castLabs EVS account per person: `python3 -m pip install castlabs-evs`, then `evs-account signup` (or `evs-account reauth` on a new Mac). Credentials stay in castLabs' own cache; never commit them.
+- One castLabs EVS account per person: `brew install pipx && pipx install castlabs-evs && pipx ensurepath` (macOS Homebrew Python refuses a plain `pip install`), then `evs-account signup` (or `evs-account reauth` on a new Mac). Credentials stay in castLabs' own cache; never commit them.
 - `pnpm sign:dev` VMP-signs the dev Electron. Run it once per checkout and after each Electron upgrade. It does nothing (and exits 0) without EVS, and never re-signs a valid signature.
 - `pnpm package` VMP-signs before Apple code signing when EVS is available, then verifies; without EVS it builds a dev-signed app and warns that DRM services won't play. Set `COUCH_CODESIGN_IDENTITY` for a Developer ID signature (default is ad-hoc).
 - castLabs' rules of conduct: no extra accounts (reset the password instead), don't force a re-sign while the signature is valid.
