@@ -26,7 +26,7 @@ const PICK_SOURCE = `function (cur, cands, dir, view) {
         var dx = (r.left + r.right) / 2 - (cur.left + cur.right) / 2;
         var dy = (r.top + r.bottom) / 2 - (cur.top + cur.bottom) / 2;
         var along = dir === 'right' ? dx : dir === 'left' ? -dx : dir === 'down' ? dy : -dy;
-        if (along <= 0) continue;
+        if (along <= 4) continue;
         var across = Math.abs(dir === 'left' || dir === 'right' ? dy : dx);
         score = along + 3 * across;
       }
@@ -44,6 +44,21 @@ export const pickInDirection: (
   dir: Direction,
   view: { width: number; height: number },
 ) => number = new Function(`return ${PICK_SOURCE}`)();
+
+/**
+ * What a site's own layout adds to the generic focus. Plain data (it becomes part of the page script);
+ * selectors are CSS, `url` a RegExp source tested against the address.
+ */
+export interface FocusLayout {
+  /** Pages that get no highlight at all (a player): every key goes to the page. First match wins; any of `url`/`present` set must hold. */
+  noRing?: Array<{ url?: string; present?: string }>;
+  /** Controls never highlighted (duplicates, hidden helpers). */
+  ignore?: string[];
+  /** The site's own modal containers, on top of role=dialog and aria-modal=true: while one is on screen the highlight stays inside the topmost. */
+  scopes?: string[];
+  /** Rows of cards: Left/Right stay in the row, Up/Down leave it; at the row's end `next`/`prev` (inside the row) page it. */
+  rows?: { row: string; next?: string; prev?: string };
+}
 
 export const DEFAULT_FOCUS_SELECTORS = [
   "a[href]",
@@ -100,7 +115,7 @@ export function typeIntoFieldScript(text: string): string {
  * their chance (end of dispatch), and only if none of them prevented the default. Never throws into
  * the page.
  */
-export function pageFocusFunction(extraSelectors: string[] = []): string {
+export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLayout = {}): string {
   const selector = [...DEFAULT_FOCUS_SELECTORS, ...extraSelectors].join(",");
   return `function () {
   try {
@@ -109,6 +124,7 @@ export function pageFocusFunction(extraSelectors: string[] = []): string {
     var pick = (${PICK_SOURCE});
     var isTextField = (${TEXT_FIELD_SOURCE});
     var SELECTOR = ${JSON.stringify(selector)};
+    var LAYOUT = ${JSON.stringify(layout)};
     var DIRS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
     var current = null;
     var ring = null;
@@ -119,16 +135,86 @@ export function pageFocusFunction(extraSelectors: string[] = []): string {
       var r = el.getBoundingClientRect();
       return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
     };
-    var usable = function (el) {
+    var shown = function (el) {
       try {
         if (!el || !el.isConnected) return null;
-        if (el.disabled || el.hasAttribute('disabled') || el.getAttribute && el.getAttribute('aria-disabled') === 'true') return null;
         var r = rectOf(el);
         if (r.right - r.left <= 0 || r.bottom - r.top <= 0) return null;
         var s = getComputedStyle(el);
         if (s.visibility === 'hidden' || s.display === 'none') return null;
         return r;
       } catch (e) { return null; }
+    };
+    var matchesAny = function (el, sels) {
+      for (var i = 0; sels && i < sels.length; i++) { try { if (el.matches(sels[i])) return true; } catch (e) {} }
+      return false;
+    };
+    var MODALS = ['[role=dialog]', '[role=alertdialog]', '[aria-modal="true"]'].concat(LAYOUT.scopes || []).join(',');
+    // The topmost modal on screen (highest z-index; later in the page wins a tie), or null.
+    var scopeEl = function () {
+      try {
+        var found = document.querySelectorAll(MODALS), best = null, bestZ = -Infinity;
+        for (var j = 0; j < found.length; j++) {
+          if (!shown(found[j])) continue;
+          var z = parseInt(getComputedStyle(found[j]).zIndex, 10);
+          if (isNaN(z)) z = 0;
+          if (z >= bestZ) { best = found[j]; bestZ = z; }
+        }
+        return best;
+      } catch (e) { return null; }
+    };
+    // Something drawn over the element's visible middle: it can't be pressed.
+    var covered = function (el, r) {
+      try {
+        if (typeof document.elementFromPoint !== 'function') return false;
+        // Off screen there is nothing to cover it: it is judged when it scrolls in.
+        if (r.right <= 0 || r.bottom <= 0 || r.left >= innerWidth || r.top >= innerHeight) return false;
+        var x = Math.min(Math.max((Math.max(r.left, 0) + Math.min(r.right, innerWidth)) / 2, 0), innerWidth - 1);
+        var y = Math.min(Math.max((Math.max(r.top, 0) + Math.min(r.bottom, innerHeight)) / 2, 0), innerHeight - 1);
+        var top = document.elementFromPoint(x, y);
+        return !!top && top !== el && !el.contains(top);
+      } catch (e) { return false; }
+    };
+    var noRing = function () {
+      var rules = LAYOUT.noRing || [];
+      for (var i = 0; i < rules.length; i++) {
+        var rule = rules[i];
+        if (!rule.url && !rule.present) continue;
+        if (rule.url && !new RegExp(rule.url).test(href())) continue;
+        if (rule.present) {
+          var hit = document.querySelectorAll(rule.present), any = false;
+          for (var j = 0; j < hit.length && !any; j++) any = !!shown(hit[j]);
+          if (!any) continue;
+        }
+        return true;
+      }
+      return false;
+    };
+    var usable = function (el, scope) {
+      try {
+        if (el.disabled || el.hasAttribute('disabled') || el.getAttribute && el.getAttribute('aria-disabled') === 'true') return null;
+        var r = shown(el);
+        if (!r) return null;
+        // Never a box that is most of the screen: a highlight on it would cover the page.
+        if ((r.right - r.left) * (r.bottom - r.top) > 0.5 * innerWidth * innerHeight) return null;
+        if (matchesAny(el, LAYOUT.ignore)) return null;
+        var sc = scope === undefined ? scopeEl() : scope;
+        if (sc && !sc.contains(el)) return null;
+        if (covered(el, r)) return null;
+        return r;
+      } catch (e) { return null; }
+    };
+    var pinned = function (el) {
+      try {
+        for (var e = el; e && e.nodeType !== 9; e = e.parentElement || e.parent) {
+          var p = getComputedStyle(e).position;
+          if (p === 'fixed' || p === 'sticky') return true;
+        }
+      } catch (err) {}
+      return false;
+    };
+    var rowOf = function (el) {
+      try { return LAYOUT.rows && el.closest ? el.closest(LAYOUT.rows.row) : null; } catch (e) { return null; }
     };
     var editable = function (el) {
       return !!el && (isTextField(el) || el.tagName === 'SELECT');
@@ -138,38 +224,51 @@ export function pageFocusFunction(extraSelectors: string[] = []): string {
       if (!document.body) return null;
       ring = document.createElement('div');
       var s = ring.style;
-      s.position = 'fixed'; s.pointerEvents = 'none'; s.zIndex = '2147483647';
-      s.border = '2px solid rgba(255,255,255,0.9)'; s.borderRadius = '10px';
-      s.background = 'rgba(255,255,255,0.12)';
-      s.boxShadow = '0 0 0 1px rgba(0,0,0,0.35), 0 4px 24px rgba(0,0,0,0.45)';
+      s.position = 'fixed'; s.boxSizing = 'border-box'; s.pointerEvents = 'none'; s.zIndex = '2147483647';
+      s.border = '3px solid rgba(255,255,255,0.95)'; s.borderRadius = '10px';
+      s.background = 'none';
+      s.boxShadow = '0 0 0 1px rgba(0,0,0,0.5)';
       s.transition = 'all 120ms ease-out'; s.display = 'none';
       document.body.appendChild(ring);
       return ring;
     };
     var draw = function () {
       try {
-        var r = current && usable(current);
+        var r = !noRing() && current && usable(current);
         var el = ensureRing();
         if (!el) return;
         if (!r) { el.style.display = 'none'; return; }
         el.style.display = 'block';
-        el.style.left = (r.left - 4) + 'px'; el.style.top = (r.top - 4) + 'px';
-        el.style.width = (r.right - r.left + 8) + 'px'; el.style.height = (r.bottom - r.top + 8) + 'px';
+        el.style.left = (r.left - 6) + 'px'; el.style.top = (r.top - 6) + 'px';
+        el.style.width = (r.right - r.left + 12) + 'px'; el.style.height = (r.bottom - r.top + 12) + 'px';
       } catch (e) {}
     };
     var candidates = function () {
       var out = [];
+      var scope = scopeEl();
       var all = document.querySelectorAll(SELECTOR);
       for (var i = 0; i < all.length; i++) {
-        var r = usable(all[i]);
+        var r = usable(all[i], scope);
         if (r) out.push({ el: all[i], rect: r });
       }
       return out;
     };
     var view = function () { return { width: innerWidth, height: innerHeight }; };
+    // displaced: the control the household held until something (a dialog still sliding in) covered it.
+    var lastModal = null, opener = null, displaced = null;
     var ensure = function () {
       try {
-        if (current && usable(current)) return;
+        if (noRing()) { current = null; draw(); return; }
+        var modal = scopeEl();
+        if (modal !== lastModal) {
+          // A modal opened: remember what was held, and go inside. It closed: go back to that if it is still there.
+          if (modal && !lastModal) opener = displaced || (current && current.isConnected ? current : null);
+          else if (!modal && opener) { if (usable(opener, null)) current = opener; opener = null; }
+          displaced = null;
+          lastModal = modal;
+        }
+        if (current && usable(current)) { draw(); return; }
+        if (current && current.isConnected && !displaced) displaced = current;
         current = null;
         var list = candidates();
         if (list.length) {
@@ -179,16 +278,56 @@ export function pageFocusFunction(extraSelectors: string[] = []): string {
         draw();
       } catch (e) {}
     };
-    var move = function (dir) {
+    var paging = false;
+    var move = function (dir, afterPaging) {
       var list = candidates();
       var from = current && usable(current) ? rectOf(current) : null;
-      var i = pick(from, list.map(function (c) { return c.rect; }), dir, view());
-      if (i < 0) return;
+      // After paging, Netflix may have made the old card unfocusable: it still says which row we are in, and where.
+      var held = current && current.isConnected ? current : null;
+      var row = held ? rowOf(held) : null;
+      var heldRect = held ? rectOf(held) : null;
+      // A pinned bar (fixed or sticky) moves among what is on screen; it doesn't send the page scrolling back to reach something above it.
+      if (from && pinned(current)) {
+        var vw = view();
+        list = list.filter(function (c) { return c.rect.right > 0 && c.rect.bottom > 0 && c.rect.left < vw.width && c.rect.top < vw.height; });
+      }
+      var sideways = dir === 'left' || dir === 'right';
+      if (row) {
+        var v = view();
+        list = list.filter(function (c) {
+          var same = rowOf(c.el) === row;
+          if (!sideways) return !same;
+          // Sideways in a row only to cards fully on screen; past them, the row pages.
+          return same && c.rect.left >= 0 && c.rect.right <= v.width;
+        });
+      }
+      var i;
+      if (afterPaging && row && sideways) {
+        // The row has just slid a page: land on the card at its near edge, whatever the old one did.
+        i = -1;
+        for (var n = 0; n < list.length; n++) {
+          if (i < 0 || (dir === 'right' ? list[n].rect.left < list[i].rect.left : list[n].rect.left > list[i].rect.left)) i = n;
+        }
+        // Only if the row really moved: the card must lie past the old one in the direction asked.
+        if (i >= 0 && heldRect && (dir === 'right' ? list[i].rect.left <= heldRect.left : list[i].rect.left >= heldRect.left)) i = -1;
+      } else i = pick(from, list.map(function (c) { return c.rect; }), dir, view());
+      if (i < 0) {
+        if (row && sideways && !paging && !afterPaging) {
+          var handle = row.querySelector(dir === 'right' ? LAYOUT.rows.next : LAYOUT.rows.prev);
+          if (handle && shown(handle)) {
+            paging = true;
+            handle.click();
+            setTimeout(function () { paging = false; try { move(dir, true); } catch (e) {} }, 750);
+          }
+        }
+        return;
+      }
       if (list[i].el === current) return;
       var active = document.activeElement;
       if (editable(active) && active.blur) active.blur();
       current = list[i].el;
-      try { current.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {}
+      displaced = null;
+      try { current.scrollIntoView({ block: row || rowOf(current) ? 'center' : 'nearest', inline: 'nearest' }); } catch (e) {}
       draw();
     };
     var act = function (key, dir) {
@@ -199,6 +338,7 @@ export function pageFocusFunction(extraSelectors: string[] = []): string {
     var onKey = function (e) {
       try {
         if (e.defaultPrevented) return;
+        if (noRing()) return;
         var dir = DIRS[e.key];
         if (!dir && e.key !== 'Enter') return;
         var typing = editable(document.activeElement);
@@ -216,7 +356,7 @@ export function pageFocusFunction(extraSelectors: string[] = []): string {
     };
     var changed = function () {
       try {
-        if (href() !== lastHref) { lastHref = href(); current = null; }
+        if (href() !== lastHref) { lastHref = href(); current = null; opener = null; displaced = null; }
         ensure();
       } catch (e) {}
     };
@@ -228,7 +368,13 @@ export function pageFocusFunction(extraSelectors: string[] = []): string {
       try { if (editable(e.target)) console.debug(${JSON.stringify(FIELD_BLURRED)}); } catch (err) {}
     }, true);
     try {
-      new MutationObserver(changed).observe(document.documentElement || document, { childList: true, subtree: true });
+      new MutationObserver(function (records) {
+        // The ring's own restyling is not the page changing.
+        if (records && records.length && records.every(function (r) { return r.target === ring; })) return;
+        changed();
+      }).observe(document.documentElement || document, {
+        childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'open', 'hidden', 'aria-modal', 'aria-hidden'],
+      });
     } catch (e) {}
     addEventListener('scroll', draw, true);
     addEventListener('resize', draw, true);

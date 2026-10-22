@@ -4,6 +4,7 @@ import {
   FIELD_BLURRED,
   FIELD_FOCUSED,
   pageFocusFunction,
+  type FocusLayout,
   pickInDirection,
   typeIntoFieldScript,
   type Box,
@@ -55,10 +56,22 @@ class El {
   tagName: string;
   isContentEditable = false;
   name: string;
+  /** A modal container (found by the modal selector) rather than a control. */
+  modal = false;
+  /** Not a control (a cover, a backdrop): it only occludes. */
+  plain = false;
+  parent: El | null = null;
+  /** Paint order: the higher layer is on top where they overlap. */
+  layer = 0;
+  zIndex = "auto";
   constructor(name: string, rect: Box, tagName = "BUTTON") {
     this.name = name;
     this.rect = rect;
     this.tagName = tagName;
+  }
+  contains(other: El): boolean {
+    for (let e: El | null = other; e; e = e.parent) if (e === this) return true;
+    return false;
   }
   get isConnected() {
     return this.connected;
@@ -84,7 +97,7 @@ class El {
   }
 }
 let doc: any;
-function setup(els: El[], selectors?: string[]) {
+function setup(els: El[], selectors?: string[], layout?: FocusLayout) {
   const listeners: Record<string, Function[]> = {};
   const timers: Function[] = [];
   const observers: Function[] = [];
@@ -95,7 +108,19 @@ function setup(els: El[], selectors?: string[]) {
     readyState: "complete",
     body: { appendChild: () => {} },
     createElement: () => ring,
-    querySelectorAll: (_s: string) => els.filter((e) => e.connected),
+    // The modal selector finds modals; any other selector finds the controls.
+    querySelectorAll: (sel: string) =>
+      els.filter((e) => e.connected && (/dialog|modal/.test(sel) ? e.modal : !e.modal && !e.plain)),
+    elementFromPoint: (x: number, y: number) => {
+      let top: El | null = null;
+      for (const e of els) {
+        const r = e.rect;
+        if (!e.connected || e.hidden) continue;
+        if (x < r.left || x >= r.right || y < r.top || y >= r.bottom) continue;
+        if (!top || e.layer >= top.layer) top = e;
+      }
+      return top;
+    },
   };
   const location = { href: "https://www.netflix.com/browse" };
   const sandbox: any = {
@@ -105,7 +130,7 @@ function setup(els: El[], selectors?: string[]) {
     innerHeight: 800,
     console: { warn() {}, debug: (m: string) => logs.push(m) },
     addEventListener: (t: string, f: Function) => (listeners[t] ??= []).push(f),
-    getComputedStyle: () => ({ visibility: "visible", display: "block" }),
+    getComputedStyle: (e: El) => ({ visibility: "visible", display: "block", zIndex: e.zIndex }),
     requestAnimationFrame: (f: Function) => f(),
     setTimeout: (f: Function) => timers.push(f),
     MutationObserver: class {
@@ -117,7 +142,7 @@ function setup(els: El[], selectors?: string[]) {
   };
   sandbox.window = sandbox;
   vm.createContext(sandbox);
-  vm.runInContext(`(${pageFocusFunction(selectors)})()`, sandbox);
+  vm.runInContext(`(${pageFocusFunction(selectors, layout)})()`, sandbox);
   /** The page's DOM changed (the observer fires), and any timers that follow run. */
   const mutate = () => {
     for (const f of observers) f([]);
@@ -145,7 +170,7 @@ function setup(els: El[], selectors?: string[]) {
   const fire = (type: string, target: El) => {
     for (const f of listeners[type] ?? []) f({ type, target });
   };
-  return { key, ring, mutate, fire, logs, location };
+  return { key, ring, mutate, fire, logs, location, doc };
 }
 
 describe("page focus script", () => {
@@ -283,6 +308,177 @@ describe("page focus script", () => {
       key("ArrowRight");
       key("Enter");
     }).not.toThrow();
+  });
+  test("the ring is an outline: no fill, so it can never tint what is behind it", () => {
+    const { ring } = setup(mk());
+    expect(ring.style.display).toBe("block");
+    expect(ring.style.background).toMatch(/^(none|transparent)$/);
+    expect(ring.style.backgroundColor ?? "").toBe("");
+    expect(ring.style.border).toMatch(/solid/);
+  });
+  test("never lands on an element that is most of the viewport", () => {
+    const huge = new El("player", box(0, 0, 1000, 700));
+    const big = new El("wide", box(0, 0, 1000, 450));
+    const small = new El("small", box(600, 600));
+    const { key, ring } = setup([huge, big, small]);
+    key("Enter");
+    expect([huge.clicks, big.clicks, small.clicks]).toEqual([0, 0, 1]);
+    key("ArrowUp");
+    key("Enter");
+    expect(huge.clicks + big.clicks).toBe(0);
+    expect(ring.style.display).toBe("block");
+    small.connected = false;
+    const only = setup([new El("full", box(0, 0, 1000, 800))]);
+    expect(only.ring.style.display).not.toBe("block");
+  });
+  describe("layers", () => {
+    // A page with three controls, and a dialog opened over the middle of it with its own two.
+    const page = () => {
+      const under = [
+        new El("a", box(100, 100)),
+        new El("b", box(300, 100)),
+        new El("c", box(100, 300)),
+      ];
+      const dialog = new El("dialog", box(250, 50, 400, 300), "DIV");
+      dialog.modal = true;
+      dialog.layer = 10;
+      const inA = new El("in-a", box(300, 100));
+      const inB = new El("in-b", box(450, 100));
+      for (const e of [inA, inB]) {
+        e.parent = dialog;
+        e.layer = 11;
+      }
+      return { under, dialog, inA, inB };
+    };
+    test("with a dialog open, the highlight is only inside it", () => {
+      const { under, dialog, inA, inB } = page();
+      const els = [...under, dialog, inA, inB];
+      const { key, ring } = setup(els);
+      expect(ring.style.display).toBe("block");
+      for (const k of ["ArrowLeft", "ArrowUp", "ArrowDown", "ArrowRight", "ArrowDown"]) {
+        key(k);
+        key("Enter");
+      }
+      expect(under.map((e) => e.clicks)).toEqual([0, 0, 0]);
+      expect(inA.clicks + inB.clicks).toBeGreaterThan(0);
+    });
+    test("aria-modal and the site's own container count as modals", () => {
+      const { under, dialog, inA } = page();
+      dialog.modal = true;
+      const { key } = setup([...under, dialog, inA], undefined, { scopes: [".site-modal"] });
+      key("Enter");
+      expect(inA.clicks).toBe(1);
+    });
+    test("with two dialogs open, only the topmost is reachable", () => {
+      const { under, dialog, inA, inB } = page();
+      const top = new El("top", box(0, 0, 200, 200), "DIV");
+      top.modal = true;
+      top.layer = 20;
+      top.zIndex = "20";
+      const inTop = new El("in-top", box(20, 20, 50, 50));
+      inTop.parent = top;
+      inTop.layer = 21;
+      const { key } = setup([...under, dialog, inA, inB, top, inTop]);
+      key("Enter");
+      key("ArrowRight");
+      key("Enter");
+      expect([inA.clicks, inB.clicks, ...under.map((e) => e.clicks)]).toEqual([0, 0, 0, 0, 0]);
+      expect(inTop.clicks).toBeGreaterThan(0);
+    });
+    test("a covered control is skipped even with no modal (something drawn over its middle)", () => {
+      const a = new El("a", box(100, 100));
+      const covered = new El("covered", box(300, 100));
+      const sheet = new El("sheet", box(280, 80, 150, 100), "DIV");
+      sheet.plain = true;
+      sheet.layer = 5;
+      const { key } = setup([a, covered, sheet]);
+      key("ArrowRight");
+      key("Enter");
+      expect(covered.clicks).toBe(0);
+      expect(a.clicks).toBe(1);
+    });
+    test("a control partly covered but with its middle free still counts", () => {
+      const a = new El("a", box(100, 100));
+      const b = new El("b", box(300, 100));
+      const edge = new El("edge", box(380, 80, 60, 100), "DIV");
+      edge.plain = true;
+      edge.layer = 5;
+      const { key } = setup([a, b, edge]);
+      key("ArrowRight");
+      key("Enter");
+      expect(b.clicks).toBe(1);
+    });
+    test("an element off the edge of the viewport is judged at its visible middle", () => {
+      const a = new El("a", box(100, 100));
+      const edge = new El("edge", box(950, 400, 200, 50));
+      const { key } = setup([a, edge]);
+      key("ArrowDown");
+      key("Enter");
+      expect(edge.clicks).toBe(1);
+    });
+    test("the ring moves into a dialog the moment it opens over the held control", () => {
+      const { under, dialog, inA, inB } = page();
+      dialog.connected = false;
+      inA.connected = false;
+      inB.connected = false;
+      const all = [...under, dialog, inA, inB];
+      const { key, mutate } = setup(all);
+      key("ArrowRight");
+      key("Enter");
+      expect(under[1].clicks).toBe(1);
+      for (const e of [dialog, inA, inB]) e.connected = true;
+      mutate();
+      key("Enter");
+      expect(under[1].clicks).toBe(1);
+      expect(inA.clicks + inB.clicks).toBe(1);
+    });
+    test("when the dialog closes the ring returns to the control that opened it", () => {
+      const { under, dialog, inA, inB } = page();
+      for (const e of [dialog, inA, inB]) e.connected = false;
+      const { key, mutate } = setup([...under, dialog, inA, inB]);
+      key("ArrowRight");
+      for (const e of [dialog, inA, inB]) e.connected = true;
+      mutate();
+      for (const e of [dialog, inA, inB]) e.connected = false;
+      mutate();
+      key("Enter");
+      expect(under[1].clicks).toBe(1);
+      expect(inA.clicks + inB.clicks).toBe(0);
+    });
+    test("the opener is remembered even when a backdrop covers it before the dialog itself shows", () => {
+      const { under, dialog, inA, inB } = page();
+      const backdrop = new El("backdrop", box(0, 0, 1000, 800), "DIV");
+      backdrop.plain = true;
+      backdrop.layer = 9;
+      for (const e of [backdrop, dialog, inA, inB]) e.connected = false;
+      const { key, mutate } = setup([...under, backdrop, dialog, inA, inB]);
+      key("ArrowRight");
+      backdrop.connected = true;
+      mutate();
+      for (const e of [dialog, inA, inB]) e.connected = true;
+      mutate();
+      expect(inA.clicks + inB.clicks).toBe(0);
+      key("Enter");
+      expect(inA.clicks + inB.clicks).toBe(1);
+      for (const e of [backdrop, dialog, inA, inB]) e.connected = false;
+      mutate();
+      key("Enter");
+      expect(under[1].clicks).toBe(1);
+    });
+    test("when the opener is gone after the dialog closes, any visible control gets the ring", () => {
+      const { under, dialog, inA, inB } = page();
+      for (const e of [dialog, inA, inB]) e.connected = false;
+      const { key, mutate, ring } = setup([...under, dialog, inA, inB]);
+      key("ArrowRight");
+      for (const e of [dialog, inA, inB]) e.connected = true;
+      mutate();
+      for (const e of [dialog, inA, inB]) e.connected = false;
+      under[1].connected = false;
+      mutate();
+      expect(ring.style.display).toBe("block");
+      key("Enter");
+      expect(under[0].clicks + under[2].clicks).toBe(1);
+    });
   });
   test("other keys are untouched", () => {
     const { key } = setup(mk());

@@ -1,0 +1,3307 @@
+{
+  "url": "https://www.netflix.com/browse?jbv=ID",
+  "view": { "width": 1280, "height": 688 },
+  "tree": {
+    "t": "body",
+    "r": [0, 0, 1280, 0],
+    "c": [
+      {
+        "t": "div",
+        "a": { "data-uia": "loc" },
+        "r": [0, 0, 1280, 0],
+        "c": [
+          {
+            "t": "div",
+            "a": { "data-uia": "container-adult" },
+            "r": [0, 0, 1280, 2354],
+            "z": 0,
+            "fixed": true,
+            "c": [
+              {
+                "t": "nav",
+                "a": { "data-uia": "navigation" },
+                "r": [0, 0, 1280, 80],
+                "z": 1,
+                "fixed": true,
+                "c": [
+                  {
+                    "t": "a",
+                    "a": { "data-uia": "navigation+logo", "href": "#" },
+                    "r": [48, 30, 76, 20]
+                  },
+                  {
+                    "t": "div",
+                    "a": { "data-uia": "navigation+group+items" },
+                    "r": [144, 16, 888, 49],
+                    "c": [
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "tutorial+target-home" },
+                        "r": [148, 20, 77, 41],
+                        "c": [
+                          {
+                            "t": "a",
+                            "a": { "data-uia": "nav-home", "href": "#" },
+                            "r": [148, 20, 77, 41],
+                            "c": [
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "navigation-item-text" },
+                                "r": [164, 30, 45, 21]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "tutorial+target-series" },
+                        "r": [231, 20, 82, 41],
+                        "c": [
+                          {
+                            "t": "a",
+                            "a": { "data-uia": "nav-series", "href": "#" },
+                            "r": [231, 20, 82, 41],
+                            "c": [
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "navigation-item-text" },
+                                "r": [247, 30, 50, 21]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "tutorial+target-movies" },
+                        "r": [318, 20, 86, 41],
+                        "c": [
+                          {
+                            "t": "a",
+                            "a": { "data-uia": "nav-movies", "href": "#" },
+                            "r": [318, 20, 86, 41],
+                            "c": [
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "navigation-item-text" },
+                                "r": [334, 30, 54, 21]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "tutorial+target-games" },
+                        "r": [410, 20, 84, 41],
+                        "c": [
+                          {
+                            "t": "a",
+                            "a": { "data-uia": "nav-games", "href": "#" },
+                            "r": [410, 20, 84, 41],
+                            "c": [
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "navigation-item-text" },
+                                "r": [426, 30, 52, 21]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "tutorial+target-latest" },
+                        "r": [499, 20, 143, 41],
+                        "c": [
+                          {
+                            "t": "a",
+                            "a": { "data-uia": "nav-latest", "href": "#" },
+                            "r": [499, 20, 143, 41],
+                            "c": [
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "navigation-item-text" },
+                                "r": [515, 30, 111, 21]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "tutorial+target-myProfile" },
+                        "r": [648, 20, 109, 41],
+                        "c": [
+                          {
+                            "t": "a",
+                            "a": { "data-uia": "nav-myProfile", "href": "#" },
+                            "r": [648, 20, 109, 41],
+                            "c": [
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "navigation-item-text" },
+                                "r": [664, 30, 77, 21]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "tutorial+target-audioSubtitles" },
+                        "r": [763, 20, 196, 41],
+                        "c": [
+                          {
+                            "t": "a",
+                            "a": { "data-uia": "nav-audioSubtitles", "href": "#" },
+                            "r": [763, 20, 196, 41],
+                            "c": [
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "navigation-item-text" },
+                                "r": [779, 30, 164, 21]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "t": "div",
+                    "a": { "data-uia": "tutorial+target-search" },
+                    "r": [1060, 20, 40, 40],
+                    "c": [
+                      {
+                        "t": "button",
+                        "a": { "data-uia": "navigation+actions+search+icon" },
+                        "r": [1060, 20, 40, 40],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "navigation+actions+search+icon+icon-wrapper" },
+                            "r": [1068, 28, 24, 24]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "r": [692, 4, 416, 72],
+                        "hidden": true,
+                        "z": 20,
+                        "c": [
+                          {
+                            "t": "div",
+                            "r": [700, 12, 400, 56],
+                            "hidden": true,
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "navigation+actions+search+input+container" },
+                                "r": [700, 12, 400, 56],
+                                "hidden": true,
+                                "c": [
+                                  {
+                                    "t": "span",
+                                    "a": { "data-uia": "navigation+actions+search+input+label" },
+                                    "r": [748, 20, 1, 1],
+                                    "hidden": true,
+                                    "z": 1
+                                  },
+                                  {
+                                    "t": "div",
+                                    "r": [700, 12, 400, 56],
+                                    "hidden": true,
+                                    "z": 0,
+                                    "c": [
+                                      {
+                                        "t": "div",
+                                        "a": { "role": "img" },
+                                        "r": [716, 28, 24, 24],
+                                        "hidden": true,
+                                        "z": 1
+                                      },
+                                      {
+                                        "t": "input",
+                                        "a": { "data-uia": "navigation+actions+search+input" },
+                                        "r": [700, 12, 400, 56],
+                                        "hidden": true
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "t": "span",
+                    "a": { "data-uia": "notification-badge" },
+                    "r": [1134, 22, 16, 16],
+                    "z": 1
+                  },
+                  {
+                    "t": "button",
+                    "a": { "data-uia": "notification-bell", "role": "button", "tabindex": "0" },
+                    "r": [1112, 20, 40, 40],
+                    "c": [
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "notification-bell+icon-wrapper" },
+                        "r": [1120, 28, 24, 24]
+                      }
+                    ]
+                  },
+                  {
+                    "t": "button",
+                    "a": {
+                      "data-uia": "navigation+profile-menu+trigger",
+                      "role": "button",
+                      "tabindex": "0"
+                    },
+                    "r": [1164, 22, 68, 36],
+                    "c": [
+                      {
+                        "t": "span",
+                        "a": { "data-uia": "navigation+profile-menu+Icon", "role": "img" },
+                        "r": [1206, 31, 16, 16]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "t": "div",
+                "a": { "data-uia": "navigation+subheader" },
+                "r": [0, 80, 1280, 0],
+                "z": 1,
+                "fixed": true
+              },
+              {
+                "t": "div",
+                "a": { "role": "main" },
+                "r": [0, 0, 1280, 2148],
+                "z": 0,
+                "c": [
+                  { "t": "h1", "a": { "data-uia": "home-page+heading" }, "r": [0, 21, 1, 1] },
+                  {
+                    "t": "div",
+                    "a": { "data-uia": "home-page" },
+                    "r": [0, 0, 1280, 2148],
+                    "c": [
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "browse-page-sections" },
+                        "r": [0, 0, 1280, 2148],
+                        "c": [
+                          {
+                            "t": "section",
+                            "r": [0, 0, 1280, 631],
+                            "c": [
+                              {
+                                "t": "section",
+                                "a": { "data-uia": "billboard" },
+                                "r": [48, 88, 1184, 543],
+                                "c": [
+                                  {
+                                    "t": "div",
+                                    "a": { "data-uia": "billboard-background-media+player" },
+                                    "r": [47, 87, 1186, 544],
+                                    "z": 0,
+                                    "c": [{ "t": "video", "r": [47, 87, 1186, 544] }]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-uia": "billboard-controls" },
+                                    "r": [1164, 124, 32, 32],
+                                    "c": [
+                                      {
+                                        "t": "button",
+                                        "a": { "data-uia": "icon-button" },
+                                        "r": [1164, 124, 32, 32],
+                                        "c": [
+                                          {
+                                            "t": "div",
+                                            "a": { "data-uia": "icon-button+icon-wrapper" },
+                                            "r": [1172, 132, 16, 16]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-uia": "billboard-title" },
+                                    "r": [84, 218, 1112, 206],
+                                    "c": [
+                                      {
+                                        "t": "div",
+                                        "a": { "data-uia": "billboard-evidence" },
+                                        "r": [84, 383, 1112, 0]
+                                      },
+                                      {
+                                        "t": "div",
+                                        "a": { "data-uia": "attributes-elements" },
+                                        "r": [84, 391, 1112, 32]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-uia": "billboard-metadata" },
+                                    "r": [84, 431, 461, 84],
+                                    "c": [
+                                      {
+                                        "t": "p",
+                                        "a": { "data-uia": "billboard-synopsis" },
+                                        "r": [84, 431, 461, 84]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-uia": "billboard-actions" },
+                                    "r": [84, 547, 792, 48],
+                                    "c": [
+                                      {
+                                        "t": "button",
+                                        "a": { "data-uia": "play-video-button" },
+                                        "r": [84, 547, 108, 48],
+                                        "c": [
+                                          {
+                                            "t": "span",
+                                            "a": { "role": "img" },
+                                            "r": [104, 559, 24, 24]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "t": "button",
+                                        "a": { "data-uia": "billboard-more-info" },
+                                        "r": [204, 547, 120, 48]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-uia": "billboard-callouts" },
+                                    "r": [876, 559, 320, 36],
+                                    "c": [
+                                      {
+                                        "t": "span",
+                                        "a": { "data-uia": "billboard-callout" },
+                                        "r": [876, 559, 194, 36]
+                                      },
+                                      {
+                                        "t": "span",
+                                        "a": { "data-uia": "billboard-callout" },
+                                        "r": [1078, 559, 118, 36]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "section",
+                            "a": { "data-uia": "carousel-row-section-1" },
+                            "r": [0, 667, 1280, 178],
+                            "z": 1,
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "carousel-scroller" },
+                                "r": [0, 708, 1280, 137],
+                                "c": [
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "6" },
+                                    "r": [48, 710, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [48, 712, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "7" },
+                                    "r": [286, 710, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [286, 712, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "8" },
+                                    "r": [525, 710, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [525, 712, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "9" },
+                                    "r": [763, 710, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [763, 712, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "10" },
+                                    "r": [1002, 710, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [1002, 712, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "11" },
+                                    "r": [1240, 710, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1240, 712, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "12" },
+                                    "r": [1478, 710, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1478, 712, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "13" },
+                                    "r": [1717, 710, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1717, 712, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "14" },
+                                    "r": [1955, 710, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1955, 712, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-uia": "carousel-hawkins-right-button-peek-scrim" },
+                                    "r": [1232, 708, 48, 137],
+                                    "z": 1
+                                  },
+                                  {
+                                    "t": "button",
+                                    "a": {
+                                      "data-uia": "carousel-hawkins-right-button",
+                                      "tabindex": "0"
+                                    },
+                                    "r": [1218, 748, 28, 56]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "section",
+                            "a": { "data-uia": "carousel-row-section-2" },
+                            "r": [0, 877, 1280, 178],
+                            "z": 1,
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "carousel-scroller" },
+                                "r": [0, 917, 1280, 137],
+                                "c": [
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "6" },
+                                    "r": [48, 919, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [48, 921, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "7" },
+                                    "r": [286, 919, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [286, 921, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "8" },
+                                    "r": [525, 919, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [525, 921, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "9" },
+                                    "r": [763, 919, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [763, 921, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "10" },
+                                    "r": [1002, 919, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [1002, 921, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "11" },
+                                    "r": [1240, 919, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1240, 921, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "12" },
+                                    "r": [1478, 919, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1478, 921, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "13" },
+                                    "r": [1717, 919, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1717, 921, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "14" },
+                                    "r": [1955, 919, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1955, 921, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-uia": "carousel-hawkins-right-button-peek-scrim" },
+                                    "r": [1232, 917, 48, 137],
+                                    "z": 1
+                                  },
+                                  {
+                                    "t": "button",
+                                    "a": {
+                                      "data-uia": "carousel-hawkins-right-button",
+                                      "tabindex": "0"
+                                    },
+                                    "r": [1218, 958, 28, 56]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "section",
+                            "a": { "data-uia": "carousel-row-section-3" },
+                            "r": [0, 1087, 1280, 213],
+                            "z": 1,
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "carousel-scroller" },
+                                "r": [0, 1127, 1280, 173],
+                                "c": [
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "6" },
+                                    "r": [48, 1129, 230, 169],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "ranked-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [48, 1131, 230, 165]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "7" },
+                                    "r": [286, 1129, 230, 169],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "ranked-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [286, 1131, 230, 165]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "8" },
+                                    "r": [525, 1129, 230, 169],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "ranked-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [525, 1131, 230, 165]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "9" },
+                                    "r": [763, 1129, 230, 169],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "ranked-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [763, 1131, 230, 165]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "10" },
+                                    "r": [1002, 1129, 230, 169],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "ranked-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [1002, 1131, 230, 165]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "11" },
+                                    "r": [1240, 1129, 230, 169],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "ranked-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1240, 1131, 230, 165]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "12" },
+                                    "r": [1478, 1129, 230, 169],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "ranked-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1478, 1131, 230, 165]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "13" },
+                                    "r": [1717, 1129, 230, 169],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "ranked-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1717, 1131, 230, 165]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "14" },
+                                    "r": [1955, 1129, 230, 169],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "ranked-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1955, 1131, 230, 165]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-uia": "carousel-hawkins-right-button-peek-scrim" },
+                                    "r": [1232, 1127, 48, 173],
+                                    "z": 1
+                                  },
+                                  {
+                                    "t": "button",
+                                    "a": {
+                                      "data-uia": "carousel-hawkins-right-button",
+                                      "tabindex": "0"
+                                    },
+                                    "r": [1218, 1186, 28, 56]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "section",
+                            "a": { "data-uia": "carousel-row-section-4" },
+                            "r": [0, 1332, 1280, 178],
+                            "z": 1,
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "carousel-scroller" },
+                                "r": [0, 1372, 1280, 137],
+                                "c": [
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "6" },
+                                    "r": [48, 1374, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [48, 1376, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "7" },
+                                    "r": [286, 1374, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [286, 1376, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "8" },
+                                    "r": [525, 1374, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [525, 1376, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "9" },
+                                    "r": [763, 1374, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [763, 1376, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "10" },
+                                    "r": [1002, 1374, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [1002, 1376, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "11" },
+                                    "r": [1240, 1374, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1240, 1376, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "12" },
+                                    "r": [1478, 1374, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1478, 1376, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "13" },
+                                    "r": [1717, 1374, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1717, 1376, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "14" },
+                                    "r": [1955, 1374, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1955, 1376, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-uia": "carousel-hawkins-right-button-peek-scrim" },
+                                    "r": [1232, 1372, 48, 137],
+                                    "z": 1
+                                  },
+                                  {
+                                    "t": "button",
+                                    "a": {
+                                      "data-uia": "carousel-hawkins-right-button",
+                                      "tabindex": "0"
+                                    },
+                                    "r": [1218, 1413, 28, 56]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "section",
+                            "a": { "data-uia": "carousel-row-section-5" },
+                            "r": [0, 1542, 1280, 178],
+                            "z": 1,
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "carousel-scroller" },
+                                "r": [0, 1582, 1280, 137],
+                                "c": [
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "6" },
+                                    "r": [48, 1584, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [48, 1586, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "7" },
+                                    "r": [286, 1584, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [286, 1586, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "8" },
+                                    "r": [525, 1584, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [525, 1586, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "9" },
+                                    "r": [763, 1584, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [763, 1586, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "10" },
+                                    "r": [1002, 1584, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [1002, 1586, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "11" },
+                                    "r": [1240, 1584, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1240, 1586, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "12" },
+                                    "r": [1478, 1584, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1478, 1586, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "13" },
+                                    "r": [1717, 1584, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1717, 1586, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "14" },
+                                    "r": [1955, 1584, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1955, 1586, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-uia": "carousel-hawkins-right-button-peek-scrim" },
+                                    "r": [1232, 1582, 48, 137],
+                                    "z": 1
+                                  },
+                                  {
+                                    "t": "button",
+                                    "a": {
+                                      "data-uia": "carousel-hawkins-right-button",
+                                      "tabindex": "0"
+                                    },
+                                    "r": [1218, 1623, 28, 56]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "section",
+                            "a": { "data-uia": "carousel-row-section-6" },
+                            "r": [0, 1752, 1280, 178],
+                            "z": 1,
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "carousel-scroller" },
+                                "r": [0, 1792, 1280, 137],
+                                "c": [
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "6" },
+                                    "r": [48, 1794, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [48, 1796, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "7" },
+                                    "r": [286, 1794, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [286, 1796, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "8" },
+                                    "r": [525, 1794, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [525, 1796, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "9" },
+                                    "r": [763, 1794, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [763, 1796, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "10" },
+                                    "r": [1002, 1794, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [1002, 1796, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "11" },
+                                    "r": [1240, 1794, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1240, 1796, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "12" },
+                                    "r": [1478, 1794, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1478, 1796, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "13" },
+                                    "r": [1717, 1794, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1717, 1796, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "14" },
+                                    "r": [1955, 1794, 230, 133],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "standard-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1955, 1796, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-uia": "carousel-hawkins-right-button-peek-scrim" },
+                                    "r": [1232, 1792, 48, 137],
+                                    "z": 1
+                                  },
+                                  {
+                                    "t": "button",
+                                    "a": {
+                                      "data-uia": "carousel-hawkins-right-button",
+                                      "tabindex": "0"
+                                    },
+                                    "r": [1218, 1833, 28, 56]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "section",
+                            "a": { "data-uia": "carousel-row-section-7" },
+                            "r": [0, 1961, 1280, 186],
+                            "z": 1,
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "carousel-scroller" },
+                                "r": [0, 2002, 1280, 145],
+                                "c": [
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "6" },
+                                    "r": [48, 2004, 230, 141],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "progress-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [48, 2006, 230, 129]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "7" },
+                                    "r": [286, 2004, 230, 141],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "progress-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [286, 2006, 230, 129]
+                                      },
+                                      {
+                                        "t": "span",
+                                        "a": { "role": "presentation" },
+                                        "r": [332, 2140, 79, 3]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "8" },
+                                    "r": [525, 2004, 230, 141],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "progress-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [525, 2006, 230, 129]
+                                      },
+                                      {
+                                        "t": "span",
+                                        "a": { "role": "presentation" },
+                                        "r": [571, 2140, 108, 3]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "9" },
+                                    "r": [763, 2004, 230, 141],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "progress-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [763, 2006, 230, 129]
+                                      },
+                                      {
+                                        "t": "span",
+                                        "a": { "role": "presentation" },
+                                        "r": [809, 2140, 47, 3]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "10" },
+                                    "r": [1002, 2004, 230, 141],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "progress-card",
+                                          "tabindex": "0",
+                                          "href": "#"
+                                        },
+                                        "r": [1002, 2006, 230, 129]
+                                      },
+                                      {
+                                        "t": "span",
+                                        "a": { "role": "presentation" },
+                                        "r": [1048, 2140, 111, 3]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "11" },
+                                    "r": [1240, 2004, 230, 141],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "progress-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1240, 2006, 230, 129]
+                                      },
+                                      {
+                                        "t": "span",
+                                        "a": { "role": "presentation" },
+                                        "r": [1286, 2140, 80, 3]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "12" },
+                                    "r": [1478, 2004, 230, 141],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "progress-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1478, 2006, 230, 129]
+                                      },
+                                      {
+                                        "t": "span",
+                                        "a": { "role": "presentation" },
+                                        "r": [1524, 2140, 88, 3]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "13" },
+                                    "r": [1717, 2004, 230, 141],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "progress-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1717, 2006, 230, 129]
+                                      },
+                                      {
+                                        "t": "span",
+                                        "a": { "role": "presentation" },
+                                        "r": [1763, 2140, 37, 3]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-virtual-slot": "14" },
+                                    "r": [1955, 2004, 230, 141],
+                                    "z": 1,
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "a": {
+                                          "data-uia": "progress-card",
+                                          "tabindex": "-1",
+                                          "href": "#"
+                                        },
+                                        "r": [1955, 2006, 230, 129]
+                                      },
+                                      {
+                                        "t": "span",
+                                        "a": { "role": "presentation" },
+                                        "r": [2001, 2140, 111, 3]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "div",
+                                    "a": { "data-uia": "carousel-hawkins-right-button-peek-scrim" },
+                                    "r": [1232, 2002, 48, 145],
+                                    "z": 1
+                                  },
+                                  {
+                                    "t": "button",
+                                    "a": {
+                                      "data-uia": "carousel-hawkins-right-button",
+                                      "tabindex": "0"
+                                    },
+                                    "r": [1218, 2047, 28, 56]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "browse-page+sentinel" },
+                            "r": [0, 2147, 1280, 1],
+                            "hidden": true
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "t": "div",
+            "a": { "tabindex": "-1" },
+            "r": [0, 0, 1280, 688],
+            "c": [
+              {
+                "t": "div",
+                "a": {
+                  "data-uia": "modal-motion-container-DETAIL_MODAL",
+                  "role": "dialog",
+                  "tabindex": "-1"
+                },
+                "r": [215, 32, 850, 2167],
+                "z": 2,
+                "c": [
+                  {
+                    "t": "div",
+                    "a": { "data-uia": "previewModal--player_container" },
+                    "r": [215, 32, 850, 479],
+                    "c": [
+                      { "t": "video", "r": [215, 32, 850, 479] },
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "mini-modal-controls" },
+                        "r": [263, 399, 340, 53],
+                        "z": 2,
+                        "c": [
+                          {
+                            "t": "a",
+                            "a": {
+                              "data-uia": "play-button",
+                              "role": "link",
+                              "tabindex": "0",
+                              "href": "#"
+                            },
+                            "r": [267, 403, 118, 45],
+                            "c": [
+                              {
+                                "t": "button",
+                                "a": { "tabindex": "-1" },
+                                "r": [267, 403, 118, 45],
+                                "c": [
+                                  {
+                                    "t": "div",
+                                    "a": { "role": "presentation" },
+                                    "r": [286, 411, 29, 29]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [393, 406, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [403, 416, 18, 18]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "thumbs-rate-button" },
+                            "r": [439, 406, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [449, 416, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "button",
+                        "a": { "data-uia": "audio-toggle-unmuted" },
+                        "r": [979, 409, 38, 38],
+                        "c": [
+                          { "t": "div", "a": { "role": "presentation" }, "r": [989, 419, 18, 18] }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "t": "span",
+                    "a": { "data-uia": "previewModal-closebtn", "role": "button", "tabindex": "0" },
+                    "r": [1013, 68, 36, 20]
+                  },
+                  {
+                    "t": "div",
+                    "a": { "data-uia": "previewModal--detailsMetadata" },
+                    "r": [263, 511, 754, 187],
+                    "c": [
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "videoMetadata--container" },
+                        "r": [263, 524, 481, 20],
+                        "c": [
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "player-feature-badge-hd" },
+                            "r": [374, 526, 30, 17]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "a",
+                        "a": { "href": "#" },
+                        "r": [263, 547, 67, 18],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "maturity-rating" },
+                            "r": [263, 546, 67, 21]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "dp-supplemental-message" },
+                        "r": [263, 580, 472, 26]
+                      },
+                      {
+                        "t": "p",
+                        "a": { "data-uia": "preview-modal-synopsis" },
+                        "r": [263, 619, 481, 72]
+                      },
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "previewModal--tags-person" },
+                        "r": [776, 518, 234, 40],
+                        "c": [
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [809, 519, 77, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [809, 519, 77, 18] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [776, 519, 166, 38],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [776, 519, 166, 38] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [847, 539, 91, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [847, 539, 91, 18] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-more" },
+                            "r": [937, 539, 33, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [937, 539, 33, 18] }]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "previewModal--tags-genre" },
+                        "r": [776, 572, 234, 40],
+                        "c": [
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [826, 573, 101, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [826, 573, 101, 18] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [776, 573, 205, 38],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [776, 573, 205, 38] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [829, 593, 154, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [829, 593, 154, 18] }]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "previewModal--tags-genre" },
+                        "r": [776, 626, 234, 20],
+                        "c": [
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [864, 627, 51, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [864, 627, 51, 18] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [915, 627, 70, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [915, 627, 70, 18] }]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "t": "div",
+                    "a": { "data-uia": "section-container" },
+                    "r": [263, 797, 754, 1040],
+                    "c": [
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "0"
+                        },
+                        "r": [265, 799, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [281, 948, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [281, 948, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [365, 950, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [448, 949, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [458, 959, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "0"
+                        },
+                        "r": [521, 799, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [537, 948, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [537, 948, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [622, 950, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [705, 949, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [715, 959, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "0"
+                        },
+                        "r": [778, 799, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [794, 948, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [794, 948, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [879, 950, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [961, 949, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [971, 959, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "0"
+                        },
+                        "r": [265, 1170, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [281, 1320, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [281, 1320, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [365, 1321, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [448, 1321, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [458, 1331, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "0"
+                        },
+                        "r": [521, 1170, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [537, 1320, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [537, 1320, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [622, 1321, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [705, 1321, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [715, 1331, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "0"
+                        },
+                        "r": [778, 1170, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [794, 1320, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [794, 1320, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [879, 1321, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [961, 1321, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [971, 1331, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "-1"
+                        },
+                        "r": [265, 1541, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [281, 1691, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [281, 1691, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [365, 1692, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [448, 1692, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [458, 1702, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "-1"
+                        },
+                        "r": [521, 1541, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [537, 1691, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [537, 1691, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [622, 1692, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [705, 1692, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [715, 1702, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "-1"
+                        },
+                        "r": [778, 1541, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [794, 1691, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [794, 1691, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [879, 1692, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [961, 1692, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [971, 1702, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "-1"
+                        },
+                        "r": [265, 1912, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [281, 2062, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [281, 2062, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [365, 2064, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [448, 2063, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [458, 2073, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "-1"
+                        },
+                        "r": [521, 1912, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [537, 2062, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [537, 2062, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [622, 2064, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [705, 2063, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [715, 2073, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "-1"
+                        },
+                        "r": [778, 1912, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [794, 2062, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [794, 2062, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [879, 2064, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [961, 2063, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [971, 2073, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "-1"
+                        },
+                        "r": [265, 2283, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [281, 2433, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [281, 2433, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [365, 2435, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [448, 2434, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [458, 2444, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "-1"
+                        },
+                        "r": [521, 2283, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [537, 2433, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [537, 2433, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [622, 2435, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [705, 2434, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [715, 2444, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "-1"
+                        },
+                        "r": [778, 2283, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [794, 2433, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [794, 2433, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [879, 2435, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [961, 2434, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [971, 2444, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "-1"
+                        },
+                        "r": [265, 2655, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [281, 2804, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [281, 2804, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [365, 2806, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [448, 2805, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [458, 2815, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "-1"
+                        },
+                        "r": [521, 2655, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [537, 2813, 119, 20],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [537, 2813, 26, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [571, 2815, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [705, 2804, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [715, 2814, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "-1"
+                        },
+                        "r": [778, 2655, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [794, 2804, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [794, 2804, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [879, 2806, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [961, 2805, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [971, 2815, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "-1"
+                        },
+                        "r": [265, 3026, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [281, 3175, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [281, 3175, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [365, 3177, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [448, 3176, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [458, 3186, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "-1"
+                        },
+                        "r": [521, 3026, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [537, 3175, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [537, 3175, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [622, 3177, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [705, 3176, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [715, 3186, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "-1"
+                        },
+                        "r": [778, 3026, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [794, 3175, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [794, 3175, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [879, 3177, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [961, 3176, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [971, 3186, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "-1"
+                        },
+                        "r": [265, 3397, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [281, 3547, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [281, 3547, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [365, 3548, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [448, 3548, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [458, 3558, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "-1"
+                        },
+                        "r": [521, 3397, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [537, 3547, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [537, 3547, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [622, 3548, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [705, 3548, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [715, 3558, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "-1"
+                        },
+                        "r": [778, 3397, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [794, 3547, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [794, 3547, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [879, 3548, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [961, 3548, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [971, 3558, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": {
+                          "data-uia": "titleCard--container",
+                          "role": "button",
+                          "tabindex": "-1"
+                        },
+                        "r": [265, 3768, 237, 355],
+                        "c": [
+                          {
+                            "t": "div",
+                            "a": { "data-uia": "videoMetadata--container" },
+                            "r": [281, 3918, 167, 40],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "data-uia": "maturity-rating" },
+                                "r": [281, 3918, 77, 20]
+                              },
+                              {
+                                "t": "span",
+                                "a": { "data-uia": "player-feature-badge-hd" },
+                                "r": [365, 3920, 30, 17]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "button",
+                            "a": { "data-uia": "add-to-my-list" },
+                            "r": [448, 3919, 38, 38],
+                            "c": [
+                              {
+                                "t": "div",
+                                "a": { "role": "presentation" },
+                                "r": [458, 3929, 18, 18]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "t": "button",
+                    "a": { "data-uia": "section-expand" },
+                    "r": [621, 1816, 38, 38],
+                    "c": [
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "section-expand+icon-wrapper" },
+                        "r": [631, 1826, 18, 18]
+                      }
+                    ]
+                  },
+                  { "t": "h3", "r": [263, 1885, 754, 31] },
+                  {
+                    "t": "div",
+                    "a": { "data-uia": "about-container" },
+                    "r": [263, 1936, 754, 199],
+                    "c": [
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "previewModal--tags-person" },
+                        "r": [263, 1936, 747, 20],
+                        "c": [
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [318, 1937, 122, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [318, 1937, 122, 18] }]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "previewModal--tags-person" },
+                        "r": [263, 1963, 747, 40],
+                        "c": [
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [296, 1964, 77, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [296, 1964, 77, 18] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [373, 1964, 129, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [373, 1964, 129, 18] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [502, 1964, 91, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [502, 1964, 91, 18] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [593, 1964, 53, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [593, 1964, 53, 18] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [646, 1964, 115, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [646, 1964, 115, 18] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [761, 1964, 46, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [761, 1964, 46, 18] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [808, 1964, 89, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [808, 1964, 89, 18] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [897, 1964, 77, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [897, 1964, 77, 18] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [263, 1984, 80, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [263, 1984, 80, 18] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [343, 1984, 112, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [343, 1984, 112, 18] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [455, 1984, 125, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [455, 1984, 125, 18] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [580, 1984, 105, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [580, 1984, 105, 18] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [685, 1984, 123, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [685, 1984, 123, 18] }]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "previewModal--tags-person" },
+                        "r": [263, 2010, 747, 20],
+                        "c": [
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [306, 2011, 122, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [306, 2011, 122, 18] }]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "previewModal--tags-genre" },
+                        "r": [263, 2037, 747, 20],
+                        "c": [
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [313, 2038, 101, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [313, 2038, 101, 18] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [414, 2038, 110, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [414, 2038, 110, 18] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [524, 2038, 154, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [524, 2038, 154, 18] }]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "previewModal--tags-genre" },
+                        "r": [263, 2064, 747, 20],
+                        "c": [
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [351, 2065, 51, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [351, 2065, 51, 18] }]
+                          },
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "tag-item" },
+                            "r": [402, 2065, 70, 18],
+                            "c": [{ "t": "a", "a": { "href": "#" }, "r": [402, 2065, 70, 18] }]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "a": { "data-uia": "maturity-rating" },
+                        "r": [379, 2091, 638, 44],
+                        "c": [{ "t": "a", "a": { "href": "#" }, "r": [379, 2091, 67, 22] }]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "t": "div",
+            "a": { "tabindex": "-1" },
+            "r": [0, 0, 1280, 0],
+            "c": [
+              {
+                "t": "div",
+                "a": { "data-uia": "previewModal--backDrop", "tabindex": "-1" },
+                "r": [0, 0, 1280, 688],
+                "fixed": true
+              }
+            ]
+          },
+          { "t": "div", "a": { "role": "alert" }, "r": [0, 0, 1, 1] }
+        ]
+      },
+      { "t": "div", "a": { "role": "dialog" }, "r": [0, 0, 0, 0] },
+      {
+        "t": "div",
+        "a": { "data-uia": "notification-manager-toast-group" },
+        "r": [0, 664, 1280, 0],
+        "z": 1002,
+        "fixed": true
+      },
+      {
+        "t": "div",
+        "a": { "data-uia": "navigation+notifications" },
+        "r": [0, -5, 400, 107],
+        "hidden": true,
+        "z": 1001,
+        "c": [
+          {
+            "t": "div",
+            "a": { "data-uia": "navigation+notifications+inner", "role": "menu", "tabindex": "-1" },
+            "r": [6, 1, 388, 92],
+            "hidden": true
+          }
+        ]
+      },
+      {
+        "t": "div",
+        "a": { "data-uia": "navigation+profile-menu" },
+        "r": [0, -5, 262, 430],
+        "hidden": true,
+        "z": 1001,
+        "c": [
+          {
+            "t": "div",
+            "a": { "data-uia": "navigation+profile-menu+inner", "role": "menu", "tabindex": "-1" },
+            "r": [6, 1, 250, 415],
+            "hidden": true,
+            "c": [
+              {
+                "t": "div",
+                "a": { "data-uia": "navigation+profile-menu+items" },
+                "r": [7, 2, 248, 413],
+                "hidden": true,
+                "c": [
+                  {
+                    "t": "button",
+                    "a": {
+                      "data-uia": "navigation+profile-menu+switch-profile-ID",
+                      "role": "menuitem",
+                      "tabindex": "0"
+                    },
+                    "r": [11, 6, 240, 48],
+                    "hidden": true
+                  },
+                  {
+                    "t": "button",
+                    "a": {
+                      "data-uia": "navigation+profile-menu+switch-profile-ID",
+                      "role": "menuitem",
+                      "tabindex": "-1"
+                    },
+                    "r": [11, 58, 240, 48],
+                    "hidden": true
+                  },
+                  {
+                    "t": "button",
+                    "a": {
+                      "data-uia": "navigation+profile-menu+switch-profile-ID",
+                      "role": "menuitem",
+                      "tabindex": "-1"
+                    },
+                    "r": [11, 110, 240, 48],
+                    "hidden": true
+                  },
+                  {
+                    "t": "button",
+                    "a": {
+                      "data-uia": "navigation+profile-menu+switch-profile-ID",
+                      "role": "menuitem",
+                      "tabindex": "-1"
+                    },
+                    "r": [11, 162, 240, 48],
+                    "hidden": true
+                  },
+                  {
+                    "t": "a",
+                    "a": {
+                      "data-uia": "navigation+profile-menu+manage-profiles",
+                      "role": "menuitem",
+                      "tabindex": "-1",
+                      "href": "#"
+                    },
+                    "r": [11, 210, 240, 48],
+                    "hidden": true
+                  },
+                  {
+                    "t": "a",
+                    "a": {
+                      "data-uia": "navigation+profile-menu+transfer-profile",
+                      "role": "menuitem",
+                      "tabindex": "-1",
+                      "href": "#"
+                    },
+                    "r": [11, 262, 240, 48],
+                    "hidden": true
+                  },
+                  {
+                    "t": "a",
+                    "a": {
+                      "data-uia": "navigation+profile-menu+account",
+                      "role": "menuitem",
+                      "tabindex": "-1",
+                      "href": "#"
+                    },
+                    "r": [11, 314, 240, 48],
+                    "hidden": true
+                  },
+                  {
+                    "t": "a",
+                    "a": {
+                      "data-uia": "navigation+profile-menu+help-center",
+                      "role": "menuitem",
+                      "tabindex": "-1",
+                      "href": "#"
+                    },
+                    "r": [11, 366, 240, 48],
+                    "hidden": true
+                  },
+                  {
+                    "t": "a",
+                    "a": {
+                      "data-uia": "navigation+profile-menu+sign-out",
+                      "role": "menuitem",
+                      "tabindex": "-1",
+                      "href": "#"
+                    },
+                    "r": [11, 423, 240, 48],
+                    "hidden": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "t": "div",
+        "a": { "data-uia": "notification-manager-toast-group" },
+        "r": [0, 664, 1280, 0],
+        "z": 1002,
+        "fixed": true
+      }
+    ]
+  }
+}

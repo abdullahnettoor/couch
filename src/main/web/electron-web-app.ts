@@ -433,7 +433,12 @@ export class ElectronWebApp implements YouTube {
       { name: "Page hooks", func: PAGE_HOOKS_FUNCTION },
       ...this.#desc.preloads,
       ...(this.#desc.focus
-        ? [{ name: "Couch focus", func: pageFocusFunction(this.#desc.focus.selectors) }]
+        ? [
+            {
+              name: "Couch focus",
+              func: pageFocusFunction(this.#desc.focus.selectors, this.#desc.focus.layout),
+            },
+          ]
         : []),
       ...on.flatMap((a) => (a.page ? [{ name: a.label, func: a.page }] : [])),
     ]);

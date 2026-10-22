@@ -1,0 +1,96 @@
+{
+  "url": "https://www.netflix.com/browse",
+  "view": { "width": 1280, "height": 688 },
+  "tree": {
+    "t": "body",
+    "r": [0, 0, 1280, 80],
+    "c": [
+      {
+        "t": "div",
+        "a": { "data-uia": "loc" },
+        "r": [0, 0, 1280, 80],
+        "c": [
+          {
+            "t": "div",
+            "a": { "data-uia": "container-adult" },
+            "r": [0, 0, 1280, 80],
+            "c": [
+              {
+                "t": "nav",
+                "a": { "data-uia": "navigation" },
+                "r": [0, 0, 1280, 80],
+                "c": [
+                  {
+                    "t": "a",
+                    "a": { "data-uia": "navigation+logo", "href": "#" },
+                    "r": [48, 30, 76, 20]
+                  }
+                ]
+              },
+              {
+                "t": "div",
+                "a": { "data-uia": "profile-gate-screen" },
+                "r": [0, 0, 1280, 688],
+                "c": [
+                  {
+                    "t": "div",
+                    "a": { "data-uia": "profile-selector" },
+                    "r": [48, 258, 1184, 206],
+                    "c": [
+                      {
+                        "t": "button",
+                        "a": { "data-uia": "profile-selector+tile-P1", "tabindex": "0" },
+                        "r": [224, 258, 160, 206],
+                        "c": [
+                          {
+                            "t": "span",
+                            "a": { "data-uia": "profile-selector+tile-P1+lock" },
+                            "r": [240, 274, 128, 128],
+                            "c": [{ "t": "span", "a": { "role": "img" }, "r": [248, 378, 16, 16] }]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "button",
+                        "a": { "data-uia": "profile-selector+tile-P2", "tabindex": "0" },
+                        "r": [392, 258, 160, 206]
+                      },
+                      {
+                        "t": "button",
+                        "a": { "data-uia": "profile-selector+tile-P3", "tabindex": "0" },
+                        "r": [560, 258, 160, 206]
+                      },
+                      {
+                        "t": "button",
+                        "a": { "data-uia": "profile-selector+tile-P4", "tabindex": "0" },
+                        "r": [728, 258, 160, 206]
+                      },
+                      {
+                        "t": "button",
+                        "a": { "data-uia": "profile-selector+tile-P5", "tabindex": "0" },
+                        "r": [896, 258, 160, 206]
+                      }
+                    ]
+                  },
+                  {
+                    "t": "button",
+                    "a": { "data-uia": "profile-gate-screen+manage", "tabindex": "0" },
+                    "r": [552, 500, 176, 40],
+                    "c": [{ "t": "span", "a": { "role": "img" }, "r": [568, 512, 16, 16] }]
+                  }
+                ]
+              }
+            ]
+          },
+          { "t": "div", "a": { "role": "alert" }, "r": [0, 80, 1, 1] }
+        ]
+      },
+      { "t": "div", "a": { "role": "dialog" }, "r": [0, 0, 0, 0] },
+      {
+        "t": "div",
+        "a": { "data-uia": "notification-manager-toast-group" },
+        "r": [0, 672, 1280, 0]
+      }
+    ]
+  }
+}

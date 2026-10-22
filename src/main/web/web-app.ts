@@ -1,5 +1,6 @@
 import type { AppKey } from "../apps/app.ts";
 import type { Addon } from "./addon.ts";
+import type { FocusLayout } from "./page-focus.ts";
 
 /** The identity a web App presents: one user agent and client hints, on the page, its frames and every request. */
 export interface WebIdentity {
@@ -68,7 +69,7 @@ export interface WebAppDescription {
   /** App-specific main-world functions (source text) that run after `couchHooks` and before any add-on. */
   preloads: PagePreload[];
   /** Turns on Couch's focus for the page: D-pad moves a ring between controls, OK clicks. */
-  focus?: { selectors?: string[] };
+  focus?: { selectors?: string[]; layout?: FocusLayout };
   /** The add-ons this host can run, and the ids of those that are on now. */
   addons: Addon[];
   enabledAddons: string[];
