@@ -12,7 +12,10 @@ const MAIN_VIDEO_SHARE = 0.4;
  * is added when it works. Artwork is whatever the page names (else the adapter's `artwork` expression); `composeReport` keeps only the App's own. `active` is an adapter's expression that is false
  * while the App shows no real playback (a home-page preview), so nothing is reported then.
  */
-export function playbackProbe(tracks?: string, active?: string, artwork?: string): string {
+export function playbackProbe(
+  options: { tracks?: string; active?: string; artwork?: string } = {},
+): string {
+  const { tracks, active, artwork } = options;
   return `(async () => {
   ${active ? `try { if (!(${active})) return undefined; } catch (e) { return undefined; }` : ""}
   var area = window.innerWidth * window.innerHeight;

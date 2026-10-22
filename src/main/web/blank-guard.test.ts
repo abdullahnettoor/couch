@@ -86,14 +86,6 @@ test("the page navigating to a blank address after it loaded reloads; before it 
   expect(t.reloads()).toBe(1);
 });
 
-test("an unloaded view forgets what it loaded", () => {
-  const t = setup();
-  t.guard.loaded();
-  t.guard.reset();
-  t.guard.navigated("about:blank");
-  expect(t.reloads()).toBe(0);
-});
-
 test("the empty-page script is true for no body, or a body with no text or media", () => {
   const run = (document: unknown) =>
     vm.runInContext(EMPTY_PAGE_SCRIPT, vm.createContext({ document }));

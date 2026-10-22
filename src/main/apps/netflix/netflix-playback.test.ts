@@ -208,7 +208,7 @@ describe("Netflix playback adapter", () => {
     const probe = (path: string) => {
       const n = new FakeNetflix();
       n.path = path;
-      return n.run(playbackProbe(playback.tracks!(), playback.active!()));
+      return n.run(playbackProbe({ tracks: playback.tracks!(), active: playback.active!() }));
     };
     expect(await probe("/watch/80000001")).toMatchObject({ position: 30, duration: 3000 });
     for (const p of ["/browse", "/browse?jbv=1", "/search?q=x", "/title/1"])
@@ -311,7 +311,9 @@ describe("Netflix playback adapter", () => {
     n.hasMenuButton = false;
     const t = await tracks(n);
     expect(t).toEqual({ subtitles: [], audio: [], canSeek: false });
-    const found = await n.run(playbackProbe(playback.tracks!(), playback.active!()));
+    const found = await n.run(
+      playbackProbe({ tracks: playback.tracks!(), active: playback.active!() }),
+    );
     const report = composeReport(found, found.tracks, true)!;
     expect(report.canSeek).toBeUndefined();
     expect(report.tracks).toEqual({ subtitles: [], audio: [] });

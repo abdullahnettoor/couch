@@ -115,7 +115,7 @@ describe("YouTube playback adapter", () => {
   test("only the watch view is Now Playing: Home's autoplaying preview is not", async () => {
     const probe = (hash: string) => {
       player = new FakePlayer(hash);
-      return player.run(playbackProbe(playback.tracks!(), playback.active!()));
+      return player.run(playbackProbe({ tracks: playback.tracks!(), active: playback.active!() }));
     };
     expect(await probe("#/watch?v=dQw4w9WgXcQ&list=RD1")).toMatchObject({
       position: 40,

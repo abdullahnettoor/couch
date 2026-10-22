@@ -7,17 +7,68 @@ import { netflixDescription } from "./netflix-web.ts";
 const desc = netflixDescription("130.0.0.0");
 const playback = desc.playback!;
 
-/** A title card as recorded (ids and image path anonymised): a link to /browse?jbv=<id> holding the box art. */
+/** Box art as the page names it (ids and image paths anonymised). */
 const CARD_ART = "https://occ-0-1-1.1.nflxso.net/dnm/api/v6/AAAA/BBBB.webp?r=5f2";
+const OTHER_ART = "https://occ-0-2-2.1.nflxso.net/dnm/api/v6/CCCC/DDDD.webp?r=1";
+const BILLBOARD_ART = "https://occ-0-3-3.1.nflxso.net/dnm/api/v6/EEEE/FFFF.webp?r=9";
 
-function card(id: string, src: string | null = CARD_ART) {
-  const img = src === null ? null : { src };
-  const a: any = {
-    getAttribute: (n: string) => (n === "href" ? `/browse?jbv=${id}` : null),
-    querySelector: (s: string) => (s === "img" ? img : null),
-  };
-  const target = { closest: (s: string) => (/jbv|title|watch/.test(s) ? a : null) };
-  return target;
+/** One element of a recorded page: `closest` understands the attribute selectors the preload asks. */
+class El {
+  children: El[] = [];
+  attrs: Record<string, string>;
+  parent: El | undefined;
+  src: string | undefined;
+  constructor(attrs: Record<string, string> = {}, parent?: El, src?: string) {
+    this.attrs = attrs;
+    this.parent = parent;
+    this.src = src;
+    parent?.children.push(this);
+  }
+  #matches(sel: string): boolean {
+    return sel.split(",").some((part) => {
+      const m = /^\s*\[([\w-]+)="([^"]*)"\]\s*$/.exec(part);
+      if (m) return this.attrs[m[1]!] === m[2];
+      const l = /^\s*a\[href\*="([^"]*)"\]\s*$/.exec(part);
+      return !!l && (this.attrs.href ?? "").includes(l[1]!);
+    });
+  }
+  closest(sel: string): El | null {
+    return this.#matches(sel) ? this : (this.parent?.closest(sel) ?? null);
+  }
+  getAttribute(n: string) {
+    return this.attrs[n] ?? null;
+  }
+  #images(): El[] {
+    return this.children.flatMap((c) => (c.src ? [c, ...c.#images()] : c.#images()));
+  }
+  querySelector(sel: string) {
+    return sel === "img" ? (this.#images()[0] ?? null) : null;
+  }
+  querySelectorAll(sel: string) {
+    return sel === "img" ? this.#images() : [];
+  }
+  getBoundingClientRect() {
+    return { width: this.attrs.big ? 1000 : 100, height: this.attrs.big ? 500 : 50 };
+  }
+}
+
+const root = () => new El();
+function card(id: string, art: string | null = CARD_ART, parent = root()) {
+  const a = new El({ href: `/browse?jbv=${id}` }, parent);
+  if (art) new El({}, a, art);
+  return a;
+}
+function popup() {
+  return new El({ role: "dialog" }, root());
+}
+function episode(id: string, parent: El) {
+  return new El({ href: `/watch/${id}` }, parent);
+}
+function billboardPlay() {
+  const board = new El({ "data-uia": "billboard" }, root());
+  new El({}, board, "https://occ-0-3-3.1.nflxso.net/logo.png");
+  new El({ big: "1" }, board, BILLBOARD_ART);
+  return new El({ "data-uia": "play-video-button" }, new El({}, board));
 }
 
 /** A page that has run Netflix's preload; `click` is what the household's OK does on an element. */
@@ -57,28 +108,53 @@ describe("Netflix Now Playing artwork", () => {
     expect(p.artwork()).toBe(CARD_ART);
   });
 
-  test("an episode of a show opened from its card keeps the show's box art", () => {
+  test("a title started from the billboard shows the billboard's image", () => {
+    const p = page();
+    p.click(billboardPlay());
+    p.go("/watch/70000009");
+    expect(p.artwork()).toBe(BILLBOARD_ART);
+  });
+
+  test("an episode played inside a series' pop-up shows the series' box art", () => {
     const p = page();
     p.click(card("70000001"));
+    const pop = popup();
+    p.click(episode("70000777", pop));
     p.go("/watch/70000777");
     expect(p.artwork()).toBe(CARD_ART);
   });
 
-  test("the card that was clicked last wins, by title first", () => {
+  test("the pop-up's own Play button shows the card's art for the title it opens", () => {
     const p = page();
-    const other = "https://occ-0-2-2.1.nflxso.net/dnm/api/v6/CCCC/DDDD.webp?r=1";
     p.click(card("70000001"));
-    p.click(card("70000002", other));
-    p.go("/watch/70000001");
-    expect(p.artwork()).toBe(CARD_ART);
+    p.click(new El({ "data-uia": "play-video-button" }, popup()));
     p.go("/watch/70000555");
-    expect(p.artwork()).toBe(other);
+    expect(p.artwork()).toBe(CARD_ART);
+  });
+
+  test("a title that no click leads to gets no artwork, not the last card's", () => {
+    const p = page();
+    p.click(card("70000001"));
+    p.click(card("70000002", OTHER_ART));
+    p.go("/watch/70000555");
+    expect(p.artwork()).toBeFalsy();
+    p.go("/watch/70000002");
+    expect(p.artwork()).toBe(OTHER_ART);
+  });
+
+  test("a pop-up closed by a click elsewhere does not lend its art to a later episode link", () => {
+    const p = page();
+    p.click(card("70000001"));
+    p.click(new El({}, root()));
+    p.click(episode("70000777", root()));
+    p.go("/watch/70000777");
+    expect(p.artwork()).toBeFalsy();
   });
 
   test("nothing is made up: no card opened, no artwork", () => {
     const p = page("/watch/70000001");
     expect(p.artwork()).toBeFalsy();
-    p.click({ closest: () => null });
+    p.click(new El());
     expect(p.artwork()).toBeFalsy();
   });
 
@@ -88,6 +164,8 @@ describe("Netflix Now Playing artwork", () => {
     p.click(card("70000002", null));
     p.go("/watch/70000001");
     expect(p.artwork()).toBeFalsy();
+    p.go("/watch/70000002");
+    expect(p.artwork()).toBeFalsy();
   });
 
   test("it reaches the report, but only from Netflix's image hosts", async () => {
@@ -96,7 +174,7 @@ describe("Netflix Now Playing artwork", () => {
         innerWidth: 1280,
         innerHeight: 720,
         location: { pathname: "/watch/70000001" },
-        sessionStorage: { getItem: () => null },
+        sessionStorage: { getItem: () => null, setItem: () => {} },
         document: {
           querySelectorAll: () => [
             {
@@ -113,9 +191,9 @@ describe("Netflix Now Playing artwork", () => {
       sandbox.window = sandbox;
       vm.createContext(sandbox);
       sandbox.sessionStorage.getItem = (k: string) =>
-        k === "couchNfArt" ? JSON.stringify({ last: src, "70000001": src }) : null;
+        k === "couchNfArt" ? JSON.stringify({ "70000001": src }) : null;
       const found = await vm.runInContext(
-        playbackProbe(undefined, playback.active!(), playback.artwork!()),
+        playbackProbe({ active: playback.active!(), artwork: playback.artwork!() }),
         sandbox,
       );
       return composeReport(found, undefined, false, desc.artworkHosts);

@@ -35,11 +35,6 @@ export class BlankGuard {
     this.#crashed = true;
   }
 
-  reset(): void {
-    this.#loaded = false;
-    this.#crashed = false;
-  }
-
   /** The main frame went to `url`: a blank one after a page had loaded means the page was lost. */
   navigated(url: string): void {
     if (this.#loaded && !url.startsWith("https:")) this.#recover();

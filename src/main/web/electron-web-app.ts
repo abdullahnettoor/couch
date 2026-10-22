@@ -234,11 +234,11 @@ export class ElectronWebApp implements YouTube {
     this.#probing = true;
     void this.#view.webContents
       .executeJavaScript(
-        playbackProbe(
-          askTracks ? adapter!.tracks!() : undefined,
-          adapter?.active?.(),
-          adapter?.artwork?.(),
-        ),
+        playbackProbe({
+          tracks: askTracks ? adapter!.tracks!() : undefined,
+          active: adapter?.active?.(),
+          artwork: adapter?.artwork?.(),
+        }),
       )
       .then((found: PlaybackReport | undefined) => {
         if (!this.#visible) return;

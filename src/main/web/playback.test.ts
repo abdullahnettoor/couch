@@ -47,7 +47,7 @@ function probe(
   };
   sandbox.window = sandbox;
   vm.createContext(sandbox);
-  return vm.runInContext(playbackProbe(tracks, active, artwork), sandbox);
+  return vm.runInContext(playbackProbe({ tracks, active, artwork }), sandbox);
 }
 
 const asElement = (v: FakeVideo) => ({
