@@ -45,13 +45,16 @@ export interface RowOptions {
   danger?: boolean;
   /** Draw the chevron (default true). */
   chevron?: boolean;
+  /** An App's logo (SVG markup), shown before the label. */
+  logo?: string;
 }
 
 /** A Glass list row: solid white when focused, red for danger rows. */
 export function glassRow(o: RowOptions): HTMLElement {
   const row = el("button", `g-row${o.danger ? " danger" : ""}${o.focused ? " focused" : ""}`);
-  const label = el("span", "");
-  label.textContent = o.label;
+  const label = el("span", "g-row-label");
+  if (o.logo) label.insertAdjacentHTML("beforeend", `<span class="g-row-logo">${o.logo}</span>`);
+  label.append(document.createTextNode(o.label));
   const value = el("span", "v");
   if (o.value) value.append(document.createTextNode(o.value));
   if (o.chevron !== false) value.insertAdjacentHTML("beforeend", iconSvg("chev"));
@@ -73,7 +76,7 @@ export function glassPill(
 
 /** Big art on the left, content on the right. `art` is an icon name, an image, or ready-made HTML (QR). */
 export function splitPage(
-  art: { icon: IconName } | { image: string; alt: string } | { html: string },
+  art: { icon: IconName } | { image: string; alt: string } | { html: string } | { logo: string },
   content: HTMLElement[],
 ): void {
   root.replaceChildren();
@@ -85,8 +88,11 @@ export function splitPage(
   root.append(page);
 }
 
-function splitArt(art: { icon: IconName } | { image: string; alt: string } | { html: string }) {
+function splitArt(
+  art: { icon: IconName } | { image: string; alt: string } | { html: string } | { logo: string },
+) {
   if ("icon" in art) return el("div", "split-art", iconSvg(art.icon));
+  if ("logo" in art) return el("div", "split-art logo-art", art.logo);
   if ("html" in art) return el("div", "split-art qr-art", art.html);
   const img = el("img", "") as HTMLImageElement;
   img.src = art.image;

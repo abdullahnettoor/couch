@@ -6,7 +6,8 @@ import { glassPill, splitPage } from "./glass.ts";
 
 export function render(payload: ScreenPayload): void {
   const retry = APP_ERROR_ITEMS[0];
-  splitPage({ icon: "restart" }, [
+  const logo = appEntry(payload.state.app)?.icon;
+  splitPage(logo ? { logo } : { icon: "restart" }, [
     el("h1", "", `${appEntry(payload.state.app)?.label ?? "The App"} didn't load`),
     el(
       "p",
