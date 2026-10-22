@@ -13,6 +13,7 @@ import { youtubeDescription } from "./apps/youtube/youtube-web.ts";
 import { netflixDescription } from "./apps/netflix/netflix-web.ts";
 import { NetflixApp } from "./apps/netflix/netflix-app.ts";
 import { YouTubeApp } from "./apps/youtube/youtube-app.ts";
+import { IdleUnloader } from "./web/idle-unload.ts";
 import { FileStore } from "./ports/store.ts";
 import { readChoices } from "./web/addon.ts";
 import { FfmpegThumbnails } from "./ports/thumbnails.ts";
@@ -136,12 +137,18 @@ async function createScreen(): Promise<void> {
     onChanged: (listener) => player!.onAudioDevicesChanged(listener),
   });
   const store = new FileStore(app.getPath("userData"));
+  const unloader = new IdleUnloader(systemClock, store);
   const youtube = new ElectronWebApp(
     youtubeDescription(app.getVersion(), process.env, readChoices(store, "youtube")),
     win,
+    unloader.track("youtube", () => youtube.unload(), { loaded: true }),
   );
   const youtubeApp = new YouTubeApp(youtube, systemClock);
-  const netflix = new ElectronWebApp(netflixDescription(), win);
+  const netflix = new ElectronWebApp(
+    netflixDescription(),
+    win,
+    unloader.track("netflix", () => netflix.unload()),
+  );
   const netflixApp = new NetflixApp(netflix, systemClock);
   mac.keepAwake(true);
   const listener = await detectListener({

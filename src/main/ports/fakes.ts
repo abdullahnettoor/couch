@@ -107,11 +107,20 @@ export class FakeYouTube implements YouTube {
     const route = this.#tracker.update(url, { shorts: false, guide: false, ...page });
     if (route) this.emit({ type: "route", ...route });
   }
+  /** Set by a test that wants idle unloading, as the real host does with its own. */
+  lifecycle: { shown(): void; hidden(): void } | undefined;
   show(note?: string) {
     this.#record("show", note);
+    this.lifecycle?.shown();
   }
   hide() {
     this.#record("hide");
+    this.lifecycle?.hidden();
+  }
+  unload() {
+    this.#record("unload");
+    this.#tracker = new RouteTracker();
+    this.emit({ type: "route", home: true });
   }
   sendKey(key: YouTubeKey) {
     this.#record("sendKey", key);

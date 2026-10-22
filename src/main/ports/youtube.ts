@@ -62,6 +62,11 @@ export interface YouTube {
    */
   setOutputDevice(name: string | undefined): Promise<boolean>;
   restart(): void;
+  /**
+   * Drops the loaded page (the session stays on disk) and forgets where it was: the next `show()`
+   * loads it again, and it tells the core it is at its home.
+   */
+  unload(): void;
   /** Runs exactly these add-ons (by id) from the next page load, and reloads the page now; `note` is overlaid once it has loaded. */
   setAddons(ids: string[], note?: string): void;
   onEvent(listener: (event: YouTubeEvent) => void): () => void;
