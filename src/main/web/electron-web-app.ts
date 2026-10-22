@@ -19,7 +19,13 @@ import { requestHooksFor, type RequestHooks } from "./request-hooks.ts";
 import { SessionPreloads } from "./session-preloads.ts";
 import type { IdleLifecycle } from "./idle-unload.ts";
 import { drmGate } from "./drm-gate.ts";
-import { composeReport, playbackProbe, sameReport, type PlaybackReport, type TrackReport } from "./playback.ts";
+import {
+  composeReport,
+  playbackProbe,
+  sameReport,
+  type PlaybackReport,
+  type TrackReport,
+} from "./playback.ts";
 import { seekPlan } from "./seek-plan.ts";
 import type { WebAppDescription, WebIdentity } from "./web-app.ts";
 import { confirmScript, noteScript, searchBarScript, volumeScript } from "./web-hud.ts";
@@ -215,7 +221,9 @@ export class ElectronWebApp implements YouTube {
     const askTracks = !!adapter?.tracks && now - this.#tracksAt >= TRACKS_EVERY_MS;
     this.#probing = true;
     void this.#view.webContents
-      .executeJavaScript(playbackProbe(askTracks ? adapter!.tracks!() : undefined, adapter?.active?.()))
+      .executeJavaScript(
+        playbackProbe(askTracks ? adapter!.tracks!() : undefined, adapter?.active?.()),
+      )
       .then((found: PlaybackReport | undefined) => {
         if (!this.#visible) return;
         if (askTracks) {

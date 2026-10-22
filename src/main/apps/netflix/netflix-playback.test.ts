@@ -90,15 +90,10 @@ class FakeNetflix {
   }
   menuItems(): El[] {
     const item = (kind: string, name: string, on: boolean) =>
-      new El(
-        `${kind}-item${on ? "-selected" : ""}-${name}`,
-        {},
-        name,
-        () => {
-          if (kind === "audio") this.audioOn = name;
-          else this.subOn = name;
-        },
-      );
+      new El(`${kind}-item${on ? "-selected" : ""}-${name}`, {}, name, () => {
+        if (kind === "audio") this.audioOn = name;
+        else this.subOn = name;
+      });
     return [
       ...this.audio.map((n) => item("audio", n, n === this.audioOn)),
       ...this.subs.map((n) => item("subtitle", n, n === this.subOn)),
@@ -132,7 +127,11 @@ class FakeNetflix {
     const sandbox: any = {
       innerWidth: 1280,
       innerHeight: 720,
-      location: { get pathname() { return self.path; } },
+      location: {
+        get pathname() {
+          return self.path;
+        },
+      },
       setTimeout: (f: () => void) => {
         f();
         return 0;
@@ -151,17 +150,26 @@ class FakeNetflix {
       },
       navigator: {},
       PointerEvent: class {
-        constructor(public type: string, init: any) {
+        constructor(
+          public type: string,
+          init: any,
+        ) {
           Object.assign(this, init);
         }
       },
       MouseEvent: class {
-        constructor(public type: string, init: any) {
+        constructor(
+          public type: string,
+          init: any,
+        ) {
           Object.assign(this, init);
         }
       },
       KeyboardEvent: class {
-        constructor(public type: string, init: any) {
+        constructor(
+          public type: string,
+          init: any,
+        ) {
           Object.assign(this, init);
         }
       },
