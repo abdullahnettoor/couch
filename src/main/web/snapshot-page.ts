@@ -180,6 +180,12 @@ export class FakeEl {
   click() {
     this.clicks++;
   }
+  /** Events the page sent this element (the pointer movement that wakes a player's bar). */
+  events: string[] = [];
+  dispatchEvent(e: { type: string }) {
+    this.events.push(e.type);
+    return true;
+  }
   /** OK on a text field focuses it: counted like a press. */
   focus() {
     this.clicks++;

@@ -29,6 +29,19 @@ export const NETFLIX_LAYOUT: FocusLayout = {
   // Duplicates and helpers the carousel pages by itself.
   ignore: ['[tabindex="-1"]', '[data-uia^="carousel-hawkins"]'],
   scopes: ['[data-uia^="modal-motion-container"]'],
+  // Down brings up Netflix's own bar; the arrows walk it, and its audio and subtitles menu.
+  playerBar: {
+    url: "^https://www\\.netflix\\.com/watch/",
+    controls: [
+      'button[data-uia^="control-"]',
+      'button[data-uia^="player-skip"]',
+      '[data-uia^="next-episode"]',
+    ],
+    menus: ['[data-uia^="selector-"]'],
+    items: ["[tabindex]:not([tabindex='-1'])", "button"],
+    start: '[data-uia^="control-play-pause"]',
+    idleMs: 5000,
+  },
   // A card links to /browse?jbv=<id> (older ones /watch/<id> or /title/<id>): that id, with its row, finds the card again after Netflix redraws the row.
   titleId: "(?:/(?:watch|title)/|[?&]jbv=)(\\d+)",
   rows: {

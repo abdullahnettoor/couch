@@ -60,6 +60,38 @@ export interface FocusLayout {
   rows?: { row: string; next?: string; prev?: string };
   /** RegExp source whose first group is a title's id in a link's `href`: how a control opened from a card is found again after the page redraws it. */
   titleId?: string;
+  /**
+   * A player's own control bar, which Couch brings up with Down (by moving the pointer over the page, as the site expects)
+   * and walks with the arrow keys while the player's normal keys stay the player's. `url` is a RegExp source for the player's address.
+   */
+  playerBar?: {
+    url: string;
+    /** The bar's controls. */
+    controls: string[];
+    /** A menu the bar opens: while one is on screen the highlight stays on its `items`. */
+    menus: string[];
+    items: string[];
+    /** Where the highlight starts. */
+    start?: string;
+    /** The bar goes away after this long without a key. */
+    idleMs: number;
+  };
+}
+
+/** Page script expression: what Back should do in the page, as `backAction` reads it. */
+export const BACK_QUERY = `(function () {
+  try {
+    var b = window.__couchPlayerBack && window.__couchPlayerBack();
+    if (b) return b;
+    return window.__couchPopupOpen && window.__couchPopupOpen() ? 'escape' : '';
+  } catch (e) { return ''; }
+})()`;
+
+/** What the host does with the page's answer to Back: press the site's Escape, nothing (the page handled it), or history back. */
+export function backAction(answer: unknown): "press" | "none" | "history" {
+  if (answer === "escape") return "press";
+  if (answer === "handled") return "none";
+  return "history";
 }
 
 export const DEFAULT_FOCUS_SELECTORS = [
@@ -325,7 +357,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     };
     var draw = function () {
       try {
-        var r = !noRing() && current && usable(current);
+        var r = barOn ? barCur && shown(barCur) : !noRing() && current && usable(current);
         var el = ensureRing();
         if (!el) return;
         if (!r) { el.style.display = 'none'; return; }
@@ -352,6 +384,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     var pending = null;
     var ensure = function () {
       try {
+        if (barOn) { barTick(); if (barOn) return; }
         if (noRing()) { current = null; draw(); return; }
         var modal = scopeEl();
         var top = layers.length ? layers[layers.length - 1].modal : null;
@@ -390,6 +423,142 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         }
         draw();
       } catch (e) {}
+    };
+    // The player's bar (layout.playerBar): up while barOn, the highlight on barCur.
+    var BAR = LAYOUT.playerBar || null;
+    var barOn = false, barCur = null, barLast = null, barReturn = null, barIdle = 0, barMoves = 0, pumping = false;
+    var inPlayer = function () { try { return !!BAR && new RegExp(BAR.url).test(href()); } catch (e) { return false; } };
+    var barMenu = function () {
+      try {
+        var all = document.querySelectorAll(BAR.menus.join(','));
+        for (var i = 0; i < all.length; i++) if (shown(all[i])) return all[i];
+      } catch (e) {}
+      return null;
+    };
+    var barCands = function () {
+      var out = [];
+      try {
+        var menu = barMenu();
+        var all = (menu || document).querySelectorAll((menu ? BAR.items : BAR.controls).join(','));
+        for (var i = 0; i < all.length; i++) {
+          if (all[i] === menu) continue;
+          var r = shown(all[i]);
+          if (r) out.push({ el: all[i], rect: r });
+        }
+      } catch (e) {}
+      return out;
+    };
+    // Moves the pointer over the player: the site shows its bar for it, and keeps it up while it keeps moving.
+    var wake = function () {
+      try {
+        var cx = innerWidth / 2, cy = innerHeight / 2;
+        var t = document.elementFromPoint(cx, cy) || document.body;
+        if (!t || !t.dispatchEvent) return;
+        var Pointer = typeof PointerEvent === 'function' ? PointerEvent : MouseEvent;
+        ['pointerover', 'pointermove', 'mouseover', 'mousemove'].forEach(function (n) {
+          barMoves++;
+          var x = cx + (barMoves % 12) * 3, y = cy + (barMoves % 7) * 2;
+          var C = n.indexOf('pointer') === 0 ? Pointer : MouseEvent;
+          t.dispatchEvent(new C(n, { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, screenX: x, screenY: y, movementX: 3, movementY: 2 }));
+        });
+      } catch (e) {}
+    };
+    var touch = function () {
+      var token = ++barIdle;
+      setTimeout(function () { if (token === barIdle) barOff(); }, BAR.idleMs);
+    };
+    var pump = function () {
+      if (pumping) return;
+      pumping = true;
+      var again = function () {
+        setTimeout(function () {
+          if (!barOn) { pumping = false; return; }
+          wake();
+          again();
+        }, 1000);
+      };
+      again();
+    };
+    var barOff = function () {
+      barOn = false; barCur = null; barLast = null; barReturn = null;
+      barIdle++;
+      draw();
+    };
+    var barUp = function () {
+      barOn = true; barCur = null; barLast = null; barReturn = null;
+      wake(); touch(); pump();
+      barTick();
+    };
+    // Keeps the highlight on something that is there: the menu's first item when one opens, the control it came from when it closes.
+    var barTick = function () {
+      try {
+        if (!barOn) return;
+        if (!inPlayer()) { barOff(); return; }
+        var list = barCands();
+        if (barCur && barCur.isConnected && list.some(function (c) { return c.el === barCur; })) { draw(); return; }
+        var next = null, i;
+        if (barMenu()) next = list.length ? list[0].el : null;
+        else if (barReturn && list.some(function (c) { return c.el === barReturn; })) next = barReturn;
+        else if (barLast) {
+          var bestD = Infinity;
+          for (i = 0; i < list.length; i++) {
+            var dx = (list[i].rect.left + list[i].rect.right - barLast.left - barLast.right) / 2;
+            var dy = (list[i].rect.top + list[i].rect.bottom - barLast.top - barLast.bottom) / 2;
+            if (dx * dx + dy * dy < bestD) { bestD = dx * dx + dy * dy; next = list[i].el; }
+          }
+        } else {
+          for (i = 0; i < list.length && !next; i++) if (BAR.start && list[i].el.matches(BAR.start)) next = list[i].el;
+          if (!next && list.length) next = list[0].el;
+        }
+        if (next && !barMenu()) barReturn = null;
+        barCur = next;
+        if (barCur) barLast = rectOf(barCur);
+        draw();
+      } catch (e) {}
+    };
+    var barMove = function (dir) {
+      var list = barCands();
+      var from = barCur && barCur.isConnected ? rectOf(barCur) : null;
+      var i = pick(from, list.map(function (c) { return c.rect; }), dir, view());
+      if (i < 0 || list[i].el === barCur) return;
+      barCur = list[i].el;
+      barLast = list[i].rect;
+      if (barMenu()) { try { barCur.scrollIntoView({ block: 'nearest' }); } catch (e) {} }
+      draw();
+    };
+    var barPress = function () {
+      var el = barCur;
+      if (!el || !el.isConnected) { barTick(); return; }
+      if (!barMenu()) barReturn = el;
+      el.click();
+    };
+    var stop = function (e) {
+      e.preventDefault();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+    };
+    // Before the player's own handlers: with the bar up the arrows and OK are the bar's; Down brings it up.
+    var onBarKey = function (e) {
+      try {
+        if (!BAR || !inPlayer()) return;
+        var dir = DIRS[e.key];
+        if (!barOn) {
+          if (dir === 'down' && !editable(document.activeElement)) { stop(e); barUp(); }
+          return;
+        }
+        touch();
+        if (!dir && e.key !== 'Enter') return;
+        stop(e);
+        if (dir) barMove(dir); else barPress();
+      } catch (err) {}
+    };
+    // Back in the player: 'escape' (the host presses the site's Escape: close the menu), 'handled' (the bar hid), '' (leave).
+    window.__couchPlayerBack = function () {
+      try {
+        if (!barOn || !inPlayer()) return '';
+        if (barMenu()) { touch(); return 'escape'; }
+        barOff();
+        return 'handled';
+      } catch (e) { return ''; }
     };
     var paging = false;
     var move = function (dir, afterPaging) {
@@ -484,6 +653,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     window.__couchPopupOpen = function () {
       try { return !noRing() && !!scopeEl(); } catch (e) { return false; }
     };
+    addEventListener('keydown', onBarKey, true);
     addEventListener('keydown', onKey, false);
     addEventListener('focusin', function (e) {
       try { if (editable(e.target)) console.debug(${JSON.stringify(FIELD_FOCUSED)}); } catch (err) {}

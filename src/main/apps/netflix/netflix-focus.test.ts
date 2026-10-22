@@ -262,7 +262,8 @@ describe("the player", () => {
   test("no highlight, and every key goes to Netflix's own player", () => {
     const p = open(snap);
     expect(p.ring.style.display).not.toBe("block");
-    for (const k of ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Enter", " "])
+    // (Down is Couch's: it reveals the bar, see netflix-player.test.ts.)
+    for (const k of ["ArrowLeft", "ArrowRight", "ArrowUp", "Enter", " "])
       expect(p.key(k).defaultPrevented).toBe(false);
     expect(p.all.filter((e) => e.clicks > 0)).toEqual([]);
     expect(p.ring.style.display).not.toBe("block");

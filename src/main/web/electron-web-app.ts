@@ -7,8 +7,10 @@ import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
 import { HiddenAudio } from "./hidden-audio.ts";
 import { keyBelongsToField } from "./field-keys.ts";
 import {
+  BACK_QUERY,
   FIELD_BLURRED,
   FIELD_FOCUSED,
+  backAction,
   pageFocusFunction,
   typeIntoFieldScript,
 } from "./page-focus.ts";
@@ -423,11 +425,15 @@ export class ElectronWebApp implements YouTube {
     const keyCode = this.#desc.keyCodes[key];
     const wc = this.#view.webContents;
     if (key === "back" && this.#desc.backByHistory) {
-      // A pop-up closes the site's own way (its Escape); history back is for the player and pages Couch doesn't know.
+      // The player's bar and a pop-up close the site's own way (its Escape, or the page hiding the bar); history back is for the player and pages Couch doesn't know.
       void wc
-        .executeJavaScript("!!(window.__couchPopupOpen && window.__couchPopupOpen())")
-        .catch(() => false)
-        .then((popup) => (popup ? this.#press(keyCode) : this.#goBack()));
+        .executeJavaScript(BACK_QUERY)
+        .catch(() => "")
+        .then((answer) => {
+          const todo = backAction(answer);
+          if (todo === "press") this.#press(keyCode);
+          else if (todo === "history") this.#goBack();
+        });
       return;
     }
     this.#press(keyCode);
