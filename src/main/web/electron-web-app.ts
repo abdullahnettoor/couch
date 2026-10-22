@@ -4,6 +4,7 @@ import type { Confirmation } from "../../shared/protocol.ts";
 import { SCREEN_KEYS, textEditFor } from "../../shared/keyboard.ts";
 import { revealScreen } from "../reveal.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
+import { HiddenAudio } from "./hidden-audio.ts";
 import { keyBelongsToField } from "./field-keys.ts";
 import {
   FIELD_BLURRED,
@@ -54,6 +55,7 @@ export class ElectronWebApp implements YouTube {
   #resolving: Promise<boolean> | undefined;
   #again = false;
   #ready = false;
+  #silence: HiddenAudio;
   #hooks: RequestHooks;
   #preloads: SessionPreloads;
   #addonRequests: Array<() => void> = [];
@@ -93,6 +95,7 @@ export class ElectronWebApp implements YouTube {
     win.on("resize", () => this.#fit());
 
     const wc = this.#view.webContents;
+    this.#silence = new HiddenAudio(wc);
     wc.setUserAgent(desc.identity.userAgent);
     wc.on("did-finish-load", () => {
       if (this.#failed || !wc.getURL().startsWith("https:")) return;
@@ -108,7 +111,10 @@ export class ElectronWebApp implements YouTube {
       if (message === FIELD_BLURRED) this.#fieldFocused = false;
     });
     // A new document has none of Couch's volume or output yet.
-    wc.on("dom-ready", () => void this.#applySound());
+    wc.on("dom-ready", () => {
+      void this.#applySound();
+      if (!this.#visible) this.#silence.hide();
+    });
     wc.on("did-start-navigation", (_e, _url, _inPlace, isMainFrame) => {
       if (isMainFrame) this.#fieldFocused = false;
     });
@@ -227,6 +233,7 @@ export class ElectronWebApp implements YouTube {
     this.#routeTimer ??= setInterval(() => this.#pollShorts(), 400);
     this.#fit();
     this.#view.setVisible(true);
+    this.#silence.show();
     void revealScreen(this.#win).then(() => this.#view.webContents.focus());
     if (note) void this.#showNote(note);
   }
@@ -235,15 +242,9 @@ export class ElectronWebApp implements YouTube {
     this.#visible = false;
     clearInterval(this.#routeTimer);
     this.#routeTimer = undefined;
-    this.#pause();
+    this.#silence.hide();
     this.#view.setVisible(false);
     this.#win.webContents.focus();
-  }
-
-  #pause(): void {
-    void this.#view.webContents
-      .executeJavaScript("document.querySelectorAll('video').forEach(function(v){v.pause()})")
-      .catch(() => {});
   }
 
   showVolume(percent: number | undefined): void {
