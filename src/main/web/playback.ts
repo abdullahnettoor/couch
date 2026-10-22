@@ -9,10 +9,10 @@ const MAIN_VIDEO_SHARE = 0.4;
 /**
  * Page script (an async expression) that finds the page's playing video and the site's
  * media-session title and artwork. `tracks` is an adapter's script (an expression); its answer
- * is added when it works. Artwork is whatever the page names; `composeReport` keeps only the App's own. `active` is an adapter's expression that is false
+ * is added when it works. Artwork is whatever the page names (else the adapter's `artwork` expression); `composeReport` keeps only the App's own. `active` is an adapter's expression that is false
  * while the App shows no real playback (a home-page preview), so nothing is reported then.
  */
-export function playbackProbe(tracks?: string, active?: string): string {
+export function playbackProbe(tracks?: string, active?: string, artwork?: string): string {
   return `(async () => {
   ${active ? `try { if (!(${active})) return undefined; } catch (e) { return undefined; }` : ""}
   var area = window.innerWidth * window.innerHeight;
@@ -43,6 +43,7 @@ export function playbackProbe(tracks?: string, active?: string): string {
       if (pic) report.artwork = pic;
     }
   } catch (e) {}
+  ${artwork ? `if (!report.artwork) { try { var own = ${artwork}; if (typeof own === "string") report.artwork = own; } catch (e) {} }` : ""}
   ${tracks ? `try { var t = await (${tracks}); if (t) report.tracks = t; } catch (e) {}` : ""}
   return report;
 })()`;

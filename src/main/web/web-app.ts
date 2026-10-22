@@ -48,6 +48,10 @@ export interface PlaybackAdapter {
   seek?(seconds: number): string;
   /** An expression giving `{ subtitles, audio }` (lists of `{ id, label, on }`), or a promise of it; falsy when the App's controls aren't there. */
   tracks?(): string;
+  /** Toggles play and pause through the App's own control; absent, the host sends the media key. */
+  playPause?(): string;
+  /** An expression giving an artwork URL (or falsy) for what plays, when the page's media session names none. */
+  artwork?(): string;
   /** Chooses the track with this id from the list `tracks` gave. */
   setTrack?(kind: TrackKind, id: string): string;
 }

@@ -35,6 +35,7 @@ function probe(
   mediaSession?: unknown,
   tracks?: string,
   active?: string,
+  artwork?: string,
 ): Promise<PlaybackReport | undefined> {
   const sandbox: any = {
     innerWidth: 1280,
@@ -46,7 +47,7 @@ function probe(
   };
   sandbox.window = sandbox;
   vm.createContext(sandbox);
-  return vm.runInContext(playbackProbe(tracks, active), sandbox);
+  return vm.runInContext(playbackProbe(tracks, active, artwork), sandbox);
 }
 
 const asElement = (v: FakeVideo) => ({
@@ -139,6 +140,26 @@ describe("composeReport", () => {
   test("no adapter seek: read-only; nothing playing: nothing", () => {
     expect(composeReport(found, undefined, false)).toEqual(found);
     expect(composeReport(undefined, lists, true)).toBeUndefined();
+  });
+});
+
+describe("an adapter's artwork", () => {
+  test("fills in when the media session names none, and loses to it when it does", async () => {
+    const own = `"https://img.example/own.jpg"`;
+    const none = await probe([video()], undefined, undefined, undefined, own);
+    expect(none?.artwork).toBe("https://img.example/own.jpg");
+    const meta = {
+      metadata: { title: "T", artwork: [{ src: "https://img.example/page.jpg", sizes: "9x9" }] },
+    };
+    expect((await probe([video()], meta, undefined, undefined, own))?.artwork).toBe(
+      "https://img.example/page.jpg",
+    );
+    expect(
+      (await probe([video()], undefined, undefined, undefined, `null`))?.artwork,
+    ).toBeUndefined();
+    expect(
+      (await probe([video()], undefined, undefined, undefined, `(() => { throw 1; })()`))?.position,
+    ).toBe(12);
   });
 });
 

@@ -1,5 +1,6 @@
 import { WAKE_POINTER_SOURCE } from "../../web/pointer-wake.ts";
 import type { PlaybackAdapter } from "../../web/web-app.ts";
+import { NETFLIX_ARTWORK } from "./netflix-artwork.ts";
 
 /**
  * Shared page helpers. Netflix draws its bar only while the pointer moves over the page, so each
@@ -59,6 +60,7 @@ const HELPERS = `
  */
 export const NETFLIX_PLAYBACK: PlaybackAdapter = {
   active: () => `/^\\/watch\\//.test(location.pathname)`,
+  artwork: () => NETFLIX_ARTWORK,
   seek: (seconds) =>
     `(async function(){try{${HELPERS}
   await reveal();
@@ -72,6 +74,12 @@ export const NETFLIX_PLAYBACK: PlaybackAdapter = {
   var f = Math.min(1, Math.max(0, ${Number(seconds)} / total));
   var o = { bubbles: true, cancelable: true, view: window, clientX: r.left + r.width * f, clientY: r.top + r.height / 2, button: 0, buttons: 1, pointerId: 1, pointerType: "mouse", isPrimary: true };
   fire(tl, ["pointerover", "pointermove", "pointerdown", "mousedown", "pointerup", "mouseup", "click"], o);
+}catch(e){}})()`,
+  playPause: () =>
+    `(async function(){try{${HELPERS}
+  await reveal();
+  var b = $("control-play-pause-pause") || $("control-play-pause-play");
+  if (b) b.click();
 }catch(e){}})()`,
   tracks: () =>
     `(async function(){try{${HELPERS}
