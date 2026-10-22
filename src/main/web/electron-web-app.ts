@@ -4,6 +4,7 @@ import type { Confirmation, TrackKind } from "../../shared/protocol.ts";
 import { SCREEN_KEYS, textEditFor } from "../../shared/keyboard.ts";
 import { revealScreen } from "../reveal.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
+import { BlankGuard, backIsSafe } from "./blank-guard.ts";
 import { HiddenAudio } from "./hidden-audio.ts";
 import { keyBelongsToField } from "./field-keys.ts";
 import {
@@ -50,6 +51,8 @@ export class ElectronWebApp implements YouTube {
   #visible = false;
   #failed = false;
   #started = false;
+  /** The App's home has been asked for (after the DRM gate); a blank page before that is just not loaded yet. */
+  #loadIssued = false;
   #unloaded = false;
   #identityApplied = false;
   #lifecycle: IdleLifecycle | undefined;
@@ -76,6 +79,7 @@ export class ElectronWebApp implements YouTube {
   #again = false;
   #ready = false;
   #silence!: HiddenAudio;
+  #guard!: BlankGuard;
   #hooks: RequestHooks;
   #preloads: SessionPreloads;
   #addonRequests: Array<() => void> = [];
@@ -123,9 +127,11 @@ export class ElectronWebApp implements YouTube {
 
     const wc = this.#view.webContents;
     this.#silence = new HiddenAudio(wc);
+    this.#guard = new BlankGuard(wc, () => this.#load());
     wc.setUserAgent(this.#desc.identity.userAgent);
     wc.on("did-finish-load", () => {
       if (this.#failed || !wc.getURL().startsWith("https:")) return;
+      this.#guard.loaded();
       this.#emit({ type: "loaded" });
       this.#syncRoute();
       this.#ready = true;
@@ -144,6 +150,11 @@ export class ElectronWebApp implements YouTube {
     });
     wc.on("did-start-navigation", (_e, _url, _inPlace, isMainFrame) => {
       if (isMainFrame) this.#fieldFocused = false;
+    });
+    wc.on("did-navigate", (_e, url) => this.#guard.navigated(url));
+    wc.on("render-process-gone", () => {
+      this.#guard.crashed();
+      if (this.#visible) void this.#guard.onShow();
     });
     wc.on("did-fail-load", (_e, code, _desc, _url, isMainFrame) => {
       if (!isMainFrame || code === -3) return;
@@ -286,6 +297,7 @@ export class ElectronWebApp implements YouTube {
   unload(): void {
     if (this.#visible || !this.#started) return;
     this.#started = false;
+    this.#loadIssued = false;
     this.#unloaded = true;
     this.#failed = false;
     this.#ready = false;
@@ -303,6 +315,7 @@ export class ElectronWebApp implements YouTube {
 
   #load(): void {
     this.#failed = false;
+    this.#loadIssued = true;
     void this.#view.webContents
       .loadURL(this.#desc.url, { userAgent: this.#desc.identity.userAgent })
       .catch(() => {});
@@ -320,6 +333,7 @@ export class ElectronWebApp implements YouTube {
 
   show(note?: string): void {
     if ((this.#desc.loadOnShow || this.#unloaded) && !this.#started) this.start();
+    else if (this.#loadIssued) void this.#guard.onShow();
     this.#lifecycle?.shown();
     this.#visible = true;
     this.#routeTimer ??= setInterval(() => this.#pollPage(), 400);
@@ -449,8 +463,9 @@ export class ElectronWebApp implements YouTube {
   #goBack(): void {
     // The blank page the view starts on is not somewhere to go back to.
     const history = this.#view.webContents.navigationHistory;
-    const before = history.getEntryAtIndex(history.getActiveIndex() - 1);
-    if (before?.url.startsWith("https:")) history.goBack();
+    if (!backIsSafe(history.getAllEntries(), history.getActiveIndex())) return;
+    // The page's own history.back(): after Netflix pushes a page on top of a Back, the view's native goBack lands on the first (blank) entry.
+    void this.#view.webContents.executeJavaScript("history.back()").catch(() => {});
   }
 
   #press(keyCode: string): void {

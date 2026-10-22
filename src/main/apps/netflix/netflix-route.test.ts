@@ -1,3 +1,4 @@
+import vm from "node:vm";
 import { describe, expect, test } from "vite-plus/test";
 import {
   isNetflixHome,
@@ -98,5 +99,20 @@ describe("Netflix route with the page's state", () => {
   });
   test("the page script reads scroll and modal state", () => {
     expect(route.script).toContain("scrollY");
+  });
+  test("a modal Netflix leaves in the page, unrendered, after closing it is not a modal", () => {
+    const read = (rects: number[]) =>
+      vm.runInContext(
+        route.script,
+        vm.createContext({
+          window: { scrollY: 0 },
+          document: {
+            querySelectorAll: () => rects.map((n) => ({ getClientRects: () => ({ length: n }) })),
+          },
+        }),
+      ) as { modal: boolean };
+    expect(read([]).modal).toBe(false);
+    expect(read([0]).modal).toBe(false);
+    expect(read([0, 1]).modal).toBe(true);
   });
 });

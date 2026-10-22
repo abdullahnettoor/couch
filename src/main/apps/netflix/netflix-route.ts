@@ -46,8 +46,8 @@ export function netflixSearchUrlFor(text: string): string {
 /** Past this many pixels down, browse is no longer "at the top" (Netflix's header is sticky, so a few pixels are noise). */
 const SCROLLED_PX = 50;
 
-/** Runs in the Netflix page: how far it is scrolled, and whether a modal is open over it. */
-const PAGE_SCRIPT = `(function(){return {y:Math.round(window.scrollY||0),modal:!!document.querySelector('[aria-modal="true"],[data-uia="modal-container"],.previewModal--container')}})()`;
+/** Runs in the Netflix page: how far it is scrolled, and whether a modal is open over it (Netflix leaves a closed one in the page, unrendered). */
+const PAGE_SCRIPT = `(function(){var m=document.querySelectorAll('[aria-modal="true"],[data-uia="modal-container"],.previewModal--container');var open=false;for(var i=0;i<m.length;i++){if(m[i].getClientRects().length>0)open=true}return {y:Math.round(window.scrollY||0),modal:open}})()`;
 
 interface NetflixPage {
   y: number;
