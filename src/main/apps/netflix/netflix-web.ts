@@ -1,4 +1,5 @@
 import { chromeIdentity } from "../../web/chrome-identity.ts";
+import { HIDE_SCROLLBARS_PRELOAD } from "../../web/hide-scrollbars.ts";
 import type { FocusLayout } from "../../web/page-focus.ts";
 import type { WebAppDescription } from "../../web/web-app.ts";
 import { NETFLIX_ART_PRELOAD } from "./netflix-artwork.ts";
@@ -82,7 +83,7 @@ export function netflixDescription(version?: string): WebAppDescription {
     // Signed in, browse autoplays a billboard trailer: it must not play before Netflix is opened.
     loadOnShow: true,
     focus: { selectors: FOCUS_SELECTORS, layout: NETFLIX_LAYOUT },
-    preloads: [NETFLIX_ART_PRELOAD],
+    preloads: [HIDE_SCROLLBARS_PRELOAD, NETFLIX_ART_PRELOAD],
     artworkHosts: ["nflximg.net", "nflxso.net", "nflxext.com"],
     playback: NETFLIX_PLAYBACK,
     addons: [],
