@@ -58,6 +58,12 @@ class FakeNetflix {
   /** What Netflix's player has: set false to model a redesign that drops them. */
   hasTimeline = true;
   hasMenuButton = true;
+  hasPlayPause = true;
+  playPauseClicks = 0;
+  playPauseButton = new El("control-play-pause-pause", {}, "", () => {
+    this.playPauseClicks++;
+    this.video.paused = !this.video.paused;
+  });
   audio = ["One", "Two", "Three"];
   subs = ["Off", "One", "Two"];
   audioOn = "One";
@@ -128,6 +134,12 @@ class FakeNetflix {
     if (this.menuOn && (uia === "timeline" || uia === "timeline-knob")) return null;
     if (uia === "timeline") return this.hasTimeline ? this.timeline : null;
     if (uia === "timeline-knob") return this.hasTimeline ? this.knob : null;
+    if (uia === "control-play-pause-pause" || uia === "control-play-pause-play") {
+      const want = this.video.paused ? "play" : "pause";
+      return this.hasPlayPause && uia === `control-play-pause-${want}`
+        ? this.playPauseButton
+        : null;
+    }
     if (uia === "control-audio-subtitle") return this.hasMenuButton ? this.menuButton : null;
     return null;
   }
@@ -220,6 +232,23 @@ describe("Netflix playback adapter", () => {
     expect(n.position).toBe(0);
     await n.run(playback.seek!(99999));
     expect(n.position).toBeCloseTo(3000, 0);
+  });
+
+  test("play/pause presses Netflix's own button, bringing its bar up first, and toggles back", async () => {
+    const n = new FakeNetflix();
+    await n.run(playback.playPause!());
+    expect(n.video.paused).toBe(true);
+    expect(n.reveals).toBeGreaterThan(0);
+    await n.run(playback.playPause!());
+    expect(n.video.paused).toBe(false);
+    expect(n.playPauseClicks).toBe(2);
+  });
+
+  test("play/pause with the button missing leaves the player alone", async () => {
+    const n = new FakeNetflix();
+    n.hasPlayPause = false;
+    await expect(n.run(playback.playPause!())).resolves.toBeUndefined();
+    expect(n.video.paused).toBe(false);
   });
 
   test("tracks: reads the audio and subtitle menu, then puts it away", async () => {

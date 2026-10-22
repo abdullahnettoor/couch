@@ -223,7 +223,11 @@ export class ElectronWebApp implements YouTube {
     this.#probing = true;
     void this.#view.webContents
       .executeJavaScript(
-        playbackProbe(askTracks ? adapter!.tracks!() : undefined, adapter?.active?.()),
+        playbackProbe(
+          askTracks ? adapter!.tracks!() : undefined,
+          adapter?.active?.(),
+          adapter?.artwork?.(),
+        ),
       )
       .then((found: PlaybackReport | undefined) => {
         if (!this.#visible) return;
@@ -472,6 +476,11 @@ export class ElectronWebApp implements YouTube {
 
   playPause(): void {
     const wc = this.#view.webContents;
+    const own = this.#desc.playback?.playPause;
+    if (own) {
+      void wc.executeJavaScript(own()).catch(() => {});
+      return;
+    }
     wc.sendInputEvent({ type: "keyDown", keyCode: "MediaPlayPause" });
     wc.sendInputEvent({ type: "keyUp", keyCode: "MediaPlayPause" });
   }
