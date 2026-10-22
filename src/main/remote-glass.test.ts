@@ -100,6 +100,14 @@ describe("thumbnails over HTTP", () => {
     expect(await res.text()).toBe("JPEG");
   });
 
+  test("a cached TMDB picture is served with the key and refused without", async () => {
+    const art = `tmdb-backdrop-${"d".repeat(40)}`;
+    writeFileSync(join(h.thumbDir, `${art}.jpg`), "ART");
+    const res = await fetch(url(`/thumb/${art}.jpg`, h.pairingKey()));
+    expect(await res.text()).toBe("ART");
+    expect((await fetch(url(`/thumb/${art}.jpg`))).status).toBe(401);
+  });
+
   test("refused without the key or with a stale one", async () => {
     expect((await fetch(url(`/thumb/${key}.jpg`))).status).toBe(401);
     expect((await fetch(url(`/thumb/${key}.jpg`, "nope"))).status).toBe(401);

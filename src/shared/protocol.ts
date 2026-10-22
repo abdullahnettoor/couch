@@ -416,6 +416,8 @@ export interface RemoteSnapshot {
     speeds?: number[];
     /** A web App's picture for the title (https). */
     artwork?: string;
+    /** A Library video's TMDB picture: the key the phone fetches from /thumb/ (none without art). */
+    artKey?: string;
     /** "Animation · Comedy": up to three genres, when details have them. */
     genres?: string;
     /** The App playing: its logo (SVG markup from its App entry), for the no-artwork picture. */
