@@ -179,4 +179,33 @@ describe("Netflix App", () => {
     await phone.press("back");
     expect(h.screen.last.state.appNote).toBeUndefined();
   });
+
+  test("an idle Netflix unloads; opening it again reloads it and starts at its home", async () => {
+    await openNetflix();
+    navigate("https://www.netflix.com/title/80100172");
+    // Leave Netflix, then use YouTube, so Netflix is no longer the most recent App.
+    navigate("https://www.netflix.com/browse");
+    await phone.press("back");
+    let s = await phone.press("right");
+    s = await phone.press("ok");
+    expect(s.view).toBe("home");
+    await phone.press("left");
+    s = await phone.press("ok");
+    expect(s.where).toBe("YouTube");
+    await phone.press("back");
+    await phone.press("right");
+    s = await phone.press("ok");
+    expect(s.view).toBe("home");
+    h.clock.advance(10 * 60_000);
+    expect(calls("unload")).toHaveLength(1);
+
+    await phone.press("right");
+    s = await phone.press("right");
+    s = await phone.press("ok");
+    expect(s.where).toBe("Netflix");
+    expect(calls("show")).toHaveLength(2);
+    expect(calls("unload")).toHaveLength(1);
+    s = await phone.press("back");
+    expect(s.confirm?.title).toBe("Leave Netflix?");
+  });
 });

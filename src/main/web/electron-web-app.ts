@@ -14,6 +14,7 @@ import {
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import { requestHooksFor, type RequestHooks } from "./request-hooks.ts";
 import { SessionPreloads } from "./session-preloads.ts";
+import type { IdleLifecycle } from "./idle-unload.ts";
 import { drmGate } from "./drm-gate.ts";
 import { seekPlan } from "./seek-plan.ts";
 import type { WebAppDescription, WebIdentity } from "./web-app.ts";
@@ -31,11 +32,14 @@ import {
 export class ElectronWebApp implements YouTube {
   #desc: WebAppDescription;
   #win: BrowserWindow;
-  #view: WebContentsView;
+  #view!: WebContentsView;
   #listeners = new Set<(event: YouTubeEvent) => void>();
   #visible = false;
   #failed = false;
   #started = false;
+  #unloaded = false;
+  #identityApplied = false;
+  #lifecycle: IdleLifecycle | undefined;
   #sending = false;
   #capturing = false;
   /** A text field in the page has focus: keys on the Mac keyboard are its, not Couch commands. */
@@ -58,7 +62,8 @@ export class ElectronWebApp implements YouTube {
   #preloads: SessionPreloads;
   #addonRequests: Array<() => void> = [];
 
-  constructor(desc: WebAppDescription, win: BrowserWindow) {
+  constructor(desc: WebAppDescription, win: BrowserWindow, lifecycle?: IdleLifecycle) {
+    this.#lifecycle = lifecycle;
     this.#desc = desc;
     this.#win = win;
     this.#page = desc.route.idle;
@@ -79,9 +84,15 @@ export class ElectronWebApp implements YouTube {
     this.#hooks = hooks;
     this.#preloads = new SessionPreloads(ses, join(app.getPath("userData"), desc.id), desc.id);
     this.#applyAddons(desc.enabledAddons);
+    this.#createView();
+    win.on("resize", () => this.#fit());
+  }
+
+  /** A fresh view (and renderer) over the Screen window; its listeners are Couch's for the host. */
+  #createView(): void {
     this.#view = new WebContentsView({
       webPreferences: {
-        session: ses,
+        session: session.fromPartition(this.#desc.partition),
         sandbox: true,
         contextIsolation: true,
         backgroundThrottling: false,
@@ -89,11 +100,11 @@ export class ElectronWebApp implements YouTube {
       },
     });
     this.#view.setVisible(false);
-    win.contentView.addChildView(this.#view);
-    win.on("resize", () => this.#fit());
+    this.#win.contentView.addChildView(this.#view);
+    this.#identityApplied = false;
 
     const wc = this.#view.webContents;
-    wc.setUserAgent(desc.identity.userAgent);
+    wc.setUserAgent(this.#desc.identity.userAgent);
     wc.on("did-finish-load", () => {
       if (this.#failed || !wc.getURL().startsWith("https:")) return;
       this.#emit({ type: "loaded" });
@@ -189,12 +200,7 @@ export class ElectronWebApp implements YouTube {
       .loadURL("about:blank")
       .catch(() => {})
       // The identity must never hold YouTube back; load anyway if DevTools doesn't answer.
-      .then(() =>
-        Promise.race([
-          applyIdentity(wc, this.#desc.identity),
-          new Promise((r) => setTimeout(r, 3000)),
-        ]),
-      )
+      .then(() => Promise.race([this.#identityOnce(wc), new Promise((r) => setTimeout(r, 3000))]))
       .then(() => drmGate(this.#desc, components))
       .then((gate) => {
         if (gate.ok) return this.#load();
@@ -202,6 +208,31 @@ export class ElectronWebApp implements YouTube {
         this.#failed = true;
         this.#emit({ type: "failed", note: gate.note });
       });
+  }
+
+  #identityOnce(wc: Electron.WebContents): Promise<void> {
+    if (this.#identityApplied) return Promise.resolve();
+    this.#identityApplied = true;
+    return applyIdentity(wc, this.#desc.identity);
+  }
+
+  /** Drops the loaded page (the session stays on disk); the next `show()` loads the App again at its home. */
+  unload(): void {
+    if (this.#visible || !this.#started) return;
+    this.#started = false;
+    this.#unloaded = true;
+    this.#failed = false;
+    this.#ready = false;
+    this.#fieldFocused = false;
+    this.#inSearch = false;
+    this.#page = this.#desc.route.idle;
+    this.#routes = this.#desc.route.tracker();
+    // A blank page keeps its renderer, so the whole view goes; the next one starts without a process.
+    const old = this.#view;
+    this.#win.contentView.removeChildView(old);
+    old.webContents.close();
+    this.#createView();
+    this.#emit({ type: "route", home: true });
   }
 
   #load(): void {
@@ -222,7 +253,8 @@ export class ElectronWebApp implements YouTube {
   }
 
   show(note?: string): void {
-    if (this.#desc.loadOnShow && !this.#started) this.start();
+    if ((this.#desc.loadOnShow || this.#unloaded) && !this.#started) this.start();
+    this.#lifecycle?.shown();
     this.#visible = true;
     this.#routeTimer ??= setInterval(() => this.#pollShorts(), 400);
     this.#fit();
@@ -238,6 +270,7 @@ export class ElectronWebApp implements YouTube {
     this.#pause();
     this.#view.setVisible(false);
     this.#win.webContents.focus();
+    this.#lifecycle?.hidden();
   }
 
   #pause(): void {

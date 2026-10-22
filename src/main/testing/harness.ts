@@ -8,6 +8,7 @@ import {
   SETTINGS_ITEMS,
 } from "../../shared/settings-grid.ts";
 import { APP_ERROR_ITEMS } from "../../shared/app-grid.ts";
+import { IdleUnloader } from "../web/idle-unload.ts";
 import { NetflixApp } from "../apps/netflix/netflix-app.ts";
 import { YouTubeApp } from "../apps/youtube/youtube-app.ts";
 import type { App } from "../apps/app.ts";
@@ -184,6 +185,9 @@ export async function startHarness(
       token: options.listener.token,
     });
   }
+  const unloader = new IdleUnloader(clock, store);
+  youtube.lifecycle = unloader.track("youtube", () => youtube.unload(), { loaded: true });
+  netflix.lifecycle = unloader.track("netflix", () => netflix.unload());
   const app = await startApp({
     listenerProbe: {
       pidExists: () => listenerUp.alive,
