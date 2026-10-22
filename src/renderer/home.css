@@ -71,8 +71,9 @@
   margin-left: 0.2em;
   color: var(--t2);
 }
+/* The big clock is the time here; dropping the small one puts the gear flush with the QR card's edge. */
 .home:not(.film) .topbar .clock {
-  visibility: hidden;
+  display: none;
 }
 .home.film .topbar .clock {
   animation: h-in 0.7s var(--ease);
