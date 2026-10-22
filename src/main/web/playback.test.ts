@@ -28,6 +28,7 @@ function probe(
   videos: FakeVideo[],
   mediaSession?: unknown,
   tracks?: string,
+  active?: string,
 ): Promise<PlaybackReport | undefined> {
   const sandbox: any = {
     innerWidth: 1280,
@@ -39,7 +40,7 @@ function probe(
   };
   sandbox.window = sandbox;
   vm.createContext(sandbox);
-  return vm.runInContext(playbackProbe(tracks), sandbox);
+  return vm.runInContext(playbackProbe(tracks, active), sandbox);
 }
 
 const asElement = (v: FakeVideo) => ({
@@ -94,6 +95,13 @@ describe("the shared playback script", () => {
     });
     const broken = await probe([video()], undefined, `(function(){ throw new Error("gone") })()`);
     expect(broken).toEqual({ position: 12, duration: 3600, paused: false });
+  });
+});
+
+describe("the adapter's gate", () => {
+  test("a false gate reports nothing even with a big playing video; a true gate changes nothing", async () => {
+    expect(await probe([video()], undefined, undefined, "false")).toBeUndefined();
+    expect(await probe([video()], undefined, undefined, "true")).toMatchObject({ position: 12 });
   });
 });
 

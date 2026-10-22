@@ -57,6 +57,31 @@ describe("YouTube App", () => {
     expect(calls("hide")).toHaveLength(1);
   });
 
+  test("Now Playing: the phone's seek bar and subtitles picker reach YouTube", async () => {
+    await openYouTube();
+    h.youtube.emit({
+      type: "playback",
+      playback: {
+        position: 30,
+        duration: 212,
+        paused: false,
+        canSeek: true,
+        tracks: {
+          subtitles: [
+            { id: "off", label: "Off", on: true },
+            { id: "on", label: "On", on: false },
+          ],
+          audio: [],
+        },
+      },
+    });
+    await phone.waitFor(() => phone.last?.nowPlaying?.canSeek === true);
+    await phone.press({ command: "seekTo", args: { seconds: 120 } });
+    await phone.press({ command: "setTrack", args: { kind: "subtitles", track: "on" } });
+    expect(calls("seekTo").map((c) => c.args)).toEqual([[120]]);
+    expect(calls("setTrack").map((c) => c.args)).toEqual([["subtitles", "on"]]);
+  });
+
   test("keyboard Back at YouTube's home asks before leaving", async () => {
     await openYouTube();
     h.youtube.emit({ type: "key", command: "back" });

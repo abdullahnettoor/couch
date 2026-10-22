@@ -42,6 +42,8 @@ export interface PagePreload {
  * returns page script source (like `route.script`); absent members fall back to the App's keys.
  */
 export interface PlaybackAdapter {
+  /** An expression that is false while the App is not in its playback view (autoplaying home previews); nothing is reported then. */
+  active?(): string;
   /** Jumps to this position, in seconds. */
   seek?(seconds: number): string;
   /** An expression giving `{ subtitles, audio }` (lists of `{ id, label, on }`), or a promise of it; falsy when the App's controls aren't there. */

@@ -4,6 +4,7 @@ import { compatEnabled } from "./addons/4k.ts";
 import { enabledAddons, type AddonChoices } from "../../web/addon.ts";
 import { applyToRequestHeaders, buildIdentity } from "./youtube-identity.ts";
 import { isYouTubeOrigin, PAGE_STATE_SCRIPT, RouteTracker } from "./youtube-route.ts";
+import { YOUTUBE_PLAYBACK } from "./youtube-playback.ts";
 import { CONTROLS_HIDE_MS, SKIP_COMMIT_MS, skipKeys } from "./youtube-skip.ts";
 
 export const YOUTUBE_URL = "https://www.youtube.com/tv";
@@ -53,6 +54,7 @@ export function youtubeDescription(
     },
     skip: { keys: skipKeys, controlsHideMs: CONTROLS_HIDE_MS, commitMs: SKIP_COMMIT_MS },
     preloads: [],
+    playback: YOUTUBE_PLAYBACK,
     // COUCH_YOUTUBE_PATCH=off keeps the stock 720p behaviour whatever Settings says.
     addons: YOUTUBE_ADDONS.filter((a) => a.id !== "4k" || compatEnabled(env)),
     enabledAddons: enabledAddons(YOUTUBE_ADDONS, choices).map((a) => a.id),
