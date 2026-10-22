@@ -13,7 +13,7 @@ import type { DisplayInfo, Mac, OutputDevice } from "./mac.ts";
 import { RouteTracker, type PageState } from "../apps/youtube/youtube-route.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "./youtube.ts";
 import type { App, AppEvent, AppKey, AppTyping } from "../apps/app.ts";
-import type { Confirmation, RemoteLayout } from "../../shared/protocol.ts";
+import type { Confirmation, RemoteLayout, TrackKind } from "../../shared/protocol.ts";
 
 function emitter<E>() {
   const listeners = new Set<(event: E) => void>();
@@ -191,6 +191,8 @@ export interface FakeWebAppOptions {
   /** false: the App has no play/pause or seek. */
   playback?: boolean;
   layout?: RemoteLayout;
+  /** true: the App's adapter can seek to a point and choose tracks. */
+  adapter?: boolean;
 }
 
 /** A second web App that is not YouTube: records what core tells it. `atHome` is what its Back answers. */
@@ -209,6 +211,8 @@ export class FakeWebApp implements App {
   readonly layout: RemoteLayout | undefined;
   readonly playPause: (() => void) | undefined;
   readonly seekBy: ((seconds: number) => void) | undefined;
+  readonly seekTo: ((seconds: number) => void) | undefined;
+  readonly setTrack: ((kind: TrackKind, id: string) => void) | undefined;
   constructor(id: string, label: string, options: FakeWebAppOptions = {}) {
     this.id = id;
     this.label = label;
@@ -224,6 +228,10 @@ export class FakeWebApp implements App {
     if (options.playback !== false) {
       this.playPause = () => this.#record("playPause");
       this.seekBy = (seconds) => this.#record("seekBy", seconds);
+    }
+    if (options.adapter) {
+      this.seekTo = (seconds) => this.#record("seekTo", seconds);
+      this.setTrack = (kind, id) => this.#record("setTrack", kind, id);
     }
   }
   get showVolume() {

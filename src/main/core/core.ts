@@ -24,7 +24,7 @@ import {
 import type { Clock } from "../ports/clock.ts";
 import type { Mac } from "../ports/mac.ts";
 import { pickTargetDisplay } from "../display.ts";
-import type { App, AppEvent, AppTyping } from "../apps/app.ts";
+import type { App, AppEvent, AppTyping, PlaybackReport } from "../apps/app.ts";
 import { randomBytes } from "node:crypto";
 import type { Store } from "../ports/store.ts";
 import type { Thumbnails } from "../ports/thumbnails.ts";
@@ -126,6 +126,8 @@ export class Core {
   #appsFailed = new Map<string, string | undefined>();
   #lastFrom: RemoteId | undefined;
   /** What each App was last told to draw over itself. */
+  /** What each web App's page last reported playing; cleared when the App is hidden. */
+  #playback = new Map<string, PlaybackReport>();
   #shown = new Map<string, { volume?: number; confirm?: Confirmation; bar?: string }>();
   #confirmAnswers: [() => void, () => void] | undefined;
   /** The question core asked on behalf of an App's Back ("Leave <label>?"). */
@@ -1108,18 +1110,40 @@ export class Core {
             : s.typingBy === "screen"
               ? "screen"
               : "other",
-      nowPlaying: s.player && {
-        ...this.#present(s.player.path),
-        folder: basename(dirname(s.player.path)),
-        position: s.player.pos,
-        duration: s.player.dur,
-        paused: s.player.paused,
-        subtitlesOn: s.subtitlesOn,
-        ...this.#nowGenres(s.player.path),
-      },
+      nowPlaying: s.player
+        ? {
+            ...this.#present(s.player.path),
+            folder: basename(dirname(s.player.path)),
+            position: s.player.pos,
+            duration: s.player.dur,
+            paused: s.player.paused,
+            subtitlesOn: s.subtitlesOn,
+            ...this.#nowGenres(s.player.path),
+          }
+        : this.#appNowPlaying(front),
       ...(s.player && this.#controls.upNextAvailable ? { upNext: this.#upNextItems() } : {}),
       volume: s.volume,
       remotes: s.remotes,
+    };
+  }
+
+  /** Now Playing for the front web App, from what its page last reported. */
+  #appNowPlaying(front: App | undefined): RemoteSnapshot["nowPlaying"] {
+    const report = front && this.#playback.get(front.id);
+    if (!front || !report) return undefined;
+    return {
+      title: report.title ?? front.label,
+      folder: front.label,
+      position: report.position,
+      duration: report.duration,
+      paused: report.paused,
+      subtitlesOn: false,
+      canSeek: report.canSeek === true && !!front.seekTo,
+      ...(report.tracks?.subtitles.length && front.setTrack
+        ? { subtitles: report.tracks.subtitles }
+        : {}),
+      ...(report.tracks?.audio.length && front.setTrack ? { audio: report.tracks.audio } : {}),
+      ...(report.artwork ? { artwork: report.artwork } : {}),
     };
   }
 
@@ -1211,6 +1235,15 @@ export class Core {
       case "seekBy":
         this.#front()?.seekBy?.(command.args?.seconds ?? 0);
         break;
+      case "seekTo":
+        if (command.args?.seconds !== undefined) this.#front()?.seekTo?.(command.args.seconds);
+        break;
+      case "setTrack": {
+        const { kind, track } = command.args ?? {};
+        if ((kind === "subtitles" || kind === "audio") && track)
+          this.#front()?.setTrack?.(kind, track);
+        break;
+      }
       case "volUp":
       case "volDown":
         this.#setVolume(
@@ -1599,6 +1632,7 @@ export class Core {
     if (from === "app") {
       if (this.#leaveConfirm && this.#state.confirm === this.#leaveConfirm) this.#dismissConfirm();
       this.#state.typingBy = undefined;
+      this.#playback.delete(this.#state.app ?? "");
       this.#apps.get(this.#state.app ?? "")?.hide();
     }
     if (view !== "app" && view !== "appError") delete this.#state.app;
@@ -1667,6 +1701,10 @@ export class Core {
       case "output":
         this.#sound.appOutput(app.id, event.name, event.ok);
         return;
+      case "playback":
+        if (event.playback) this.#playback.set(app.id, event.playback);
+        else this.#playback.delete(app.id);
+        break;
       case "searchOpened":
         if (
           this.#state.view === "app" &&

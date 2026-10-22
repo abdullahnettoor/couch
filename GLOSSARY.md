@@ -44,7 +44,7 @@ The single card on Home for the most recent unfinished Library video. Pressing i
 _Avoid_: recents, history, up next
 
 **Now Playing**:
-The Remote's playback controls, shown while a Library video plays: seek bar, back/forward 10 seconds, play/pause, subtitles, and volume (the Mac's volume).
+The Remote's playback controls, shown while a video plays in the Library or in a web App: title, seek bar, back/forward 10 seconds, play/pause, subtitles (and audio, for web Apps that offer them), and volume (the Mac's volume). For a web App the position comes from the page's video; seeking to a point and the pickers appear only where that App has a playback adapter, otherwise the bar is read-only and skips are key presses.
 _Avoid_: player controls, transport
 
 **Settings**:

@@ -1,7 +1,27 @@
-import type { CommandName, Confirmation, RemoteLayout } from "../../shared/protocol.ts";
+import type {
+  CommandName,
+  Confirmation,
+  RemoteLayout,
+  TrackKind,
+  TrackList,
+} from "../../shared/protocol.ts";
 import type { TextEdit } from "../../shared/keyboard.ts";
 
 export type AppKey = "up" | "down" | "left" | "right" | "ok" | "back";
+
+/** What a web App's page is playing now, as the shared playback layer reads it. */
+export interface PlaybackReport {
+  /** Whole seconds. */
+  position: number;
+  duration: number;
+  paused: boolean;
+  title?: string;
+  artwork?: string;
+  /** Present when the App's adapter can list them. */
+  tracks?: { subtitles: TrackList; audio: TrackList };
+  /** The App can seek to a point (its adapter's seek works); false or absent: key-based skips only. */
+  canSeek?: boolean;
+}
 
 /** What a web App tells core. Anything about its own pages (routes, Shorts...) stays inside the App. */
 export type AppEvent =
@@ -11,6 +31,8 @@ export type AppEvent =
   /** `note` says why, in words for the App's error screen; without it the screen blames the internet. */
   | { type: "failed"; note?: string }
   | { type: "searchOpened" }
+  /** What the page is playing, or undefined when nothing is; sent whenever it changes. */
+  | { type: "playback"; playback: PlaybackReport | undefined }
   /** The view found (ok) or still can't find the output it was asked for; sent whenever it looks again. */
   | { type: "output"; name: string; ok: boolean }
   /** ⌘F or / on the Mac keyboard: the household wants to type a search with it. */
@@ -71,6 +93,10 @@ export interface App extends SoundSink {
   playPause?(): void;
   /** Skips the playing video forward (+) or back (−) by this many seconds; absent when it can't. */
   seekBy?(seconds: number): void;
+  /** Jumps to this position in the playing video; absent when the App's adapter can't. */
+  seekTo?(seconds: number): void;
+  /** Chooses a subtitle or audio track by the id its report listed; absent when the adapter can't. */
+  setTrack?(kind: TrackKind, id: string): void;
   /** Draws the volume level above the App, or removes it when undefined. */
   drawVolume(percent: number | undefined): void;
   /** Draws Couch's question over the App, or removes it when undefined. */

@@ -41,6 +41,7 @@ export const COMMAND_NAMES = [
   "subtitles",
   "seekBy",
   "seekTo",
+  "setTrack",
   "volSet",
   "playUpNext",
   "playNext",
@@ -58,6 +59,16 @@ export type CommandName = (typeof COMMAND_NAMES)[number];
 /** Commands only the Screen itself may send (mouse hover). Never in COMMAND_NAMES, so Remotes can't. */
 export type ScreenOnlyCommandName = "focusAt" | "showControls" | "find" | "screenKey";
 
+export type TrackKind = "subtitles" | "audio";
+
+/** One subtitle or audio choice a web App offers; `on` marks the current one. */
+export interface Track {
+  id: string;
+  label: string;
+  on: boolean;
+}
+export type TrackList = Track[];
+
 export interface CommandArgs {
   /** focusAt: the grid cell to focus */
   r?: number;
@@ -66,6 +77,9 @@ export interface CommandArgs {
   seconds?: number;
   /** volSet: 0-100 (clamped) */
   percent?: number;
+  /** setTrack: which list, and the track's id from the snapshot */
+  kind?: TrackKind;
+  track?: string;
   /** playUpNext: position in the Up next list */
   index?: number;
   /** toggleAddon: the add-on's id (YouTube's add-ons) */
@@ -379,6 +393,13 @@ export interface RemoteSnapshot {
     duration: number;
     paused: boolean;
     subtitlesOn: boolean;
+    /** A web App's video: the seek bar moves the video (false: it only shows the position). */
+    canSeek?: boolean;
+    /** A web App's choices, when its adapter lists them. */
+    subtitles?: TrackList;
+    audio?: TrackList;
+    /** A web App's picture for the title (https). */
+    artwork?: string;
     /** "Animation · Comedy": up to three genres, when details have them. */
     genres?: string;
   };

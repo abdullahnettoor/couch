@@ -1,4 +1,5 @@
 import type { AppKey } from "../apps/app.ts";
+import type { TrackKind } from "../../shared/protocol.ts";
 import type { Addon } from "./addon.ts";
 import type { FocusLayout } from "./page-focus.ts";
 
@@ -36,6 +37,19 @@ export interface PagePreload {
   func: string;
 }
 
+/**
+ * What a web App adds to the shared playback layer where the plain video isn't enough. Each member
+ * returns page script source (like `route.script`); absent members fall back to the App's keys.
+ */
+export interface PlaybackAdapter {
+  /** Jumps to this position, in seconds. */
+  seek?(seconds: number): string;
+  /** An expression giving `{ subtitles, audio }` (lists of `{ id, label, on }`), or a promise of it; falsy when the App's controls aren't there. */
+  tracks?(): string;
+  /** Chooses the track with this id from the list `tracks` gave. */
+  setTrack?(kind: TrackKind, id: string): string;
+}
+
 /** Everything that makes a web App itself: the host (`ElectronWebApp`) holds none of it. */
 export interface WebAppDescription {
   id: string;
@@ -68,6 +82,8 @@ export interface WebAppDescription {
   drm?: boolean;
   /** App-specific main-world functions (source text) that run after `couchHooks` and before any add-on. */
   preloads: PagePreload[];
+  /** Present when the plain video isn't enough: seeking and tracks through the App's own player. */
+  playback?: PlaybackAdapter;
   /** Turns on Couch's focus for the page: D-pad moves a ring between controls, OK clicks. */
   focus?: { selectors?: string[]; layout?: FocusLayout };
   /** The add-ons this host can run, and the ids of those that are on now. */

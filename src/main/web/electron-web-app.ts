@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { app, BrowserWindow, WebContentsView, clipboard, components, session } from "electron";
-import type { Confirmation } from "../../shared/protocol.ts";
+import type { Confirmation, TrackKind } from "../../shared/protocol.ts";
 import { SCREEN_KEYS, textEditFor } from "../../shared/keyboard.ts";
 import { revealScreen } from "../reveal.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
@@ -17,6 +17,7 @@ import { requestHooksFor, type RequestHooks } from "./request-hooks.ts";
 import { SessionPreloads } from "./session-preloads.ts";
 import type { IdleLifecycle } from "./idle-unload.ts";
 import { drmGate } from "./drm-gate.ts";
+import { playbackProbe, sameReport, type PlaybackReport } from "./playback.ts";
 import { seekPlan } from "./seek-plan.ts";
 import type { WebAppDescription, WebIdentity } from "./web-app.ts";
 import { confirmScript, noteScript, searchBarScript, volumeScript } from "./web-hud.ts";
@@ -28,6 +29,8 @@ import {
   soundScript,
   type PageOutput,
 } from "./web-sound.ts";
+
+const TRACKS_EVERY_MS = 2000;
 
 /** The web-App host: one persistent, always-loaded view over the Screen window, described by `desc`. */
 export class ElectronWebApp implements YouTube {
@@ -50,6 +53,10 @@ export class ElectronWebApp implements YouTube {
   #lastSkipAt = 0;
   #page: unknown;
   #routes: ReturnType<WebAppDescription["route"]["tracker"]>;
+  #report: PlaybackReport | undefined;
+  #probing = false;
+  #tracks: PlaybackReport["tracks"];
+  #tracksAt = 0;
   #routeTimer: ReturnType<typeof setInterval> | undefined;
   #volume = 60;
   #sinkId = "";
@@ -188,6 +195,7 @@ export class ElectronWebApp implements YouTube {
   }
 
   #pollShorts(): void {
+    this.#pollPlayback();
     void this.#view.webContents
       .executeJavaScript(this.#desc.route.script)
       .then((page: unknown) => {
@@ -195,6 +203,50 @@ export class ElectronWebApp implements YouTube {
         this.#syncRoute();
       })
       .catch(() => {});
+  }
+
+  /** Reads the page's playing video; tracks come from the adapter, asked at most every 2 s. */
+  #pollPlayback(): void {
+    if (this.#probing || !this.#visible) return;
+    const adapter = this.#desc.playback;
+    const now = Date.now();
+    const askTracks = !!adapter?.tracks && now - this.#tracksAt >= TRACKS_EVERY_MS;
+    this.#probing = true;
+    void this.#view.webContents
+      .executeJavaScript(playbackProbe(askTracks ? adapter!.tracks!() : undefined))
+      .then((found: PlaybackReport | undefined) => {
+        if (!this.#visible) return;
+        if (askTracks) {
+          this.#tracksAt = now;
+          this.#tracks = found?.tracks;
+        }
+        const next = found && {
+          ...found,
+          ...(adapter?.seek ? { canSeek: true } : {}),
+          ...(this.#tracks ? { tracks: this.#tracks } : {}),
+        };
+        this.#reportPlayback(next);
+      })
+      .catch(() => this.#reportPlayback(undefined))
+      .finally(() => {
+        this.#probing = false;
+      });
+  }
+
+  #reportPlayback(next: PlaybackReport | undefined): void {
+    if (sameReport(this.#report, next)) return;
+    this.#report = next;
+    this.#emit({ type: "playback", playback: next });
+  }
+
+  seekTo(seconds: number): void {
+    const script = this.#desc.playback?.seek?.(seconds);
+    if (script) void this.#view.webContents.executeJavaScript(script).catch(() => {});
+  }
+
+  setTrack(kind: TrackKind, id: string): void {
+    const script = this.#desc.playback?.setTrack?.(kind, id);
+    if (script) void this.#view.webContents.executeJavaScript(script).catch(() => {});
   }
 
   /** Starts loading in the background so opening YouTube is instant. */
@@ -272,6 +324,9 @@ export class ElectronWebApp implements YouTube {
 
   hide(): void {
     this.#visible = false;
+    this.#tracks = undefined;
+    this.#tracksAt = 0;
+    this.#reportPlayback(undefined);
     clearInterval(this.#routeTimer);
     this.#routeTimer = undefined;
     this.#silence.hide();

@@ -1,3 +1,5 @@
+import type { TrackKind } from "../../shared/protocol.ts";
+import type { PlaybackReport } from "../apps/app.ts";
 import type { CommandName } from "../../shared/protocol.ts";
 import type { Confirmation } from "../../shared/protocol.ts";
 import type { TextEdit } from "../../shared/keyboard.ts";
@@ -23,6 +25,8 @@ export type YouTubeEvent =
       url?: string;
     }
   | { type: "searchOpened" }
+  /** What the page is playing, or undefined when nothing is. */
+  | { type: "playback"; playback: PlaybackReport | undefined }
   /** The view found (ok) or still can't find the output it was asked for; sent whenever it looks again. */
   | { type: "output"; name: string; ok: boolean }
   /** ⌘F or / on the Mac keyboard: the household wants to type a search with it. */
@@ -48,6 +52,10 @@ export interface YouTube {
   playPause(): void;
   /** Skips the playing video forward (+) or back (−) by this many seconds. */
   seekBy(seconds: number): void;
+  /** Jumps to this position through the App's adapter; does nothing without one. */
+  seekTo?(seconds: number): void;
+  /** Chooses a track through the App's adapter; does nothing without one. */
+  setTrack?(kind: TrackKind, id: string): void;
   /** Draws the volume level above the view, or removes it when undefined. */
   showVolume(percent: number | undefined): void;
   /** Draws Couch's question over the view, or removes it when undefined. */

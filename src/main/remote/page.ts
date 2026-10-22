@@ -74,6 +74,10 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .tr button { width:64px; height:64px; display:grid; place-items:center; border-radius:50%; }
   .tr button:active { background:rgba(255,255,255,.12); }
   .tr .pp { font-size:56px; }
+  .seek.ro { cursor:default; }
+  .seek.ro .knob { display:none; }
+  .pick { display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(--t3); text-align:left; }
+  .pick select { height:48px; border-radius:14px; font-size:16px; color:#fff; background:rgba(255,255,255,.12); border:0; padding:0 12px; }
   .ex { display:grid; grid-template-columns:1fr; gap:10px; margin-top:10px; }
   .ex .k { height:52px; border-radius:16px; font-size:22px; }
   .ex .k.txt { font-size:15px; }
@@ -141,6 +145,8 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     </div>
     <div class="ex">
       <button class="k txt" data-cmd="subtitles" id="np-subs"><span data-i="cc" style="font-size:26px"></span>Subtitles</button>
+      <label class="pick" id="np-sub-box" hidden>Subtitles<select id="np-sub-pick" aria-label="Subtitles"></select></label>
+      <label class="pick" id="np-aud-box" hidden>Audio<select id="np-aud-pick" aria-label="Audio"></select></label>
     </div>
     <div class="upn" id="upn" hidden><div class="h">Up next</div><div class="list" id="upn-list"></div></div>
   </div>
@@ -176,7 +182,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 <script>
 (function () {
   var ICONS = __ICONS__;
-  var ws = null, retry = 0, timer = null, open = false, duration = 0, dragging = false, volDragging = false, volSent = 0;
+  var ws = null, retry = 0, timer = null, open = false, duration = 0, canSeek = true, dragging = false, volDragging = false, volSent = 0;
   var KEY = "couch-key";
   var fromUrl = new URLSearchParams(location.search).get("key");
   if (fromUrl) {
@@ -247,13 +253,27 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     });
   }
 
+  function fillPicker(id, tracks, kind) {
+    var box = $("np-" + id + "-box"), pick = $("np-" + id + "-pick");
+    box.hidden = !tracks || !tracks.length;
+    if (box.hidden || document.activeElement === pick) return;
+    pick.textContent = "";
+    tracks.forEach(function (t) {
+      var o = document.createElement("option");
+      o.value = t.id; o.textContent = t.label; o.selected = t.on;
+      pick.appendChild(o);
+    });
+    pick.onchange = function () { sendArgs("setTrack", { kind: kind, track: pick.value }); };
+  }
+
   function render(s) {
     var L = s.layout || "other";
     $("where").textContent = s.where;
     $("count").textContent = s.remotes === 1 ? " · 1 phone" : " · " + s.remotes + " phones";
     var np = s.nowPlaying;
     $("np").hidden = !np;
-    $("dpad").hidden = !!np;
+    var web = !!np && typeof np.canSeek === "boolean";
+    $("dpad").hidden = !!np && !web;
     $("cw").hidden = L !== "home" || !s.continueCard;
     if (s.continueCard) {
       $("cw-title").textContent = s.continueCard.title;
@@ -268,6 +288,11 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     $("skip").hidden = !s.showSkip || !!np;
     if (np) {
       duration = np.duration;
+      canSeek = !web || np.canSeek;
+      seek.classList.toggle("ro", !canSeek);
+      $("np-subs").hidden = web;
+      fillPicker("sub", np.subtitles, "subtitles");
+      fillPicker("aud", np.audio, "audio");
       $("np-title").textContent = np.title;
       $("np-folder").textContent = np.line || np.folder;
       $("np-genres").textContent = np.genres || "";
@@ -276,7 +301,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       $("np-pp").innerHTML = icon(np.paused ? "play" : "pause");
       $("np-subs").classList.toggle("on", np.subtitlesOn);
       var playing = (s.upNext || []).filter(function (u) { return u.playing && u.thumbKey; })[0];
-      $("np-art").style.backgroundImage = playing ? thumb(playing.thumbKey) : "none";
+      $("np-art").style.backgroundImage = playing ? thumb(playing.thumbKey) : np.artwork ? "url(" + JSON.stringify(np.artwork) + ")" : "none";
       renderUpNext(s.upNext);
     }
     $("nx").hidden = !s.next;
@@ -326,7 +351,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     return Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
   }
   seek.addEventListener("pointerdown", function (e) {
-    if (!open || !(duration > 0)) return;
+    if (!open || !(duration > 0) || !canSeek) return;
     dragging = true;
     seek.setPointerCapture(e.pointerId);
     showProgress(fracAt(e) * duration);

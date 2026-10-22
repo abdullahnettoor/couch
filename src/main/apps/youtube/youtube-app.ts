@@ -1,4 +1,4 @@
-import type { Confirmation } from "../../../shared/protocol.ts";
+import type { Confirmation, TrackKind } from "../../../shared/protocol.ts";
 import type { Clock } from "../../ports/clock.ts";
 import type { YouTube } from "../../ports/youtube.ts";
 import type { App, AppEvent, AppKey, AppTyping } from "../app.ts";
@@ -72,6 +72,12 @@ export class YouTubeApp implements App {
   }
   seekBy(seconds: number) {
     this.#port.seekBy(seconds);
+  }
+  seekTo(seconds: number) {
+    this.#port.seekTo?.(seconds);
+  }
+  setTrack(kind: TrackKind, id: string) {
+    this.#port.setTrack?.(kind, id);
   }
   drawVolume(percent: number | undefined) {
     this.#port.showVolume(percent);
