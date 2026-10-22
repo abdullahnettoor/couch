@@ -116,6 +116,9 @@ export class FakeYouTube implements YouTube {
   sendKey(key: YouTubeKey) {
     this.#record("sendKey", key);
   }
+  scrollToTop() {
+    this.#record("scrollToTop");
+  }
   submitSearch(text: string) {
     this.#record("submitSearch", text);
   }

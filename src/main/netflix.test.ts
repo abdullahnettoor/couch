@@ -5,8 +5,8 @@ import { startHarness, type FakePhone, type Harness } from "./testing/harness.ts
 let h: Harness;
 let routes: ReturnType<ReturnType<typeof netflixDescription>["route"]["tracker"]>;
 /** The page moves to this address, announced the way the real host does it (the description's own route rules). */
-const navigate = (url: string) => {
-  const route = routes.update(url, null);
+const navigate = (url: string, page: unknown = null) => {
+  const route = routes.update(url, page);
   if (route) h.netflix.emit({ type: "route", ...route });
 };
 let phone: FakePhone;
@@ -75,6 +75,44 @@ describe("Netflix App", () => {
     h.clock.advance(1000);
     const s = await phone.press("back");
     expect(s.confirm?.title).toBe("Leave Netflix?");
+  });
+
+  test("Back where Netflix keeps announcing the same route still leaves", async () => {
+    await openNetflix();
+    navigate("https://www.netflix.com/title/80100172");
+    await phone.press("back");
+    for (let i = 0; i < 3; i++) {
+      h.clock.advance(400);
+      h.netflix.emit({
+        type: "route",
+        home: false,
+        scrolled: false,
+        url: "https://www.netflix.com/title/80100172",
+      });
+    }
+    const s = await phone.press("back");
+    expect(s.confirm?.title).toBe("Leave Netflix?");
+  });
+
+  test("Back on browse scrolled down scrolls to the top; at the top it asks Leave Netflix?", async () => {
+    await openNetflix();
+    navigate("https://www.netflix.com/browse", { y: 1800, modal: false });
+    let s = await phone.press("back");
+    expect(s.confirm).toBeUndefined();
+    expect(keys()).toEqual([]);
+    expect(calls("scrollToTop")).toHaveLength(1);
+    navigate("https://www.netflix.com/browse", { y: 0, modal: false });
+    s = await phone.press("back");
+    expect(s.confirm?.title).toBe("Leave Netflix?");
+    expect(calls("scrollToTop")).toHaveLength(1);
+  });
+
+  test("Back with a modal open over browse goes back in the page", async () => {
+    await openNetflix();
+    navigate("https://www.netflix.com/browse", { y: 0, modal: true });
+    const s = await phone.press("back");
+    expect(s.confirm).toBeUndefined();
+    expect(keys()).toEqual(["back"]);
   });
 
   test("the Remote follows Netflix: volume, skip and Search Netflix", async () => {

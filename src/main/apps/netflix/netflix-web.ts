@@ -1,10 +1,9 @@
 import { chromeIdentity } from "../../web/chrome-identity.ts";
-import { urlRoute } from "../../web/url-route.ts";
 import type { WebAppDescription } from "../../web/web-app.ts";
 import {
-  isNetflixHome,
   isNetflixOrigin,
   isNetflixSearchUrl,
+  netflixRoute,
   netflixSearchUrlFor,
 } from "./netflix-route.ts";
 
@@ -37,7 +36,7 @@ export function netflixDescription(version?: string): WebAppDescription {
       urlFor: netflixSearchUrlFor,
       placeholder: "Search Netflix",
     },
-    route: urlRoute(isNetflixHome),
+    route: netflixRoute(),
     seekKeys: { back: "left", forward: "right" },
     drm: true,
     // Signed in, browse autoplays a billboard trailer: it must not play before Netflix is opened.

@@ -334,6 +334,12 @@ export class ElectronWebApp implements YouTube {
     }
   }
 
+  scrollToTop(): void {
+    void this.#view.webContents
+      .executeJavaScript("window.scrollTo({ top: 0, behavior: 'smooth' })")
+      .catch(() => {});
+  }
+
   playPause(): void {
     const wc = this.#view.webContents;
     wc.sendInputEvent({ type: "keyDown", keyCode: "MediaPlayPause" });

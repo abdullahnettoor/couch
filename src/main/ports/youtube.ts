@@ -14,7 +14,7 @@ export type YouTubeEvent =
    * The view's address, Shorts player or guide changed; `home` is true only on YouTube's home screen.
    * `shorts` and `guideOpen` come from the page (a Short keeps Home's URL).
    */
-  | { type: "route"; home: boolean; shorts?: boolean; guideOpen?: boolean }
+  | { type: "route"; home: boolean; shorts?: boolean; guideOpen?: boolean; scrolled?: boolean; url?: string }
   | { type: "searchOpened" }
   /** The view found (ok) or still can't find the output it was asked for; sent whenever it looks again. */
   | { type: "output"; name: string; ok: boolean }
@@ -30,6 +30,8 @@ export interface YouTube {
   /** Hides the view and pauses playback; it stays loaded. */
   hide(): void;
   sendKey(key: YouTubeKey): void;
+  /** Scrolls the page back to its top; absent for a view that has nothing to scroll. */
+  scrollToTop?(): void;
   /** Searches YouTube for the whole text, once (YouTube's search link). */
   submitSearch(text: string): void;
   /** Draws Couch's floating search bar with this text over the view, or removes it when undefined. */

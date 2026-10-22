@@ -21,8 +21,8 @@ test("Skip is one Left or Right key in the player, nothing to commit", () => {
 
 test("its route says home from the address alone", () => {
   const tracker = desc.route.tracker();
-  expect(tracker.update("https://www.netflix.com/browse", null)).toEqual({ home: true });
-  expect(tracker.update("https://www.netflix.com/watch/1", null)).toEqual({ home: false });
+  expect(tracker.update("https://www.netflix.com/browse", null)).toMatchObject({ home: true });
+  expect(tracker.update("https://www.netflix.com/watch/1", null)).toMatchObject({ home: false });
 });
 
 test("typing searches Netflix", () => {

@@ -3,6 +3,7 @@ import {
   isNetflixHome,
   isNetflixOrigin,
   isNetflixSearchUrl,
+  netflixRoute,
   netflixSearchUrlFor,
 } from "./netflix-route.ts";
 
@@ -61,4 +62,35 @@ describe("Netflix origin", () => {
     "https://netflix.com@evil.example",
     "not a url",
   ])("%s is not", (o) => expect(isNetflixOrigin(o)).toBe(false));
+});
+
+describe("Netflix route with the page's state", () => {
+  const route = netflixRoute();
+  const at = (url: string, page: unknown) => route.tracker().update(url, page);
+  const browse = "https://www.netflix.com/browse";
+
+  test("browse scrolled to the top with no modal is home", () => {
+    expect(at(browse, { y: 0, modal: false })).toMatchObject({ home: true, scrolled: false });
+    expect(at(browse, route.idle)).toMatchObject({ home: true, scrolled: false });
+  });
+  test("browse scrolled down is not home, and says it is scrolled", () => {
+    expect(at(browse, { y: 1800, modal: false })).toMatchObject({ home: false, scrolled: true });
+  });
+  test("a modal open over browse is not home and not 'scrolled'", () => {
+    expect(at(browse, { y: 0, modal: true })).toMatchObject({ home: false, scrolled: false });
+  });
+  test("elsewhere, scrolling does not matter", () => {
+    expect(at("https://www.netflix.com/search?q=a", { y: 900, modal: false })).toMatchObject({ home: false, scrolled: false });
+  });
+  test("only changes are announced, including a scroll", () => {
+    const t = route.tracker();
+    expect(t.update(browse, { y: 0, modal: false })).toBeDefined();
+    expect(t.update(browse, { y: 10, modal: false })).toBeUndefined();
+    expect(t.update(browse, { y: 900, modal: false })).toMatchObject({ home: false, scrolled: true });
+    expect(t.update(browse, { y: 950, modal: false })).toBeUndefined();
+    expect(t.update(browse, { y: 0, modal: false })).toMatchObject({ home: true, scrolled: false });
+  });
+  test("the page script reads scroll and modal state", () => {
+    expect(route.script).toContain("scrollY");
+  });
 });

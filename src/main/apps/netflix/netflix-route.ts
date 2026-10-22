@@ -1,3 +1,5 @@
+import type { RouteSignals } from "../../web/web-app.ts";
+
 const SEARCH = "https://www.netflix.com/search";
 
 /** Netflix's own hosts: the site and the CDNs its pages, art and video come from. */
@@ -39,4 +41,51 @@ export function isNetflixSearchUrl(url: string): boolean {
 export function netflixSearchUrlFor(text: string): string {
   const q = text.trim();
   return q ? `${SEARCH}?q=${encodeURIComponent(q)}` : SEARCH;
+}
+
+/** Past this many pixels down, browse is no longer "at the top" (Netflix's header is sticky, so a few pixels are noise). */
+const SCROLLED_PX = 50;
+
+/** Runs in the Netflix page: how far it is scrolled, and whether a modal is open over it. */
+const PAGE_SCRIPT = `(function(){return {y:Math.round(window.scrollY||0),modal:!!document.querySelector('[aria-modal="true"],[data-uia="modal-container"],.previewModal--container')}})()`;
+
+interface NetflixPage {
+  y: number;
+  modal: boolean;
+}
+
+/**
+ * Netflix's route: home is `/browse` (or the picker, login, landing) scrolled to the top with no modal
+ * open. `scrolled` is set when the address says home but the page is scrolled down, which Back answers
+ * by scrolling up, not by leaving. Only changes are announced.
+ */
+export function netflixRoute(): RouteSignals {
+  return {
+    script: PAGE_SCRIPT,
+    idle: { y: 0, modal: false } satisfies NetflixPage,
+    tracker: () => {
+      let last: string | undefined;
+      return {
+        update: (url, page: NetflixPage | null) => {
+          let urlHome: boolean;
+          try {
+            urlHome = isNetflixHome(new URL(url));
+          } catch {
+            return undefined;
+          }
+          const modal = page?.modal === true;
+          const down = (page?.y ?? 0) > SCROLLED_PX;
+          const route = {
+            home: urlHome && !modal && !down,
+            scrolled: urlHome && !modal && down,
+            url,
+          };
+          const key = `${route.home}|${route.scrolled}|${url}`;
+          if (key === last) return undefined;
+          last = key;
+          return route;
+        },
+      };
+    },
+  };
 }

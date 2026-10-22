@@ -19,6 +19,8 @@ export class NetflixApp implements App {
   #port: YouTube;
   #clock: Clock;
   #home = true;
+  #scrolled = false;
+  #route: string | undefined;
   /** Back was sent to Netflix at this time and no route change has followed. */
   #backAt: number | undefined;
   #listeners = new Set<(event: AppEvent) => void>();
@@ -34,7 +36,12 @@ export class NetflixApp implements App {
     };
     port.onEvent((event) => {
       if (event.type !== "route") return this.#emit(event);
+      // The host re-checks the page often; only a real change of route is news.
+      const key = `${event.home}|${event.scrolled === true}|${event.url ?? ""}`;
+      if (key === this.#route) return;
+      this.#route = key;
       this.#home = event.home;
+      this.#scrolled = event.scrolled === true;
       this.#backAt = undefined;
     });
   }
@@ -44,6 +51,10 @@ export class NetflixApp implements App {
   }
 
   back(): "leave" | "handled" {
+    if (this.#scrolled && this.#port.scrollToTop) {
+      this.#port.scrollToTop();
+      return "handled";
+    }
     const now = this.#clock.now();
     const stuck = this.#backAt !== undefined && now - this.#backAt >= BACK_SETTLE_MS;
     if (this.#home || stuck) {

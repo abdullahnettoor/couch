@@ -14,6 +14,10 @@ export interface WebRoute {
   home: boolean;
   shorts?: boolean;
   guideOpen?: boolean;
+  /** The address says home but the page is scrolled down (Back scrolls up). */
+  scrolled?: boolean;
+  /** The address, so a move between two pages that are both "not home" still counts as a change. */
+  url?: string;
 }
 
 export interface RouteSignals {
