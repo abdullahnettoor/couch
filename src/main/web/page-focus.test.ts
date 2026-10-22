@@ -9,6 +9,7 @@ import {
   typeIntoFieldScript,
   type Box,
 } from "./page-focus.ts";
+import { runFocusScript } from "./page-focus-runner.ts";
 
 const box = (left: number, top: number, w = 100, h = 50): Box => ({
   left,
@@ -91,6 +92,11 @@ class El {
     this.focused = false;
     if (doc.activeElement === this) doc.activeElement = null;
   }
+  /** An open <dialog> shown with showModal(): it paints in the browser's top layer. */
+  topLayer = false;
+  matches(sel: string) {
+    return sel === ":modal" && this.topLayer;
+  }
   scrollIntoView() {}
   hasAttribute(a: string) {
     return a === "disabled" && this.disabled;
@@ -98,16 +104,10 @@ class El {
 }
 let doc: any;
 function setup(els: El[], selectors?: string[], layout?: FocusLayout) {
-  const listeners: Record<string, Function[]> = {};
-  const timers: Function[] = [];
-  const observers: Function[] = [];
-  const logs: string[] = [];
-  const ring: any = { style: {}, remove() {}, setAttribute() {} };
   doc = {
     activeElement: null,
     readyState: "complete",
     body: { appendChild: () => {} },
-    createElement: () => ring,
     // The modal selector finds modals; any other selector finds the controls.
     querySelectorAll: (sel: string) =>
       els.filter((e) => e.connected && (/dialog|modal/.test(sel) ? e.modal : !e.modal && !e.plain)),
@@ -122,55 +122,14 @@ function setup(els: El[], selectors?: string[], layout?: FocusLayout) {
       return top;
     },
   };
-  const location = { href: "https://www.netflix.com/browse" };
-  const sandbox: any = {
+  const run = runFocusScript(pageFocusFunction(selectors, layout), {
     document: doc,
-    location,
-    innerWidth: 1000,
-    innerHeight: 800,
-    console: { warn() {}, debug: (m: string) => logs.push(m) },
-    addEventListener: (t: string, f: Function) => (listeners[t] ??= []).push(f),
+    href: "https://www.netflix.com/browse",
+    width: 1000,
+    height: 800,
     getComputedStyle: (e: El) => ({ visibility: "visible", display: "block", zIndex: e.zIndex }),
-    requestAnimationFrame: (f: Function) => f(),
-    setTimeout: (f: Function) => timers.push(f),
-    MutationObserver: class {
-      constructor(f: Function) {
-        observers.push(f);
-      }
-      observe() {}
-    },
-  };
-  sandbox.window = sandbox;
-  vm.createContext(sandbox);
-  vm.runInContext(`(${pageFocusFunction(selectors, layout)})()`, sandbox);
-  /** The page's DOM changed (the observer fires), and any timers that follow run. */
-  const mutate = () => {
-    for (const f of observers) f([]);
-    flush();
-  };
-  const flush = () => {
-    while (timers.length) timers.shift()!();
-  };
-  /** One key: the page's handlers (`later` run after Couch's, like a handler registered later) then the end of dispatch. */
-  const key = (k: string, extra: any = {}) => {
-    const { later, ...rest } = extra;
-    const e = {
-      key: k,
-      defaultPrevented: false,
-      preventDefault() {
-        e.defaultPrevented = true;
-      },
-      ...rest,
-    };
-    for (const f of listeners.keydown ?? []) f(e);
-    later?.(e);
-    flush();
-    return e;
-  };
-  const fire = (type: string, target: El) => {
-    for (const f of listeners[type] ?? []) f({ type, target });
-  };
-  return { key, ring, mutate, fire, logs, location, doc };
+  });
+  return { ...run, doc };
 }
 
 describe("page focus script", () => {
@@ -384,6 +343,91 @@ describe("page focus script", () => {
       key("Enter");
       expect([inA.clicks, inB.clicks, ...under.map((e) => e.clicks)]).toEqual([0, 0, 0, 0, 0]);
       expect(inTop.clicks).toBeGreaterThan(0);
+    });
+    test("a modal that changes the address (/browse to /browse?jbv=) still gives the ring back to its opener", () => {
+      const { under, dialog, inA, inB } = page();
+      for (const e of [dialog, inA, inB]) e.connected = false;
+      const { key, mutate, location } = setup([...under, dialog, inA, inB]);
+      key("ArrowLeft");
+      location.href = "https://www.netflix.com/browse?jbv=80100172";
+      for (const e of [dialog, inA, inB]) e.connected = true;
+      mutate();
+      location.href = "https://www.netflix.com/browse";
+      for (const e of [dialog, inA, inB]) e.connected = false;
+      mutate();
+      key("Enter");
+      expect(under[0].clicks).toBe(1);
+    });
+    test("a real page change (another path) forgets the opener", () => {
+      const { under, dialog, inA, inB } = page();
+      for (const e of [dialog, inA, inB]) e.connected = false;
+      const { key, mutate, location } = setup([...under, dialog, inA, inB]);
+      key("ArrowLeft");
+      for (const e of [dialog, inA, inB]) e.connected = true;
+      mutate();
+      location.href = "https://www.netflix.com/title/1";
+      for (const e of [dialog, inA, inB]) e.connected = false;
+      mutate();
+      key("Enter");
+      expect(under[0].clicks).toBe(0);
+      expect(under[1].clicks).toBe(1);
+    });
+    test("nested modals: closing the inner one returns to the control held in the one beneath", () => {
+      const { under, dialog, inA, inB } = page();
+      const inner = new El("inner", box(0, 0, 200, 200), "DIV");
+      inner.modal = true;
+      inner.layer = 20;
+      const inC = new El("in-c", box(20, 20, 50, 50));
+      inC.parent = inner;
+      inC.layer = 21;
+      for (const e of [inner, inC]) e.connected = false;
+      const { key, mutate } = setup([...under, dialog, inA, inB, inner, inC]);
+      key("ArrowLeft");
+      key("Enter");
+      expect(inA.clicks).toBe(1);
+      for (const e of [inner, inC]) e.connected = true;
+      mutate();
+      key("Enter");
+      expect(inC.clicks).toBe(1);
+      for (const e of [inner, inC]) e.connected = false;
+      mutate();
+      key("Enter");
+      expect(inA.clicks).toBe(2);
+      expect(inB.clicks).toBe(0);
+      for (const e of [dialog, inA, inB]) e.connected = false;
+      mutate();
+      key("Enter");
+      expect(under[1].clicks).toBe(1);
+    });
+    test("the topmost modal is the one painted on top, not the one with the higher own z-index", () => {
+      const { under, dialog, inA, inB } = page();
+      dialog.zIndex = "1000";
+      dialog.layer = 5;
+      inA.layer = inB.layer = 6;
+      const over = new El("over", box(250, 50, 400, 300), "DIV");
+      over.modal = true;
+      over.layer = 10;
+      const inOver = new El("in-over", box(300, 200));
+      inOver.parent = over;
+      inOver.layer = 11;
+      const { key } = setup([...under, dialog, inA, inB, over, inOver]);
+      key("Enter");
+      expect(inOver.clicks).toBe(1);
+      expect(inA.clicks + inB.clicks).toBe(0);
+    });
+    test("a top-layer <dialog> is topmost whatever else overlaps it", () => {
+      const { under, dialog, inA, inB } = page();
+      dialog.topLayer = true;
+      const over = new El("over", box(400, 200, 200, 150), "DIV");
+      over.modal = true;
+      over.layer = 30;
+      const inOver = new El("in-over", box(450, 250, 50, 50));
+      inOver.parent = over;
+      inOver.layer = 31;
+      const { key } = setup([...under, dialog, inA, inB, over, inOver]);
+      key("Enter");
+      expect(inOver.clicks).toBe(0);
+      expect(inA.clicks + inB.clicks).toBe(1);
     });
     test("a covered control is skipped even with no modal (something drawn over its middle)", () => {
       const a = new El("a", box(100, 100));

@@ -129,6 +129,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     var current = null;
     var ring = null;
     var href = function () { try { return String(location.href); } catch (e) { return ''; } };
+    var pathOf = function (u) { return String(u).split(/[?#]/)[0]; };
     var lastHref = href();
 
     var rectOf = function (el) {
@@ -150,15 +151,35 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       return false;
     };
     var MODALS = ['[role=dialog]', '[role=alertdialog]', '[aria-modal="true"]'].concat(LAYOUT.scopes || []).join(',');
-    // The topmost modal on screen (highest z-index; later in the page wins a tie), or null.
+    // Whether el is what the browser paints at a point: the element itself or something inside it.
+    var paintedAt = function (el, x, y) {
+      var hit = document.elementFromPoint(x, y);
+      return !!hit && (hit === el || el.contains(hit));
+    };
+    // The topmost modal on screen, or null: a top-layer dialog if any; else the one painted over the most
+    // of a few points of its own box (a z-index only counts within its stacking context); else the last in the page.
     var scopeEl = function () {
       try {
-        var found = document.querySelectorAll(MODALS), best = null, bestZ = -Infinity;
-        for (var j = 0; j < found.length; j++) {
-          if (!shown(found[j])) continue;
-          var z = parseInt(getComputedStyle(found[j]).zIndex, 10);
-          if (isNaN(z)) z = 0;
-          if (z >= bestZ) { best = found[j]; bestZ = z; }
+        var found = document.querySelectorAll(MODALS), live = [];
+        for (var j = 0; j < found.length; j++) if (shown(found[j])) live.push(found[j]);
+        if (!live.length) return null;
+        var topLayer = null;
+        for (var t = 0; t < live.length; t++) {
+          try { if (live[t].matches(':modal')) topLayer = live[t]; } catch (e) {}
+        }
+        if (topLayer) return topLayer;
+        var best = live[live.length - 1];
+        if (live.length < 2 || typeof document.elementFromPoint !== 'function') return best;
+        var bestHits = -1;
+        for (var k = 0; k < live.length; k++) {
+          var r = rectOf(live[k]), hits = 0;
+          var fx = [0.5, 0.25, 0.75, 0.25, 0.75], fy = [0.5, 0.25, 0.25, 0.75, 0.75];
+          for (var p = 0; p < fx.length; p++) {
+            var x = Math.min(Math.max(r.left + (r.right - r.left) * fx[p], 0), innerWidth - 1);
+            var y = Math.min(Math.max(r.top + (r.bottom - r.top) * fy[p], 0), innerHeight - 1);
+            if (paintedAt(live[k], x, y)) hits++;
+          }
+          if (hits >= bestHits) { best = live[k]; bestHits = hits; }
         }
         return best;
       } catch (e) { return null; }
@@ -255,17 +276,27 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     };
     var view = function () { return { width: innerWidth, height: innerHeight }; };
     // displaced: the control the household held until something (a dialog still sliding in) covered it.
-    var lastModal = null, opener = null, displaced = null;
+    // layers: one frame per open modal, bottom first, each with the control held when it opened.
+    var layers = [], displaced = null;
     var ensure = function () {
       try {
         if (noRing()) { current = null; draw(); return; }
         var modal = scopeEl();
-        if (modal !== lastModal) {
-          // A modal opened: remember what was held, and go inside. It closed: go back to that if it is still there.
-          if (modal && !lastModal) opener = displaced || (current && current.isConnected ? current : null);
-          else if (!modal && opener) { if (usable(opener, null)) current = opener; opener = null; }
+        var top = layers.length ? layers[layers.length - 1].modal : null;
+        if (modal !== top || layers.some(function (l) { return !shown(l.modal); })) {
+          // Modals closed: go back to what was held when the lowest of them opened, if it is still there.
+          var restore = null, kept = [];
+          for (var n = 0; n < layers.length; n++) {
+            if (shown(layers[n].modal)) kept.push(layers[n]);
+            else if (!restore && layers[n].opener) restore = layers[n].opener;
+          }
+          layers = kept;
+          // A modal opened: remember what was held, and go inside.
+          if (modal && !kept.some(function (l) { return l.modal === modal; })) {
+            layers.push({ modal: modal, opener: displaced || (current && current.isConnected ? current : null) });
+          }
+          if (restore && usable(restore)) current = restore;
           displaced = null;
-          lastModal = modal;
         }
         if (current && usable(current)) { draw(); return; }
         if (current && current.isConnected && !displaced) displaced = current;
@@ -356,7 +387,12 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     };
     var changed = function () {
       try {
-        if (href() !== lastHref) { lastHref = href(); current = null; opener = null; displaced = null; }
+        if (href() !== lastHref) {
+          // A modal opening or closing changes only the query (/browse to /browse?jbv=): the page is the same. Another path is a new page.
+          var moved = pathOf(href()) !== pathOf(lastHref);
+          lastHref = href();
+          if (moved) { current = null; layers = []; displaced = null; }
+        }
         ensure();
       } catch (e) {}
     };

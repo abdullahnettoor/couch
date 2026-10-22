@@ -1,6 +1,6 @@
-import vm from "node:vm";
 import { describe, expect, test } from "vite-plus/test";
 import { pageFocusFunction } from "../../web/page-focus.ts";
+import { runFocusScript } from "../../web/page-focus-runner.ts";
 import {
   loadSnapshot,
   snapshotPage,
@@ -16,46 +16,19 @@ const desc = netflixDescription("130.0.6723.58");
 /** The page focus script as the Netflix App runs it, on a recorded page; keys go through the page's own listeners. */
 function open(snap: Snapshot, focus = desc.focus!) {
   const page = snapshotPage(snap);
-  const listeners: Record<string, Function[]> = {};
-  const timers: Function[] = [];
-  const ring: any = { style: {} };
-  page.doc.createElement = () => ring;
-  const sandbox: any = {
+  const run = runFocusScript(pageFocusFunction(focus.selectors, focus.layout), {
     document: page.doc,
-    location: { href: snap.url },
-    innerWidth: snap.view.width,
-    innerHeight: snap.view.height,
-    console: { warn() {}, debug() {} },
-    addEventListener: (t: string, f: Function) => (listeners[t] ??= []).push(f),
+    href: snap.url,
+    width: snap.view.width,
+    height: snap.view.height,
     getComputedStyle: (e: FakeEl) => ({
       visibility: e.hiddenStyle ? "hidden" : "visible",
       display: "block",
       zIndex: "auto",
       position: e.stuck ? "fixed" : "static",
     }),
-    setTimeout: (f: Function) => timers.push(f),
-    MutationObserver: class {
-      observe() {}
-    },
-  };
-  sandbox.window = sandbox;
-  vm.createContext(sandbox);
-  vm.runInContext(`(${pageFocusFunction(focus.selectors, focus.layout)})()`, sandbox);
-  const flush = () => {
-    while (timers.length) timers.shift()!();
-  };
-  const key = (k: string) => {
-    const e = {
-      key: k,
-      defaultPrevented: false,
-      preventDefault() {
-        e.defaultPrevented = true;
-      },
-    };
-    for (const f of listeners.keydown ?? []) f(e);
-    flush();
-    return e;
-  };
+  });
+  const { key, ring } = run;
   /** OK: the element that was clicked, if any. */
   const ok = (): FakeEl | undefined => {
     const before = new Map(page.all.map((e) => [e, e.clicks]));
