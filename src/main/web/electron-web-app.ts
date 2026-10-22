@@ -8,7 +8,9 @@ import { pageFocusFunction } from "./page-focus.ts";
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import { requestHooksFor, type RequestHooks } from "./request-hooks.ts";
 import { SessionPreloads } from "./session-preloads.ts";
-import { drmGate, seekPlan, type WebAppDescription, type WebIdentity } from "./web-app.ts";
+import { drmGate } from "./drm-gate.ts";
+import { seekPlan } from "./seek-plan.ts";
+import type { WebAppDescription, WebIdentity } from "./web-app.ts";
 import { confirmScript, noteScript, searchBarScript, volumeScript } from "./web-hud.ts";
 import {
   allowsPermission,

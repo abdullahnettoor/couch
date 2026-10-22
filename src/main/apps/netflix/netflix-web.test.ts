@@ -1,5 +1,5 @@
 import { expect, test } from "vite-plus/test";
-import { seekPlan } from "../../web/web-app.ts";
+import { seekPlan } from "../../web/seek-plan.ts";
 import { netflixDescription } from "./netflix-web.ts";
 
 const desc = netflixDescription("130.0.6723.58");

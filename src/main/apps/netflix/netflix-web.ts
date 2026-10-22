@@ -1,5 +1,6 @@
 import { chromeIdentity } from "../../web/chrome-identity.ts";
-import { urlRoute, type WebAppDescription } from "../../web/web-app.ts";
+import { urlRoute } from "../../web/url-route.ts";
+import type { WebAppDescription } from "../../web/web-app.ts";
 import {
   isNetflixHome,
   isNetflixOrigin,
