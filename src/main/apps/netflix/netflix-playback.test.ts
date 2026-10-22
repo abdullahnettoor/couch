@@ -9,13 +9,24 @@ type Handler = (e: any) => void;
 
 class El {
   listeners: Record<string, Handler[]> = {};
+  uia: string;
+  attrs: Record<string, string>;
+  text: string;
+  onClick: () => void;
+  rect: { left: number; top: number; width: number; height: number };
   constructor(
-    public uia: string,
-    public attrs: Record<string, string> = {},
-    public text = "",
-    public onClick: () => void = () => {},
-    public rect = { left: 0, top: 0, width: 0, height: 0 },
-  ) {}
+    uia: string,
+    attrs: Record<string, string> = {},
+    text = "",
+    onClick: () => void = () => {},
+    rect = { left: 0, top: 0, width: 0, height: 0 },
+  ) {
+    this.uia = uia;
+    this.attrs = attrs;
+    this.text = text;
+    this.onClick = onClick;
+    this.rect = rect;
+  }
   getAttribute(n: string) {
     return n === "data-uia" ? this.uia : (this.attrs[n] ?? null);
   }
@@ -150,26 +161,23 @@ class FakeNetflix {
       },
       navigator: {},
       PointerEvent: class {
-        constructor(
-          public type: string,
-          init: any,
-        ) {
+        type: string;
+        constructor(type: string, init: any) {
+          this.type = type;
           Object.assign(this, init);
         }
       },
       MouseEvent: class {
-        constructor(
-          public type: string,
-          init: any,
-        ) {
+        type: string;
+        constructor(type: string, init: any) {
+          this.type = type;
           Object.assign(this, init);
         }
       },
       KeyboardEvent: class {
-        constructor(
-          public type: string,
-          init: any,
-        ) {
+        type: string;
+        constructor(type: string, init: any) {
+          this.type = type;
           Object.assign(this, init);
         }
       },
