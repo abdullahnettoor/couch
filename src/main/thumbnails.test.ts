@@ -66,7 +66,8 @@ describe("thumbnails through the Remote", () => {
     h.mac.folderPick = root;
     await phone.press("up");
     await phone.press("ok");
-    for (let i = 0; i < 2; i++) await phone.press("down");
+    await phone.press("down");
+    await phone.press("ok");
     await phone.press("ok");
     await phone.press("ok");
     await phone.settle();
@@ -129,7 +130,8 @@ describe("folder mosaics", () => {
     h.mac.folderPick = root;
     await phone.press("up");
     await phone.press("ok");
-    for (let i = 0; i < 2; i++) await phone.press("down");
+    await phone.press("down");
+    await phone.press("ok");
     await phone.press("ok");
     await phone.press("ok");
     await phone.settle();

@@ -36,7 +36,7 @@ async function openSoundPage() {
   await phone.press("up");
   await phone.press("ok");
   expect(h.screen.last.state.view).toBe("settings");
-  for (let i = 0; i < 4; i++) await phone.press("down");
+  for (let i = 0; i < 2; i++) await phone.press("down");
   await phone.press("ok");
   expect(h.screen.last.state.view).toBe("soundOutput");
 }

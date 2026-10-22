@@ -1,6 +1,12 @@
 import { WebSocket } from "ws";
 import { HOME_ITEMS, homeItems } from "../../shared/home-grid.ts";
-import { ADD_PHONE_ITEMS, SETTINGS_ITEMS } from "../../shared/settings-grid.ts";
+import {
+  ADD_PHONE_ITEMS,
+  APPS_ITEMS,
+  LIBRARY_ITEMS,
+  REMOTES_ITEMS,
+  SETTINGS_ITEMS,
+} from "../../shared/settings-grid.ts";
 import { APP_ERROR_ITEMS } from "../../shared/app-grid.ts";
 import { YouTubeApp } from "../apps/youtube/youtube-app.ts";
 import type { App } from "../apps/app.ts";
@@ -90,6 +96,9 @@ export class FakePhone {
 const DEFAULT_GRIDS: Record<string, GridItem[]> = {
   home: HOME_ITEMS,
   settings: SETTINGS_ITEMS,
+  settingsRemotes: REMOTES_ITEMS,
+  settingsLibrary: LIBRARY_ITEMS,
+  settingsApps: APPS_ITEMS,
   addPhone: ADD_PHONE_ITEMS,
   appError: APP_ERROR_ITEMS,
 };

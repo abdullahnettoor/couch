@@ -12,6 +12,10 @@ export type View =
   | "folder"
   | "player"
   | "settings"
+  | "settingsRemotes"
+  | "settingsLibrary"
+  | "settingsApps"
+  | "settingsApp"
   | "addPhone"
   | "libraryFolders"
   | "details"
@@ -281,6 +285,8 @@ export interface ScreenPayload {
   focusedLabel?: string;
   /** Settings and its "Show and film details" page: the TMDB key label, On/Off and any hint. */
   details?: { keyLabel: string; hasOwnKey: boolean; enabled: boolean; hint?: string };
+  /** On an App's settings page: which App. */
+  appSettings?: { id: string; label: string };
   /** Settings and the Sound output page. */
   sound?: SoundPayload;
   /** Settings and the YouTube add-ons page: each add-on and whether it is on. */
@@ -392,6 +398,10 @@ export const VIEW_LABELS: Record<View, string> = {
   folder: "Library",
   player: "Now Playing",
   settings: "Settings",
+  settingsRemotes: "Remotes and Devices",
+  settingsLibrary: "Library",
+  settingsApps: "Apps",
+  settingsApp: "App settings",
   addPhone: "Add a phone",
   libraryFolders: "Library folders",
   details: "Show and film details",

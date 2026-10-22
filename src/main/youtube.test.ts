@@ -124,11 +124,14 @@ describe("YouTube App", () => {
     await phone.press("up");
     await phone.press("ok");
     expect(h.screen.last.state.view).toBe("settings");
-    for (let i = 0; i < 6; i++) await phone.press("down");
+    for (let i = 0; i < 3; i++) await phone.press("down");
+    expect(h.screen.last.focusedLabel).toBe("Apps");
+    await phone.press("ok");
+    await phone.press("ok");
     expect(h.screen.last.focusedLabel).toBe("Restart YouTube");
     await phone.press("ok");
     expect(calls("restart")).toHaveLength(1);
-    expect(h.screen.last.state.view).toBe("settings");
+    expect(h.screen.last.state.view).toBe("settingsApp");
     expect(h.screen.last.state.toast).toBe("Restarting YouTube");
   });
 

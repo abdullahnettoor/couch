@@ -148,7 +148,8 @@ describe("Library through the Remote", () => {
     await phone.press("home");
     await phone.press("up"); // Settings
     await phone.press("ok");
-    for (let i = 0; i < 2; i++) await phone.press("down");
+    await phone.press("down");
+    await phone.press("ok");
     expect(h.screen.last.focusedLabel).toBe("Library folders");
     await phone.press("ok");
     expect(h.screen.last.state.view).toBe("libraryFolders");
@@ -206,7 +207,8 @@ describe("Library through the Remote", () => {
     await p2.press("home");
     await p2.press("up");
     await p2.press("ok");
-    for (let i = 0; i < 2; i++) await p2.press("down");
+    await p2.press("down");
+    await p2.press("ok");
     await p2.press("ok");
     await p2.press("down"); // the folder row
     await p2.press("ok"); // remove

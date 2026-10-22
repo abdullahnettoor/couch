@@ -1,5 +1,11 @@
 import { HOME_ITEMS } from "../../shared/home-grid.ts";
-import { ADD_PHONE_ITEMS, SETTINGS_ITEMS } from "../../shared/settings-grid.ts";
+import {
+  ADD_PHONE_ITEMS,
+  APPS_ITEMS,
+  LIBRARY_ITEMS,
+  REMOTES_ITEMS,
+  SETTINGS_ITEMS,
+} from "../../shared/settings-grid.ts";
 import { APP_ERROR_ITEMS } from "../../shared/app-grid.ts";
 import type { GridItem, View } from "../../shared/protocol.ts";
 import type { ViewModule } from "./dom.ts";
@@ -15,6 +21,7 @@ import * as player from "./player.ts";
 import * as addons from "./addons.ts";
 import * as soundOutput from "./sound-output.ts";
 import * as settings from "./settings.ts";
+import * as settingsGroup from "./settings-group.ts";
 import * as show from "./show.ts";
 import * as app from "./app.ts";
 import * as appError from "./app-error.ts";
@@ -23,6 +30,10 @@ import * as appError from "./app-error.ts";
 export const VIEWS: Partial<Record<View, ViewModule & { grid?: GridItem[] }>> = {
   home: { ...home, grid: HOME_ITEMS },
   settings: { ...settings, grid: SETTINGS_ITEMS },
+  settingsRemotes: { ...settingsGroup, grid: REMOTES_ITEMS },
+  settingsLibrary: { ...settingsGroup, grid: LIBRARY_ITEMS },
+  settingsApps: { ...settingsGroup, grid: APPS_ITEMS },
+  settingsApp: { ...settingsGroup },
   addPhone: { ...addPhone, grid: ADD_PHONE_ITEMS },
   app: { ...app, grid: [] },
   appError: { ...appError, grid: APP_ERROR_ITEMS },

@@ -61,7 +61,9 @@ async function toDetails() {
   key("home");
   key("up");
   key("ok");
-  for (let i = 0; i < 3; i++) key("down");
+  key("down");
+  key("ok");
+  key("down");
   key("ok");
   expect(screen().state.view).toBe("details");
 }

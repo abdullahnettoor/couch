@@ -126,7 +126,9 @@ async function refreshFromSettings() {
   await p.press("home");
   await p.press("up");
   await p.press("ok");
-  for (let i = 0; i < 3; i++) await p.press("down");
+  await p.press("down");
+  await p.press("ok");
+  await p.press("down");
   await p.press("ok");
   await focusLabel("Refresh details");
   await p.press("ok");
@@ -399,7 +401,9 @@ describe("Settings: Show and film details", () => {
     const phone = await h!.connectPhone();
     await phone.press("up");
     await phone.press("ok");
-    for (let i = 0; i < 3; i++) await phone.press("down");
+    await phone.press("down");
+    await phone.press("ok");
+    await phone.press("down");
     await phone.press("ok");
     expect(h!.screen.last.state.view).toBe("details");
     return phone;

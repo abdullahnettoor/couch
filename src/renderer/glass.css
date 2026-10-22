@@ -375,17 +375,6 @@ svg.i {
   font-size: calc(60 * var(--u));
   letter-spacing: -0.02em;
 }
-/* Settings has nine rows: tighter rows keep the heading and the listener note on a 1080p Screen, clear of the toast. */
-.split-list.compact h1 {
-  margin-bottom: calc(24 * var(--u));
-}
-.split-list.compact .g-row {
-  height: calc(72 * var(--u));
-  margin-bottom: calc(4 * var(--u));
-}
-.split-list.compact p {
-  margin-bottom: 0;
-}
 .split-list p {
   margin: 0 calc(32 * var(--u)) calc(40 * var(--u));
   max-width: calc(780 * var(--u));

@@ -1,9 +1,11 @@
 import { OPEN_APP, RESTART_APP } from "../apps/index.ts";
+import { SETTINGS_APP } from "../../shared/settings-grid.ts";
 import type { View } from "../../shared/protocol.ts";
 
 /** What an action handler may do to the core. */
 export interface ActionContext {
   open(view: View): void;
+  openAppSettings(id: string): void;
   toast(text: string): void;
   forgetAllPhones(): void;
   openApp(id: string): void;
@@ -31,12 +33,17 @@ const appActions: Record<string, ActionHandler> = {
 /** `app:open:<id>` and `app:restart:<id>` for any App. */
 function appAction(action: string): ActionHandler | undefined {
   if (action.startsWith(OPEN_APP)) return (ctx) => ctx.openApp(action.slice(OPEN_APP.length));
+  if (action.startsWith(SETTINGS_APP))
+    return (ctx) => ctx.openAppSettings(action.slice(SETTINGS_APP.length));
   if (action.startsWith(RESTART_APP))
     return (ctx) => ctx.restartApp(action.slice(RESTART_APP.length));
   return undefined;
 }
 
 const settingsActions: Record<string, ActionHandler> = {
+  "settings:remotes": (ctx) => ctx.open("settingsRemotes"),
+  "settings:library": (ctx) => ctx.open("settingsLibrary"),
+  "settings:apps": (ctx) => ctx.open("settingsApps"),
   "settings:add-phone": (ctx) => ctx.open("addPhone"),
   "settings:forget-phones": (ctx) => ctx.forgetAllPhones(),
   "settings:library-folders": (ctx) => ctx.open("libraryFolders"),
@@ -60,12 +67,16 @@ export function actionFor(action: string): ActionHandler | undefined {
 /** Where Back goes from each view. A view with no entry ignores Back. */
 export const BACK_TARGETS: Partial<Record<View, View>> = {
   settings: "home",
-  addPhone: "settings",
+  settingsRemotes: "settings",
+  settingsLibrary: "settings",
+  settingsApps: "settings",
+  settingsApp: "settingsApps",
+  addPhone: "settingsRemotes",
   appError: "home",
-  libraryFolders: "settings",
-  details: "settings",
+  libraryFolders: "settingsLibrary",
+  details: "settingsLibrary",
   soundOutput: "settings",
-  addons: "settings",
+  addons: "settingsApp",
   credits: "details",
   library: "home",
   show: "library",

@@ -10,11 +10,20 @@ export interface AppEntry {
   action: string;
   /** A web App core hands the Screen to; false for a built-in that opens one of Couch's own views. */
   web: boolean;
+  /** The App has add-ons, listed on its settings page. */
+  addons?: boolean;
 }
 
 /** The Apps on Home, in order. Each ticket adding an App adds its entry here. */
 export const APP_ENTRIES: AppEntry[] = [
-  { id: "youtube", label: "YouTube", icon: YOUTUBE_MARK, action: "app:open:youtube", web: true },
+  {
+    id: "youtube",
+    label: "YouTube",
+    icon: YOUTUBE_MARK,
+    action: "app:open:youtube",
+    web: true,
+    addons: true,
+  },
   { id: "library", label: "Library", icon: iconSvg("folder"), action: "open:library", web: false },
 ];
 

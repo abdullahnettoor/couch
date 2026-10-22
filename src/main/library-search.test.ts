@@ -222,7 +222,9 @@ describe("Library search", () => {
       await b.press("home");
       await b.press("up");
       await b.press("ok");
-      for (let i = 0; i < 3; i++) await b.press("down");
+      await b.press("down");
+      await b.press("ok");
+      await b.press("down");
       await b.press("ok");
       expect(screen().state.view).toBe("details");
       return b;

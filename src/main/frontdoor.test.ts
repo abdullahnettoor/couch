@@ -75,6 +75,7 @@ describe("toggling the listener while Couch runs", () => {
     await phone.press("ok");
     await phone.press("up");
     await phone.press("ok");
+    await phone.press("ok");
     while (h.screen.last.focusedId !== "listener") await phone.press("down");
     await phone.settle();
     await phone.press("ok");
@@ -143,7 +144,7 @@ describe("Settings reads the listener live", () => {
     h = await startHarness(undefined, { listener: { publicPort: 4790, token: "t" } });
     const phone = await h.connectPhone();
     await openSettings(phone);
-    expect(h.screen.last.state.view).toBe("settings");
+    expect(h.screen.last.state.view).toBe("settingsRemotes");
     expect(h.screen.last.listener?.running).toBe(true);
 
     h.listenerUp.alive = false;
@@ -162,6 +163,7 @@ describe("Settings reads the listener live", () => {
     await phone.press("right");
     await phone.press("ok");
     await phone.press("up");
+    await phone.press("ok");
     await phone.press("ok");
     await phone.settle();
   }

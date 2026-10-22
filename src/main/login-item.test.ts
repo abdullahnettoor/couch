@@ -110,13 +110,14 @@ describe("Settings item", () => {
     await phone.press("ok");
     await phone.press("up");
     await phone.press("ok");
+    await phone.press("ok");
   }
 
   async function openSettings() {
     h = await startHarness();
     const phone = await h.connectPhone();
     await toSettings(phone);
-    expect(h.screen.last.state.view).toBe("settings");
+    expect(h.screen.last.state.view).toBe("settingsRemotes");
     while (h.screen.last.focusedId !== "listener") await phone.press("down");
     await phone.settle();
     return phone;

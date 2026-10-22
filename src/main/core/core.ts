@@ -29,6 +29,7 @@ import { randomBytes } from "node:crypto";
 import type { Store } from "../ports/store.ts";
 import type { Thumbnails } from "../ports/thumbnails.ts";
 import { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
+import { appSettingsItems } from "../../shared/settings-grid.ts";
 import { actionFor, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
 import { MediaLibrary } from "./media-library.ts";
@@ -561,6 +562,7 @@ export class Core {
     if (this.#state.view === "details") return this.#detailsPage.grid();
     if (this.#state.view === "soundOutput") return this.#sound.grid();
     if (this.#state.view === "addons") return this.#addonsPage.grid();
+    if (this.#state.view === "settingsApp") return appSettingsItems(this.#settingsApp ?? "");
     if (this.#state.view === "show") return this.#show.grid();
     if (this.#state.view === "fixMatch") return this.#show.fixGrid();
     if (this.#state.view === "librarySearch") return this.#search.grid();
@@ -1008,16 +1010,20 @@ export class Core {
       ...(this.#state.view === "librarySearch" ? this.#search.payload() : {}),
       ...(this.#state.view === "details" ||
       this.#state.view === "settings" ||
+      this.#state.view === "settingsLibrary" ||
       this.#state.view === "credits"
         ? { details: this.details.settings() }
         : {}),
       ...(this.#state.view === "settings" || this.#state.view === "soundOutput"
         ? { sound: this.#sound.payload() }
         : {}),
-      ...(this.#state.view === "settings" || this.#state.view === "addons"
+      ...(this.#state.view === "settingsApp" || this.#state.view === "addons"
         ? { addons: this.#addonsPage.payload() }
         : {}),
-      ...(this.#state.view === "settings" ? { listener: { ...this.#loginItem } } : {}),
+      ...(this.#state.view === "settingsRemotes" ? { listener: { ...this.#loginItem } } : {}),
+      ...(this.#state.view === "settingsApp" || this.#state.view === "addons"
+        ? this.#appSettingsPayload()
+        : {}),
       continueCard: this.#continueEntries()[0],
       homeVideos,
       hero:
@@ -1601,7 +1607,7 @@ export class Core {
     this.#releaseStrayTyping();
     if (from === "details") this.#detailsPage.cancel();
     if (view === "library") void this.library.refresh(this.#libraryFolders);
-    if (view === "settings") void this.refreshLoginItem();
+    if (view === "settingsRemotes") void this.refreshLoginItem();
   }
 
   #openApp(id: string): void {
@@ -1718,6 +1724,10 @@ export class Core {
   #actionContext(): ActionContext {
     return {
       open: (view) => this.#setView(view),
+      openAppSettings: (id) => {
+        this.#settingsApp = id;
+        this.#setView("settingsApp");
+      },
       openApp: (id) => this.#openApp(id),
       retryApp: () => this.#retryApp(),
       restartApp: (id) => this.#restartApp(id),
@@ -1726,6 +1736,13 @@ export class Core {
       toggleListener: () => void this.#toggleListener(),
       quit: () => this.#askQuit(),
     };
+  }
+
+  #settingsApp: string | undefined;
+
+  #appSettingsPayload(): Pick<ScreenPayload, "appSettings"> {
+    const app = this.#apps.get(this.#settingsApp ?? "");
+    return app ? { appSettings: { id: app.id, label: app.label } } : {};
   }
 
   #loginItem = { available: false, on: false, running: false };

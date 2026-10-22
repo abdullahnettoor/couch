@@ -25,19 +25,26 @@ async function focus(phone: FakePhone, label: string) {
 async function openAddons(phone: FakePhone) {
   await phone.press("up");
   await phone.press("ok");
-  await focus(phone, "YouTube add-ons");
+  await focus(phone, "Apps");
+  await phone.press("ok");
+  await phone.press("ok");
+  await focus(phone, "Add-ons");
   await phone.press("ok");
 }
 
 const setCalls = () => h.youtube.calls.filter((c) => c.call === "setAddons");
 
 describe("YouTube add-ons in Settings", () => {
-  test("the item sits under Restart YouTube and shows how many are on", async () => {
+  test("the item sits under Restart YouTube on the YouTube page and shows how many are on", async () => {
     const phone = await start();
     await phone.press("up");
     await phone.press("ok");
+    await focus(phone, "Apps");
+    await phone.press("ok");
+    await phone.press("ok");
+    expect(h.screen.last.state.view).toBe("settingsApp");
     const labels = h.screen.last.grid.map((i) => i.label);
-    expect(labels.indexOf("YouTube add-ons")).toBe(labels.indexOf("Restart YouTube") + 1);
+    expect(labels.indexOf("Add-ons")).toBe(labels.indexOf("Restart YouTube") + 1);
     expect(h.screen.last.addons?.filter((a) => a.on)).toHaveLength(1);
   });
 
@@ -68,10 +75,10 @@ describe("YouTube add-ons in Settings", () => {
     expect(h.screen.last.state.toast).toBe("4K video is on");
   });
 
-  test("Back returns to Settings", async () => {
+  test("Back returns to the YouTube page", async () => {
     const phone = await start();
     await openAddons(phone);
-    expect((await phone.press("back")).view).toBe("settings");
+    expect((await phone.press("back")).view).toBe("settingsApp");
   });
 
   test("choices survive a restart", async () => {

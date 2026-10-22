@@ -100,14 +100,10 @@ describe("Settings", () => {
     await openSettings();
     expect(h.screen.last.state.view).toBe("settings");
     expect(h.screen.last.grid.map((i) => i.label)).toEqual([
-      "Add a phone",
-      "Forget all phones",
-      "Library folders",
-      "Show and film details",
+      "Remotes and Devices",
+      "Library",
       "Sound output",
-      "Start Couch Listener at login",
-      "Restart YouTube",
-      "YouTube add-ons",
+      "Apps",
       "Quit Couch",
     ]);
   });
@@ -123,15 +119,16 @@ describe("Settings", () => {
   test("Add a phone shows the QR code view, Back returns to Settings", async () => {
     const phone = await openSettings();
     await phone.press("ok");
+    await phone.press("ok");
     expect(h.screen.last.state.view).toBe("addPhone");
     expect(h.screen.last.pairingUrl).toContain("?key=");
     await phone.press("back");
-    expect(h.screen.last.state.view).toBe("settings");
+    expect(h.screen.last.state.view).toBe("settingsRemotes");
   });
 
   test("Quit Couch asks, then quits", async () => {
     const phone = await openSettings();
-    for (let i = 0; i < 8; i++) await phone.press("down");
+    for (let i = 0; i < 4; i++) await phone.press("down");
     await phone.press("ok");
     await phone.press("right");
     await phone.press("ok");
@@ -143,6 +140,7 @@ describe("Settings", () => {
     const b = await h.connectPhone();
     const oldKey = h.pairingKey();
     await a.press("up");
+    await a.press("ok");
     await a.press("ok");
     await a.press("down");
     const closed = Promise.all([a, b].map((p) => new Promise<void>((r) => p.closed(r))));
