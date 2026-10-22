@@ -116,6 +116,9 @@ export class FakeEl {
   get isConnected() {
     return this.connected;
   }
+  get parentElement() {
+    return this.parent;
+  }
   get uia() {
     return this.attrs["data-uia"] ?? "";
   }
