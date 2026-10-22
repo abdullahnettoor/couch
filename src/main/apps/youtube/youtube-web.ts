@@ -45,9 +45,7 @@ export function youtubeDescription(
       back: "Escape",
     },
     isOwnOrigin: isYouTubeOrigin,
-    isSearchUrl,
-    searchUrlFor,
-    searchPlaceholder: "Search YouTube",
+    search: { isSearchUrl, urlFor: searchUrlFor, placeholder: "Search YouTube" },
     route: {
       script: PAGE_STATE_SCRIPT,
       idle: { shorts: false, guide: false },

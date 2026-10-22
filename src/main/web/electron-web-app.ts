@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { app, BrowserWindow, WebContentsView, clipboard, session } from "electron";
+import { app, BrowserWindow, WebContentsView, clipboard, components, session } from "electron";
 import type { Confirmation } from "../../shared/protocol.ts";
 import { SCREEN_KEYS, textEditFor } from "../../shared/keyboard.ts";
 import { revealScreen } from "../reveal.ts";
@@ -7,7 +7,7 @@ import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import { requestHooksFor, type RequestHooks } from "./request-hooks.ts";
 import { SessionPreloads } from "./session-preloads.ts";
-import type { WebAppDescription, WebIdentity } from "./web-app.ts";
+import { drmGate, seekPlan, type WebAppDescription, type WebIdentity } from "./web-app.ts";
 import { confirmScript, noteScript, searchBarScript, volumeScript } from "./web-hud.ts";
 import {
   allowsPermission,
@@ -135,8 +135,9 @@ export class ElectronWebApp implements YouTube {
     const route = (_e: unknown, url: string) => {
       if (!url.startsWith("https:")) return;
       this.#syncRoute();
-      const entering = this.#desc.isSearchUrl(url) && !this.#inSearch;
-      this.#inSearch = this.#desc.isSearchUrl(url);
+      const searching = this.#desc.search?.isSearchUrl(url) ?? false;
+      const entering = searching && !this.#inSearch;
+      this.#inSearch = searching;
       // Only arriving at search counts; Couch's own query updates also change the route.
       if (entering) setTimeout(() => this.#emit({ type: "searchOpened" }), 400);
     };
@@ -174,7 +175,13 @@ export class ElectronWebApp implements YouTube {
           new Promise((r) => setTimeout(r, 3000)),
         ]),
       )
-      .then(() => this.#load());
+      .then(() => drmGate(this.#desc, components))
+      .then((gate) => {
+        if (gate.ok) return this.#load();
+        console.warn(`[web] ${this.#desc.id}: ${gate.note}`);
+        this.#failed = true;
+        this.#emit({ type: "failed" });
+      });
   }
 
   #load(): void {
@@ -326,14 +333,20 @@ export class ElectronWebApp implements YouTube {
    */
   seekBy(seconds: number): void {
     const now = Date.now();
-    const { keys, controlsHideMs, commitMs } = this.#desc.skip;
-    for (const key of keys(seconds, now - this.#lastSkipAt < controlsHideMs)) this.sendKey(key);
+    const skip = this.#desc.skip;
+    const plan = seekPlan(
+      this.#desc,
+      seconds,
+      now - this.#lastSkipAt < (skip?.controlsHideMs ?? 0),
+    );
+    for (const key of plan.keys) this.sendKey(key);
+    if (!skip || !plan.commit) return;
     this.#lastSkipAt = now;
     clearTimeout(this.#skipTimer);
     this.#skipTimer = setTimeout(() => {
       this.sendKey("ok");
       this.#lastSkipAt = 0;
-    }, commitMs);
+    }, skip.commitMs);
   }
 
   captureText(on: boolean): void {
@@ -341,6 +354,7 @@ export class ElectronWebApp implements YouTube {
   }
 
   submitSearch(text: string): void {
+    if (!this.#desc.search) return;
     // Going to search is Couch's own doing, not the household opening YouTube's search screen.
     this.#inSearch = true;
     this.#goToSearch(text);
@@ -348,14 +362,16 @@ export class ElectronWebApp implements YouTube {
   }
 
   showSearchBar(text: string | undefined): void {
+    const search = this.#desc.search;
+    if (!search) return;
     void this.#view.webContents
-      .executeJavaScript(searchBarScript(text, this.#desc.searchPlaceholder))
+      .executeJavaScript(searchBarScript(text, search.placeholder))
       .catch(() => {});
   }
 
   #goToSearch(text: string): void {
     const wc = this.#view.webContents;
-    const url = this.#desc.searchUrlFor(text);
+    const url = this.#desc.search!.urlFor(text);
     if (wc.getURL() === url) return;
     void wc.loadURL(url, { userAgent: this.#desc.identity.userAgent }).catch(() => {});
   }
