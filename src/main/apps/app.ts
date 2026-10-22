@@ -19,6 +19,9 @@ export interface PlaybackReport {
   artwork?: string;
   /** Present when the App's adapter can list them. */
   tracks?: { subtitles: TrackList; audio: TrackList };
+  /** Playback speed now and the choices, when the App can change it. */
+  speed?: number;
+  speeds?: number[];
   /** The App can seek to a point (its adapter's seek works); false or absent: key-based skips only. */
   canSeek?: boolean;
 }
@@ -97,6 +100,8 @@ export interface App extends SoundSink {
   seekTo?(seconds: number): void;
   /** Chooses a subtitle or audio track by the id its report listed; absent when the adapter can't. */
   setTrack?(kind: TrackKind, id: string): void;
+  /** Sets the playback speed (1 = normal); absent when the App can't. */
+  setSpeed?(speed: number): void;
   /** Draws the volume level above the App, or removes it when undefined. */
   drawVolume(percent: number | undefined): void;
   /** Draws Couch's question over the App, or removes it when undefined. */

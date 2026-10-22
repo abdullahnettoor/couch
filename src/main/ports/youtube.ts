@@ -58,6 +58,8 @@ export interface YouTube {
   seekTo?(seconds: number): void;
   /** Chooses a track through the App's adapter; does nothing without one. */
   setTrack?(kind: TrackKind, id: string): void;
+  /** Sets the playback speed through the App's adapter; does nothing without one. */
+  setSpeed?(speed: number): void;
   /** Draws the volume level above the view, or removes it when undefined. */
   showVolume(percent: number | undefined): void;
   /** Draws Couch's question over the view, or removes it when undefined. */

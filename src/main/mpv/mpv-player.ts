@@ -182,6 +182,10 @@ export class MpvPlayer implements Player {
     await this.send(["set_property", "sub-visibility", visible]);
   }
 
+  async setSpeed(speed: number): Promise<void> {
+    await this.send(["set_property", "speed", speed]);
+  }
+
   /** Couch's own volume: mpv's `volume`, never the Mac's. */
   async setVolume(percent: number): Promise<void> {
     await this.send(["set_property", "volume", Math.max(0, Math.min(100, percent))]);

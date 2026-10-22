@@ -42,6 +42,7 @@ export const COMMAND_NAMES = [
   "seekBy",
   "seekTo",
   "setTrack",
+  "setSpeed",
   "volSet",
   "playUpNext",
   "playNext",
@@ -409,15 +410,15 @@ export interface RemoteSnapshot {
     /** A web App's choices, when its adapter lists them. */
     subtitles?: TrackList;
     audio?: TrackList;
+    /** Playback speed now, and the choices; present only when the App can change speed (command `setSpeed`). */
+    speed?: number;
+    speeds?: number[];
     /** A web App's picture for the title (https). */
     artwork?: string;
     /** "Animation · Comedy": up to three genres, when details have them. */
     genres?: string;
     /** The App playing: its logo (SVG markup from its App entry), for the no-artwork picture. */
     app?: { id: string; label: string; icon: string };
-    /** Playback speed, and the speeds on offer (present only when the App can change speed). */
-    speed?: number;
-    speeds?: number[];
     /** A button the App offers right now (Netflix: Skip Intro, Skip Recap, Next Episode). */
     prompt?: { id: PromptId; label: string };
   };

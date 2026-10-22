@@ -18,6 +18,7 @@ class FakePlayer {
     },
     duration: 212,
     paused: false,
+    playbackRate: 1,
     readyState: 4,
     getBoundingClientRect: () => ({ width: 1920, height: 1080 }),
   };
@@ -110,6 +111,16 @@ describe("YouTube playback adapter", () => {
     player.captions = undefined;
     expect(await player.run(`(${playback.tracks!()})`)).toBeFalsy();
     expect(() => player.run(playback.setTrack!("subtitles", "on"))).not.toThrow();
+  });
+
+  test("speed: the probe reports the video's rate and the choices; setSpeed writes playbackRate", async () => {
+    watching();
+    const probe = () =>
+      player.run(playbackProbe({ active: playback.active!(), speeds: playback.speeds }));
+    expect(await probe()).toMatchObject({ speed: 1, speeds: [0.5, 0.75, 1, 1.25, 1.5, 2] });
+    player.run(playback.setSpeed!(1.25));
+    expect(player.video.playbackRate).toBe(1.25);
+    expect(await probe()).toMatchObject({ speed: 1.25 });
   });
 
   test("only the watch view is Now Playing: Home's autoplaying preview is not", async () => {
