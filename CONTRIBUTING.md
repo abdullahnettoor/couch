@@ -85,6 +85,20 @@ A web App is a site Couch shows on the Screen and drives with the Remote. Its de
 5. **A seam test:** drive a `FakeWebApp("<id>", "<Label>", {...})` (`src/main/ports/fakes.ts`) through `startHarness(undefined, { apps: [{ entry, app }] })` the way `src/main/apps.test.ts` does: it appears on Home, OK opens it, Back leaves it, a failure shows the error screen.
 6. **A real check:** run the App in your own Electron instance on a temp user-data folder (as for add-ons), and confirm it loads, takes the Remote's keys and sound goes to the chosen output. Record what you saw in the ticket.
 
+## Add a DRM web App
+
+For a site that plays Widevine video (Netflix is the model: `src/main/apps/netflix/`). It is a web App as above, plus the items below. The maintainer does the real check with an account; contributors stop at the seam test.
+
+1. **Sign the dev Electron:** `pnpm sign:dev` (see "Signing for DRM work"). Without it the service refuses to play.
+2. **Probe the site first:** `pnpm drm-check -- --url https://<service>/` opens it on its own partition. Never sign in to any service while doing this.
+3. **The route file:** `src/main/apps/<id>/<id>-route.ts` exports `is<Id>Home(url: URL)` (true only at the page Back should leave from), `is<Id>Origin(origin)` (https and the service's own hosts only; test look-alikes such as `www.<host>.evil.example`) and the search URL helpers. Test them from recorded URLs.
+4. **The description:** `<id>-web.ts` returns a `WebAppDescription` with `identity: chromeIdentity(version)` (the site must see Chrome, not Electron), `partition: "persist:<id>"`, `drm: true`, `loadOnShow: true` (the page loads when first opened, so nothing autoplays unseen), `backByHistory: true`, `focus: { selectors }` (the site's own tiles, on top of the default controls), `seekKeys`, `search`, `route: urlRoute(is<Id>Home)`, `preloads: []`, `addons: []`, `enabledAddons: []`. Copy `netflix-web.ts`.
+5. **The App:** `<id>-app.ts` implements `App` over the `YouTube` port type; copy `NetflixApp` (its own `typing`, Back that goes back in the page's history and leaves at home or when stuck for 800 ms).
+6. **List entry, icon, wiring:** `icon.ts` (an SVG mark), an entry in `APP_ENTRIES` (`src/main/apps/index.ts`) after the previous App, and in `src/main/index.ts` `new ElectronWebApp(description, win)` plus the App in `apps: [...]`. A new entry moves Library one tile right: tests that go Home to Library press Right once more.
+7. **Seam tests with a fake web App:** no account, no network. Use the harness's `options.apps` with a `FakeYouTube` behind your App class (`h.netflix` is that for Netflix: `startHarness` builds it). Import `FakeClock` and `FakeYouTube` from `src/main/ports/fakes.ts`; the harness puts your tile after the built-in ones, and Home's focus does not start on YouTube (the seam test needed three Right presses to reach the third App; count yours or use the `focus(id)` helper in `src/main/apps.test.ts`). Name the tests' hosts with a reserved domain (`demoflix.example`). Drive routes with `description.route.tracker().update(url, null)` and emit the result as `{ type: "route", ...route }` on the fake. Check: the tile is on Home, OK opens it, keys and play/pause reach it, Back inside goes back, Back at home asks "Leave <Label>?". See `src/main/netflix.test.ts`.
+8. **Widevine unavailable:** the host emits `failed` with a `note`; core keeps it and `app-error.ts` shows it. No App code needed.
+9. **The real check (maintainer only):** run your Electron with a temp `--user-data-dir`, sign in to the service yourself on the Screen, and confirm it plays with sound on the chosen output. Record what you saw in the ticket, never account details. Never commit cookies, tokens, user-data folders or screenshots showing an account.
+
 ## Rules
 
 - No network calls beyond the App's own site and, for an add-on, its one documented service. Say in the add-on's description if it needs one.
