@@ -57,11 +57,48 @@ export const DEFAULT_FOCUS_SELECTORS = [
   "textarea",
 ];
 
+/** What the page script logs (console.debug) when a text field takes or loses focus, so the host can let keys through to it. */
+export const FIELD_FOCUSED = "couch:field-focused";
+export const FIELD_BLURRED = "couch:field-blurred";
+
+/** Source text: whether an element takes typed text (not a checkbox, button, slider...). */
+const TEXT_FIELD_SOURCE = `function (el) {
+  if (!el) return false;
+  if (el.isContentEditable === true || el.tagName === 'TEXTAREA') return true;
+  if (el.tagName !== 'INPUT') return false;
+  return ['checkbox', 'radio', 'button', 'submit', 'reset', 'image', 'file', 'range', 'color', 'hidden'].indexOf(String(el.type || '').toLowerCase()) < 0;
+}`;
+
+/**
+ * Page script source (an expression) that types `text` into the page's focused text field the way the
+ * page's own framework notices (the native value setter, then input and change events). Evaluates to
+ * false, having done nothing, when no text field has focus.
+ */
+export function typeIntoFieldScript(text: string): string {
+  return `(function (text) {
+  try {
+    var isField = (${TEXT_FIELD_SOURCE});
+    var el = document.activeElement;
+    if (!isField(el)) return false;
+    if (el.isContentEditable === true) return !!document.execCommand('insertText', false, text);
+    var proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    var d = Object.getOwnPropertyDescriptor(proto, 'value');
+    if (!d || !d.set) return false;
+    d.set.call(el, (el.value || '') + text);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  } catch (e) { return false; }
+})(${JSON.stringify(text)})`;
+}
+
 /**
  * Main-world page script (a `function () { ... }` source) that turns the Remote's arrow keys into a
- * visible focus ring moving between the page's controls, and Enter into a click. It acts only on
- * keys the page did not handle itself, never throws into the page, and finds focus again when the
- * focused element goes away.
+ * visible focus ring moving between the page's controls, and Enter into a click. The ring is always
+ * somewhere once the page has controls: it appears when the page is ready, after navigation, and the
+ * moment the focused element goes away. Keys are acted on only after the page's own handlers have had
+ * their chance (end of dispatch), and only if none of them prevented the default. Never throws into
+ * the page.
  */
 export function pageFocusFunction(extraSelectors: string[] = []): string {
   const selector = [...DEFAULT_FOCUS_SELECTORS, ...extraSelectors].join(",");
@@ -70,10 +107,13 @@ export function pageFocusFunction(extraSelectors: string[] = []): string {
     if (window.__couchFocus) return;
     window.__couchFocus = true;
     var pick = (${PICK_SOURCE});
+    var isTextField = (${TEXT_FIELD_SOURCE});
     var SELECTOR = ${JSON.stringify(selector)};
     var DIRS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
     var current = null;
     var ring = null;
+    var href = function () { try { return String(location.href); } catch (e) { return ''; } };
+    var lastHref = href();
 
     var rectOf = function (el) {
       var r = el.getBoundingClientRect();
@@ -91,10 +131,11 @@ export function pageFocusFunction(extraSelectors: string[] = []): string {
       } catch (e) { return null; }
     };
     var editable = function (el) {
-      return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable === true);
+      return !!el && (isTextField(el) || el.tagName === 'SELECT');
     };
     var ensureRing = function () {
       if (ring) return ring;
+      if (!document.body) return null;
       ring = document.createElement('div');
       var s = ring.style;
       s.position = 'fixed'; s.pointerEvents = 'none'; s.zIndex = '2147483647';
@@ -109,6 +150,7 @@ export function pageFocusFunction(extraSelectors: string[] = []): string {
       try {
         var r = current && usable(current);
         var el = ensureRing();
+        if (!el) return;
         if (!r) { el.style.display = 'none'; return; }
         el.style.display = 'block';
         el.style.left = (r.left - 4) + 'px'; el.style.top = (r.top - 4) + 'px';
@@ -124,42 +166,77 @@ export function pageFocusFunction(extraSelectors: string[] = []): string {
       }
       return out;
     };
+    var view = function () { return { width: innerWidth, height: innerHeight }; };
+    var ensure = function () {
+      try {
+        if (current && usable(current)) return;
+        current = null;
+        var list = candidates();
+        if (list.length) {
+          var i = pick(null, list.map(function (c) { return c.rect; }), 'down', view());
+          if (i >= 0) current = list[i].el;
+        }
+        draw();
+      } catch (e) {}
+    };
     var move = function (dir) {
       var list = candidates();
       var from = current && usable(current) ? rectOf(current) : null;
-      var view = { width: innerWidth, height: innerHeight };
-      var i = pick(from, list.map(function (c) { return c.rect; }), dir, view);
+      var i = pick(from, list.map(function (c) { return c.rect; }), dir, view());
       if (i < 0) return;
       if (list[i].el === current) return;
+      var active = document.activeElement;
+      if (editable(active) && active.blur) active.blur();
       current = list[i].el;
       try { current.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {}
       draw();
+    };
+    var act = function (key, dir) {
+      if (dir) return move(dir);
+      if (!current || !usable(current)) { current = null; ensure(); return; }
+      if (editable(current)) current.focus(); else current.click();
     };
     var onKey = function (e) {
       try {
         if (e.defaultPrevented) return;
         var dir = DIRS[e.key];
+        if (!dir && e.key !== 'Enter') return;
         var typing = editable(document.activeElement);
-        if (dir) {
-          if (typing && (dir === 'left' || dir === 'right')) return;
-          e.preventDefault();
-          move(dir);
-        } else if (e.key === 'Enter') {
-          if (typing) return;
-          e.preventDefault();
-          if (!current || !usable(current)) { current = null; move('down'); return; }
-          if (editable(current)) current.focus(); else current.click();
-        }
+        if (dir && typing && (dir === 'left' || dir === 'right')) return;
+        if (!dir && typing) return;
+        // Stop the browser's own arrow/Enter action now, but remember whether the page prevents it too.
+        var pagePrevented = false;
+        var original = e.preventDefault;
+        e.preventDefault = function () { pagePrevented = true; return original.apply(this, arguments); };
+        original.call(e);
+        setTimeout(function () {
+          try { if (!pagePrevented) act(e.key, dir); } catch (err) {}
+        }, 0);
       } catch (err) {}
     };
+    var changed = function () {
+      try {
+        if (href() !== lastHref) { lastHref = href(); current = null; }
+        ensure();
+      } catch (e) {}
+    };
     addEventListener('keydown', onKey, false);
+    addEventListener('focusin', function (e) {
+      try { if (editable(e.target)) console.debug(${JSON.stringify(FIELD_FOCUSED)}); } catch (err) {}
+    }, true);
+    addEventListener('focusout', function (e) {
+      try { if (editable(e.target)) console.debug(${JSON.stringify(FIELD_BLURRED)}); } catch (err) {}
+    }, true);
     try {
-      new MutationObserver(function () {
-        if (current && !current.isConnected) { current = null; draw(); }
-      }).observe(document.documentElement || document, { childList: true, subtree: true });
+      new MutationObserver(changed).observe(document.documentElement || document, { childList: true, subtree: true });
     } catch (e) {}
     addEventListener('scroll', draw, true);
     addEventListener('resize', draw, true);
+    addEventListener('popstate', changed, true);
+    addEventListener('hashchange', changed, true);
+    addEventListener('load', changed, true);
+    if (document.readyState !== 'loading') ensure();
+    else addEventListener('DOMContentLoaded', ensure, true);
   } catch (e) {}
 }`;
 }

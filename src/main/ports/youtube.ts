@@ -14,7 +14,14 @@ export type YouTubeEvent =
    * The view's address, Shorts player or guide changed; `home` is true only on YouTube's home screen.
    * `shorts` and `guideOpen` come from the page (a Short keeps Home's URL).
    */
-  | { type: "route"; home: boolean; shorts?: boolean; guideOpen?: boolean; scrolled?: boolean; url?: string }
+  | {
+      type: "route";
+      home: boolean;
+      shorts?: boolean;
+      guideOpen?: boolean;
+      scrolled?: boolean;
+      url?: string;
+    }
   | { type: "searchOpened" }
   /** The view found (ok) or still can't find the output it was asked for; sent whenever it looks again. */
   | { type: "output"; name: string; ok: boolean }

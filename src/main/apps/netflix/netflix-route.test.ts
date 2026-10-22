@@ -80,13 +80,19 @@ describe("Netflix route with the page's state", () => {
     expect(at(browse, { y: 0, modal: true })).toMatchObject({ home: false, scrolled: false });
   });
   test("elsewhere, scrolling does not matter", () => {
-    expect(at("https://www.netflix.com/search?q=a", { y: 900, modal: false })).toMatchObject({ home: false, scrolled: false });
+    expect(at("https://www.netflix.com/search?q=a", { y: 900, modal: false })).toMatchObject({
+      home: false,
+      scrolled: false,
+    });
   });
   test("only changes are announced, including a scroll", () => {
     const t = route.tracker();
     expect(t.update(browse, { y: 0, modal: false })).toBeDefined();
     expect(t.update(browse, { y: 10, modal: false })).toBeUndefined();
-    expect(t.update(browse, { y: 900, modal: false })).toMatchObject({ home: false, scrolled: true });
+    expect(t.update(browse, { y: 900, modal: false })).toMatchObject({
+      home: false,
+      scrolled: true,
+    });
     expect(t.update(browse, { y: 950, modal: false })).toBeUndefined();
     expect(t.update(browse, { y: 0, modal: false })).toMatchObject({ home: true, scrolled: false });
   });

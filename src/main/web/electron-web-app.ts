@@ -4,7 +4,13 @@ import type { Confirmation } from "../../shared/protocol.ts";
 import { SCREEN_KEYS, textEditFor } from "../../shared/keyboard.ts";
 import { revealScreen } from "../reveal.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
-import { pageFocusFunction } from "./page-focus.ts";
+import { keyBelongsToField } from "./field-keys.ts";
+import {
+  FIELD_BLURRED,
+  FIELD_FOCUSED,
+  pageFocusFunction,
+  typeIntoFieldScript,
+} from "./page-focus.ts";
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import { requestHooksFor, type RequestHooks } from "./request-hooks.ts";
 import { SessionPreloads } from "./session-preloads.ts";
@@ -32,6 +38,8 @@ export class ElectronWebApp implements YouTube {
   #started = false;
   #sending = false;
   #capturing = false;
+  /** A text field in the page has focus: keys on the Mac keyboard are its, not Couch commands. */
+  #fieldFocused = false;
   #inSearch = false;
   #skipTimer: ReturnType<typeof setTimeout> | undefined;
   #lastSkipAt = 0;
@@ -94,10 +102,16 @@ export class ElectronWebApp implements YouTube {
       void this.#resolveOutput();
     });
     wc.on("console-message", (event) => {
-      if ((event as { message?: string }).message === SOUND_RECHECK) void this.#resolveOutput();
+      const message = (event as { message?: string }).message;
+      if (message === SOUND_RECHECK) void this.#resolveOutput();
+      if (message === FIELD_FOCUSED) this.#fieldFocused = true;
+      if (message === FIELD_BLURRED) this.#fieldFocused = false;
     });
     // A new document has none of Couch's volume or output yet.
     wc.on("dom-ready", () => void this.#applySound());
+    wc.on("did-start-navigation", (_e, _url, _inPlace, isMainFrame) => {
+      if (isMainFrame) this.#fieldFocused = false;
+    });
     wc.on("did-fail-load", (_e, code, _desc, _url, isMainFrame) => {
       if (!isMainFrame || code === -3) return;
       this.#failed = true;
@@ -123,6 +137,7 @@ export class ElectronWebApp implements YouTube {
         if (edit) this.#emit({ type: "edit", edit });
         return;
       }
+      if (this.#fieldFocused && keyBelongsToField({ key: input.key, meta: input.meta })) return;
       if (input.type === "keyDown" && !input.control && !input.alt) {
         const find = input.meta ? input.key.toLowerCase() === "f" : input.key === "/";
         if (find) {
@@ -374,6 +389,17 @@ export class ElectronWebApp implements YouTube {
 
   submitSearch(text: string): void {
     if (!this.#desc.search) return;
+    // A field in the page that has focus (a sign-in form) is what the household is typing into.
+    void this.#view.webContents
+      .executeJavaScript(typeIntoFieldScript(text))
+      .catch(() => false)
+      .then((typed) => {
+        if (typed === true) return this.#view.webContents.focus();
+        this.#searchInstead(text);
+      });
+  }
+
+  #searchInstead(text: string): void {
     // Going to search is Couch's own doing, not the household opening YouTube's search screen.
     this.#inSearch = true;
     this.#goToSearch(text);
