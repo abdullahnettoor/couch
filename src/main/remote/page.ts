@@ -521,6 +521,43 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   $("form").addEventListener("submit", function (e) { e.preventDefault(); send("typeSubmit"); });
   $("cancel").addEventListener("click", function () { send("typeCancel"); });
 
+  var fsAsked = false, fsWas = false, fsDeclined = false;
+  function fsCan() {
+    try {
+      var de = document.documentElement;
+      if (!de || !de.requestFullscreen) return false;
+      if (/iPhone|iPad|iPod/.test(navigator.userAgent || "")) return false;
+      var mm = window.matchMedia;
+      if (mm && (mm("(display-mode: standalone)").matches || mm("(display-mode: fullscreen)").matches)) return false;
+      return true;
+    } catch (e) { return false; }
+  }
+  function fsTap() {
+    if (fsAsked || fsDeclined || document.fullscreenElement || !fsCan()) return;
+    fsAsked = true;
+    try {
+      var r = document.documentElement.requestFullscreen({ navigationUI: "hide" });
+      if (r && r.catch) r.catch(function () { fsAsked = false; });
+    } catch (e) { fsAsked = false; }
+  }
+  document.addEventListener("click", fsTap, true);
+  document.addEventListener("fullscreenchange", function () {
+    if (document.fullscreenElement) {
+      fsWas = true;
+      try {
+        var l = screen.orientation.lock("portrait");
+        if (l && l.catch) l.catch(function () {});
+      } catch (e) {}
+    } else if (fsWas) {
+      fsWas = false;
+      fsAsked = false;
+      if (document.visibilityState !== "hidden") fsDeclined = true;
+    }
+  });
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") { fsDeclined = false; fsAsked = false; }
+  });
+
   document.addEventListener("click", function (e) {
     var el = e.target.closest ? e.target.closest("[data-cmd]") : null;
     if (!el || el.disabled || !open) return;
