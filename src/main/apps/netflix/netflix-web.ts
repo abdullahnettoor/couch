@@ -31,6 +31,11 @@ export const NETFLIX_LAYOUT: FocusLayout = {
   // Duplicates and helpers the carousel pages by itself.
   ignore: ['[tabindex="-1"]', '[data-uia^="carousel-hawkins"]'],
   scopes: ['[data-uia^="modal-motion-container"]'],
+  // A title's pop-up opens on Play / Resume; with none, on the first of its action buttons (My List, rate), never on its text links.
+  modalEntry: [
+    '[data-uia="play-button"]',
+    '[data-uia="add-to-my-list"],[data-uia="thumbs-rate-button"]',
+  ],
   // Down brings up Netflix's own bar; the arrows walk it, and its audio and subtitles menu.
   playerBar: {
     url: "^https://www\\.netflix\\.com/watch/",

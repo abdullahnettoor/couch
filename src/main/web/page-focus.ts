@@ -58,6 +58,8 @@ export interface FocusLayout {
   ignore?: string[];
   /** The site's own modal containers, on top of role=dialog and aria-modal=true: while one is on screen the highlight stays inside the topmost. */
   scopes?: string[];
+  /** Where the highlight lands when a pop-up opens: the first usable match of the first selector that has one, inside the pop-up. Only on opening: once the household moves, it stays where they put it. */
+  modalEntry?: string[];
   /** Rows of cards: Left/Right stay in the row, Up/Down leave it; at the row's end `next`/`prev` (inside the row) page it. */
   rows?: { row: string; next?: string; prev?: string };
   /** RegExp source whose first group is a title's id in a link's `href`: how a control opened from a card is found again after the page redraws it. */
@@ -429,6 +431,18 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     var layers = [], displaced = null, displacedKey = null, heldKey = null;
     // The control to give the highlight back to once the page has redrawn it (a pop-up just closed and it is not there yet).
     var pending = null;
+    var entryUntil = 0;
+    // The pop-up's own first choice (layout.modalEntry): the first usable match of the first selector that has one.
+    var entryControl = function (modal) {
+      try {
+        var sels = LAYOUT.modalEntry || [];
+        for (var i = 0; i < sels.length; i++) {
+          var found = modal.querySelectorAll(sels[i]);
+          for (var j = 0; j < found.length; j++) if (usable(found[j], modal)) return found[j];
+        }
+      } catch (e) {}
+      return null;
+    };
     var ensure = function () {
       try {
         if (barOn) { barTick(); if (barOn) return; }
@@ -446,7 +460,8 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
           // A modal opened: remember what was held, and go inside.
           if (modal && !kept.some(function (l) { return l.modal === modal; })) {
             var held = displaced || (current && current.isConnected ? current : null);
-            layers.push({ modal: modal, opener: held, key: displaced ? displacedKey : heldKey });
+            layers.push({ modal: modal, opener: held, key: displaced ? displacedKey : heldKey, entering: !!(LAYOUT.modalEntry && LAYOUT.modalEntry.length) });
+            entryUntil = Date.now() + 3000;
           }
           if (restore) {
             var back = restore.opener && usable(restore.opener) ? restore.opener : refind(restore.key, !restore.key || !restore.key.id);
@@ -464,6 +479,14 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
           var found = refind(pending.key, pending.expired || !pending.key.id);
           if (found) { current = found; putBack(found, pending.key); reveal(found); heldKey = keyOf(found); pending = null; }
           else if (pending.expired) pending = null;
+        }
+        var topLayer = layers.length ? layers[layers.length - 1] : null;
+        if (topLayer && topLayer.entering && topLayer.modal === modal) {
+          if (Date.now() > entryUntil) topLayer.entering = false;
+          else {
+            var entry = entryControl(modal);
+            if (entry && entry !== current) { current = entry; heldKey = keyOf(entry); displaced = null; }
+          }
         }
         if (current && usable(current)) { draw(); return; }
         if (current && current.isConnected && !displaced) { displaced = current; displacedKey = heldKey; }
@@ -658,6 +681,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       heldKey = keyOf(current);
       displaced = null;
       pending = null;
+      if (layers.length) layers[layers.length - 1].entering = false;
       try { current.scrollIntoView({ block: row || rowOf(current) ? 'center' : 'nearest', inline: 'nearest' }); } catch (e) {}
       draw();
     };
