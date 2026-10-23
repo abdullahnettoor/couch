@@ -114,6 +114,49 @@ describe("Picture off", () => {
     await phone.waitFor(() => phone.last?.pictureOff === false);
   });
 
+  test("going Home clears it, and playback resuming doesn't bring it back", async () => {
+    const { phone, second, tube } = await start();
+    await phone.press({ command: "setPictureOff", args: { on: true } });
+    await phone.press("home"); // the first key only restores the picture
+    await phone.press("home");
+    expect(h.screen.last.state.view).toBe("home");
+    await second.waitFor(() => second.last?.pictureOff === false);
+    expect(phone.last?.pictureOff).toBe(false);
+    expect(h.screen.last.state.pictureOff).toBe(false);
+    tube.emit({ type: "playback", playback: { ...playing, position: 45 } });
+    await open(phone, "tube");
+    expect(phone.last?.pictureOff).toBe(false);
+    expect(h.screen.last.state.pictureOff).toBe(false);
+  });
+
+  test("changing App clears it, and the first App playing again stays uncovered", async () => {
+    const { phone, second, tube, other } = await start();
+    await phone.press({ command: "setPictureOff", args: { on: true } });
+    await phone.press("home");
+    await phone.press("home");
+    await open(phone, "other");
+    other.emit({ type: "playback", playback: { ...playing, title: "Other video" } });
+    await phone.waitFor(() => phone.last?.nowPlaying?.title === "Other video");
+    expect(phone.last?.pictureOff).toBe(false);
+    expect(second.last?.pictureOff).toBe(false);
+    expect(h.screen.last.state.pictureOff).toBe(false);
+    tube.emit({ type: "playback", playback: { ...playing, position: 99 } });
+    await phone.press("home");
+    await open(phone, "tube");
+    expect(phone.last?.pictureOff).toBe(false);
+    expect(h.screen.last.state.pictureOff).toBe(false);
+  });
+
+  test("a video that ends but stays on the page clears it, and it can't be turned on again", async () => {
+    const { phone, second, tube } = await start();
+    await phone.press({ command: "setPictureOff", args: { on: true } });
+    tube.emit({ type: "playback", playback: { ...playing, position: 600, ended: true } });
+    await second.waitFor(() => second.last?.pictureOff === false);
+    expect(h.screen.last.state.pictureOff).toBe(false);
+    await phone.press({ command: "setPictureOff", args: { on: true } });
+    expect(phone.last?.pictureOff).toBe(false);
+  });
+
   test("a new video in the same App keeps it on", async () => {
     const { phone, tube } = await start();
     await phone.press({ command: "setPictureOff", args: { on: true } });

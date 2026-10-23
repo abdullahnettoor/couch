@@ -49,6 +49,12 @@ import {
 
 const TRACKS_EVERY_MS = 2000;
 
+/** Asked first about every physical key on the page; true means it was handled. */
+export type KeyGate = (
+  event: { preventDefault(): void },
+  input: { type: string; key: string; meta?: boolean; control?: boolean; alt?: boolean },
+) => boolean;
+
 /** The web-App host: one persistent, always-loaded view over the Screen window, described by `desc`. */
 export class ElectronWebApp implements YouTube {
   #desc: WebAppDescription;
@@ -78,6 +84,7 @@ export class ElectronWebApp implements YouTube {
   #tracksAt = 0;
   #routeTimer: ReturnType<typeof setInterval> | undefined;
   #volume = 60;
+  #keyGate?: KeyGate;
   #sinkId = "";
   /** The output the household wants (by name), looked for whenever the page could have it. */
   #wanted: string | undefined;
@@ -175,6 +182,7 @@ export class ElectronWebApp implements YouTube {
     });
     wc.on("before-input-event", (event, input) => {
       if (this.#sending) return;
+      if (this.#keyGate?.(event, input)) return;
       if (this.#capturing) {
         event.preventDefault();
         if (input.type !== "keyDown") return;
@@ -383,6 +391,11 @@ export class ElectronWebApp implements YouTube {
     this.#view.setVisible(false);
     this.#win.webContents.focus();
     this.#lifecycle?.hidden();
+  }
+
+  /** Asked first about every physical key; true means it was handled (Picture off swallows keys here). */
+  setKeyGate(gate: KeyGate): void {
+    this.#keyGate = gate;
   }
 
   showVolume(percent: number | undefined): void {

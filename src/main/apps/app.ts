@@ -27,6 +27,8 @@ export interface PlaybackReport {
   speeds?: number[];
   /** The App can seek to a point (its adapter's seek works); false or absent: key-based skips only. */
   canSeek?: boolean;
+  /** The video reached its end and is still on the page. Absent while it plays. */
+  ended?: boolean;
 }
 
 /** What a web App tells core. Anything about its own pages (routes, Shorts...) stays inside the App. */

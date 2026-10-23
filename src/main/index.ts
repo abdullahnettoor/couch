@@ -171,15 +171,19 @@ async function createScreen(): Promise<void> {
     frontdoorSetup: { env: process.env },
     listener: listener && { publicPort: listener.publicPort, token: listener.token },
   });
-  const cover = new PictureCover(
+  const cover = new PictureCover<WebContentsView>(
     win,
     () => new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true } }),
     (command) => couch?.screenCommand(command),
   );
   win.on("resize", () => cover.fit());
+  for (const web of [youtube, netflix]) web.setKeyGate((e, i) => cover.intercept(e, i));
   couch.onScreen((payload) => {
     // Only over a web App: adding a view above the window would reorder the native video under the Library's cover.
     cover.set(payload.state.pictureOff && payload.state.view === "app");
+    cover.showVolume(
+      payload.state.volumeShown ? (payload.muted ? 0 : payload.state.volume) : undefined,
+    );
     publishScreen();
   });
   youtube.start();

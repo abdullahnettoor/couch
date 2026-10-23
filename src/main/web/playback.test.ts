@@ -74,6 +74,14 @@ describe("the shared playback script", () => {
     expect(await probe([video({ duration: Infinity })])).toBeUndefined();
   });
 
+  test("marks a video that has ended but is still on the page", async () => {
+    expect(await probe([video({ ended: true, currentTime: 3600 })])).toMatchObject({
+      position: 3600,
+      ended: true,
+    });
+    expect(await probe([video()])).not.toHaveProperty("ended");
+  });
+
   test("ignores a small preview and picks the large playing video", async () => {
     const small = video({ width: 200, height: 100, currentTime: 3 });
     const big = video({ currentTime: 700 });

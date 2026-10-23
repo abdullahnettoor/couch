@@ -881,6 +881,10 @@ export class Core {
   /** The video played to its end: offer the next one in its folder, or leave. */
   #ended(): void {
     const p = this.#state.player;
+    if (this.#state.pictureOff) {
+      this.#state.pictureOff = false;
+      this.#pictureOffScope = undefined;
+    }
     if (!p || !this.#controls.offerNext()) return this.#endPlayback(undefined, true);
     this.#cancelSaves?.();
     this.#cancelSaves = undefined;
@@ -1896,6 +1900,10 @@ export class Core {
       case "playback":
         if (event.playback) {
           this.#playback.set(app.id, event.playback);
+          if (event.playback.ended && this.#pictureOffScope === `app:${app.id}`) {
+            this.#state.pictureOff = false;
+            this.#pictureOffScope = undefined;
+          }
           this.#holdAppSpeed(app, event.playback);
         } else {
           this.#playback.delete(app.id);
@@ -2058,7 +2066,8 @@ export class Core {
   #pictureScope(): string | undefined {
     const s = this.#state;
     if (s.view === "player" && s.player) return "library";
-    if (s.view === "app" && s.app && this.#playback.has(s.app)) return `app:${s.app}`;
+    const report = s.view === "app" && s.app ? this.#playback.get(s.app) : undefined;
+    if (report && !report.ended) return `app:${s.app}`;
     return undefined;
   }
 

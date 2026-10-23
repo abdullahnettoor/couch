@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
 import { pictureOffPage } from "../../shared/picture-off.ts";
+import { volumeScript } from "./web-hud.ts";
 import { PictureCover, type CoverHost, type CoverView } from "./picture-cover.ts";
 
 class FakeView implements CoverView {
@@ -7,7 +8,12 @@ class FakeView implements CoverView {
   bounds?: { width: number; height: number };
   url = "";
   keyHandler?: (event: { preventDefault(): void }, input: { type: string; key: string }) => void;
+  scripts: string[] = [];
   webContents = {
+    executeJavaScript: (script: string) => {
+      this.scripts.push(script);
+      return Promise.resolve();
+    },
     loadURL: (url: string) => {
       this.url = url;
       return Promise.resolve();
@@ -27,7 +33,7 @@ class FakeView implements CoverView {
 
 function setup() {
   const children: unknown[] = [];
-  const host: CoverHost = {
+  const host: CoverHost<FakeView> = {
     contentView: {
       children,
       addChildView: (v) => {
@@ -44,7 +50,7 @@ function setup() {
   };
   const commands: unknown[] = [];
   const cover = new FakeView();
-  const picture = new PictureCover(
+  const picture = new PictureCover<FakeView>(
     host,
     () => cover,
     (c) => commands.push(c),
@@ -54,7 +60,72 @@ function setup() {
   return { children, picture, cover, appView, commands };
 }
 
+const key = (k: string, type = "keyDown") => ({ type, key: k });
+const event = () => {
+  const e = { prevented: false, preventDefault: () => (e.prevented = true) };
+  return e;
+};
+
 describe("the Picture off cover", () => {
+  test("swallows a physical key sent to the App's page while on, and restores the picture", () => {
+    const { picture, commands } = setup();
+    picture.set(true);
+    const e = event();
+    expect(picture.intercept(e, key("ArrowDown"))).toBe(true);
+    expect(e.prevented).toBe(true);
+    expect(commands).toEqual([{ command: "down" }]);
+  });
+
+  test("a site's shortcut is swallowed and only restores; a key with no Screen meaning restores too", () => {
+    const { picture, commands } = setup();
+    picture.set(true);
+    const e = event();
+    expect(picture.intercept(e, key("k"))).toBe(true);
+    expect(e.prevented).toBe(true);
+    expect(commands).toEqual([{ command: "screenKey", args: { text: "k" } }]);
+    commands.length = 0;
+    expect(picture.intercept(event(), key("F5"))).toBe(true);
+    expect(commands).toEqual([{ command: "setPictureOff", args: { on: false } }]);
+  });
+
+  test("a key release is swallowed without a second command", () => {
+    const { picture, commands } = setup();
+    picture.set(true);
+    const e = event();
+    expect(picture.intercept(e, key("k", "keyUp"))).toBe(true);
+    expect(e.prevented).toBe(true);
+    expect(commands).toEqual([]);
+  });
+
+  test("while off, the App's keys are left alone", () => {
+    const { picture, commands } = setup();
+    const e = event();
+    expect(picture.intercept(e, key("k"))).toBe(false);
+    picture.set(true);
+    picture.set(false);
+    expect(picture.intercept(e, key("k"))).toBe(false);
+    expect(e.prevented).toBe(false);
+    expect(commands).toEqual([]);
+  });
+
+  test("shows the volume level on the cover, and clears it", () => {
+    const { picture, cover } = setup();
+    picture.set(true);
+    picture.showVolume(40);
+    expect(cover.scripts.at(-1)).toBe(volumeScript(40));
+    picture.showVolume(undefined);
+    expect(cover.scripts.at(-1)).toBe(volumeScript(undefined));
+  });
+
+  test("shows nothing on the cover while it's off", () => {
+    const { picture, cover } = setup();
+    picture.showVolume(40);
+    picture.set(true);
+    picture.set(false);
+    picture.showVolume(40);
+    expect(cover.scripts).toEqual([]);
+  });
+
   test("sits above the web App's view, even one added after it, and covers the whole window", () => {
     const { children, picture, cover, appView } = setup();
     picture.set(true);

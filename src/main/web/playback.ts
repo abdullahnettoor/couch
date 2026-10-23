@@ -39,6 +39,7 @@ export function playbackProbe(
     duration: Math.floor(best.duration),
     paused: !!best.paused,
   };
+  if (best.ended) report.ended = true;
   ${speeds?.length ? `report.speed = best.playbackRate || 1; report.speeds = ${JSON.stringify(speeds)};` : ""}
   try {
     var meta = navigator.mediaSession && navigator.mediaSession.metadata;

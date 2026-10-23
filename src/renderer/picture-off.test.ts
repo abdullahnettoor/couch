@@ -3,6 +3,8 @@ import type { ScreenPayload } from "../shared/protocol.ts";
 
 const cover = { hidden: true, innerHTML: "" };
 const head: unknown[] = [];
+const reads: string[] = [];
+const listeners: string[] = [];
 let renderPictureOff: (p: ScreenPayload) => void;
 
 beforeAll(async () => {
@@ -11,7 +13,17 @@ beforeAll(async () => {
     getElementById: (id: string) => (id === "picture-off" ? cover : {}),
     createElement: () => ({}),
     head: { append: (n: unknown) => head.push(n) },
+    addEventListener: (type: string) => listeners.push(type),
+    get hidden() {
+      reads.push("hidden");
+      return false;
+    },
+    get visibilityState() {
+      reads.push("visibilityState");
+      return "visible";
+    },
   };
+  g.addEventListener = (type: string) => listeners.push(type);
   ({ renderPictureOff } = await import("./picture-off.ts"));
 });
 
@@ -26,9 +38,11 @@ describe("the Screen's Picture off cover", () => {
     expect(cover.hidden).toBe(true);
   });
 
-  test("never touches document.hidden or listens for visibilitychange", () => {
-    const g = globalThis as any;
-    expect(g.document.hidden).toBeUndefined();
-    expect(g.document.addEventListener).toBeUndefined();
+  test("never reads visibility or listens for visibilitychange", () => {
+    renderPictureOff(payload(true));
+    renderPictureOff(payload(false));
+    renderPictureOff(payload(true));
+    expect(reads).toEqual([]);
+    expect(listeners).toEqual([]);
   });
 });
