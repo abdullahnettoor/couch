@@ -1,6 +1,6 @@
-import vm from "node:vm";
 import { beforeEach, describe, expect, test } from "vite-plus/test";
 import { REMOTE_PAGE } from "./page.ts";
+import { PAGE_HTML, runPage } from "./page-runner.ts";
 
 interface El {
   id: string;
@@ -15,13 +15,8 @@ interface El {
 
 /** Runs the page's script against a minimal DOM (elements by id) and a fake socket. */
 function loadPage() {
-  const html = REMOTE_PAGE.slice(0, REMOTE_PAGE.indexOf("<script>"));
-  const script = REMOTE_PAGE.slice(
-    REMOTE_PAGE.indexOf("<script>") + 8,
-    REMOTE_PAGE.indexOf("</script>"),
-  );
   const els = new Map<string, El>();
-  for (const m of html.matchAll(/<(\w+)([^>]*?\sid="([^"]+)"[^>]*)>/g)) {
+  for (const m of PAGE_HTML.matchAll(/<(\w+)([^>]*?\sid="([^"]+)"[^>]*)>/g)) {
     const attrs: Record<string, string> = {};
     for (const a of m[2]!.matchAll(/([\w-]+)="([^"]*)"/g)) attrs[a[1]!] = a[2]!;
     els.set(m[3]!, {
@@ -59,8 +54,6 @@ function loadPage() {
       },
     });
   const proxies = new Map([...els].map(([k, v]) => [k, proxy(v)]));
-  const sent: string[] = [];
-  const sockets: { onmessage?: (e: { data: string }) => void; onopen?: () => void }[] = [];
   let docClick: ((e: unknown) => void) | undefined;
   const bodyClasses = new Set<string>();
   const document = {
@@ -75,34 +68,7 @@ function loadPage() {
       },
     },
   };
-  class WS {
-    onmessage?: (e: { data: string }) => void;
-    onopen?: () => void;
-    constructor() {
-      sockets.push(this);
-    }
-    send(m: string) {
-      sent.push(m);
-    }
-  }
-  vm.runInNewContext(script, {
-    document,
-    WebSocket: WS,
-    location: { search: "", protocol: "http:", host: "x", pathname: "/" },
-    history: { replaceState() {} },
-    localStorage: { getItem: () => "k", setItem() {} },
-    navigator: {},
-    URLSearchParams,
-    setTimeout,
-    clearTimeout,
-    Date,
-    Math,
-    JSON,
-    encodeURIComponent,
-    Number,
-    String,
-    console,
-  });
+  const { sent, sockets } = runPage({ document });
   const send = (o: unknown) => sockets[0]!.onmessage!({ data: JSON.stringify(o) });
   const base = {
     type: "snapshot",

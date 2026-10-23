@@ -521,8 +521,8 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   $("form").addEventListener("submit", function (e) { e.preventDefault(); send("typeSubmit"); });
   $("cancel").addEventListener("click", function () { send("typeCancel"); });
 
-  var fsAsked = false, fsWas = false, fsDeclined = false;
-  function fsCan() {
+  var fullscreenRequested = false, wasFullscreen = false, fullscreenDismissed = false;
+  function canRequestFullscreen() {
     try {
       var de = document.documentElement;
       if (!de || !de.requestFullscreen) return false;
@@ -532,30 +532,30 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       return true;
     } catch (e) { return false; }
   }
-  function fsTap() {
-    if (fsAsked || fsDeclined || document.fullscreenElement || !fsCan()) return;
-    fsAsked = true;
+  function onFullscreenTap() {
+    if (fullscreenRequested || fullscreenDismissed || document.fullscreenElement || !canRequestFullscreen()) return;
+    fullscreenRequested = true;
     try {
       var r = document.documentElement.requestFullscreen({ navigationUI: "hide" });
-      if (r && r.catch) r.catch(function () { fsAsked = false; });
-    } catch (e) { fsAsked = false; }
+      if (r && r.catch) r.catch(function () { fullscreenRequested = false; });
+    } catch (e) { fullscreenRequested = false; }
   }
-  document.addEventListener("click", fsTap, true);
+  document.addEventListener("click", onFullscreenTap, true);
   document.addEventListener("fullscreenchange", function () {
     if (document.fullscreenElement) {
-      fsWas = true;
+      wasFullscreen = true;
       try {
         var l = screen.orientation.lock("portrait");
         if (l && l.catch) l.catch(function () {});
       } catch (e) {}
-    } else if (fsWas) {
-      fsWas = false;
-      fsAsked = false;
-      if (document.visibilityState !== "hidden") fsDeclined = true;
+    } else if (wasFullscreen) {
+      wasFullscreen = false;
+      fullscreenRequested = false;
+      if (document.visibilityState !== "hidden") fullscreenDismissed = true;
     }
   });
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "hidden") { fsDeclined = false; fsAsked = false; }
+    if (document.visibilityState === "hidden") fullscreenRequested = false;
   });
 
   document.addEventListener("click", function (e) {

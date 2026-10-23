@@ -1,11 +1,5 @@
-import vm from "node:vm";
 import { describe, expect, test } from "vite-plus/test";
-import { REMOTE_PAGE } from "./page.ts";
-
-const script = REMOTE_PAGE.slice(
-  REMOTE_PAGE.indexOf("<script>") + 8,
-  REMOTE_PAGE.indexOf("</script>"),
-);
+import { runPage } from "./page-runner.ts";
 
 interface Opts {
   standalone?: boolean;
@@ -21,7 +15,6 @@ function load(opts: Opts = {}) {
   const fire = (n: string, e?: unknown) => handlers[n]?.forEach((f) => f(e));
   const requests: unknown[] = [];
   const locks: string[] = [];
-  const sent: string[] = [];
   const doc: Record<string, unknown> = {
     fullscreenElement: null,
     visibilityState: "visible",
@@ -42,14 +35,7 @@ function load(opts: Opts = {}) {
       },
     };
   } else doc.documentElement = {};
-  class WS {
-    onopen?: () => void;
-    send(m: string) {
-      sent.push(m);
-    }
-  }
-  const sockets: WS[] = [];
-  vm.runInNewContext(script, {
+  const { sent, sockets } = runPage({
     document: doc,
     window: {
       matchMedia: (q: string) => ({ matches: !!opts.standalone && q.includes("standalone") }),
@@ -62,27 +48,7 @@ function load(opts: Opts = {}) {
         },
       },
     },
-    WebSocket: class extends WS {
-      constructor() {
-        super();
-        sockets.push(this);
-      }
-    },
-    location: { search: "", protocol: "http:", host: "x", pathname: "/" },
-    history: { replaceState() {} },
-    localStorage: { getItem: () => "k", setItem() {} },
     navigator: { userAgent: opts.userAgent ?? "Mozilla/5.0 (Linux; Android 14) Chrome/120" },
-    URLSearchParams,
-    setTimeout,
-    clearTimeout,
-    Date,
-    Math,
-    JSON,
-    encodeURIComponent,
-    Number,
-    String,
-    console,
-    Promise,
   });
   sockets[0]!.onopen?.();
   const tap = () =>
@@ -148,6 +114,20 @@ describe("Remote full screen on first tap", () => {
     p.tap();
     await p.flush();
     p.leave(false);
+    p.tap();
+    await p.flush();
+    expect(p.requests).toHaveLength(1);
+  });
+
+  test("a deliberate exit survives switching apps and coming back", async () => {
+    const p = load();
+    p.tap();
+    await p.flush();
+    p.leave(false);
+    p.doc.visibilityState = "hidden";
+    p.fire("visibilitychange");
+    p.doc.visibilityState = "visible";
+    p.fire("visibilitychange");
     p.tap();
     await p.flush();
     expect(p.requests).toHaveLength(1);
