@@ -1,15 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
-import { pageFocusFunction } from "../../web/page-focus.ts";
-import { runFocusScript } from "../../web/page-focus-runner.ts";
-import {
-  snapshotPage,
-  type FakeEl,
-  type Snapshot,
-  type SnapNode,
-} from "../../web/snapshot-page.ts";
-import { netflixDescription } from "./netflix-web.ts";
-
-const desc = netflixDescription("130.0.6723.58");
+import { type Snapshot, type SnapNode } from "../../web/snapshot-page.ts";
+import { connect, netflixPage } from "./netflix-test-page.ts";
 
 const link = (r: [number, number, number, number], text: string): SnapNode => ({
   t: "span",
@@ -86,45 +77,28 @@ function setup(opts: { play?: string | false }) {
       ],
     },
   };
-  const p = snapshotPage(snap);
+  const p = netflixPage(snap, undefined, (page) => connect(page.root.children[1]!, false));
   const modal = p.root.children[1]!;
-  const set = (el: FakeEl, on: boolean) => {
-    el.connected = on;
-    el.children.forEach((c) => set(c, on));
-  };
-  set(modal, false);
-  const run = runFocusScript(pageFocusFunction(desc.focus!.selectors, desc.focus!.layout), {
-    document: p.doc,
-    href: snap.url,
-    width: 1280,
-    height: 720,
-    scroll: p.scroll,
-    getComputedStyle: () => ({
-      visibility: "visible",
-      display: "block",
-      zIndex: "auto",
-      position: "static",
-    }),
-  });
-  const on = () => {
-    const before = new Map(p.all.map((e) => [e, e.clicks]));
-    run.key("Enter");
-    const hit = p.all.find((e) => e.clicks > before.get(e)!);
-    if (hit) hit.clicks--;
-    return hit;
-  };
+  const missing = new Set<string>();
   const open = () => {
-    set(modal, true);
-    run.mutate();
-    run.location.href = "https://www.netflix.com/browse?jbv=12";
-    run.mutate();
+    connect(modal, true);
+    p.all.filter((e) => missing.has(e.uia)).forEach((e) => connect(e, false));
+    p.mutate();
+    p.location.href = "https://www.netflix.com/browse?jbv=12";
+    p.mutate();
   };
   const close = () => {
-    set(modal, false);
-    run.location.href = "https://www.netflix.com/browse";
-    run.mutate();
+    connect(modal, false);
+    p.location.href = "https://www.netflix.com/browse";
+    p.mutate();
   };
-  return { ...p, ...run, on, open, close };
+  /** The pop-up's controls with this data-uia are not on the page yet (or are again). */
+  const expose = (uia: string, visible: boolean) => {
+    if (visible) missing.delete(uia);
+    else missing.add(uia);
+    p.all.filter((e) => e.uia === uia).forEach((e) => connect(e, visible));
+  };
+  return { ...p, open, close, expose };
 }
 
 describe("a title's pop-up opens on its Play control", () => {
@@ -160,5 +134,48 @@ describe("a title's pop-up opens on its Play control", () => {
     expect(p.on()?.uia).toBe("play-button");
     p.close();
     expect(p.on()).toBe(card);
+  });
+});
+
+describe("a pop-up whose action controls load late", () => {
+  const openBare = () => {
+    const p = setup({ play: "Play" });
+    p.key("ArrowRight");
+    for (const uia of ["play-button", "add-to-my-list", "thumbs-rate-button"]) p.expose(uia, false);
+    p.open();
+    return p;
+  };
+  test("Enter never clicks a cast or genre link while waiting", () => {
+    const p = openBare();
+    expect(p.on()?.uia).not.toBe("tag-item");
+    expect(p.on()?.getAttribute("data-text")).not.toBe("cast");
+    p.wait(2000);
+    p.mutate();
+    expect(p.on()?.getAttribute("data-text")).not.toBe("cast");
+  });
+  test("Play, exposed after 3.1 s, is highlighted", () => {
+    const p = openBare();
+    p.wait(3100);
+    p.mutate();
+    expect(p.on()).toBeUndefined();
+    p.expose("play-button", true);
+    p.expose("add-to-my-list", true);
+    p.mutate();
+    expect(p.on()?.uia).toBe("play-button");
+  });
+  test("only My List appearing: My List is highlighted", () => {
+    const p = openBare();
+    p.wait(5000);
+    p.expose("add-to-my-list", true);
+    p.mutate();
+    expect(p.on()?.uia).toBe("add-to-my-list");
+  });
+  test("moving the highlight while waiting ends the wait", () => {
+    const p = openBare();
+    p.key("ArrowRight");
+    const moved = p.on();
+    p.expose("play-button", true);
+    p.mutate();
+    expect(p.on()).toBe(moved);
   });
 });

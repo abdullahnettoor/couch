@@ -58,7 +58,7 @@ export interface FocusLayout {
   ignore?: string[];
   /** The site's own modal containers, on top of role=dialog and aria-modal=true: while one is on screen the highlight stays inside the topmost. */
   scopes?: string[];
-  /** Where the highlight lands when a pop-up opens: the first usable match of the first selector that has one, inside the pop-up. Only on opening: once the household moves, it stays where they put it. */
+  /** Where the highlight lands when a pop-up opens: the first usable match of the first selector that has one, inside the pop-up. While none matches yet, the highlight waits (never on a text link); the wait ends when one does or the household moves, and from then on it stays where they put it. */
   modalEntry?: string[];
   /** Rows of cards: Left/Right stay in the row, Up/Down leave it; at the row's end `next`/`prev` (inside the row) page it. */
   rows?: { row: string; next?: string; prev?: string };
@@ -431,7 +431,6 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     var layers = [], displaced = null, displacedKey = null, heldKey = null;
     // The control to give the highlight back to once the page has redrawn it (a pop-up just closed and it is not there yet).
     var pending = null;
-    var entryUntil = 0;
     // The pop-up's own first choice (layout.modalEntry): the first usable match of the first selector that has one.
     var entryControl = function (modal) {
       try {
@@ -461,7 +460,6 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
           if (modal && !kept.some(function (l) { return l.modal === modal; })) {
             var held = displaced || (current && current.isConnected ? current : null);
             layers.push({ modal: modal, opener: held, key: displaced ? displacedKey : heldKey, entering: !!(LAYOUT.modalEntry && LAYOUT.modalEntry.length) });
-            entryUntil = Date.now() + 3000;
           }
           if (restore) {
             var back = restore.opener && usable(restore.opener) ? restore.opener : refind(restore.key, !restore.key || !restore.key.id);
@@ -482,11 +480,10 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         }
         var topLayer = layers.length ? layers[layers.length - 1] : null;
         if (topLayer && topLayer.entering && topLayer.modal === modal) {
-          if (Date.now() > entryUntil) topLayer.entering = false;
-          else {
-            var entry = entryControl(modal);
-            if (entry && entry !== current) { current = entry; heldKey = keyOf(entry); displaced = null; }
-          }
+          // Until the household moves, the ring waits for an entry control: geometry never picks a text link here.
+          var entry = entryControl(modal);
+          if (entry) { if (entry !== current) { current = entry; heldKey = keyOf(entry); displaced = null; } }
+          else { current = null; displaced = null; draw(); return; }
         }
         if (current && usable(current)) { draw(); return; }
         if (current && current.isConnected && !displaced) { displaced = current; displacedKey = heldKey; }

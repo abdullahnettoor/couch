@@ -1,48 +1,20 @@
 import { describe, expect, test } from "vite-plus/test";
-import { pageFocusFunction } from "../../web/page-focus.ts";
-import { runFocusScript } from "../../web/page-focus-runner.ts";
 import {
   loadSnapshot,
-  snapshotPage,
   type FakeEl,
   type SnapNode,
   type Snapshot,
 } from "../../web/snapshot-page.ts";
-import { netflixDescription } from "./netflix-web.ts";
+import { netflixDesc, netflixPage } from "./netflix-test-page.ts";
 
 const fixture = (name: string) => loadSnapshot(new URL(`./fixtures/${name}.json`, import.meta.url));
-const desc = netflixDescription("130.0.6723.58");
+const desc = netflixDesc;
 
 /** The page focus script as the Netflix App runs it, on a recorded page; keys go through the page's own listeners. */
 function open(snap: Snapshot, focus = desc.focus!) {
-  const page = snapshotPage(snap);
-  const run = runFocusScript(pageFocusFunction(focus.selectors, focus.layout), {
-    document: page.doc,
-    href: snap.url,
-    width: snap.view.width,
-    height: snap.view.height,
-    getComputedStyle: (e: FakeEl) => ({
-      visibility: e.hiddenStyle ? "hidden" : "visible",
-      display: "block",
-      zIndex: "auto",
-      position: e.stuck ? "fixed" : "static",
-    }),
-  });
-  const { key, ring } = run;
-  /** OK: the element that was clicked, if any. */
-  const ok = (): FakeEl | undefined => {
-    const before = new Map(page.all.map((e) => [e, e.clicks]));
-    key("Enter");
-    return page.all.find((e) => e.clicks > before.get(e)!);
-  };
-  /** The element the ring is on (OK clicks it; the click is undone). */
-  const on = (): FakeEl | undefined => {
-    const el = ok();
-    if (el) el.clicks--;
-    return el;
-  };
-  const press = (...keys: string[]) => keys.forEach(key);
-  return { ...page, key, ok, on, press, ring };
+  const page = netflixPage(snap, focus);
+  const press = (...keys: string[]) => keys.forEach(page.key);
+  return { ...page, press };
 }
 
 const uia = (e: FakeEl | undefined) => e?.uia || e?.tagName || "(none)";
