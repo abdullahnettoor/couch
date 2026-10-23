@@ -429,3 +429,30 @@ describe("Now Playing", () => {
     art.pointerup!(ev(10));
   });
 });
+
+describe("Picture off on Now Playing", () => {
+  const text = () => page.els.get("chip-pic-t")!.textContent;
+
+  test("a Picture off button shows on Now Playing and asks the Screen to black out", () => {
+    page.playing({});
+    expect(hidden("chip-pic")).toBe(false);
+    expect(text()).toBe("Picture off");
+    page.tap("chip-pic");
+    expect(commands().at(-1)).toMatchObject({ command: "setPictureOff", args: { on: true } });
+  });
+
+  test("while it is on the button says Picture on, is lit, and turns it back on", () => {
+    page.playing({}, { pictureOff: true });
+    expect(text()).toBe("Picture on");
+    expect(page.els.get("chip-pic")!.classes.has("on")).toBe(true);
+    page.tap("chip-pic");
+    expect(commands().at(-1)).toMatchObject({ command: "setPictureOff", args: { on: false } });
+  });
+
+  test("the lit state clears with the snapshot", () => {
+    page.playing({}, { pictureOff: true });
+    page.playing({}, { pictureOff: false });
+    expect(text()).toBe("Picture off");
+    expect(page.els.get("chip-pic")!.classes.has("on")).toBe(false);
+  });
+});

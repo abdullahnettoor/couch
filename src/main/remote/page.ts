@@ -194,6 +194,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     <button class="chip" id="chip-subs" hidden><span data-i="cc"></span><span id="chip-subs-t">Subtitles</span></button>
     <button class="chip" id="chip-aud" hidden><span data-i="headphones"></span><span id="chip-aud-t">Audio</span></button>
     <button class="chip" id="chip-spd" hidden><span data-i="gauge"></span><span id="chip-spd-t">1×</span></button>
+    <button class="chip" id="chip-pic"><span data-i="monitorPlay"></span><span id="chip-pic-t">Picture off</span></button>
     <button class="chip pad-chip" id="chip-pad" aria-label="D-pad" hidden><span data-i="dpad"></span></button>
   </div>
   __VPILL_NP__
@@ -350,11 +351,14 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     var aud = !!(np.audio && np.audio.length);
     var spd = !!(np.speeds && np.speeds.length && typeof np.speed === "number");
     var pad = true;
+    var off = !!s.pictureOff;
+    $("chip-pic-t").textContent = off ? "Picture on" : "Picture off";
+    $("chip-pic").classList.toggle("on", off);
     $("chip-subs").hidden = !subs;
     $("chip-aud").hidden = !aud;
     $("chip-spd").hidden = !spd;
     $("chip-pad").hidden = !pad;
-    $("np-chips").style.setProperty("--n", String(Math.max(1, (subs ? 1 : 0) + (aud ? 1 : 0) + (spd ? 1 : 0) + (pad ? 1 : 0))));
+    $("np-chips").style.setProperty("--n", String(Math.max(1, (subs ? 1 : 0) + (aud ? 1 : 0) + (spd ? 1 : 0) + 2)));
     $("chip-subs-t").textContent = current(np.subtitles, "Subtitles");
     $("chip-aud-t").textContent = current(np.audio, "Audio");
     if (spd) $("chip-spd-t").textContent = speedLabel(np.speed);
@@ -454,6 +458,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   $("chip-aud").addEventListener("click", function () { openSheet("aud"); });
   $("chip-spd").addEventListener("click", function () { openSheet("spd"); });
   $("np-more").addEventListener("click", function () { openSheet("upn"); });
+  $("chip-pic").addEventListener("click", function () { sendArgs("setPictureOff", { on: !(last && last.pictureOff) }); });
   $("chip-pad").addEventListener("click", function () { padOpen = true; if (last) render(last); });
   $("npad-back").addEventListener("click", function () { padOpen = false; if (last) render(last); });
   $("np-sheet").addEventListener("click", function (e) { if (e.target === $("np-sheet")) closeSheet(); });

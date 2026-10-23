@@ -51,6 +51,10 @@ _Avoid_: player controls, transport
 Couch's own volume set to silence. It remembers the level, silences mpv and every web App, and unmuting restores the level; changing the volume while muted unmutes. It is kept across restarts like the volume. The phone's Mute button sits next to Back and Home.
 _Avoid_: silence, volume off
 
+**Picture off**:
+A black cover over the whole Screen, with a small dim Couch mark, while playback and sound carry on underneath; the phone's Picture off button on Now Playing turns it on, any key turns it off, and it also ends when playback stops, on Home or when the App changes.
+_Avoid_: screen off, blank, sleep
+
 **Speed**:
 How fast the video plays (0.5× to 2× in the Library, the App's own choices in a web App), shown on the phone's Speed button and picked from a list. Every new video starts at 1×; the choice holds for that video even if the page resets it. Netflix's speed is set through its own menu.
 _Avoid_: playback rate, tempo

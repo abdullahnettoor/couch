@@ -70,6 +70,25 @@ const TYPING_VIEW = { search: "app", tmdbKey: "details", librarySearch: "library
 type Purpose = keyof typeof TYPING_VIEW;
 const SCREEN_ONLY = ["focusAt", "showControls", "find", "screenKey", "confirmAt"];
 const NAV = ["up", "down", "left", "right"];
+/** Keys (a phone's pad and buttons, the Mac keyboard): the first one while Picture off is on only brings the picture back. */
+const PICTURE_KEYS = [
+  ...NAV,
+  "ok",
+  "back",
+  "home",
+  "playpause",
+  "resume",
+  "menu",
+  "power",
+  "openSettings",
+  "subtitles",
+  "screenKey",
+  "find",
+  "typeOpen",
+  "typeText",
+  "typeSubmit",
+  "typeCancel",
+];
 /** Views the Library search's query and focus survive, so Back returns to them. */
 const SEARCH_KEEPS: View[] = ["librarySearch", "show", "fixMatch", "player"];
 const SEARCH_FROM: View[] = ["library", "folder", "show", "librarySearch"];
@@ -123,6 +142,7 @@ export class Core {
     controls: "hidden",
     volume: 0,
     remotes: 0,
+    pictureOff: false,
   };
   #grids = new Map<string, GridItem[]>();
   #remotes = new Set<RemoteId>();
@@ -141,6 +161,7 @@ export class Core {
   /** What each App was last told to draw over itself. */
   /** What each web App's page last reported playing; cleared when the App is hidden. */
   #playback = new Map<string, PlaybackReport>();
+  #pictureOffScope: string | undefined;
   /** The speed the household chose for the playing Library video; 1 for every new video. */
   #speed = 1;
   /** The playing Library video's subtitle and audio tracks, as mpv last listed them. */
@@ -1181,6 +1202,7 @@ export class Core {
       ...(s.player && this.#controls.upNextAvailable ? { upNext: this.#upNextItems() } : {}),
       volume: s.volume,
       muted: this.#sound.muted,
+      pictureOff: s.pictureOff,
       remotes: s.remotes,
     };
   }
@@ -1302,6 +1324,12 @@ export class Core {
     if (from !== "screen") this.#lastFrom = from;
     this.#ports.mac.wakeDisplay();
     this.#armIdle();
+    if (this.#state.pictureOff && PICTURE_KEYS.includes(command.command)) {
+      this.#state.pictureOff = false;
+      this.#armAmbient();
+      this.#emit();
+      return;
+    }
     if (this.#ambient) {
       this.#ambient = false;
       this.#armAmbient();
@@ -1393,6 +1421,9 @@ export class Core {
         break;
       case "mute":
         this.#toggleMute();
+        break;
+      case "setPictureOff":
+        this.#setPictureOff(command.args?.on === true);
         break;
       case "openSettings":
         if (this.#state.view === "home") this.#setView("settings");
@@ -2023,7 +2054,28 @@ export class Core {
     if (!SEARCH_KEEPS.includes(view)) this.#search.reset();
   }
 
+  /** What is playing in the front, for Picture off to belong to: the Library's video or one App's. */
+  #pictureScope(): string | undefined {
+    const s = this.#state;
+    if (s.view === "player" && s.player) return "library";
+    if (s.view === "app" && s.app && this.#playback.has(s.app)) return `app:${s.app}`;
+    return undefined;
+  }
+
+  #setPictureOff(on: boolean): void {
+    const scope = this.#pictureScope();
+    this.#state.pictureOff = on && scope !== undefined;
+    this.#pictureOffScope = this.#state.pictureOff ? scope : undefined;
+  }
+
+  /** Picture off ends by itself when playback ends, on Home, or when the App changes. */
+  #syncPictureOff(): void {
+    if (this.#state.pictureOff && this.#pictureScope() !== this.#pictureOffScope)
+      this.#state.pictureOff = false;
+  }
+
   #emit(): void {
+    this.#syncPictureOff();
     this.#releaseStrayTyping();
     const raised =
       this.#state.controls !== "hidden" &&

@@ -3,6 +3,7 @@ import type { CouchApi } from "../shared/ipc.ts";
 import { screenKeyCommand } from "../shared/keyboard.ts";
 import { VIEWS } from "./views/index.ts";
 import { renderConfirm, renderHud } from "./hud.ts";
+import { renderPictureOff } from "./picture-off.ts";
 import { isTypingTarget, syncTyping } from "./views/typing.ts";
 import { renderOverlay, setNativeGlass, setVideoTint } from "./player-overlay.ts";
 import { darkTint } from "../shared/glass-tint.ts";
@@ -127,6 +128,7 @@ window.couch.onScreen((payload) => {
   renderOverlay(payload.state.view === "player" ? payload.overlay : undefined);
   renderHud(payload);
   renderConfirm(payload);
+  renderPictureOff(payload);
 });
 
 window.couch.onTint((rgb) => setVideoTint(rgb ? darkTint(rgb) : undefined));

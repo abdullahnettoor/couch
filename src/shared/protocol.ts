@@ -57,6 +57,7 @@ export const COMMAND_NAMES = [
   "setSpeed",
   "pressPrompt",
   "openSettings",
+  "setPictureOff",
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
@@ -95,6 +96,8 @@ export interface CommandArgs {
   index?: number;
   /** toggleAddon: the add-on's id (YouTube's add-ons) */
   addon?: string;
+  /** setPictureOff: true hides the picture, false brings it back */
+  on?: boolean;
   /** typeText: the whole current text; typeOpen and screenKey (Screen only): the first character */
   text?: string;
 }
@@ -150,6 +153,8 @@ export interface ScreenState {
   /** The volume level indicator is on screen. */
   volumeShown?: boolean;
   remotes: number;
+  /** Picture off: a black cover over the whole Screen while playback carries on underneath. */
+  pictureOff: boolean;
   toast?: string;
   confirm?: Confirmation;
 }
@@ -434,6 +439,8 @@ export interface RemoteSnapshot {
   volume: number;
   /** Couch is muted; `volume` is the level unmute restores. */
   muted: boolean;
+  /** Picture off is on: the Screen shows a black cover (the phone offers "Picture on"). */
+  pictureOff: boolean;
   remotes: number;
 }
 

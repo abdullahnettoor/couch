@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, screen } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, screen, WebContentsView } from "electron";
 import { join } from "node:path";
 import { Channel, type GlassRect, type GridReport } from "../shared/ipc.ts";
 import type { Command } from "../shared/protocol.ts";
@@ -22,6 +22,7 @@ import { PROJECT_TMDB_KEY } from "./ports/project-key.ts";
 import { detectListener } from "./frontdoor.ts";
 import { chooseBinding } from "./listener.ts";
 import { createEmbedFactory } from "./mpv/embed-addon.ts";
+import { PictureCover } from "./web/picture-cover.ts";
 import { MpvPlayer } from "./mpv/mpv-player.ts";
 
 // Fixed name so app data lives in ~/Library/Application Support/Couch whichever way Couch is launched.
@@ -170,7 +171,17 @@ async function createScreen(): Promise<void> {
     frontdoorSetup: { env: process.env },
     listener: listener && { publicPort: listener.publicPort, token: listener.token },
   });
-  couch.onScreen(publishScreen);
+  const cover = new PictureCover(
+    win,
+    () => new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true } }),
+    (command) => couch?.screenCommand(command),
+  );
+  win.on("resize", () => cover.fit());
+  couch.onScreen((payload) => {
+    // Only over a web App: adding a view above the window would reorder the native video under the Library's cover.
+    cover.set(payload.state.pictureOff && payload.state.view === "app");
+    publishScreen();
+  });
   youtube.start();
   publishScreen();
 }

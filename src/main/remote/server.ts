@@ -33,7 +33,7 @@ export function parseCommand(raw: string): Command | undefined {
   if (type !== "command" || !COMMAND_NAMES.includes(command as CommandName)) return undefined;
   const out: Command = { command: command as CommandName };
   if (typeof args === "object" && args !== null) {
-    const { seconds, speed, text, percent, index, addon, kind, track, id } = args as Record<
+    const { seconds, speed, text, percent, index, addon, kind, track, id, on } = args as Record<
       string,
       unknown
     >;
@@ -42,6 +42,7 @@ export function parseCommand(raw: string): Command | undefined {
       ...(typeof speed === "number" && Number.isFinite(speed) ? { speed } : {}),
       ...(typeof percent === "number" && Number.isFinite(percent) ? { percent } : {}),
       ...(typeof index === "number" && Number.isInteger(index) ? { index } : {}),
+      ...(typeof on === "boolean" ? { on } : {}),
       ...(typeof text === "string" ? { text } : {}),
       ...(typeof addon === "string" ? { addon } : {}),
       ...(kind === "subtitles" || kind === "audio" ? { kind } : {}),
