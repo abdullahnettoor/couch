@@ -1,6 +1,6 @@
 import type { GridItem, ScreenPayload } from "../shared/protocol.ts";
 import type { CouchApi } from "../shared/ipc.ts";
-import { screenKeyCommand } from "../shared/keyboard.ts";
+import { keyCommand } from "./picture-off-keys.ts";
 import { VIEWS } from "./views/index.ts";
 import { renderConfirm, renderHud } from "./hud.ts";
 import { renderPictureOff } from "./picture-off.ts";
@@ -26,8 +26,9 @@ declare global {
 }
 
 window.addEventListener("keydown", (event) => {
-  const command = screenKeyCommand(
+  const command = keyCommand(
     { key: event.key, meta: event.metaKey, ctrl: event.ctrlKey, alt: event.altKey },
+    current?.state.pictureOff === true,
     current?.screenTyping !== undefined,
   );
   if (!command) return;

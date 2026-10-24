@@ -50,6 +50,12 @@ const fake = vi.hoisted(() => {
     }
     sendInputEvent(event: { type: string; keyCode: string }) {
       this.inputs.push(event);
+      // Electron runs a sent event through before-input-event like a real key.
+      this.emit(
+        "before-input-event",
+        { preventDefault() {} },
+        { type: event.type, key: event.keyCode },
+      );
     }
     setUserAgent() {}
     setAudioMuted() {}
@@ -192,6 +198,21 @@ describe("the phone's play/pause", () => {
       { type: "keyDown", keyCode: "MediaPlayPause" },
       { type: "keyUp", keyCode: "MediaPlayPause" },
     ]);
+  });
+});
+
+describe("the key gate (Picture off's cover)", () => {
+  test("never sees the media key the host sends for play/pause, so it can't loop back", () => {
+    const web = new ElectronWebApp(youtubeDescription("130.0.0.0"), win);
+    contents = fake.views.at(-1)!;
+    const seen: string[] = [];
+    web.setKeyGate((_event, input) => {
+      seen.push(input.key);
+      return false;
+    });
+    web.playPause();
+    expect(contents.inputs.length).toBe(2);
+    expect(seen).toEqual([]);
   });
 });
 

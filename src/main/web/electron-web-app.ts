@@ -533,8 +533,7 @@ export class ElectronWebApp implements YouTube {
       void wc.executeJavaScript(own()).catch(() => {});
       return;
     }
-    wc.sendInputEvent({ type: "keyDown", keyCode: "MediaPlayPause" });
-    wc.sendInputEvent({ type: "keyUp", keyCode: "MediaPlayPause" });
+    this.#press("MediaPlayPause");
   }
 
   /**

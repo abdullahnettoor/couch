@@ -159,6 +159,7 @@ export class Core {
   /** What each web App's page last reported playing; cleared when the App is hidden. */
   #playback = new Map<string, PlaybackReport>();
   #pictureOffScope: string | undefined;
+  #lastSubtitles = new Map<string, string>();
   /** The speed the household chose for the playing Library video; 1 for every new video. */
   #speed = 1;
   /** The playing Library video's subtitle and audio tracks, as mpv last listed them. */
@@ -907,6 +908,33 @@ export class Core {
     this.#quiet(this.#ports.player.setPaused(p.paused));
   }
 
+  /** Picture off: resume acts on what is playing only. It plays it when paused and never pauses. */
+  #resumeCurrent(): void {
+    const p = this.#state.player;
+    if (p) {
+      if (p.paused) this.#togglePause();
+      return;
+    }
+    const front = this.#front();
+    if (front && this.#playback.get(front.id)?.paused) front.playPause?.();
+  }
+
+  /** The web App's subtitles: the current track off, or the last one (else the first) back on. */
+  #toggleAppSubtitles(): void {
+    const front = this.#front();
+    const list = front && this.#playback.get(front.id)?.tracks?.subtitles;
+    if (!front?.setTrack || !list?.length) return;
+    const current = list.find((t) => t.on);
+    if (current && current.id !== "off") {
+      this.#lastSubtitles.set(front.id, current.id);
+      front.setTrack("subtitles", "off");
+      return;
+    }
+    const last = this.#lastSubtitles.get(front.id);
+    const pick = list.find((t) => t.id === last) ?? list.find((t) => t.id !== "off");
+    if (pick) front.setTrack("subtitles", pick.id);
+  }
+
   #toggleSubtitles(): void {
     this.#state.subtitlesOn = !this.#state.subtitlesOn;
     this.#ports.store.write("playback", { subtitlesOn: this.#state.subtitlesOn });
@@ -1388,6 +1416,10 @@ export class Core {
         if (!this.#listener) this.quit();
         break;
       case "resume": {
+        if (this.#state.pictureOff) {
+          this.#resumeCurrent();
+          break;
+        }
         const newest = this.#continueEntries()[0];
         if (!newest) break;
         this.#setView("home");
@@ -1396,6 +1428,9 @@ export class Core {
       }
       case "playpause":
         this.#front()?.playPause?.();
+        break;
+      case "subtitles":
+        this.#toggleAppSubtitles();
         break;
       case "seekBy":
         this.#front()?.seekBy?.(command.args?.seconds ?? 0);

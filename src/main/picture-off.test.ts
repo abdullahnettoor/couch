@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, test } from "vite-plus/test";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { FakeWebApp } from "./ports/fakes.ts";
+import { FileStore, type Store } from "./ports/store.ts";
 import { startHarness, type FakePhone, type Harness } from "./testing/harness.ts";
 
 let h: Harness;
@@ -25,10 +29,49 @@ async function open(phone: FakePhone, id: string) {
 
 const playing = { position: 30, duration: 600, paused: false, title: "Cat video" };
 
-async function start() {
-  const tube = new FakeWebApp("tube", "Tube", { showVolume: true, showSkip: true });
+const tracks = (on: string) => ({
+  subtitles: ["off", "en", "fr"].map((id) => ({ id, label: id, on: id === on })),
+  audio: [],
+});
+
+let root: string | undefined;
+const films = () => join(root!, "A.Film.2001.mkv");
+
+/** Continue watching has a video in it. */
+function seededStore() {
+  root = mkdtempSync(join(tmpdir(), "couch-po-"));
+  writeFileSync(films(), "");
+  const store = new FileStore(mkdtempSync(join(tmpdir(), "couch-po-store-")));
+  store.write("library", { folders: [root] });
+  store.write("history", {
+    items: { [films()]: { position: 500, duration: 7200, at: 1 } },
+  });
+  return store;
+}
+
+async function libraryPlaying() {
+  h = await startHarness(seededStore());
+  const phone = await h.connectPhone();
+  await phone.press("resume");
+  expect(h.screen.last.state.view).toBe("player");
+  h.player.emit({ type: "duration", seconds: 7200 });
+  await phone.waitFor(() => phone.last?.nowPlaying !== undefined);
+  return phone;
+}
+
+async function seeded(withTracks: boolean) {
+  const r = await start(seededStore(), withTracks);
+  return r;
+}
+
+async function start(store?: Store, withTracks = false) {
+  const tube = new FakeWebApp("tube", "Tube", {
+    showVolume: true,
+    showSkip: true,
+    adapter: withTracks,
+  });
   const other = new FakeWebApp("other", "Other", {});
-  h = await startHarness(undefined, {
+  h = await startHarness(store, {
     apps: [
       { entry: entry("tube", "Tube"), app: tube },
       { entry: entry("other", "Other"), app: other },
@@ -37,7 +80,10 @@ async function start() {
   const phone = await h.connectPhone();
   const second = await h.connectPhone();
   await open(phone, "tube");
-  tube.emit({ type: "playback", playback: playing });
+  tube.emit({
+    type: "playback",
+    playback: withTracks ? { ...playing, tracks: tracks("en") } : playing,
+  });
   await phone.waitFor(() => phone.last?.nowPlaying !== undefined);
   tube.calls.length = 0;
   return { tube, other, phone, second };
@@ -73,17 +119,86 @@ describe("Picture off", () => {
     expect(h.screen.last.state.pictureOff).toBe(true);
   });
 
-  test("resume reaches the core instead of only restoring the picture", async () => {
-    const { phone } = await start();
+  test("resume on a paused web App plays it, never starts Continue watching, and leaves it on", async () => {
+    const { phone, tube } = await seeded(true);
+    tube.emit({ type: "playback", playback: { ...playing, paused: true } });
+    await phone.waitFor(() => phone.last?.nowPlaying?.paused === true);
+    tube.calls.length = 0;
     await phone.press({ command: "setPictureOff", args: { on: true } });
-    await phone.press("resume"); // nothing to continue here, so it does nothing else
+    await phone.press("resume");
+    expect(tube.calls.map((c) => c.call)).toEqual(["playPause"]);
+    expect(phone.last?.pictureOff).toBe(true);
+    expect(h.screen.last.state.view).toBe("app");
+    expect(h.player.calls.filter((c) => c.call === "load")).toEqual([]);
+  });
+
+  test("resume on a playing web App never pauses it", async () => {
+    const { phone, tube } = await seeded(true);
+    await phone.press({ command: "setPictureOff", args: { on: true } });
+    tube.calls.length = 0;
+    await phone.press("resume");
+    expect(tube.calls).toEqual([]);
+    expect(phone.last?.pictureOff).toBe(true);
+    expect(h.screen.last.state.view).toBe("app");
+  });
+
+  test("resume on a paused Library video plays it and starts nothing else", async () => {
+    const phone = await libraryPlaying();
+    h.player.emit({ type: "pause", paused: true });
+    await phone.press({ command: "setPictureOff", args: { on: true } });
+    h.player.calls.length = 0;
+    await phone.press("resume");
+    expect(h.player.calls).toEqual([{ call: "setPaused", args: [false] }]);
+    expect(phone.last?.pictureOff).toBe(true);
+    expect(h.screen.last.state.view).toBe("player");
+  });
+
+  test("resume on a playing Library video does nothing and never pauses", async () => {
+    const phone = await libraryPlaying();
+    await phone.press({ command: "setPictureOff", args: { on: true } });
+    h.player.calls.length = 0;
+    await phone.press("resume");
+    expect(h.player.calls).toEqual([]);
+    expect(phone.last?.pictureOff).toBe(true);
+    expect(h.screen.last.state.view).toBe("player");
+  });
+
+  test("the subtitles toggle on a web App turns the current track off and keeps it on", async () => {
+    const { phone, tube } = await seeded(true);
+    await phone.press({ command: "setPictureOff", args: { on: true } });
+    tube.calls.length = 0;
+    await phone.press("subtitles");
+    expect(tube.calls).toEqual([{ call: "setTrack", args: ["subtitles", "off"] }]);
     expect(phone.last?.pictureOff).toBe(true);
   });
 
-  test("the subtitles toggle acts and leaves it on", async () => {
-    const { phone } = await start();
+  test("the subtitles toggle on a web App turns the last track back on, else the first", async () => {
+    const { phone, tube } = await seeded(true);
     await phone.press({ command: "setPictureOff", args: { on: true } });
+    tube.emit({ type: "playback", playback: { ...playing, tracks: tracks("off") } });
+    await phone.waitFor(() => phone.last?.nowPlaying?.subtitles?.[0]?.on === true);
+    tube.calls.length = 0;
     await phone.press("subtitles");
+    expect(tube.calls).toEqual([{ call: "setTrack", args: ["subtitles", "en"] }]);
+    tube.emit({ type: "playback", playback: { ...playing, tracks: tracks("fr") } });
+    await phone.waitFor(() => phone.last?.nowPlaying?.subtitles?.[2]?.on === true);
+    await phone.press("subtitles");
+    tube.emit({ type: "playback", playback: { ...playing, tracks: tracks("off") } });
+    await phone.waitFor(() => phone.last?.nowPlaying?.subtitles?.[0]?.on === true);
+    tube.calls.length = 0;
+    await phone.press("subtitles");
+    expect(tube.calls).toEqual([{ call: "setTrack", args: ["subtitles", "fr"] }]);
+    expect(phone.last?.pictureOff).toBe(true);
+  });
+
+  test("the subtitles toggle on Library video calls setSubtitles and the Remote shows it, picture off still on", async () => {
+    const phone = await libraryPlaying();
+    await phone.press({ command: "setPictureOff", args: { on: true } });
+    h.player.calls.length = 0;
+    const before = phone.last?.nowPlaying?.subtitlesOn;
+    await phone.press("subtitles");
+    expect(h.player.calls).toEqual([{ call: "setSubtitles", args: [!before] }]);
+    expect(phone.last?.nowPlaying?.subtitlesOn).toBe(!before);
     expect(phone.last?.pictureOff).toBe(true);
   });
 

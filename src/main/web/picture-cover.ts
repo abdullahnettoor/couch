@@ -71,7 +71,8 @@ export class PictureCover<V extends CoverView = CoverView> {
 
   /**
    * For the App's own page (and the cover's): while on, a physical key is swallowed before the page
-   * sees it, and the first key press only brings the picture back. True when it swallowed the key.
+   * sees it. Space and the media play/pause key go to the core as play/pause and leave the picture off;
+   * any other key only brings the picture back. True when it swallowed the key.
    */
   intercept(
     event: { preventDefault(): void },
