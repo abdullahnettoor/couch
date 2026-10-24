@@ -40,6 +40,13 @@ describe("Picture off in the Library", () => {
     expect(h.player.calls.map((c) => c.call)).not.toContain("pause");
   });
 
+  test("the Screen reports playback on screen while the Library video plays", async () => {
+    expect(h.screen.last.playing).toBe(true);
+    await phone.press("back");
+    await phone.press("home");
+    expect(h.screen.last.playing).toBe(false);
+  });
+
   test("the video ending clears it", async () => {
     h.player.emit({ type: "ended", reason: "eof" });
     await phone.waitFor(() => phone.last?.pictureOff === false);

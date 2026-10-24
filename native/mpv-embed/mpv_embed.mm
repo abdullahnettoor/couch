@@ -323,6 +323,15 @@ static napi_value Destroy(napi_env env, napi_callback_info info) {
   return NULL;
 }
 
+// Hides the Mac cursor until the mouse moves (or until shown again), whichever view is under it.
+static napi_value SetCursorHidden(napi_env env, napi_callback_info info) {
+  size_t argc = 1; napi_value argv[1];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  bool hidden = false; napi_get_value_bool(env, argv[0], &hidden);
+  [NSCursor setHiddenUntilMouseMoves:hidden];
+  return NULL;
+}
+
 static napi_value Init(napi_env env, napi_value exports) {
   napi_property_descriptor d[] = {
     {"create", 0, Create, 0, 0, 0, napi_default, 0},
@@ -331,8 +340,9 @@ static napi_value Init(napi_env env, napi_value exports) {
     {"setGlass", 0, SetGlass, 0, 0, 0, napi_default, 0},
     {"getColor", 0, GetColor, 0, 0, 0, napi_default, 0},
     {"glassSupported", 0, GlassSupported, 0, 0, 0, napi_default, 0},
+    {"setCursorHidden", 0, SetCursorHidden, 0, 0, 0, napi_default, 0},
     {"destroy", 0, Destroy, 0, 0, 0, napi_default, 0}};
-  napi_define_properties(env, exports, 7, d);
+  napi_define_properties(env, exports, 8, d);
   return exports;
 }
 NAPI_MODULE(NODE_GYP_MODULE_NAME, Init)

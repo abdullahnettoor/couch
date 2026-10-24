@@ -21,7 +21,8 @@ import { TmdbMetadata } from "./ports/tmdb-metadata.ts";
 import { PROJECT_TMDB_KEY } from "./ports/project-key.ts";
 import { detectListener } from "./frontdoor.ts";
 import { chooseBinding } from "./listener.ts";
-import { createEmbedFactory } from "./mpv/embed-addon.ts";
+import { createEmbedFactory, setCursorHidden } from "./mpv/embed-addon.ts";
+import { CursorHider } from "./cursor-hider.ts";
 import { PictureCover } from "./web/picture-cover.ts";
 import { MpvPlayer } from "./mpv/mpv-player.ts";
 
@@ -178,7 +179,21 @@ async function createScreen(): Promise<void> {
   );
   win.on("resize", () => cover.fit());
   for (const web of [youtube, netflix]) web.setKeyGate((e, i) => cover.intercept(e, i));
+  const cursor = new CursorHider({
+    clock: systemClock,
+    pointer: () => screen.getCursorScreenPoint(),
+    setHidden: setCursorHidden,
+  });
+  let playingNow = false;
+  const syncCursor = (): void => cursor.playing(playingNow && win?.isFocused() === true);
+  win.on("blur", syncCursor);
+  win.on("focus", syncCursor);
+  win.on("hide", syncCursor);
+  app.on("before-quit", () => cursor.release());
+  app.on("will-quit", () => cursor.release());
   couch.onScreen((payload) => {
+    playingNow = payload.playing;
+    syncCursor();
     // Only over a web App: adding a view above the window would reorder the native video under the Library's cover.
     cover.set(payload.state.pictureOff && payload.state.view === "app");
     cover.showVolume(

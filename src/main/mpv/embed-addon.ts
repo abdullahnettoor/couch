@@ -19,6 +19,22 @@ interface Addon {
   getColor(id: number): [number, number, number] | null;
   glassSupported(): boolean;
   destroy(id: number): void;
+  setCursorHidden(hidden: boolean): void;
+}
+
+function loadAddon(): Addon {
+  return createRequire(import.meta.url)(
+    join(import.meta.dirname, "../../native/mpv-embed/mpv_embed.node"),
+  ) as Addon;
+}
+
+/** Hides the Mac cursor until the mouse moves, or shows it; a no-op if the add-on isn't built. */
+export function setCursorHidden(hidden: boolean): void {
+  try {
+    loadAddon().setCursorHidden?.(hidden);
+  } catch {
+    // no native add-on: the renderer's own idle cursor still applies
+  }
 }
 
 /**
@@ -30,9 +46,7 @@ export function createEmbedFactory(win: () => BrowserWindow | undefined): EmbedF
   return (options) => {
     const window = win();
     if (!window || window.isDestroyed()) throw new Error("no window to embed into");
-    const addon = createRequire(import.meta.url)(
-      join(import.meta.dirname, "../../native/mpv-embed/mpv_embed.node"),
-    ) as Addon;
+    const addon = loadAddon();
     const id = addon.create(window.getNativeWindowHandle(), options, process.env.COUCH_LIBMPV);
     return {
       setVisible: (visible) => addon.setVisible(id, visible),

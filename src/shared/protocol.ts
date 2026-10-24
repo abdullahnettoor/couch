@@ -312,6 +312,8 @@ export interface SoundPayload {
 
 /** Core → Screen renderer. */
 export interface ScreenPayload {
+  /** A video is on screen (the Library's, or a web App's playing one), so the idle cursor hides. */
+  playing: boolean;
   /** Couch is muted (the level is `state.volume`). */
   muted: boolean;
   state: ScreenState;

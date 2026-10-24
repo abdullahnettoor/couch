@@ -1108,6 +1108,7 @@ export class Core {
     if (this.#state.view === "library") this.#rootFocusId = focused?.id;
     const homeVideos = this.#continueEntries().slice(0, HOME_VIDEOS);
     return {
+      playing: this.#pictureScope() !== undefined,
       muted: this.#sound.muted,
       library: this.#library(focused?.id),
       ...(this.#state.view === "show" ? this.#show.payload() : {}),
