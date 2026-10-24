@@ -362,7 +362,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     var pad = true;
     var off = !!s.pictureOff;
     $("chip-pic").innerHTML = icon(off ? "monitorSlash" : "monitorPlay");
-    $("chip-pic").setAttribute("aria-label", off ? "Picture on" : "Picture off");
+    $("chip-pic").setAttribute("aria-label", "Picture off");
     $("chip-pic").setAttribute("aria-pressed", off ? "true" : "false");
     $("chip-pic").classList.toggle("on", off);
     $("chip-subs").hidden = !subs;

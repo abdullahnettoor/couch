@@ -49,8 +49,12 @@ test("parseTrackList reads mpv's audio and subtitle tracks with names and the se
       { id: 2, type: "audio", lang: "fra" },
       { id: 3, type: "audio", lang: "xyz" },
       { id: 4, type: "audio", lang: "pt-BR" },
+      { id: 5, type: "audio", lang: "wel" },
+      { id: 6, type: "audio", lang: "swa" },
+      { id: 7, type: "audio", lang: "eng-US" },
+      { id: 8, type: "audio", lang: "x" },
     ]).audio.map((t) => t.lang),
-  ).toEqual(["fr", "fr", "xyz", "pt-BR"]);
+  ).toEqual(["fr", "fr", "xyz", "pt-BR", "cy", "sw", "en-US", "x"]);
   expect(parseTrackList("nope")).toEqual({ audio: [], subtitles: [] });
 });
 

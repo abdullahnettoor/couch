@@ -503,7 +503,7 @@ describe("Picture off on Now Playing", () => {
   test("while picture-off is on it shows the slashed monitor, lit, and one tap turns it back on", () => {
     page.playing({}, { pictureOff: true });
     expect(chip().innerHTML).toContain(ICON_PATHS.monitorSlash);
-    expect(chip().attrs["aria-label"]).toBe("Picture on");
+    expect(chip().attrs["aria-label"]).toBe("Picture off");
     expect(chip().attrs["aria-pressed"]).toBe("true");
     expect(chip().classes.has("on")).toBe(true);
     page.tap("chip-pic");

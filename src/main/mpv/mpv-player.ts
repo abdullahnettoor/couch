@@ -82,63 +82,14 @@ function languageName(code: unknown): string | undefined {
   }
 }
 
-const ISO_639_2: Record<string, string> = {
-  ara: "ar",
-  bul: "bg",
-  cat: "ca",
-  ces: "cs",
-  cze: "cs",
-  dan: "da",
-  deu: "de",
-  ger: "de",
-  ell: "el",
-  gre: "el",
-  eng: "en",
-  spa: "es",
-  fin: "fi",
-  fra: "fr",
-  fre: "fr",
-  heb: "he",
-  hin: "hi",
-  hrv: "hr",
-  hun: "hu",
-  ind: "id",
-  ita: "it",
-  jpn: "ja",
-  kor: "ko",
-  mal: "ml",
-  tam: "ta",
-  tel: "te",
-  kan: "kn",
-  ben: "bn",
-  mar: "mr",
-  pan: "pa",
-  urd: "ur",
-  nld: "nl",
-  dut: "nl",
-  nor: "no",
-  pol: "pl",
-  por: "pt",
-  ron: "ro",
-  rum: "ro",
-  rus: "ru",
-  slk: "sk",
-  slo: "sk",
-  swe: "sv",
-  tha: "th",
-  tur: "tr",
-  ukr: "uk",
-  vie: "vi",
-  zho: "zh",
-  chi: "zh",
-  fas: "fa",
-  per: "fa",
-};
-
-/** mpv reports ISO 639-2 codes ("eng"); the protocol carries BCP 47, so map the common ones to two letters. */
+/** mpv reports ISO 639-2 codes ("eng"); the protocol carries BCP 47, so let ICU canonicalise them ("en"). Invalid tags pass through. */
 function languageTag(code: unknown): string | undefined {
   if (typeof code !== "string" || code === "" || code === "und") return undefined;
-  return ISO_639_2[code.toLowerCase()] ?? code;
+  try {
+    return new Intl.Locale(code).toString();
+  } catch {
+    return code;
+  }
 }
 
 /** The audio and subtitle entries of mpv's `track-list` property, named for the phone. */
