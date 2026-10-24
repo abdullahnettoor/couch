@@ -73,6 +73,8 @@ export type TrackKind = "subtitles" | "audio";
 export interface Track {
   id: string;
   label: string;
+  /** BCP 47 language tag, when the source gives one; the Remote's chips show its short code. */
+  lang?: string;
   on: boolean;
 }
 export type TrackList = Track[];

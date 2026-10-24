@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test } from "vite-plus/test";
+import { ICON_PATHS } from "../../shared/icons.ts";
 import { REMOTE_PAGE } from "./page.ts";
 import { PAGE_HTML, runPage } from "./page-runner.ts";
 
@@ -279,9 +280,64 @@ describe("Now Playing", () => {
       speeds: [0.5, 1, 1.25],
     });
     expect(hidden("chip-subs")).toBe(false);
-    expect(page.els.get("chip-subs-t")!.textContent).toBe("English");
-    expect(page.els.get("chip-aud-t")!.textContent).toBe("Español");
-    expect(page.els.get("chip-spd-t")!.textContent).toBe("1.25×");
+  });
+
+  describe("compact chips", () => {
+    const off = { id: "off", label: "Off", on: false };
+    const aria = (id: string) => page.els.get(id)!.attrs["aria-label"];
+    const lit = (id: string) => page.els.get(id)!.classes.has("on");
+    const t = (id: string) => page.els.get(id)!.textContent;
+
+    test("subtitles on show the language code, lit; off show the icon only, unlit", () => {
+      page.playing({ subtitles: [off, { id: "1", label: "English", lang: "en-US", on: true }] });
+      expect(t("chip-subs-t")).toBe("EN");
+      expect(lit("chip-subs")).toBe(true);
+      expect(aria("chip-subs")).toBe("Subtitles: English");
+      page.playing({
+        subtitles: [
+          { ...off, on: true },
+          { id: "1", label: "English", on: false },
+        ],
+      });
+      expect(t("chip-subs-t")).toBe("");
+      expect(lit("chip-subs")).toBe(false);
+      expect(aria("chip-subs")).toBe("Subtitles: Off");
+    });
+
+    test("a plain On switch (YouTube) is lit with no code", () => {
+      page.playing({
+        subtitles: [off, { id: "on", label: "On", on: true }],
+      });
+      expect(t("chip-subs-t")).toBe("");
+      expect(lit("chip-subs")).toBe(true);
+    });
+
+    test("audio shows its tag's code, or the label's first letters without one", () => {
+      page.playing({ audio: [{ id: "a", label: "Arabic stereo", lang: "ar", on: true }] });
+      expect(t("chip-aud-t")).toBe("AR");
+      expect(aria("chip-aud")).toBe("Audio: Arabic stereo");
+      page.playing({ audio: [{ id: "a", label: "Español", on: true }] });
+      expect(t("chip-aud-t")).toBe("ES");
+      expect(lit("chip-aud")).toBe(false);
+    });
+
+    test("the same code shows for variants; the sheet keeps the full labels", () => {
+      page.playing({ subtitles: [off, { id: "2", label: "English (CC)", on: true }] });
+      expect(t("chip-subs-t")).toBe("EN");
+      page.tap("chip-subs");
+      expect(page.els.get("np-rows")!.innerHTML).toContain("English (CC)");
+    });
+
+    test("speed shows the icon only at 1×, and the speed, lit, otherwise", () => {
+      page.playing({ speed: 1, speeds: [1, 1.5] });
+      expect(t("chip-spd-t")).toBe("");
+      expect(lit("chip-spd")).toBe(false);
+      expect(aria("chip-spd")).toBe("Speed 1×");
+      page.playing({ speed: 1.5, speeds: [1, 1.5] });
+      expect(t("chip-spd-t")).toBe("1.5×");
+      expect(lit("chip-spd")).toBe(true);
+      expect(aria("chip-spd")).toBe("Speed 1.5×");
+    });
   });
 
   test("the Library has the same buttons: Subtitles and Audio open lists, and the D-pad button", () => {
@@ -431,20 +487,25 @@ describe("Now Playing", () => {
 });
 
 describe("Picture off on Now Playing", () => {
-  const text = () => page.els.get("chip-pic-t")!.textContent;
+  const chip = () => page.els.get("chip-pic")!;
 
-  test("a Picture off button shows on Now Playing and asks the Screen to black out", () => {
+  test("an icon-only toggle: monitor when the picture is on; one tap asks the Screen to black out", () => {
     page.playing({});
     expect(hidden("chip-pic")).toBe(false);
-    expect(text()).toBe("Picture off");
+    expect(chip().innerHTML).toContain(ICON_PATHS.monitorPlay);
+    expect(chip().attrs["aria-label"]).toBe("Picture off");
+    expect(chip().attrs["aria-pressed"]).toBe("false");
     page.tap("chip-pic");
     expect(commands().at(-1)).toMatchObject({ command: "setPictureOff", args: { on: true } });
+    expect(hidden("np-sheet")).toBe(true);
   });
 
-  test("while it is on the button says Picture on, is lit, and turns it back on", () => {
+  test("while picture-off is on it shows the slashed monitor, lit, and one tap turns it back on", () => {
     page.playing({}, { pictureOff: true });
-    expect(text()).toBe("Picture on");
-    expect(page.els.get("chip-pic")!.classes.has("on")).toBe(true);
+    expect(chip().innerHTML).toContain(ICON_PATHS.monitorSlash);
+    expect(chip().attrs["aria-label"]).toBe("Picture on");
+    expect(chip().attrs["aria-pressed"]).toBe("true");
+    expect(chip().classes.has("on")).toBe(true);
     page.tap("chip-pic");
     expect(commands().at(-1)).toMatchObject({ command: "setPictureOff", args: { on: false } });
   });
@@ -452,7 +513,7 @@ describe("Picture off on Now Playing", () => {
   test("the lit state clears with the snapshot", () => {
     page.playing({}, { pictureOff: true });
     page.playing({}, { pictureOff: false });
-    expect(text()).toBe("Picture off");
-    expect(page.els.get("chip-pic")!.classes.has("on")).toBe(false);
+    expect(chip().innerHTML).toContain(ICON_PATHS.monitorPlay);
+    expect(chip().classes.has("on")).toBe(false);
   });
 });

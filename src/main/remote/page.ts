@@ -1,5 +1,6 @@
 import { glassTokensCss } from "../../shared/glass-tokens.ts";
 import { ICON_MARKUP } from "../../shared/icons.ts";
+import { trackCode } from "../../shared/track-code.ts";
 
 /** Back, Home and Mute: the top of Now Playing, its D-pad view and the idle Remote; `p` keeps the Back ids apart. */
 const bar = (p: string) =>
@@ -116,11 +117,12 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .tr .pp { width:76px; height:76px; background:#fff; color:#000; font-size:36px; transition:transform .12s; }
   .tr .pp:active { transform:scale(.94); background:#e5e5e5; }
   .chips { display:flex; gap:8px; flex:none; }
-  .chip { flex:1 1 auto; height:44px; border-radius:22px; background:var(--card); display:flex; align-items:center; justify-content:center; gap:5px; padding:0 5px; font-size:13px; font-weight:600; min-width:0; box-shadow:inset 0 1px 0 rgba(255,255,255,.07); }
-  .chip svg { font-size:17px; }
-  .chip.pad-chip { flex:0 0 52px; }
+  .chip { flex:1 0 auto; min-width:44px; height:44px; border-radius:22px; background:var(--card); display:flex; align-items:center; justify-content:center; gap:4px; padding:0 8px; font-size:13px; font-weight:600; box-shadow:inset 0 1px 0 rgba(255,255,255,.07); }
+  .chip svg { font-size:20px; }
+  .chip .cc { font-variant-numeric:tabular-nums; letter-spacing:.02em; }
+  .chip.pad-chip { flex:0 0 44px; padding:0; }
   .chip.pad-chip svg { font-size:22px; }
-  .chip span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+  .chip span { white-space:nowrap; }
   .chip:active { background:var(--card-2); }
   .chip.on { background:#fff; color:#000; }
   .vpill { align-self:center; flex:none; height:44px; width:176px; border-radius:22px; background:var(--glass); box-shadow:var(--glass-edge); display:flex; align-items:center; justify-content:space-between; padding:0 4px; }
@@ -191,10 +193,10 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     <button data-cmd="seekBy" data-seconds="10" aria-label="Forward 10 seconds" data-i="fwd10"></button>
   </div>
   <div class="chips" id="np-chips">
-    <button class="chip" id="chip-subs" hidden><span data-i="cc"></span><span id="chip-subs-t">Subtitles</span></button>
-    <button class="chip" id="chip-aud" hidden><span data-i="headphones"></span><span id="chip-aud-t">Audio</span></button>
-    <button class="chip" id="chip-spd" hidden><span data-i="gauge"></span><span id="chip-spd-t">1×</span></button>
-    <button class="chip" id="chip-pic"><span data-i="monitorPlay"></span><span id="chip-pic-t">Picture off</span></button>
+    <button class="chip" id="chip-subs" aria-label="Subtitles" hidden><span data-i="cc"></span><span class="cc" id="chip-subs-t" hidden></span></button>
+    <button class="chip" id="chip-aud" aria-label="Audio" hidden><span data-i="headphones"></span><span class="cc" id="chip-aud-t" hidden></span></button>
+    <button class="chip" id="chip-spd" aria-label="Speed" hidden><span data-i="gauge"></span><span class="cc" id="chip-spd-t" hidden></span></button>
+    <button class="chip" id="chip-pic" aria-label="Picture off" aria-pressed="false"></button>
     <button class="chip pad-chip" id="chip-pad" aria-label="D-pad" hidden><span data-i="dpad"></span></button>
   </div>
   __VPILL_NP__
@@ -268,9 +270,16 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   var last = null, sheetKind = "";
   function esc(t) { return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
   function speedLabel(x) { return x + "×"; }
-  function current(tracks, fallback) {
-    var on = (tracks || []).filter(function (t) { return t.on; })[0];
-    return on ? on.label : fallback;
+  var trackCode = __TRACK_CODE__;
+  function current(tracks) {
+    return (tracks || []).filter(function (t) { return t.on; })[0];
+  }
+  function setChip(id, label, text, lit) {
+    var el = $(id);
+    el.setAttribute("aria-label", label);
+    el.classList.toggle("on", lit);
+    $(id + "-t").textContent = text;
+    $(id + "-t").hidden = !text;
   }
   function row(cmd, args, label, cur) {
     return '<button data-cmd="' + cmd + '" data-args="' + esc(JSON.stringify(args)) + '" data-close="1"' + (cur ? ' class="cur"' : "") + ">" + esc(label) + "</button>";
@@ -352,16 +361,19 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     var spd = !!(np.speeds && np.speeds.length && typeof np.speed === "number");
     var pad = true;
     var off = !!s.pictureOff;
-    $("chip-pic-t").textContent = off ? "Picture on" : "Picture off";
+    $("chip-pic").innerHTML = icon(off ? "monitorSlash" : "monitorPlay");
+    $("chip-pic").setAttribute("aria-label", off ? "Picture on" : "Picture off");
+    $("chip-pic").setAttribute("aria-pressed", off ? "true" : "false");
     $("chip-pic").classList.toggle("on", off);
     $("chip-subs").hidden = !subs;
     $("chip-aud").hidden = !aud;
     $("chip-spd").hidden = !spd;
     $("chip-pad").hidden = !pad;
-    $("np-chips").style.setProperty("--n", String(Math.max(1, (subs ? 1 : 0) + (aud ? 1 : 0) + (spd ? 1 : 0) + 2)));
-    $("chip-subs-t").textContent = current(np.subtitles, "Subtitles");
-    $("chip-aud-t").textContent = current(np.audio, "Audio");
-    if (spd) $("chip-spd-t").textContent = speedLabel(np.speed);
+    var sOn = current(np.subtitles), aOn = current(np.audio);
+    var subsLit = !!sOn && sOn.id !== "off" && !/^off$/i.test(sOn.label);
+    setChip("chip-subs", "Subtitles: " + (subsLit ? sOn.label : "Off"), subsLit ? trackCode(sOn) : "", subsLit);
+    setChip("chip-aud", "Audio: " + (aOn ? aOn.label : "Default"), aOn ? trackCode(aOn) : "", false);
+    if (spd) setChip("chip-spd", "Speed " + speedLabel(np.speed), np.speed === 1 ? "" : speedLabel(np.speed), np.speed !== 1);
     $("np-more").hidden = !s.upNext || s.upNext.length < 2;
     if (sheetKind && !$("np-sheet").hidden) $("np-rows").innerHTML = sheetHtml(sheetKind, s);
   }
@@ -601,4 +613,5 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .replace("__VPILL_NP__", vpill("np"))
   .replace("__VPILL_ID__", vpill("id"))
   .replace("__ICONS__", JSON.stringify(ICON_MARKUP))
+  .replace("__TRACK_CODE__", () => trackCode.toString())
   .replace("__TOKENS__", glassTokensCss({ unit: "1px" }));

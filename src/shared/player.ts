@@ -4,6 +4,8 @@ import type { CommandName } from "./protocol.ts";
 export interface PlayerTrack {
   id: string;
   label: string;
+  /** BCP 47 language tag, when mpv knows the language. */
+  lang?: string;
   selected: boolean;
 }
 

@@ -26,23 +26,31 @@ test("parseTrackList reads mpv's audio and subtitle tracks with names and the se
   expect(
     parseTrackList([
       { id: 1, type: "video", selected: true },
-      { id: 1, type: "audio", lang: "mal", selected: true },
-      { id: 2, type: "audio", lang: "eng", title: "Commentary", selected: false },
-      { id: 1, type: "sub", lang: "eng", selected: false },
+      { id: 1, type: "audio", lang: "ml", selected: true },
+      { id: 2, type: "audio", lang: "en", title: "Commentary", selected: false },
+      { id: 1, type: "sub", lang: "en", selected: false },
       { id: 2, type: "sub", selected: true },
       { id: 3, type: "sub", lang: "und", title: "Forced", selected: false },
     ]),
   ).toEqual({
     audio: [
-      { id: "1", label: "Malayalam", selected: true },
-      { id: "2", label: "English · Commentary", selected: false },
+      { id: "1", label: "Malayalam", lang: "ml", selected: true },
+      { id: "2", label: "English · Commentary", lang: "en", selected: false },
     ],
     subtitles: [
-      { id: "1", label: "English", selected: false },
+      { id: "1", label: "English", lang: "en", selected: false },
       { id: "2", label: "Track 2", selected: true },
       { id: "3", label: "Forced", selected: false },
     ],
   });
+  expect(
+    parseTrackList([
+      { id: 1, type: "audio", lang: "fre" },
+      { id: 2, type: "audio", lang: "fra" },
+      { id: 3, type: "audio", lang: "xyz" },
+      { id: 4, type: "audio", lang: "pt-BR" },
+    ]).audio.map((t) => t.lang),
+  ).toEqual(["fr", "fr", "xyz", "pt-BR"]);
   expect(parseTrackList("nope")).toEqual({ audio: [], subtitles: [] });
 });
 

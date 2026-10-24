@@ -1219,12 +1219,24 @@ export class Core {
         ? {
             subtitles: [
               { id: "off", label: "Off", on: !shown },
-              ...subtitles.map((t) => ({ id: t.id, label: t.label, on: shown && t.selected })),
+              ...subtitles.map((t) => ({
+                ...(t.lang ? { lang: t.lang } : {}),
+                id: t.id,
+                label: t.label,
+                on: shown && t.selected,
+              })),
             ],
           }
         : {}),
       ...(audio.length
-        ? { audio: audio.map((t) => ({ id: t.id, label: t.label, on: t.selected })) }
+        ? {
+            audio: audio.map((t) => ({
+              id: t.id,
+              label: t.label,
+              ...(t.lang ? { lang: t.lang } : {}),
+              on: t.selected,
+            })),
+          }
         : {}),
     };
   }
