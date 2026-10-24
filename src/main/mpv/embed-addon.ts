@@ -20,6 +20,8 @@ interface Addon {
   glassSupported(): boolean;
   destroy(id: number): void;
   setCursorHidden(hidden: boolean): void;
+  watchMouseMoves(cb: () => void): void;
+  unwatchMouseMoves(): void;
 }
 
 function loadAddon(): Addon {
@@ -34,6 +36,20 @@ export function setCursorHidden(hidden: boolean): void {
     loadAddon().setCursorHidden?.(hidden);
   } catch {
     // no native add-on: the renderer's own idle cursor still applies
+  }
+}
+
+/**
+ * Calls `cb` on every mouse movement over Couch's window, whichever view is under the pointer
+ * (an NSEvent local monitor). Returns a function that stops it; a no-op without the add-on.
+ */
+export function watchMouseMoves(cb: () => void): () => void {
+  try {
+    const addon = loadAddon();
+    addon.watchMouseMoves(cb);
+    return () => addon.unwatchMouseMoves();
+  } catch {
+    return () => {};
   }
 }
 

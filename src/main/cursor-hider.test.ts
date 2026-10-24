@@ -2,80 +2,108 @@ import { describe, expect, test } from "vite-plus/test";
 import { CursorHider } from "./cursor-hider.ts";
 import { FakeClock } from "./ports/fakes.ts";
 
+/** A Mac whose cursor reveals itself on any movement, like setHiddenUntilMouseMoves. */
 function setup() {
   const clock = new FakeClock();
-  const pointer = { x: 500, y: 400 };
   const calls: boolean[] = [];
+  const listeners = new Set<() => void>();
+  const mac = { visible: true };
   const hider = new CursorHider({
     clock,
-    pointer: () => ({ ...pointer }),
-    setHidden: (hidden) => calls.push(hidden),
+    onMouseMoved: (cb) => {
+      listeners.add(cb);
+      return () => listeners.delete(cb);
+    },
+    setHidden: (hidden) => {
+      calls.push(hidden);
+      mac.visible = !hidden;
+    },
   });
-  return { clock, pointer, calls, hider };
+  /** The mouse moves (even if it ends where it began): macOS reveals the cursor, then we hear. */
+  const move = (): void => {
+    mac.visible = true;
+    for (const cb of listeners) cb();
+  };
+  return { clock, calls, hider, mac, move, watching: () => listeners.size };
 }
 
 describe("hiding the cursor during playback", () => {
   test("hides after about 3 s at rest, even when the mouse never moved since playback began", () => {
     const { clock, calls, hider } = setup();
     hider.playing(true);
-    clock.advance(2500);
+    clock.advance(2900);
     expect(calls).toEqual([]);
-    clock.advance(1000);
+    clock.advance(200);
     expect(calls).toEqual([true]);
   });
 
   test("does nothing on Home, browse pages and other views", () => {
-    const { clock, calls, hider } = setup();
+    const { clock, calls, hider, watching } = setup();
     hider.playing(false);
     clock.advance(10_000);
     expect(calls).toEqual([]);
+    expect(watching()).toBe(0);
   });
 
   test("movement shows it again and restarts the timer", () => {
-    const { clock, pointer, calls, hider } = setup();
+    const { clock, calls, hider, mac, move } = setup();
     hider.playing(true);
     clock.advance(3500);
-    pointer.x += 40;
-    clock.advance(500);
+    move();
+    expect(mac.visible).toBe(true);
+    clock.advance(2900);
     expect(calls).toEqual([true, false]);
-    clock.advance(2000);
-    expect(calls).toEqual([true, false]);
-    clock.advance(1500);
+    clock.advance(200);
     expect(calls).toEqual([true, false, true]);
+    expect(mac.visible).toBe(false);
   });
 
   test("movement before the delay is up postpones hiding", () => {
-    const { clock, pointer, calls, hider } = setup();
+    const { clock, calls, hider, move } = setup();
     hider.playing(true);
     clock.advance(2000);
-    pointer.y += 10;
+    move();
     clock.advance(2500);
     expect(calls).toEqual([]);
-    clock.advance(1000);
+    clock.advance(600);
     expect(calls).toEqual([true]);
   });
 
-  test("leaving playback shows the cursor at once", () => {
-    const { clock, calls, hider } = setup();
+  test("a mouse that leaves and returns to the same spot still re-arms hiding", () => {
+    const { clock, hider, mac, move } = setup();
+    hider.playing(true);
+    clock.advance(3500);
+    expect(mac.visible).toBe(false);
+    move();
+    move();
+    expect(mac.visible).toBe(true);
+    clock.advance(3100);
+    expect(mac.visible).toBe(false);
+  });
+
+  test("leaving playback shows the cursor at once and stops watching", () => {
+    const { clock, calls, hider, mac, watching } = setup();
     hider.playing(true);
     clock.advance(3500);
     hider.playing(false);
-    expect(calls).toEqual([true, false]);
+    expect(mac.visible).toBe(true);
+    expect(watching()).toBe(0);
     clock.advance(10_000);
     expect(calls).toEqual([true, false]);
   });
 
-  test("losing focus or quitting shows it and stops hiding until playback is told again", () => {
-    const { clock, calls, hider } = setup();
+  test("release always leaves the cursor visible, even if hiding is only pending", () => {
+    const { clock, calls, hider, mac } = setup();
     hider.playing(true);
-    clock.advance(3500);
+    clock.advance(1000);
     hider.release();
-    expect(calls).toEqual([true, false]);
+    expect(calls.at(-1)).toBe(false);
+    expect(mac.visible).toBe(true);
     clock.advance(10_000);
-    expect(calls).toEqual([true, false]);
+    expect(mac.visible).toBe(true);
     hider.playing(true);
-    clock.advance(3500);
-    expect(calls).toEqual([true, false, true]);
+    clock.advance(3100);
+    expect(mac.visible).toBe(false);
   });
 
   test("repeated playing(true) reports don't restart the timer", () => {
@@ -83,7 +111,7 @@ describe("hiding the cursor during playback", () => {
     hider.playing(true);
     clock.advance(2000);
     hider.playing(true);
-    clock.advance(1200);
+    clock.advance(1100);
     expect(calls).toEqual([true]);
   });
 });

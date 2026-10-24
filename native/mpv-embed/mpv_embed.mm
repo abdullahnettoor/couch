@@ -324,11 +324,58 @@ static napi_value Destroy(napi_env env, napi_callback_info info) {
 }
 
 // Hides the Mac cursor until the mouse moves (or until shown again), whichever view is under it.
+// Only works while Couch is the active app, so showing is idempotent and also happens by itself
+// when Couch resigns active. No [NSCursor hide]/[NSCursor unhide] pairs are used, so nothing can
+// become unbalanced.
+static void ShowCursor() { [NSCursor setHiddenUntilMouseMoves:NO]; }
+
 static napi_value SetCursorHidden(napi_env env, napi_callback_info info) {
   size_t argc = 1; napi_value argv[1];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
   bool hidden = false; napi_get_value_bool(env, argv[0], &hidden);
+  if (hidden && ![NSApp isActive]) hidden = false;
   [NSCursor setHiddenUntilMouseMoves:hidden];
+  return NULL;
+}
+
+static napi_threadsafe_function moveTsfn = NULL;
+static id moveMonitor = nil;
+static id resignObserver = nil;
+
+static void StopMoveWatch() {
+  if (moveMonitor) { [NSEvent removeMonitor:moveMonitor]; moveMonitor = nil; }
+  if (resignObserver) { [[NSNotificationCenter defaultCenter] removeObserver:resignObserver]; resignObserver = nil; }
+  if (moveTsfn) { napi_release_threadsafe_function(moveTsfn, napi_tsfn_release); moveTsfn = NULL; }
+}
+
+static void CallMoveJs(napi_env env, napi_value jsCb, void *, void *) {
+  if (!env || !jsCb) return;
+  napi_value undef; napi_get_undefined(env, &undef);
+  napi_call_function(env, undef, jsCb, 0, NULL, NULL);
+}
+
+// Every mouse movement over any of Couch's views (mpv, web, cover, renderer) reaches the window.
+static napi_value WatchMouseMoves(napi_env env, napi_callback_info info) {
+  size_t argc = 1; napi_value argv[1];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  StopMoveWatch();
+  napi_value name; napi_create_string_utf8(env, "couch-mouse-moved", NAPI_AUTO_LENGTH, &name);
+  if (napi_create_threadsafe_function(env, argv[0], NULL, name, 0, 1, NULL, NULL, NULL, CallMoveJs, &moveTsfn) != napi_ok) return NULL;
+  napi_unref_threadsafe_function(env, moveTsfn);
+  napi_threadsafe_function fn = moveTsfn;
+  moveMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:(NSEventMaskMouseMoved | NSEventMaskLeftMouseDragged | NSEventMaskRightMouseDragged)
+    handler:^NSEvent *(NSEvent *e) {
+      napi_call_threadsafe_function(fn, NULL, napi_tsfn_nonblocking);
+      return e;
+    }];
+  resignObserver = [[NSNotificationCenter defaultCenter] addObserverForName:NSApplicationDidResignActiveNotification
+    object:nil queue:nil usingBlock:^(NSNotification *) { ShowCursor(); }];
+  return NULL;
+}
+
+static napi_value UnwatchMouseMoves(napi_env env, napi_callback_info info) {
+  StopMoveWatch();
+  ShowCursor();
   return NULL;
 }
 
@@ -341,8 +388,10 @@ static napi_value Init(napi_env env, napi_value exports) {
     {"getColor", 0, GetColor, 0, 0, 0, napi_default, 0},
     {"glassSupported", 0, GlassSupported, 0, 0, 0, napi_default, 0},
     {"setCursorHidden", 0, SetCursorHidden, 0, 0, 0, napi_default, 0},
+    {"watchMouseMoves", 0, WatchMouseMoves, 0, 0, 0, napi_default, 0},
+    {"unwatchMouseMoves", 0, UnwatchMouseMoves, 0, 0, 0, napi_default, 0},
     {"destroy", 0, Destroy, 0, 0, 0, napi_default, 0}};
-  napi_define_properties(env, exports, 8, d);
+  napi_define_properties(env, exports, 10, d);
   return exports;
 }
 NAPI_MODULE(NODE_GYP_MODULE_NAME, Init)
