@@ -224,6 +224,8 @@ static napi_value Create(napi_env env, napi_callback_info info) {
   return out;
 }
 
+static std::map<int, NSView *> glass; // key: id * 16 + slot, glass sits between the video and the web contents
+
 static napi_value SetVisible(napi_env env, napi_callback_info info) {
   size_t argc = 2; napi_value argv[2];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
@@ -233,6 +235,8 @@ static napi_value SetVisible(napi_env env, napi_callback_info info) {
   if (v) {
     NSView *parent = v.superview;
     [parent addSubview:v positioned:(below[id] ? NSWindowBelow : NSWindowAbove) relativeTo:nil];
+    // Keep glass directly above the video (below the web contents) whenever the video is re-stacked.
+    for (int k = 0; k < 16; k++) { auto it = glass.find(id * 16 + k); if (it != glass.end()) [parent addSubview:it->second positioned:NSWindowAbove relativeTo:v]; }
     [CATransaction begin]; [CATransaction setDisableActions:YES];
     v.layer.opacity = vis ? 1 : 0;
     [CATransaction commit];
@@ -254,7 +258,6 @@ static napi_value SetPlacement(napi_env env, napi_callback_info info) {
 }
 
 // Glass sits between the video and the web contents. Only exists on macOS 26+.
-static std::map<int, NSView *> glass; // key: id * 16 + slot
 static bool glassAvailable() { return NSClassFromString(@"NSGlassEffectView") != nil; }
 
 static napi_value GlassSupported(napi_env env, napi_callback_info) {
