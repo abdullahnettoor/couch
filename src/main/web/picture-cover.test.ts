@@ -88,6 +88,19 @@ describe("the Picture off cover", () => {
     expect(commands).toEqual([{ command: "setPictureOff", args: { on: false } }]);
   });
 
+  test.each([" ", "MediaPlayPause"])(
+    "%j sends play/pause, swallowed, and the cover stays on",
+    (k) => {
+      const { picture, commands } = setup();
+      picture.set(true);
+      const e = event();
+      expect(picture.intercept(e, key(k))).toBe(true);
+      expect(e.prevented).toBe(true);
+      expect(commands).toEqual([{ command: "playpause" }]);
+      expect(picture.intercept(event(), key("k"))).toBe(true);
+    },
+  );
+
   test("a key release is swallowed without a second command", () => {
     const { picture, commands } = setup();
     picture.set(true);

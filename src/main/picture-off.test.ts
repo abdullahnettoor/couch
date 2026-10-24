@@ -64,14 +64,36 @@ describe("Picture off", () => {
     expect(phone.last?.pictureOff).toBe(false);
   });
 
-  test("the first key only restores the picture", async () => {
+  test("playpause acts at once and leaves it on", async () => {
     const { phone, tube } = await start();
     await phone.press({ command: "setPictureOff", args: { on: true } });
     await phone.press("playpause");
-    expect(phone.last?.pictureOff).toBe(false);
-    expect(tube.calls.some((c) => c.call === "playPause")).toBe(false);
-    await phone.press("playpause");
     expect(tube.calls.some((c) => c.call === "playPause")).toBe(true);
+    expect(phone.last?.pictureOff).toBe(true);
+    expect(h.screen.last.state.pictureOff).toBe(true);
+  });
+
+  test("resume reaches the core instead of only restoring the picture", async () => {
+    const { phone } = await start();
+    await phone.press({ command: "setPictureOff", args: { on: true } });
+    await phone.press("resume"); // nothing to continue here, so it does nothing else
+    expect(phone.last?.pictureOff).toBe(true);
+  });
+
+  test("the subtitles toggle acts and leaves it on", async () => {
+    const { phone } = await start();
+    await phone.press({ command: "setPictureOff", args: { on: true } });
+    await phone.press("subtitles");
+    expect(phone.last?.pictureOff).toBe(true);
+  });
+
+  test("an arrow only restores the picture, without acting", async () => {
+    const { phone, tube } = await start();
+    await phone.press({ command: "setPictureOff", args: { on: true } });
+    tube.calls.length = 0;
+    await phone.press("left");
+    expect(phone.last?.pictureOff).toBe(false);
+    expect(tube.calls).toEqual([]);
   });
 
   test.each(["up", "ok", "back", "home", "left"] as const)("%s restores it", async (key) => {

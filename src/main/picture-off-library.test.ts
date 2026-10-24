@@ -50,9 +50,9 @@ describe("Picture off in the Library", () => {
     expect(phone.last).toMatchObject({ pictureOff: false, view: "player" });
   });
 
-  test("playpause while hidden restores without pausing", async () => {
+  test("playpause while hidden pauses and leaves it on", async () => {
     await phone.press("playpause");
-    expect(phone.last?.pictureOff).toBe(false);
-    expect(h.player.calls.some((c) => c.call === "togglePause" || c.call === "pause")).toBe(false);
+    expect(phone.last?.pictureOff).toBe(true);
+    expect(h.player.calls.some((c) => c.call === "setPaused")).toBe(true);
   });
 });

@@ -52,7 +52,7 @@ Couch's own volume set to silence. It remembers the level, silences mpv and ever
 _Avoid_: silence, volume off
 
 **Picture off**:
-A black cover over the whole Screen, with a small dim Couch mark, while playback and sound carry on underneath; the phone's Picture off button on Now Playing turns it on, any key turns it off, and it also ends when playback stops, on Home or when the App changes.
+A black cover over the whole Screen, with a small dim Couch mark, while playback and sound carry on underneath; the phone's Picture off button on Now Playing turns it on, any navigation key turns it off (playback controls like play/pause, volume and seek work without turning it off), and it also ends when playback stops, on Home or when the App changes.
 _Avoid_: screen off, blank, sleep
 
 **Speed**:

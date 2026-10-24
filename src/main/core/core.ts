@@ -70,18 +70,15 @@ const TYPING_VIEW = { search: "app", tmdbKey: "details", librarySearch: "library
 type Purpose = keyof typeof TYPING_VIEW;
 const SCREEN_ONLY = ["focusAt", "showControls", "find", "screenKey", "confirmAt"];
 const NAV = ["up", "down", "left", "right"];
-/** Keys (a phone's pad and buttons, the Mac keyboard): the first one while Picture off is on only brings the picture back. */
+/** Keys (a phone's pad and buttons, the Mac keyboard): while Picture off is on they only bring the picture back. Playback controls (play/pause, subtitles, volume, seek...) act and leave it on. */
 const PICTURE_KEYS = [
   ...NAV,
   "ok",
   "back",
   "home",
-  "playpause",
-  "resume",
   "menu",
   "power",
   "openSettings",
-  "subtitles",
   "screenKey",
   "find",
   "typeOpen",

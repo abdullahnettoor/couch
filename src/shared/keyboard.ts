@@ -11,6 +11,7 @@ export const SCREEN_KEYS: Record<string, CommandName> = {
   h: "home",
   H: "home",
   " ": "playpause",
+  MediaPlayPause: "playpause",
   m: "menu",
   M: "menu",
   ContextMenu: "menu",
