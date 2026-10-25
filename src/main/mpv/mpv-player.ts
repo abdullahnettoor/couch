@@ -182,10 +182,8 @@ export class MpvPlayer implements Player {
     for (let slot = 0; slot < count; slot++)
       this.embedded.setGlass?.(slot, rects[slot] ?? { x: 0, y: 0, w: 0, h: 0, r: 0, alpha: 0 });
     this.glassSlots = Math.min(rects.length, MAX_GLASS_SLOTS);
-    this.glassRects = rects;
   }
   private glassSlots = 0;
-  private glassRects: GlassRect[] = [];
 
   /** The video's main colour (0-255 RGB), sampled by the add-on about once a second. */
   videoColor(): [number, number, number] | null {
@@ -336,8 +334,6 @@ export class MpvPlayer implements Player {
         this.emit({ type: "duration", seconds: e.data });
     } else if (e.event === "file-loaded") {
       this.embedded?.setVisible(true);
-      // Showing the video re-stacks the native views; send the glass again so it lands back above the video and below the web contents.
-      if (this.glassRects.length > 0) this.setGlass(this.glassRects);
     } else if (e.event === "end-file") {
       const reason = e.reason === "eof" ? "eof" : e.reason === "error" ? "error" : "stop";
       this.embedded?.setVisible(false);

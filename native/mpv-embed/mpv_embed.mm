@@ -9,6 +9,7 @@
 #include <vector>
 #include <string>
 #include <node_api.h>
+#include "view_order.h"
 #include <mpv/client.h>
 #include <mpv/render.h>
 #include <mpv/render_gl.h>
@@ -169,6 +170,39 @@ static void onUpdate(void *ctx) {
 - (void)setFrameSize:(NSSize)s { [super setFrameSize:s]; [self.layer setNeedsDisplay]; }
 @end
 
+// Keeps video < glass < everything else; see view_order.h.
+struct NSViewHost : vieworder::Host<NSView *> {
+  NSView *parent;
+  explicit NSViewHost(NSView *p) : parent(p) {}
+  std::vector<NSView *> subviews() const override {
+    std::vector<NSView *> out;
+    for (NSView *v in parent.subviews) out.push_back(v);
+    return out;
+  }
+  void placeBottom(NSView *v) override { [parent addSubview:v positioned:NSWindowBelow relativeTo:nil]; }
+  void placeTop(NSView *v) override { [parent addSubview:v positioned:NSWindowAbove relativeTo:nil]; }
+  void placeAbove(NSView *v, NSView *ref) override { [parent addSubview:v positioned:NSWindowAbove relativeTo:ref]; }
+};
+
+struct PlayerOrder {
+  NSViewHost host;
+  CFRunLoopObserverRef observer = NULL;
+  vieworder::Keeper<NSView *> keeper;
+  // AppKit gives no notification when Electron reorders siblings (KVO on `subviews` never fires), so the
+  // check runs at the start of every main run loop turn's sleep, before Core Animation commits (order 2000000).
+  explicit PlayerOrder(NSView *parent)
+      : host(parent), keeper(host, [this](std::function<void()> notify) {
+          observer = CFRunLoopObserverCreateWithHandler(kCFAllocatorDefault, kCFRunLoopBeforeWaiting, true, 0,
+                                                        ^(CFRunLoopObserverRef, CFRunLoopActivity) { notify(); });
+          CFRunLoopAddObserver(CFRunLoopGetMain(), observer, kCFRunLoopCommonModes);
+        }) {}
+  ~PlayerOrder() {
+    if (observer) { CFRunLoopRemoveObserver(CFRunLoopGetMain(), observer, kCFRunLoopCommonModes); CFRelease(observer); }
+  }
+};
+static std::map<int, PlayerOrder *> order;
+static std::map<int, NSView *> glass; // key: id * 16 + slot, glass sits between the video and the web contents
+
 static std::map<int, MpvView *> views;
 // The video sits under the window's web contents so Couch's own UI (a transparent page) draws over it.
 static std::map<int, bool> below;
@@ -219,12 +253,12 @@ static napi_value Create(napi_env env, napi_callback_info info) {
   int id = nextId++;
   views[id] = view;
   below[id] = true;
-  [parent addSubview:view positioned:NSWindowBelow relativeTo:nil];
+  PlayerOrder *po = new PlayerOrder(parent);
+  order[id] = po;
+  po->keeper.setVideo(view, true);
   napi_value out; napi_create_int32(env, id, &out);
   return out;
 }
-
-static std::map<int, NSView *> glass; // key: id * 16 + slot, glass sits between the video and the web contents
 
 static napi_value SetVisible(napi_env env, napi_callback_info info) {
   size_t argc = 2; napi_value argv[2];
@@ -233,10 +267,7 @@ static napi_value SetVisible(napi_env env, napi_callback_info info) {
   napi_get_value_int32(env, argv[0], &id); napi_get_value_bool(env, argv[1], &vis);
   MpvView *v = views[id];
   if (v) {
-    NSView *parent = v.superview;
-    [parent addSubview:v positioned:(below[id] ? NSWindowBelow : NSWindowAbove) relativeTo:nil];
-    // Keep glass directly above the video (below the web contents) whenever the video is re-stacked.
-    for (int k = 0; k < 16; k++) { auto it = glass.find(id * 16 + k); if (it != glass.end()) [parent addSubview:it->second positioned:NSWindowAbove relativeTo:v]; }
+    if (order.count(id)) order[id]->keeper.ensure();
     [CATransaction begin]; [CATransaction setDisableActions:YES];
     v.layer.opacity = vis ? 1 : 0;
     [CATransaction commit];
@@ -252,8 +283,7 @@ static napi_value SetPlacement(napi_env env, napi_callback_info info) {
   int32_t id; bool b;
   napi_get_value_int32(env, argv[0], &id); napi_get_value_bool(env, argv[1], &b);
   below[id] = b;
-  MpvView *v = views[id];
-  if (v) [v.superview addSubview:v positioned:(b ? NSWindowBelow : NSWindowAbove) relativeTo:nil];
+  if (order.count(id)) order[id]->keeper.setBelow(b);
   return NULL;
 }
 
@@ -284,8 +314,7 @@ static napi_value SetGlass(napi_env env, napi_callback_info info) {
     glass[key] = g;
   }
   [CATransaction begin]; [CATransaction setDisableActions:YES];
-  // Every call: Electron reorders its view siblings (web contents, compositor) and glass left above them blurs the page.
-  [parent addSubview:g positioned:NSWindowAbove relativeTo:v];
+  if (!g.superview && order.count(id)) order[id]->keeper.addGlass(g);
   CGFloat H = parent.bounds.size.height;
   NSRect r = NSMakeRect(d[0], parent.isFlipped ? d[1] : H - d[1] - d[3], d[2], d[3]);
   g.frame = r;
@@ -320,6 +349,12 @@ static napi_value Destroy(napi_env env, napi_callback_info info) {
   if (v) {
     views.erase(id);
     for (int k = 0; k < 16; k++) if (glass.count(id * 16 + k)) { [glass[id * 16 + k] removeFromSuperview]; glass.erase(id * 16 + k); }
+    if (order.count(id)) {
+      PlayerOrder *po = order[id];
+      po->keeper.release();
+      delete po;
+      order.erase(id);
+    }
     [(MpvLayer *)v.layer shutdown];
     [v removeFromSuperview];
   }

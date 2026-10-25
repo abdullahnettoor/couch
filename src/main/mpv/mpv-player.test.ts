@@ -122,27 +122,3 @@ realMpv(
   },
   20000,
 );
-
-test("native glass is stacked again when the video becomes visible, so it never ends up above the controls", () => {
-  const calls: string[] = [];
-  player = new MpvPlayer({
-    mpvPath: undefined,
-    embed: () => ({
-      nativeGlass: true,
-      setVisible: (v) => calls.push(`visible:${v}`),
-      setGlass: (slot, r) => calls.push(`glass:${slot}:${r.alpha}`),
-      destroy: () => {},
-    }),
-  });
-  void player.start();
-  const dock = { x: 1, y: 2, w: 300, h: 80, r: 20, alpha: 1 };
-  // The overlay reports its glass before mpv has loaded the file (first open).
-  player.setGlass([dock]);
-  calls.length = 0;
-  player["onMpvEvent"]({ event: "file-loaded" });
-  expect(calls).toEqual(["visible:true", "glass:0:1"]);
-  calls.length = 0;
-  player["onMpvEvent"]({ event: "end-file", reason: "stop" });
-  player["onMpvEvent"]({ event: "file-loaded" });
-  expect(calls).toEqual(["visible:false", "glass:0:0", "visible:true"]);
-});
