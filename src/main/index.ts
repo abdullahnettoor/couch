@@ -215,7 +215,7 @@ async function createScreen(): Promise<void> {
     onMouseMoved: moves.subscribe,
     setHidden: setCursorHidden,
   });
-  // The pointer resting at the far left edge opens Quick settings; the gesture only arms on real movement.
+  // The pointer resting at the far right edge opens Quick settings; the gesture only arms on real movement.
   const edge = new EdgeGesture({
     clock: systemClock,
     onMouseMoved: moves.subscribe,
@@ -224,7 +224,7 @@ async function createScreen(): Promise<void> {
       const p = screen.getCursorScreenPoint();
       const b = win.getBounds();
       const inside = p.y >= b.y && p.y < b.y + b.height && p.x >= b.x && p.x < b.x + b.width;
-      return inside ? { x: p.x - b.x, y: p.y - b.y } : undefined;
+      return inside ? { x: p.x - b.x, y: p.y - b.y, width: b.width } : undefined;
     },
     open: () => couch?.screenCommand({ command: "quickEdge" }),
   });

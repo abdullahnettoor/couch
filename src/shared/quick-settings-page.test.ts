@@ -133,4 +133,13 @@ describe("the Quick settings page", () => {
     listeners.click!({ target: { closest: () => ({ getAttribute: () => id }) } });
     expect(sent).toEqual([{ command: "quickPick", args: { item: id } }]);
   });
+
+  test("the drawer is anchored to the right edge and slides in from off-screen right", () => {
+    const html = quickSettingsPage();
+    const rule = /#drawer \{([^}]*)\}/.exec(html)![1]!;
+    expect(rule).toMatch(/right:0/);
+    expect(rule).not.toMatch(/(^|[;\s])left:/);
+    expect(rule).toMatch(/translateX\(102%\)/);
+    expect(rule).toMatch(/border-radius:calc\(36\*var\(--u\)\) 0 0 calc\(36\*var\(--u\)\)/);
+  });
 });

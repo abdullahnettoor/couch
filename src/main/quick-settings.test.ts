@@ -67,7 +67,7 @@ describe("Quick settings", () => {
     expect(q.volume).toBe(60);
   });
 
-  test("the arrows move the highlight, OK picks, and Left from the first column closes", async () => {
+  test("the arrows move the highlight, OK picks, and Right closes", async () => {
     const { phone } = await start();
     await open(phone);
     await phone.press("down");
@@ -80,18 +80,23 @@ describe("Quick settings", () => {
     expect(focused()).toBe("vol");
     await phone.press("down");
     expect(focused()).toBe("settings");
-    await phone.press("left");
+    await phone.press("right");
     expect(quick()).toBeUndefined();
   });
 
-  test("Left closes the drawer on every row but Volume, and Right does nothing there", async () => {
+  test("Right closes the drawer on every row but Volume, and Left does nothing there", async () => {
     const { phone } = await start();
     await open(phone);
-    await phone.press("right");
+    await phone.press("left");
+    expect(quick()).toBeDefined();
     expect(focused()).toBe("out:default");
     await phone.press("down");
-    await phone.press("left");
+    await phone.press("right");
     expect(quick()).toBeUndefined();
+    await open(phone);
+    for (let i = 0; i < 3; i++) await phone.press("down");
+    await phone.press("right");
+    expect(quick()).toBeDefined();
   });
 
   test("picking an output switches it at once, keeps the drawer open and the App playing", async () => {
@@ -214,7 +219,7 @@ describe("Quick settings", () => {
   test("keys never reach the App underneath while it is open", async () => {
     const { phone, tube } = await playing();
     await open(phone);
-    for (const k of ["up", "down", "right", "ok"] as const) await phone.press(k);
+    for (const k of ["up", "down", "left", "ok"] as const) await phone.press(k);
     h.app.screenCommand({ command: "left" });
     expect(tube.calls.filter((c) => c.call === "sendKey")).toEqual([]);
     expect(h.screen.last.state.view).toBe("app");

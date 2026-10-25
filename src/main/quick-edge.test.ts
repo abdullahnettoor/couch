@@ -6,7 +6,10 @@ import { FakeClock } from "./ports/fakes.ts";
 
 function setup() {
   const clock = new FakeClock();
-  const pointer: { at: { x: number; y: number } | undefined } = { at: { x: 300, y: 400 } };
+  const WIDTH = 1920;
+  const pointer: { at: { x: number; y: number; width: number } | undefined } = {
+    at: { x: 300, y: 400, width: WIDTH },
+  };
   const listeners = new Set<() => void>();
   let opened = 0;
   const edge = new EdgeGesture({
@@ -18,8 +21,9 @@ function setup() {
     position: () => pointer.at,
     open: () => opened++,
   });
-  const move = (x: number, y = 400) => {
-    pointer.at = { x, y };
+  // `gap` is how far the pointer is from the right edge: 0 is the last pixel.
+  const move = (gap: number, y = 400) => {
+    pointer.at = { x: WIDTH - 1 - gap, y, width: WIDTH };
     listeners.forEach((cb) => cb());
   };
   const leave = () => {
@@ -29,8 +33,8 @@ function setup() {
   return { clock, edge, move, leave, listeners, opened: () => opened };
 }
 
-describe("the left-edge gesture", () => {
-  test("opens once the pointer has moved onto the far left edge and rested for half a second", () => {
+describe("the right-edge gesture", () => {
+  test("opens once the pointer has moved onto the far right edge and rested for half a second", () => {
     const { clock, edge, move, opened } = setup();
     edge.start();
     move(120);
@@ -144,7 +148,7 @@ describe("the left-edge gesture", () => {
     const edge = new EdgeGesture({
       clock,
       onMouseMoved: moves.subscribe,
-      position: () => ({ x: 0, y: 0 }),
+      position: () => ({ x: 1919, y: 0, width: 1920 }),
       open: () => {},
     });
     moves.subscribe(() => {});

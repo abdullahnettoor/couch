@@ -22,7 +22,7 @@ export type DrawerHost<V extends DrawerView = DrawerView> = TopHost<V>;
  * Quick settings above whatever is on the Screen: one transparent view over the whole window, added
  * last so it sits above web Apps (like the Picture off cover). It only draws over them; an App's own
  * view is never hidden, resized or given a visibility change, so it keeps playing. The page inside
- * is the drawer (a panel on the left) and a transparent scrim whose clicks close it.
+ * is the drawer (a panel on the right) and a transparent scrim whose clicks close it.
  */
 export class QuickDrawer<V extends DrawerView = DrawerView> {
   #top: TopView<V>;

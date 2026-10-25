@@ -7,13 +7,13 @@ export interface EdgePorts {
   clock: Clock;
   /** Calls `cb` on every mouse movement; returns a function that stops (the shared subscription). */
   onMouseMoved(cb: () => void): () => void;
-  /** The pointer, from the Screen's left edge and top; undefined when it is outside the Screen. */
-  position(): { x: number; y: number } | undefined;
+  /** The pointer, from the Screen's left edge and top, with the Screen's width; undefined when it is outside the Screen. */
+  position(): { x: number; y: number; width: number } | undefined;
   open(): void;
 }
 
 /**
- * The Screen's left-edge gesture for Quick settings: the pointer moved onto the far left edge and
+ * The Screen's right-edge gesture for Quick settings: the pointer moved onto the far right edge and
  * then rests there about half a second. It listens for movement and reads the position only then,
  * so a pointer parked at the edge (during playback, say) never opens it. It fires once per visit.
  */
@@ -44,7 +44,7 @@ export class EdgeGesture {
 
   #moved(): void {
     const p = this.#ports.position();
-    if (!p || p.x > EDGE_PX) {
+    if (!p || p.x < p.width - 1 - EDGE_PX) {
       this.#cancelDwell?.();
       this.#cancelDwell = undefined;
       this.#fired = false;

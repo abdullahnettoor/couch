@@ -173,7 +173,7 @@ export class QuickSettings {
     if (direction === "left" || direction === "right") {
       if (cur.id === "vol")
         VOLUME_CONTROLS.get(direction === "left" ? "vol:down" : "vol:up")!(this.#h);
-      else if (direction === "left") this.close();
+      else if (direction === "right") this.close();
       return;
     }
     const next = items.find((i) => i.r === cur.r + (direction === "down" ? 1 : -1));

@@ -20,7 +20,7 @@ ${glassTokensCss({ unit: "var(--u)" })}
 html,body { margin:0; height:100%; background:transparent; overflow:hidden; font-family:-apple-system,"SF Pro Display",system-ui,sans-serif; color:var(--t1); user-select:none; cursor:default; }
 body { --u: calc(100vw / 1920); }
 #scrim { position:fixed; inset:0; }
-#drawer { position:fixed; left:0; top:0; bottom:0; width:33vw; box-sizing:border-box; padding:calc(56*var(--u)) calc(36*var(--u)); display:flex; flex-direction:column; gap:calc(12*var(--u)); background:var(--glass-strong); border-radius:0 calc(36*var(--u)) calc(36*var(--u)) 0; box-shadow:var(--glass-edge), 0 0 calc(90*var(--u)) rgba(0,0,0,.45); backdrop-filter:blur(40px) saturate(1.8); transform:translateX(-102%); transition:transform ${QUICK_SLIDE_MS}ms var(--ease); }
+#drawer { position:fixed; right:0; top:0; bottom:0; width:33vw; box-sizing:border-box; padding:calc(56*var(--u)) calc(36*var(--u)); display:flex; flex-direction:column; gap:calc(12*var(--u)); background:var(--glass-strong); border-radius:calc(36*var(--u)) 0 0 calc(36*var(--u)); box-shadow:var(--glass-edge), 0 0 calc(90*var(--u)) rgba(0,0,0,.45); backdrop-filter:blur(40px) saturate(1.8); transform:translateX(102%); transition:transform ${QUICK_SLIDE_MS}ms var(--ease); }
 #drawer.in { transform:none; }
 h2 { margin:calc(14*var(--u)) calc(10*var(--u)) calc(4*var(--u)); font-size:calc(24*var(--u)); font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--t3); }
 h1 { margin:0 calc(10*var(--u)) calc(8*var(--u)); font-size:calc(44*var(--u)); font-weight:700; }
