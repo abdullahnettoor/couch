@@ -9,9 +9,11 @@ export function keyCommand(
   input: KeyInput,
   pictureOff: boolean,
   typing: boolean,
+  drawerOpen = false,
 ): Command | undefined {
   const mapped = screenKeyCommand(input, typing);
-  if (!pictureOff) return mapped;
+  // The Quick settings drawer is above the cover: its keys are its own, and the picture stays off.
+  if (!pictureOff || drawerOpen) return mapped;
   if (mapped?.command === "playpause") return mapped;
   return { command: "setPictureOff", args: { on: false } };
 }

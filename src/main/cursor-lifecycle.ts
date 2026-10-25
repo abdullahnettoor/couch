@@ -1,5 +1,3 @@
-import type { CursorHider } from "./cursor-hider.ts";
-
 export type HostEvent = "focus" | "blur" | "hide" | "show" | "quit";
 
 /** What the Electron host tells us about Couch being in front, hidden, or quitting. */
@@ -11,12 +9,18 @@ export interface CursorHost {
   onScreen(cb: (playing: boolean) => void): void;
 }
 
+/** What the lifecycle starts and stops: the cursor hider, or anything else that only acts while Couch is in front. */
+export interface Lifecycle {
+  playing(on: boolean): void;
+  release(): void;
+}
+
 /**
  * The cursor hides only while playback is on screen and Couch is focused and visible. Every host
  * event updates our own state; leaving that state releases the cursor explicitly. After a quit
  * nothing can arm hiding again.
  */
-export function wireCursor(host: CursorHost, cursor: CursorHider): void {
+export function wireCursor(host: CursorHost, cursor: Lifecycle): void {
   let playing = false;
   let focused = host.focused();
   let hidden = false;

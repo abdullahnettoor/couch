@@ -24,12 +24,21 @@ export interface QuickSettingsHost {
   playing(): boolean;
   stepVolume(delta: number): void;
   toggleMute(): void;
-  pictureOff(): void;
+  /** Whether Picture off is on right now. */
+  pictureIsOff(): boolean;
+  setPictureOff(on: boolean): void;
   openSettings(): void;
   changed(): void;
 }
 
 const VOLUME_STEP = 5;
+
+/** The Volume row works like a slider; a click on its buttons does the same as the keys. */
+const VOLUME_CONTROLS = new Map<string, (h: QuickSettingsHost) => void>([
+  ["vol:down", (h) => h.stepVolume(-VOLUME_STEP)],
+  ["vol:up", (h) => h.stepVolume(VOLUME_STEP)],
+  ["vol:mute", (h) => h.toggleMute()],
+]);
 
 /**
  * Quick settings: the drawer over any App or the Library with the few things changed mid-watch.
@@ -88,10 +97,17 @@ export class QuickSettings {
     const r = outputs.length;
     return [
       ...outputs,
-      { id: "vol:down", r, c: 0, label: "Volume down" },
-      { id: "vol:up", r, c: 1, label: "Volume up" },
-      { id: "vol:mute", r, c: 2, label: "Mute" },
-      ...(this.#h.playing() ? [{ id: "picture", r: r + 1, c: 0, label: "Picture off" }] : []),
+      { id: "vol", r, c: 0, label: "Volume" },
+      ...(this.#h.playing()
+        ? [
+            {
+              id: "picture",
+              r: r + 1,
+              c: 0,
+              label: this.#h.pictureIsOff() ? "Picture on" : "Picture off",
+            },
+          ]
+        : []),
       { id: "settings", r: r + (this.#h.playing() ? 2 : 1), c: 0, label: "All settings" },
     ];
   }
@@ -122,7 +138,14 @@ export class QuickSettings {
       return false;
     }
     if (name === "quickPick") {
-      const item = this.#items().find((i) => i.id === command.args?.item);
+      const id = command.args?.item;
+      const control = typeof id === "string" ? VOLUME_CONTROLS.get(id) : undefined;
+      if (control) {
+        this.#focus = "vol";
+        control(this.#h);
+        return true;
+      }
+      const item = this.#items().find((i) => i.id === id);
       if (item) this.#focus = item.id;
       if (item) this.#activate(item);
       return true;
@@ -147,32 +170,22 @@ export class QuickSettings {
   #move(direction: string): void {
     const items = this.#items();
     const cur = items.find((i) => i.id === this.#focus) ?? items[0]!;
-    if (direction === "left") {
-      const next = items.find((i) => i.r === cur.r && i.c === cur.c - 1);
-      if (next) this.#focus = next.id;
-      else this.close();
+    if (direction === "left" || direction === "right") {
+      if (cur.id === "vol")
+        VOLUME_CONTROLS.get(direction === "left" ? "vol:down" : "vol:up")!(this.#h);
+      else if (direction === "left") this.close();
       return;
     }
-    if (direction === "right") {
-      const next = items.find((i) => i.r === cur.r && i.c === cur.c + 1);
-      if (next) this.#focus = next.id;
-      return;
-    }
-    const row = cur.r + (direction === "down" ? 1 : -1);
-    const inRow = items.filter((i) => i.r === row);
-    if (!inRow.length) return;
-    const next = inRow.reduce((a, b) => (Math.abs(b.c - cur.c) < Math.abs(a.c - cur.c) ? b : a));
-    this.#focus = next.id;
+    const next = items.find((i) => i.r === cur.r + (direction === "down" ? 1 : -1));
+    if (next) this.#focus = next.id;
   }
 
   #activate(item: QuickItem): void {
     if (item.action) this.#h.sound.action(item.action);
-    else if (item.id === "vol:down") this.#h.stepVolume(-VOLUME_STEP);
-    else if (item.id === "vol:up") this.#h.stepVolume(VOLUME_STEP);
-    else if (item.id === "vol:mute") this.#h.toggleMute();
+    else if (item.id === "vol") this.#h.toggleMute();
     else if (item.id === "picture") {
       this.close();
-      this.#h.pictureOff();
+      this.#h.setPictureOff(!this.#h.pictureIsOff());
     } else if (item.id === "settings") {
       this.close();
       this.#h.openSettings();

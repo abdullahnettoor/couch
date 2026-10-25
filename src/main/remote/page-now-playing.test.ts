@@ -538,3 +538,26 @@ describe("Quick settings on the phone", () => {
     expect(hidden("npad")).toBe(true);
   });
 });
+
+describe("Closing Quick settings from the phone's D-pad", () => {
+  test("the D-pad bar shown while the drawer is open has its own Quick settings toggle", () => {
+    page.playing({}, { quickSettings: true });
+    expect(hidden("npad")).toBe(false);
+    expect(page.els.get("npad-qs")?.attrs["data-cmd"]).toBe("quickSettings");
+    page.tap("npad-qs");
+    expect(commands().at(-1)).toMatchObject({ command: "quickSettings" });
+  });
+
+  test("the D-pad's return button closes the drawer instead of only leaving the pad", () => {
+    page.playing({}, { quickSettings: true });
+    page.tap("npad-back");
+    expect(commands().filter((c) => c.command === "quickSettings")).toHaveLength(1);
+  });
+
+  test("without the drawer the return button still just goes back to Now Playing", () => {
+    page.playing({});
+    page.tap("chip-pad");
+    page.tap("npad-back");
+    expect(commands().filter((c) => c.command === "quickSettings")).toEqual([]);
+  });
+});

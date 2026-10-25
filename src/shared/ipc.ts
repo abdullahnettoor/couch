@@ -10,6 +10,8 @@ export const Channel = {
   screen: "couch:screen",
   /** main → the Quick settings view: the drawer to draw, or nothing to slide it out */
   quick: "couch:quick",
+  /** the Quick settings view → main: a pick or a close, and nothing else */
+  quickCommand: "couch:quick-command",
   /** main → renderer: mpv state, for the "needs mpv" notice */
   mpv: "couch:mpv",
   /** renderer → main: where the dock / Up next row are, for native glass behind them */
@@ -44,9 +46,15 @@ export interface CouchApi {
   send(command: Command): void;
   reportGrid(report: GridReport): void;
   onScreen(listener: (payload: ScreenPayload) => void): void;
-  onQuick(listener: (quick: QuickPayload | undefined) => void): void;
   onMpv(listener: (status: MpvStatus) => void): void;
   /** One entry per panel slot (0 dock, 1 Up next); missing slots are hidden. */
   reportGlass(rects: GlassRect[]): void;
   onTint(listener: (rgb: [number, number, number] | null) => void): void;
+}
+
+/** All the Quick settings drawer's page may do: pick a row, close, and be handed what to draw. */
+export interface QuickApi {
+  pick(item: string): void;
+  close(): void;
+  onQuick(listener: (quick: QuickPayload | undefined) => void): void;
 }

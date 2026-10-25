@@ -61,15 +61,7 @@ describe("Quick settings", () => {
     const { phone } = await start();
     await open(phone);
     const q = quick()!;
-    expect(q.items.map((i) => i.id)).toEqual([
-      "out:default",
-      SPEAKERS,
-      MONITOR,
-      "vol:down",
-      "vol:up",
-      "vol:mute",
-      "settings",
-    ]);
+    expect(q.items.map((i) => i.id)).toEqual(["out:default", SPEAKERS, MONITOR, "vol", "settings"]);
     expect(q.items.filter((i) => i.checked).map((i) => i.id)).toEqual(["out:default"]);
     expect(q.focusedId).toBe("out:default");
     expect(q.volume).toBe(60);
@@ -85,11 +77,19 @@ describe("Quick settings", () => {
     await phone.press("up");
     expect(focused()).toBe("out:default");
     for (let i = 0; i < 3; i++) await phone.press("down");
-    expect(focused()).toBe("vol:down");
-    await phone.press("right");
-    expect(focused()).toBe("vol:up");
+    expect(focused()).toBe("vol");
+    await phone.press("down");
+    expect(focused()).toBe("settings");
     await phone.press("left");
-    expect(focused()).toBe("vol:down");
+    expect(quick()).toBeUndefined();
+  });
+
+  test("Left closes the drawer on every row but Volume, and Right does nothing there", async () => {
+    const { phone } = await start();
+    await open(phone);
+    await phone.press("right");
+    expect(focused()).toBe("out:default");
+    await phone.press("down");
     await phone.press("left");
     expect(quick()).toBeUndefined();
   });
@@ -108,19 +108,23 @@ describe("Quick settings", () => {
     expect(tube.calls.filter((c) => ["hide", "show", "playPause"].includes(c.call))).toEqual([]);
   });
 
-  test("volume − and + step by 5 and mute toggles, like the phone's", async () => {
+  test("Volume is a slider: Left steps down, Right steps up, OK toggles mute, and the level is shown", async () => {
     const { phone } = await start();
     await open(phone);
     for (let i = 0; i < 3; i++) await phone.press("down");
-    await phone.press("ok");
+    expect(focused()).toBe("vol");
+    await phone.press("left");
+    expect(quick()).toBeDefined();
     expect(h.player.volume).toBe(55);
+    expect(quick()!.volume).toBe(55);
     await phone.press("right");
-    await phone.press("ok");
-    expect(h.player.volume).toBe(60);
     await phone.press("right");
+    expect(h.player.volume).toBe(65);
+    expect(quick()!.volume).toBe(65);
     await phone.press("ok");
     expect(phone.last?.muted).toBe(true);
     expect(quick()!.muted).toBe(true);
+    expect(quick()!.items.find((i) => i.id === "vol")?.label).toBe("Volume");
   });
 
   test("Picture off is shown only while something plays, and turns the picture off", async () => {
@@ -136,6 +140,50 @@ describe("Quick settings", () => {
     await phone.press("ok");
     expect(h.screen.last.state.pictureOff).toBe(true);
     expect(quick()).toBeUndefined();
+  });
+
+  test("opening the drawer does not end Picture off; the row then reads Picture on and brings the picture back", async () => {
+    const { phone } = await playing();
+    await open(phone);
+    expect(quick()!.items.find((i) => i.id === "picture")?.label).toBe("Picture off");
+    while (focused() !== "picture") await phone.press("down");
+    await phone.press("ok");
+    expect(h.screen.last.state.pictureOff).toBe(true);
+
+    await open(phone);
+    expect(quick()).toBeDefined();
+    expect(h.screen.last.state.pictureOff).toBe(true);
+    expect(quick()!.items.find((i) => i.id === "picture")?.label).toBe("Picture on");
+    await phone.press("up");
+    await phone.press("down");
+    expect(h.screen.last.state.pictureOff).toBe(true);
+    while (focused() !== "picture") await phone.press("down");
+    await phone.press("ok");
+    expect(h.screen.last.state.pictureOff).toBe(false);
+    expect(quick()).toBeUndefined();
+  });
+
+  test("Back closes the drawer and leaves Picture off on", async () => {
+    const { phone } = await playing();
+    await phone.press({ command: "setPictureOff", args: { on: true } });
+    await open(phone);
+    await phone.press("back");
+    expect(quick()).toBeUndefined();
+    expect(h.screen.last.state.pictureOff).toBe(true);
+  });
+
+  test("play/pause, volume and mute keep acting on playback through the core while it is open", async () => {
+    const { phone, tube } = await playing();
+    await open(phone);
+    await phone.press("playpause");
+    expect(tube.calls.some((c) => c.call === "playPause")).toBe(true);
+    expect(quick()).toBeDefined();
+    await phone.press("volUp");
+    expect(h.player.volume).toBe(65);
+    await phone.press("mute");
+    expect(phone.last?.muted).toBe(true);
+    expect(quick()).toBeDefined();
+    expect(tube.calls.filter((c) => c.call === "sendKey")).toEqual([]);
   });
 
   test("All settings closes the drawer and opens Settings", async () => {

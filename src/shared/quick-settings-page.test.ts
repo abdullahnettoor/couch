@@ -15,9 +15,10 @@ function load() {
       addEventListener: (n: string, f: (e: unknown) => void) => (listeners[n] = f),
     },
     window: {
-      couch: {
+      couchQuick: {
         onQuick: (f: typeof onQuick) => (onQuick = f),
-        send: (c: unknown) => sent.push(c),
+        pick: (item: string) => sent.push({ command: "quickPick", args: { item } }),
+        close: () => sent.push({ command: "quickClose" }),
       },
     },
     requestAnimationFrame: (f: () => void) => f(),
@@ -29,9 +30,7 @@ const payload: QuickPayload = {
   items: [
     { id: "out:default", r: 0, c: 0, label: "System default", checked: true },
     { id: "out:x", r: 1, c: 0, label: "L27h-4A" },
-    { id: "vol:down", r: 2, c: 0, label: "Volume down" },
-    { id: "vol:up", r: 2, c: 1, label: "Volume up" },
-    { id: "vol:mute", r: 2, c: 2, label: "Mute" },
+    { id: "vol", r: 2, c: 0, label: "Volume" },
     { id: "picture", r: 3, c: 0, label: "Picture off" },
     { id: "settings", r: 4, c: 0, label: "All settings" },
   ],
@@ -72,5 +71,66 @@ describe("the Quick settings page", () => {
       { command: "quickPick", args: { item: "out:x" } },
       { command: "quickClose" },
     ]);
+  });
+
+  test("the Volume row shows the level and has − + and mute; muted shows Muted", () => {
+    const { drawer, onQuick } = load();
+    onQuick({ ...payload, focusedId: "vol" });
+    expect(drawer.innerHTML).toContain('class="row vol focus" data-id="vol"');
+    expect(drawer.innerHTML).toContain('data-id="vol:down"');
+    expect(drawer.innerHTML).toContain('data-id="vol:up"');
+    expect(drawer.innerHTML).toContain('data-id="vol:mute"');
+    expect(drawer.innerHTML).toContain(">Volume<");
+    onQuick({ ...payload, muted: true });
+    expect(drawer.innerHTML).toContain(">Muted<");
+  });
+
+  test("uses the labels the core supplies, such as Picture on", () => {
+    const { drawer, onQuick } = load();
+    onQuick({
+      ...payload,
+      items: payload.items.map((i) => (i.id === "picture" ? { ...i, label: "Picture on" } : i)),
+    });
+    expect(drawer.innerHTML).toContain("Picture on");
+    expect(drawer.innerHTML).not.toContain("Picture off");
+  });
+
+  test("hostile device names and ids cannot add markup or leave an attribute", () => {
+    const { drawer, onQuick, listeners, sent } = load();
+    const name = `<img src=x onerror=alert(1)>"'&\`<script>x()</script>`;
+    const id = `out:"><script>alert(2)</script>' onmouseover='x`;
+    onQuick({
+      ...payload,
+      focusedId: id,
+      items: [
+        { id, r: 0, c: 0, label: name, checked: true },
+        ...payload.items.filter((i) => !i.id.startsWith("out:")),
+      ],
+      volume: "<b>9</b>" as unknown as number,
+    });
+    const html = drawer.innerHTML;
+    const tags = [...html.matchAll(/<\/?([a-zA-Z][a-zA-Z0-9]*)/g)].map((m) => m[1]);
+    const allowed = new Set([
+      "h1",
+      "h2",
+      "div",
+      "span",
+      "svg",
+      "path",
+      "b",
+      "line",
+      "circle",
+      "rect",
+      "mask",
+    ]);
+    expect(tags.filter((t) => !allowed.has(t!))).toEqual([]);
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("onerror=alert(1)>");
+    for (const m of html.matchAll(/data-id="([^"]*)"/g)) expect(m[1]).not.toMatch(/[<>"']/);
+    expect(html).not.toContain("' onmouseover");
+    expect(html).toContain("&#60;img src=x");
+    listeners.click!({ target: { closest: () => ({ getAttribute: () => id }) } });
+    expect(sent).toEqual([{ command: "quickPick", args: { item: id } }]);
   });
 });

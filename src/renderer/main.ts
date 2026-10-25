@@ -30,6 +30,7 @@ window.addEventListener("keydown", (event) => {
     { key: event.key, meta: event.metaKey, ctrl: event.ctrlKey, alt: event.altKey },
     current?.state.pictureOff === true,
     current?.screenTyping !== undefined,
+    current?.quick !== undefined,
   );
   if (!command) return;
   event.preventDefault();

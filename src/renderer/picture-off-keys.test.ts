@@ -24,4 +24,10 @@ describe("Mac keys while the picture is off", () => {
     expect(keyCommand({ key: "Tab" }, false, false)).toBeUndefined();
     expect(keyCommand({ key: "ArrowUp" }, false, false)).toEqual({ command: "up" });
   });
+
+  test("with Quick settings open the keys move the drawer and the picture stays off", () => {
+    expect(keyCommand({ key: "ArrowDown" }, true, false, true)).toEqual({ command: "down" });
+    expect(keyCommand({ key: " " }, true, false, true)).toEqual({ command: "playpause" });
+    expect(keyCommand({ key: "Tab" }, true, false, true)).toBeUndefined();
+  });
 });

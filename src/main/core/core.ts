@@ -298,8 +298,15 @@ export class Core {
       playing: () => this.#pictureScope() !== undefined,
       stepVolume: (delta) => this.#setVolume(this.#state.volume + delta),
       toggleMute: () => this.#toggleMute(),
-      pictureOff: () => this.#setPictureOff(true),
-      openSettings: () => this.#setView("settings"),
+      pictureIsOff: () => this.#state.pictureOff,
+      setPictureOff: (on) => this.#setPictureOff(on),
+      openSettings: () => {
+        if (this.#state.player) {
+          this.#stopPlayback();
+          this.#endPlayback();
+        }
+        this.#setView("settings");
+      },
       changed: () => this.#emit(),
     });
     this.#addonsPage = new AddonsPage({
@@ -1375,7 +1382,7 @@ export class Core {
     if (from !== "screen") this.#lastFrom = from;
     this.#ports.mac.wakeDisplay();
     this.#armIdle();
-    if (this.#state.pictureOff && PICTURE_KEYS.includes(command.command)) {
+    if (this.#state.pictureOff && !this.#quick.isOpen && PICTURE_KEYS.includes(command.command)) {
       this.#state.pictureOff = false;
       this.#armAmbient();
       this.#emit();
@@ -1509,7 +1516,6 @@ export class Core {
       if (this.#quick.isOpen && name === "quickEdge") return true;
       if (!this.#quick.isOpen && (this.#state.confirm || this.#state.typingBy !== undefined))
         return true;
-      if (!this.#quick.isOpen) this.#state.pictureOff = false;
       if (name === "quickEdge") this.#quick.open();
       else this.#quick.toggle();
       return true;

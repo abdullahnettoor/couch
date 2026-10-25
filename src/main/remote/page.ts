@@ -203,7 +203,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   __VPILL_NP__
 </section>
 <section class="npad" id="npad" hidden>
-  <div class="bar">__BAR_PAD__</div>
+  <div class="bar">__BAR_PAD__<button id="npad-qs" data-cmd="quickSettings" aria-label="Quick settings" data-i="sliders"></button></div>
   <div class="hint">Menus on the Screen</div>
   <div class="pad">__PAD__</div>
   <button class="back" id="npad-back"><span data-i="monitorPlay"></span>Now Playing</button>
@@ -395,6 +395,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     $("nowp").hidden = !np || padShown;
     $("npad").hidden = !np || !padShown;
     $("qs").classList.toggle("on", !!s.quickSettings);
+    $("npad-qs").classList.toggle("on", !!s.quickSettings);
     $("controls").hidden = !!np;
     setMute(!!s.muted);
     if (np) {
@@ -475,7 +476,10 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   $("np-more").addEventListener("click", function () { openSheet("upn"); });
   $("chip-pic").addEventListener("click", function () { sendArgs("setPictureOff", { on: !(last && last.pictureOff) }); });
   $("chip-pad").addEventListener("click", function () { padOpen = true; if (last) render(last); });
-  $("npad-back").addEventListener("click", function () { padOpen = false; if (last) render(last); });
+  $("npad-back").addEventListener("click", function () {
+    if (last && last.quickSettings) { sendArgs("quickSettings"); return; }
+    padOpen = false; if (last) render(last);
+  });
   $("np-sheet").addEventListener("click", function (e) { if (e.target === $("np-sheet")) closeSheet(); });
 
   var art = $("np-art"), g = null;

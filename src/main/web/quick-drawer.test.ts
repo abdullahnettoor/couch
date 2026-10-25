@@ -122,6 +122,15 @@ describe("the Quick settings view", () => {
     expect(appView.calls).toEqual([]);
   });
 
+  test("stays above a Picture off cover added while it slides out", () => {
+    const { drawer, children, view } = setup();
+    drawer.set(quick());
+    drawer.set(undefined);
+    children.push(new FakeView());
+    drawer.set(undefined);
+    expect(children.at(-1)).toBe(view);
+  });
+
   test("opening again before it left keeps it", () => {
     const { drawer, children, view, clock } = setup();
     drawer.set(quick());
@@ -141,6 +150,18 @@ describe("the Quick settings view", () => {
     expect(commands).toEqual([{ command: "down" }]);
     drawer.intercept(event(), { type: "keyUp", key: "ArrowDown" });
     expect(commands).toHaveLength(1);
+  });
+
+  test("a physical Space becomes the core's playpause and never reaches the App's page", () => {
+    const { drawer, commands } = setup();
+    drawer.set(quick());
+    const down = event();
+    expect(drawer.intercept(down, { type: "keyDown", key: " " })).toBe(true);
+    expect(down.prevented).toBe(true);
+    const up = event();
+    expect(drawer.intercept(up, { type: "keyUp", key: " " })).toBe(true);
+    expect(up.prevented).toBe(true);
+    expect(commands).toEqual([{ command: "playpause" }]);
   });
 
   test("a key pressed in the drawer's own page goes the same way", () => {

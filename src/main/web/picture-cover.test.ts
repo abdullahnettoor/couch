@@ -185,4 +185,27 @@ describe("the Picture off cover", () => {
     expect(commands).toEqual([{ command: "up" }]);
     expect(prevented).toBe(true);
   });
+
+  test("keys on the cover's own page go first to whatever draws above it, and don't end Picture off then", () => {
+    const children: unknown[] = [];
+    const host: CoverHost<FakeView> = {
+      contentView: { children, addChildView: (v) => children.push(v), removeChildView: () => {} },
+      getContentBounds: () => ({ width: 1920, height: 1080 }),
+    };
+    const cover = new FakeView();
+    const commands: unknown[] = [];
+    let taken = true;
+    const picture = new PictureCover<FakeView>(
+      host,
+      () => cover,
+      (c) => commands.push(c),
+      () => taken,
+    );
+    picture.set(true);
+    cover.keyHandler!(event(), key("q"));
+    expect(commands).toEqual([]);
+    taken = false;
+    cover.keyHandler!(event(), key("q"));
+    expect(commands).toEqual([{ command: "screenKey", args: { text: "q" } }]);
+  });
 });

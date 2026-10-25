@@ -23,7 +23,7 @@ export default defineConfig({
       clean: true,
     },
     {
-      entry: { index: "src/preload/index.ts" },
+      entry: { index: "src/preload/index.ts", quick: "src/preload/quick.ts" },
       outDir: "dist/preload",
       format: "cjs",
       platform: "node",

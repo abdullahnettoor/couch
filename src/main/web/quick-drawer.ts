@@ -3,32 +3,20 @@ import { Channel } from "../../shared/ipc.ts";
 import type { Command, QuickPayload } from "../../shared/protocol.ts";
 import { QUICK_SLIDE_MS, quickSettingsPage } from "../../shared/quick-settings-page.ts";
 import type { Clock } from "../ports/clock.ts";
+import { TopView, type TopHost, type TopViewLike } from "./top-view.ts";
 
 type KeyInput = { type: string; key: string; meta?: boolean; control?: boolean; alt?: boolean };
 
 /** What the drawer needs of a view (Electron's WebContentsView fits). */
-export interface DrawerView {
-  webContents: {
-    loadURL(url: string): Promise<void>;
+export interface DrawerView extends TopViewLike {
+  webContents: TopViewLike["webContents"] & {
     send(channel: string, quick: QuickPayload | undefined): void;
-    on(
-      event: "before-input-event",
-      handler: (event: { preventDefault(): void }, input: KeyInput) => void,
-    ): void;
     on(event: "did-finish-load", handler: () => void): void;
   };
-  setBounds(bounds: { x: number; y: number; width: number; height: number }): void;
   setBackgroundColor(color: string): void;
 }
 
-export interface DrawerHost<V extends DrawerView = DrawerView> {
-  contentView: {
-    readonly children?: readonly unknown[];
-    addChildView(view: V): void;
-    removeChildView(view: V): void;
-  };
-  getContentBounds(): { width: number; height: number };
-}
+export type DrawerHost<V extends DrawerView = DrawerView> = TopHost<V>;
 
 /**
  * Quick settings above whatever is on the Screen: one transparent view over the whole window, added
@@ -37,14 +25,12 @@ export interface DrawerHost<V extends DrawerView = DrawerView> {
  * is the drawer (a panel on the left) and a transparent scrim whose clicks close it.
  */
 export class QuickDrawer<V extends DrawerView = DrawerView> {
-  #view?: V;
+  #top: TopView<V>;
   #loaded = false;
   #quick: QuickPayload | undefined;
   #in = false;
   #cancelRemove: (() => void) | undefined;
 
-  readonly #host: DrawerHost<V>;
-  readonly #create: () => V;
   readonly #onKey: (command: Command) => void;
   readonly #clock: Clock;
   readonly #onClosed: () => void;
@@ -56,54 +42,64 @@ export class QuickDrawer<V extends DrawerView = DrawerView> {
     clock: Clock,
     onClosed: () => void,
   ) {
-    this.#host = host;
-    this.#create = create;
     this.#onKey = onKey;
     this.#clock = clock;
     this.#onClosed = onClosed;
+    this.#top = new TopView<V>(host, {
+      create,
+      page: quickSettingsPage,
+      onInput: (event, input) => {
+        this.intercept(event, input);
+      },
+      setup: (view) => {
+        view.setBackgroundColor("#00000000");
+        view.webContents.on("did-finish-load", () => {
+          this.#loaded = true;
+          this.#push();
+        });
+      },
+    });
+  }
+
+  /** The drawer's own page, to tell its messages from anyone else's. */
+  get webContents(): V["webContents"] | undefined {
+    return this.#top.view?.webContents;
+  }
+
+  /** The row ids on the drawer now (what a pick may name). */
+  get itemIds(): string[] {
+    return this.#quick?.items.map((i) => i.id) ?? [];
   }
 
   /** The drawer to show, or undefined to slide it away. Safe to call on every update. */
   set(quick: QuickPayload | undefined): void {
     this.#quick = quick;
     if (!quick) {
-      if (!this.#in) return;
+      if (!this.#in) {
+        if (this.#top.shown) this.#top.show();
+        return;
+      }
       this.#in = false;
       this.#push();
+      this.#top.show();
       this.#cancelRemove?.();
       this.#cancelRemove = this.#clock.setTimeout(() => {
         this.#cancelRemove = undefined;
-        if (this.#view) this.#host.contentView.removeChildView(this.#view);
+        this.#top.hide();
         this.#onClosed();
       }, QUICK_SLIDE_MS);
       return;
     }
     this.#cancelRemove?.();
     this.#cancelRemove = undefined;
-    if (!this.#view) {
-      const view = (this.#view = this.#create());
-      view.setBackgroundColor("#00000000");
-      const wc = view.webContents;
-      wc.on("did-finish-load", () => {
-        this.#loaded = true;
-        this.#push();
-      });
-      wc.on("before-input-event", (event, input) => {
-        this.intercept(event, input);
-      });
-      void wc
-        .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(quickSettingsPage())}`)
-        .catch(() => {});
-    }
     this.#in = true;
-    this.fit();
-    const { children } = this.#host.contentView;
-    if (children?.at(-1) !== this.#view) this.#host.contentView.addChildView(this.#view);
+    this.#top.show();
     this.#push();
   }
 
   #push(): void {
-    if (this.#loaded && this.#view) this.#view.webContents.send(Channel.quick, this.#quick);
+    const view = this.#top.view;
+    if (this.#loaded && view) view.webContents.send(Channel.quick, this.#quick);
   }
 
   /**
@@ -123,8 +119,6 @@ export class QuickDrawer<V extends DrawerView = DrawerView> {
   }
 
   fit(): void {
-    if (!this.#view) return;
-    const { width, height } = this.#host.getContentBounds();
-    this.#view.setBounds({ x: 0, y: 0, width, height });
+    this.#top.fit();
   }
 }

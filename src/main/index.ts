@@ -23,10 +23,12 @@ import { detectListener } from "./frontdoor.ts";
 import { chooseBinding } from "./listener.ts";
 import { createEmbedFactory, setCursorHidden, watchMouseMoves } from "./mpv/embed-addon.ts";
 import { CursorHider } from "./cursor-hider.ts";
-import { wireCursor } from "./cursor-lifecycle.ts";
+import { wireCursor, type CursorHost } from "./cursor-lifecycle.ts";
 import { PictureCover } from "./web/picture-cover.ts";
 import { QuickDrawer } from "./web/quick-drawer.ts";
-import { EdgeDwell } from "./quick-edge.ts";
+import { EdgeGesture } from "./quick-edge.ts";
+import { MouseMoves } from "./mouse-moves.ts";
+import { wireQuickIpc } from "./quick-ipc.ts";
 import { MpvPlayer } from "./mpv/mpv-player.ts";
 
 // Fixed name so app data lives in ~/Library/Application Support/Couch whichever way Couch is launched.
@@ -179,6 +181,7 @@ async function createScreen(): Promise<void> {
     win,
     () => new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true } }),
     (command) => couch?.screenCommand(command),
+    (event, input) => drawer.intercept(event, input),
   );
   const webs: Record<string, ElectronWebApp> = { youtube, netflix };
   let front: { view: string; app?: string } = { view: "home" };
@@ -187,7 +190,7 @@ async function createScreen(): Promise<void> {
     () =>
       new WebContentsView({
         webPreferences: {
-          preload: join(import.meta.dirname, "../preload/index.cjs"),
+          preload: join(import.meta.dirname, "../preload/quick.cjs"),
           sandbox: true,
           contextIsolation: true,
         },
@@ -205,38 +208,52 @@ async function createScreen(): Promise<void> {
   });
   for (const web of [youtube, netflix])
     web.setKeyGate((e, i) => drawer.intercept(e, i) || cover.intercept(e, i));
-  // The pointer resting at the far left edge opens Quick settings; the gesture only arms on real movement.
-  const edge = new EdgeDwell();
-  setInterval(() => {
-    if (!win || win.isDestroyed() || !win.isFocused()) return;
-    const p = screen.getCursorScreenPoint();
-    const b = win.getBounds();
-    const inside = p.y >= b.y && p.y < b.y + b.height && p.x >= b.x && p.x < b.x + b.width;
-    if (edge.sample(inside ? p.x - b.x : Infinity, p.y, Date.now()))
-      couch?.screenCommand({ command: "quickEdge" });
-  }, 100).unref();
+  // One native mouse-moved subscription (starting a second would replace the first), shared by the cursor and the edge gesture.
+  const moves = new MouseMoves(watchMouseMoves);
   const cursor = new CursorHider({
     clock: systemClock,
-    onMouseMoved: watchMouseMoves,
+    onMouseMoved: moves.subscribe,
     setHidden: setCursorHidden,
   });
-  const screenListeners: Array<(playing: boolean) => void> = [];
-  wireCursor(
-    {
-      focused: () => win?.isFocused() === true,
-      on: (event, cb) => {
-        if (event === "quit") {
-          app.on("before-quit", cb);
-          app.on("will-quit", cb);
-        } else if (event === "focus") win?.on("focus", cb);
-        else if (event === "blur") win?.on("blur", cb);
-        else if (event === "hide") win?.on("hide", cb);
-        else win?.on("show", cb);
-      },
-      onScreen: (cb) => screenListeners.push(cb),
+  // The pointer resting at the far left edge opens Quick settings; the gesture only arms on real movement.
+  const edge = new EdgeGesture({
+    clock: systemClock,
+    onMouseMoved: moves.subscribe,
+    position: () => {
+      if (!win || win.isDestroyed()) return undefined;
+      const p = screen.getCursorScreenPoint();
+      const b = win.getBounds();
+      const inside = p.y >= b.y && p.y < b.y + b.height && p.x >= b.x && p.x < b.x + b.width;
+      return inside ? { x: p.x - b.x, y: p.y - b.y } : undefined;
     },
-    cursor,
+    open: () => couch?.screenCommand({ command: "quickEdge" }),
+  });
+  const screenListeners: Array<(playing: boolean) => void> = [];
+  const lifecycle: CursorHost = {
+    focused: () => win?.isFocused() === true,
+    on: (event, cb) => {
+      if (event === "quit") {
+        app.on("before-quit", cb);
+        app.on("will-quit", cb);
+      } else if (event === "focus") win?.on("focus", cb);
+      else if (event === "blur") win?.on("blur", cb);
+      else if (event === "hide") win?.on("hide", cb);
+      else win?.on("show", cb);
+    },
+    onScreen: (cb) => screenListeners.push(cb),
+  };
+  wireCursor(lifecycle, cursor);
+  // The edge gesture follows the same focus, hide and quit events but doesn't depend on playback.
+  wireCursor(
+    { ...lifecycle, onScreen: (cb) => cb(true) },
+    { playing: () => edge.start(), release: () => edge.stop() },
   );
+  wireQuickIpc({
+    on: (channel, handler) => ipcMain.on(channel, (event, raw) => handler(event, raw)),
+    isDrawer: (sender) => sender === drawer.webContents,
+    ids: () => drawer.itemIds,
+    send: (command) => couch?.screenCommand(command),
+  });
   couch.onScreen((payload) => {
     for (const listener of screenListeners) listener(payload.playing);
     // Only over a web App: adding a view above the window would reorder the native video under the Library's cover.

@@ -7,7 +7,7 @@ import { evsState, signPkg, verifyPkg } from "./lib/evs-cli.mts";
 import { packagingPlan } from "./lib/evs.mts";
 
 // Couch.app has no node_modules: refuse to package a main bundle that still imports a package.
-for (const file of ["dist/main/index.mjs", "dist/preload/index.cjs"]) {
+for (const file of ["dist/main/index.mjs", "dist/preload/index.cjs", "dist/preload/quick.cjs"]) {
   const code = readFileSync(file, "utf8");
   const bare = [...code.matchAll(/(?:from\s*|import\(|require\()\s*["']([^"'./][^"']*)["']/g)]
     .map((m) => m[1])
