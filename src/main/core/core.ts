@@ -48,6 +48,7 @@ import { ShowView } from "./show-view.ts";
 import { AddonsPage } from "./addons-page.ts";
 import { DetailsPage } from "./details-page.ts";
 import { SoundOutput } from "./sound-output.ts";
+import { QuickSettings } from "./quick-settings.ts";
 import { LibrarySearchView } from "./library-search-view.ts";
 import { AMBIENT_MS, filmAfterFocus, homeGrid } from "./home-view.ts";
 import type { TimeFormat } from "../../shared/clock-format.ts";
@@ -69,7 +70,16 @@ const LIBRARY_VIEWS = ["library", "folder", "libraryFolders"];
 /** Views where a phone's Search button opens the Library search. */
 const TYPING_VIEW = { search: "app", tmdbKey: "details", librarySearch: "librarySearch" };
 type Purpose = keyof typeof TYPING_VIEW;
-const SCREEN_ONLY = ["focusAt", "showControls", "find", "screenKey", "confirmAt"];
+const SCREEN_ONLY = [
+  "focusAt",
+  "showControls",
+  "find",
+  "screenKey",
+  "confirmAt",
+  "quickEdge",
+  "quickClose",
+  "quickPick",
+];
 const NAV = ["up", "down", "left", "right"];
 /** Keys (a phone's pad and buttons, the Mac keyboard): while Picture off is on they only bring the picture back. Playback controls (play/pause, subtitles, volume, seek...) act and leave it on. */
 const PICTURE_KEYS = [
@@ -193,6 +203,7 @@ export class Core {
   #detailsPage: DetailsPage;
   #addonsPage: AddonsPage;
   #sound: SoundOutput;
+  #quick: QuickSettings;
   #search: LibrarySearchView;
   /** Where Back from a show page goes: the Library, or the search it was opened from. */
   /** The active filter chip on the Library's first page (a chip key), if any. */
@@ -281,6 +292,16 @@ export class Core {
       changed: () => this.#emit(),
     });
     this.#state.volume = this.#sound.volume;
+    this.#quick = new QuickSettings({
+      clock: ports.clock,
+      sound: this.#sound,
+      playing: () => this.#pictureScope() !== undefined,
+      stepVolume: (delta) => this.#setVolume(this.#state.volume + delta),
+      toggleMute: () => this.#toggleMute(),
+      pictureOff: () => this.#setPictureOff(true),
+      openSettings: () => this.#setView("settings"),
+      changed: () => this.#emit(),
+    });
     this.#addonsPage = new AddonsPage({
       store: ports.store,
       apply: (app, ids, note) => this.#apps.get(app)?.setAddons?.(ids, note),
@@ -1107,7 +1128,9 @@ export class Core {
     const focused = resolveFocus(grid, this.#state.focus[this.viewKey]);
     if (this.#state.view === "library") this.#rootFocusId = focused?.id;
     const homeVideos = this.#continueEntries().slice(0, HOME_VIDEOS);
+    const quick = this.#quick.payload();
     return {
+      ...(quick ? { quick } : {}),
       playing: this.#pictureScope() !== undefined,
       muted: this.#sound.muted,
       library: this.#library(focused?.id),
@@ -1233,6 +1256,7 @@ export class Core {
       volume: s.volume,
       muted: this.#sound.muted,
       pictureOff: s.pictureOff,
+      quickSettings: this.#quick.isOpen,
       remotes: s.remotes,
     };
   }
@@ -1364,6 +1388,10 @@ export class Core {
       return;
     }
     this.#armAmbient();
+    if (this.#quickCommand(command)) {
+      this.#emit();
+      return;
+    }
     if (command.command === "showControls" && !this.#state.player) return;
     if (this.#confirmCommand(command)) return;
     if (command.command === "focusAt") return this.#focusAt(command.args?.r, command.args?.c);
@@ -1472,6 +1500,22 @@ export class Core {
         break;
     }
     this.#emit();
+  }
+
+  /** Quick settings: opening it, and while it is open every key is its own. True when handled. */
+  #quickCommand(command: Command): boolean {
+    const name = command.command;
+    if (name === "quickSettings" || name === "quickEdge") {
+      if (this.#quick.isOpen && name === "quickEdge") return true;
+      if (!this.#quick.isOpen && (this.#state.confirm || this.#state.typingBy !== undefined))
+        return true;
+      if (!this.#quick.isOpen) this.#state.pictureOff = false;
+      if (name === "quickEdge") this.#quick.open();
+      else this.#quick.toggle();
+      return true;
+    }
+    if (name === "quickClose" || name === "quickPick") return this.#quick.handle(command) || true;
+    return this.#quick.handle(command);
   }
 
   /** What a typing session started now would be typing into: decided by the view it opens in. */

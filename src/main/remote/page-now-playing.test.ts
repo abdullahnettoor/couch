@@ -517,3 +517,24 @@ describe("Picture off on Now Playing", () => {
     expect(chip().classes.has("on")).toBe(false);
   });
 });
+
+describe("Quick settings on the phone", () => {
+  test("the idle top bar and Now Playing both have a Quick settings button that sends the command", () => {
+    expect(REMOTE_PAGE).toContain('id="qs" data-cmd="quickSettings"');
+    page.send({ ...page.base, layout: "home", view: "home" });
+    page.tap("qs");
+    page.playing({});
+    page.tap("chip-qs");
+    expect(commands().filter((c) => c.command === "quickSettings")).toHaveLength(2);
+  });
+
+  test("while the drawer is open the phone shows the D-pad, even over Now Playing", () => {
+    page.playing({});
+    expect(hidden("npad")).toBe(true);
+    page.playing({}, { quickSettings: true });
+    expect(hidden("npad")).toBe(false);
+    expect(hidden("nowp")).toBe(true);
+    page.playing({}, { quickSettings: false });
+    expect(hidden("npad")).toBe(true);
+  });
+});

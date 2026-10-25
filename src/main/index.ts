@@ -25,6 +25,8 @@ import { createEmbedFactory, setCursorHidden, watchMouseMoves } from "./mpv/embe
 import { CursorHider } from "./cursor-hider.ts";
 import { wireCursor } from "./cursor-lifecycle.ts";
 import { PictureCover } from "./web/picture-cover.ts";
+import { QuickDrawer } from "./web/quick-drawer.ts";
+import { EdgeDwell } from "./quick-edge.ts";
 import { MpvPlayer } from "./mpv/mpv-player.ts";
 
 // Fixed name so app data lives in ~/Library/Application Support/Couch whichever way Couch is launched.
@@ -178,8 +180,41 @@ async function createScreen(): Promise<void> {
     () => new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true } }),
     (command) => couch?.screenCommand(command),
   );
-  win.on("resize", () => cover.fit());
-  for (const web of [youtube, netflix]) web.setKeyGate((e, i) => cover.intercept(e, i));
+  const webs: Record<string, ElectronWebApp> = { youtube, netflix };
+  let front: { view: string; app?: string } = { view: "home" };
+  const drawer = new QuickDrawer<WebContentsView>(
+    win,
+    () =>
+      new WebContentsView({
+        webPreferences: {
+          preload: join(import.meta.dirname, "../preload/index.cjs"),
+          sandbox: true,
+          contextIsolation: true,
+        },
+      }),
+    (command) => couch?.screenCommand(command),
+    systemClock,
+    () => {
+      if (front.view === "app" && front.app && webs[front.app]) webs[front.app]!.focus();
+      else win?.webContents.focus();
+    },
+  );
+  win.on("resize", () => {
+    cover.fit();
+    drawer.fit();
+  });
+  for (const web of [youtube, netflix])
+    web.setKeyGate((e, i) => drawer.intercept(e, i) || cover.intercept(e, i));
+  // The pointer resting at the far left edge opens Quick settings; the gesture only arms on real movement.
+  const edge = new EdgeDwell();
+  setInterval(() => {
+    if (!win || win.isDestroyed() || !win.isFocused()) return;
+    const p = screen.getCursorScreenPoint();
+    const b = win.getBounds();
+    const inside = p.y >= b.y && p.y < b.y + b.height && p.x >= b.x && p.x < b.x + b.width;
+    if (edge.sample(inside ? p.x - b.x : Infinity, p.y, Date.now()))
+      couch?.screenCommand({ command: "quickEdge" });
+  }, 100).unref();
   const cursor = new CursorHider({
     clock: systemClock,
     onMouseMoved: watchMouseMoves,
@@ -206,6 +241,8 @@ async function createScreen(): Promise<void> {
     for (const listener of screenListeners) listener(payload.playing);
     // Only over a web App: adding a view above the window would reorder the native video under the Library's cover.
     cover.set(payload.state.pictureOff && payload.state.view === "app");
+    front = { view: payload.state.view, app: payload.state.app };
+    drawer.set(payload.quick);
     cover.showVolume(
       payload.state.volumeShown ? (payload.muted ? 0 : payload.state.volume) : undefined,
     );

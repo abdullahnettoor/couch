@@ -1,4 +1,4 @@
-import type { Command, GridItem, ScreenPayload } from "./protocol.ts";
+import type { Command, GridItem, QuickPayload, ScreenPayload } from "./protocol.ts";
 
 /** Channel names and payloads between the Screen renderer and the main process. */
 export const Channel = {
@@ -8,6 +8,8 @@ export const Channel = {
   grid: "couch:grid",
   /** main → renderer: what to draw */
   screen: "couch:screen",
+  /** main → the Quick settings view: the drawer to draw, or nothing to slide it out */
+  quick: "couch:quick",
   /** main → renderer: mpv state, for the "needs mpv" notice */
   mpv: "couch:mpv",
   /** renderer → main: where the dock / Up next row are, for native glass behind them */
@@ -42,6 +44,7 @@ export interface CouchApi {
   send(command: Command): void;
   reportGrid(report: GridReport): void;
   onScreen(listener: (payload: ScreenPayload) => void): void;
+  onQuick(listener: (quick: QuickPayload | undefined) => void): void;
   onMpv(listener: (status: MpvStatus) => void): void;
   /** One entry per panel slot (0 dock, 1 Up next); missing slots are hidden. */
   reportGlass(rects: GlassRect[]): void;

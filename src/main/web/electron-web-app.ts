@@ -406,6 +406,11 @@ export class ElectronWebApp implements YouTube {
     this.#lifecycle?.hidden();
   }
 
+  /** Gives the App's page keyboard focus (after something drawn above it, like Quick settings, closes). */
+  focus(): void {
+    this.#view.webContents.focus();
+  }
+
   /** Asked first about every physical key; true means it was handled (Picture off swallows keys here). */
   setKeyGate(gate: KeyGate): void {
     this.#keyGate = gate;

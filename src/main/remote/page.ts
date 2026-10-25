@@ -197,6 +197,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     <button class="chip" id="chip-aud" aria-label="Audio" hidden><span data-i="headphones"></span><span class="cc" id="chip-aud-t" hidden></span></button>
     <button class="chip" id="chip-spd" aria-label="Speed" hidden><span data-i="gauge"></span><span class="cc" id="chip-spd-t" hidden></span></button>
     <button class="chip" id="chip-pic" aria-label="Picture off" aria-pressed="false"></button>
+    <button class="chip" id="chip-qs" data-cmd="quickSettings" aria-label="Quick settings" data-i="sliders"></button>
     <button class="chip pad-chip" id="chip-pad" aria-label="D-pad" hidden><span data-i="dpad"></span></button>
   </div>
   __VPILL_NP__
@@ -211,7 +212,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   <div class="rows" id="np-rows" role="dialog"></div>
 </div>
 <main id="controls">
-  <div class="bar" id="ibar">__BAR_ID__<button id="gear" data-cmd="openSettings" aria-label="Settings" data-i="gear" hidden></button></div>
+  <div class="bar" id="ibar">__BAR_ID__<button id="qs" data-cmd="quickSettings" aria-label="Quick settings" data-i="sliders"></button><button id="gear" data-cmd="openSettings" aria-label="Settings" data-i="gear" hidden></button></div>
   <button class="cw" id="cw" data-cmd="resume" hidden><span class="pic" id="cw-pic"></span><span class="txt"><b id="cw-title"></b><span class="l" id="cw-left"></span></span><span class="go" data-i="play"></span></button>
   <button class="search" id="fixbtn" data-cmd="menu" hidden><span id="fix-label">Fix match</span></button>
   <button class="search" id="search" data-cmd="typeOpen" hidden><span data-i="search"></span><span id="search-label">Search</span></button>
@@ -390,8 +391,10 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     $("gear").hidden = L !== "home";
     var noBack = L === "home" && !np && !s.confirm;
     $("id-back").hidden = $("np-back").hidden = $("pad-back").hidden = noBack;
-    $("nowp").hidden = !np || padOpen;
-    $("npad").hidden = !np || !padOpen;
+    var padShown = padOpen || !!s.quickSettings;
+    $("nowp").hidden = !np || padShown;
+    $("npad").hidden = !np || !padShown;
+    $("qs").classList.toggle("on", !!s.quickSettings);
     $("controls").hidden = !!np;
     setMute(!!s.muted);
     if (np) {

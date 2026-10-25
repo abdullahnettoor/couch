@@ -58,12 +58,21 @@ export const COMMAND_NAMES = [
   "pressPrompt",
   "openSettings",
   "setPictureOff",
+  "quickSettings",
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
 
 /** Commands only the Screen itself may send (mouse hover). Never in COMMAND_NAMES, so Remotes can't. */
-export type ScreenOnlyCommandName = "focusAt" | "showControls" | "find" | "screenKey" | "confirmAt";
+export type ScreenOnlyCommandName =
+  | "focusAt"
+  | "showControls"
+  | "find"
+  | "screenKey"
+  | "confirmAt"
+  | "quickEdge"
+  | "quickClose"
+  | "quickPick";
 
 export type PromptId = "skipIntro" | "skipRecap" | "nextEpisode";
 
@@ -100,6 +109,8 @@ export interface CommandArgs {
   addon?: string;
   /** setPictureOff: true hides the picture, false brings it back */
   on?: boolean;
+  /** quickPick (Screen only): the id of the drawer row clicked */
+  item?: string;
   /** typeText: the whole current text; typeOpen and screenKey (Screen only): the first character */
   text?: string;
 }
@@ -310,8 +321,30 @@ export interface SoundPayload {
   hint?: string;
 }
 
+/** One row (or button) of the Quick settings drawer. */
+export interface QuickItem {
+  id: string;
+  r: number;
+  c: number;
+  label: string;
+  /** A Sound output row: the action Settings uses for it. */
+  action?: string;
+  /** The Sound output in use. */
+  checked?: boolean;
+}
+
+/** The Quick settings drawer, while it is open. */
+export interface QuickPayload {
+  items: QuickItem[];
+  focusedId: string;
+  volume: number;
+  muted: boolean;
+}
+
 /** Core → Screen renderer. */
 export interface ScreenPayload {
+  /** The Quick settings drawer, present while it is open. */
+  quick?: QuickPayload;
   /** A video is on screen (the Library's, or a web App's playing one), so the idle cursor hides. */
   playing: boolean;
   /** Couch is muted (the level is `state.volume`). */
@@ -445,6 +478,8 @@ export interface RemoteSnapshot {
   muted: boolean;
   /** Picture off is on: the Screen shows a black cover (the phone offers "Picture on"). */
   pictureOff: boolean;
+  /** The Quick settings drawer is open on the Screen (the phone shows the D-pad). */
+  quickSettings: boolean;
   remotes: number;
 }
 

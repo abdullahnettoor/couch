@@ -55,6 +55,10 @@ _Avoid_: silence, volume off
 A black cover over the whole Screen, with a small dim Couch mark, while playback and sound carry on underneath; the phone's Picture off button on Now Playing turns it on, any navigation key turns it off (playback controls like play/pause, volume and seek work without turning it off), and it also ends when playback stops, on Home or when the App changes.
 _Avoid_: screen off, blank, sleep
 
+**Quick settings**:
+A drawer that slides in from the left of the Screen, over Home, the Library and any App without pausing it, for what you change mid-watch: Sound output, volume and mute, Picture off (only while something plays) and All settings; opened from the phone's Quick settings button or by resting the mouse at the Screen's left edge, closed by Back, Left, the button again, a click outside or 10 s without input.
+_Avoid_: side menu, control centre
+
 **Speed**:
 How fast the video plays (0.5× to 2× in the Library, the App's own choices in a web App), shown on the phone's Speed button and picked from a list. Every new video starts at 1×; the choice holds for that video even if the page resets it. Netflix's speed is set through its own menu.
 _Avoid_: playback rate, tempo

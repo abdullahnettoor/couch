@@ -11,6 +11,9 @@ const api: CouchApi = {
   onTint: (listener) => {
     ipcRenderer.on(Channel.tint, (_event, rgb) => listener(rgb));
   },
+  onQuick: (listener) => {
+    ipcRenderer.on(Channel.quick, (_event, quick) => listener(quick));
+  },
   onMpv: (listener) => {
     ipcRenderer.on(Channel.mpv, (_event, status) => listener(status));
   },
