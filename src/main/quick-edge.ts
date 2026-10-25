@@ -44,7 +44,7 @@ export class EdgeGesture {
 
   #moved(): void {
     const p = this.#ports.position();
-    if (!p || p.x < p.width - 1 - EDGE_PX) {
+    if (!p || p.x < p.width - EDGE_PX) {
       this.#cancelDwell?.();
       this.#cancelDwell = undefined;
       this.#fired = false;

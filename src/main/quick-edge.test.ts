@@ -34,6 +34,18 @@ function setup() {
 }
 
 describe("the right-edge gesture", () => {
+  test.each([
+    [1919, 1],
+    [1918, 1],
+    [1917, 0],
+  ])("with width 1920, a pointer at x=%i opens it %i time(s)", (x, times) => {
+    const { clock, edge, move, opened } = setup();
+    edge.start();
+    move(1919 - x);
+    clock.advance(600);
+    expect(opened()).toBe(times);
+  });
+
   test("opens once the pointer has moved onto the far right edge and rested for half a second", () => {
     const { clock, edge, move, opened } = setup();
     edge.start();

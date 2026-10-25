@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, Menu, screen, WebContentsView } from "electron";
 import { join } from "node:path";
+import { screenPointer } from "./pointer-position.ts";
 import { Channel, type GlassRect, type GridReport } from "../shared/ipc.ts";
 import type { Command } from "../shared/protocol.ts";
 import type { PlayerEvent } from "../shared/player.ts";
@@ -221,10 +222,7 @@ async function createScreen(): Promise<void> {
     onMouseMoved: moves.subscribe,
     position: () => {
       if (!win || win.isDestroyed()) return undefined;
-      const p = screen.getCursorScreenPoint();
-      const b = win.getBounds();
-      const inside = p.y >= b.y && p.y < b.y + b.height && p.x >= b.x && p.x < b.x + b.width;
-      return inside ? { x: p.x - b.x, y: p.y - b.y, width: b.width } : undefined;
+      return screenPointer(screen.getCursorScreenPoint(), win.getContentBounds());
     },
     open: () => couch?.screenCommand({ command: "quickEdge" }),
   });
