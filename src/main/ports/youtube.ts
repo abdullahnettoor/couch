@@ -25,6 +25,8 @@ export type YouTubeEvent =
       url?: string;
     }
   | { type: "searchOpened" }
+  /** The household used the page itself: a mouse press or a key that reached it. */
+  | { type: "input" }
   /** Back closed something in the page (a player menu, the bar, a pop-up) without changing its route. */
   | { type: "backHandled" }
   /** What the page is playing, or undefined when nothing is. */

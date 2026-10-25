@@ -36,6 +36,8 @@ export type AppEvent =
   /** A key pressed on the Mac keyboard while the App has focus, already mapped to a command. */
   | { type: "key"; command: CommandName }
   | { type: "loaded" }
+  /** The household used the page itself: a mouse press or a key that reached it. Never Couch's own synthetic input. */
+  | { type: "input" }
   /** `note` says why, in words for the App's error screen; without it the screen blames the internet. */
   | { type: "failed"; note?: string }
   | { type: "searchOpened" }

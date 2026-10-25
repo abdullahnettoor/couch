@@ -163,6 +163,88 @@ describe("Now Playing for a web App", () => {
     });
   });
 
+  describe("a speed chosen on the page itself", () => {
+    const speeds = [0.5, 1, 1.5, 2];
+    const report = (speed: number, title = "One") => ({
+      type: "playback" as const,
+      playback: { position: 30, duration: 600, paused: false, title, speed, speeds },
+    });
+    const setSpeeds = (tube: FakeWebApp) =>
+      tube.calls.filter((c) => c.call === "setSpeed").map((c) => c.args[0]);
+
+    test("is kept, never set back, and the phone shows it", async () => {
+      const { tube, phone } = await start({ adapter: true });
+      tube.emit(report(1));
+      await phone.settle();
+      h.clock.advance(5000);
+      tube.emit(report(1.5));
+      await phone.settle();
+      h.clock.advance(10000);
+      tube.emit(report(1.5));
+      await phone.settle();
+      expect(setSpeeds(tube)).toEqual([]);
+      expect(phone.last!.nowPlaying!.speed).toBe(1.5);
+      tube.emit(report(1));
+      await phone.settle();
+      expect(setSpeeds(tube)).toEqual([1.5]);
+    });
+
+    test("a drop to 1× with no recent input is re-applied", async () => {
+      const { tube, phone } = await start({ adapter: true });
+      tube.emit(report(1));
+      h.clock.advance(5000);
+      tube.emit(report(1.5));
+      await phone.settle();
+      h.clock.advance(10000);
+      tube.emit({ type: "input" });
+      h.clock.advance(5000);
+      tube.emit(report(1));
+      await phone.settle();
+      expect(setSpeeds(tube)).toEqual([1.5]);
+    });
+
+    test("a drop to 1× right after page input is kept", async () => {
+      const { tube, phone } = await start({ adapter: true });
+      tube.emit(report(1));
+      h.clock.advance(5000);
+      tube.emit(report(1.5));
+      await phone.settle();
+      h.clock.advance(10000);
+      tube.emit({ type: "input" });
+      h.clock.advance(500);
+      tube.emit(report(1));
+      await phone.settle();
+      h.clock.advance(10000);
+      tube.emit(report(1));
+      await phone.settle();
+      expect(setSpeeds(tube)).toEqual([]);
+      expect(phone.last!.nowPlaying!.speed).toBe(1);
+    });
+
+    test("a new video starts at 1× even if the page carried the speed over", async () => {
+      const { tube, phone } = await start({ adapter: true });
+      tube.emit(report(1));
+      h.clock.advance(5000);
+      tube.emit(report(1.5));
+      await phone.settle();
+      tube.emit({ type: "input" });
+      tube.emit(report(1.5, "Two"));
+      await phone.settle();
+      expect(setSpeeds(tube)).toEqual([1]);
+    });
+
+    test("a phone setSpeed still works and then holds", async () => {
+      const { tube, phone } = await start({ adapter: true });
+      tube.emit(report(1));
+      await phone.settle();
+      await phone.press({ command: "setSpeed", args: { speed: 2 } });
+      h.clock.advance(3500);
+      tube.emit(report(1));
+      await phone.settle();
+      expect(setSpeeds(tube)).toEqual([2, 2]);
+    });
+  });
+
   test("a missing playback report keeps the chosen speed for the same video", async () => {
     const { tube, phone } = await start({ adapter: true });
     const base = {

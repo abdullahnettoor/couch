@@ -180,8 +180,13 @@ export class ElectronWebApp implements YouTube {
       this.#failed = true;
       this.#emit({ type: "failed" });
     });
+    wc.on("before-mouse-event", (_event, mouse) => {
+      if (this.#sending) return;
+      if (mouse.type === "mouseDown") this.#emit({ type: "input" });
+    });
     wc.on("before-input-event", (event, input) => {
       if (this.#sending) return;
+      if (input.type === "keyDown" && !this.#capturing) this.#emit({ type: "input" });
       if (this.#keyGate?.(event, input)) return;
       if (this.#capturing) {
         event.preventDefault();
