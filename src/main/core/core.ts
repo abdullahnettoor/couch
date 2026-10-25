@@ -51,6 +51,7 @@ import { SoundOutput } from "./sound-output.ts";
 import { LibrarySearchView } from "./library-search-view.ts";
 import { AMBIENT_MS, filmAfterFocus, homeGrid } from "./home-view.ts";
 import type { TimeFormat } from "../../shared/clock-format.ts";
+import { AppSpeed } from "./app-speed.ts";
 import { MetadataService } from "./metadata-service.ts";
 import { nullMetadata, type Metadata } from "../ports/metadata.ts";
 
@@ -123,9 +124,6 @@ const SAVE_EVERY_MS = 5000;
 const MPV_MISSING = "Couch needs mpv to play videos. Install it with: brew install mpv";
 const VOLUME_STEP = 5;
 const LIBRARY_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
-const SPEED_REAPPLY_MS = 3000;
-/** A mouse press or key on an App's page this recent counts as the household choosing the page's speed. */
-const PAGE_INPUT_MS = 2000;
 const videoKey = (report: PlaybackReport) => `${report.title ?? ""}|${report.duration}`;
 const APP_NOTE = "Press Home on your phone to come back";
 
@@ -166,9 +164,8 @@ export class Core {
   #speed = 1;
   /** The playing Library video's subtitle and audio tracks, as mpv last listed them. */
   #tracks: { subtitles: PlayerTrack[]; audio: PlayerTrack[] } = { subtitles: [], audio: [] };
-  /** A web App's chosen speed for the video it is playing (keyed by its title and length), and when it was last applied. */
-  #pageInput = new Map<string, number>();
-  #appSpeed = new Map<string, { speed: number; key: string; at: number }>();
+  /** Each web App's wanted speed for the video it is playing (keyed by its title and length). */
+  #appSpeed = new AppSpeed(() => this.#ports.clock.now());
   #shown = new Map<string, { volume?: number; confirm?: Confirmation; bar?: string }>();
   #confirmAnswers: [() => void, () => void] | undefined;
   /** The question core asked on behalf of an App's Back ("Leave <label>?"). */
@@ -1288,37 +1285,14 @@ export class Core {
     const front = this.#front();
     const report = front && this.#playback.get(front.id);
     if (!front?.setSpeed || !report?.speeds?.includes(speed)) return;
-    this.#appSpeed.set(front.id, { speed, key: videoKey(report), at: this.#ports.clock.now() });
+    this.#appSpeed.command(front.id, speed, videoKey(report));
     front.setSpeed(speed);
   }
 
-  /**
-   * A web App's video starts at 1×. After that the page's speed wins when the household chose it
-   * on the page (a speed other than 1×, or any speed right after page input); otherwise a page
-   * that resets the rate is told again (at most every 3 s).
-   */
   #holdAppSpeed(app: App, report: PlaybackReport): void {
     if (!app.setSpeed || !report.speeds?.length || report.speed === undefined) return;
-    const now = this.#ports.clock.now();
-    const key = videoKey(report);
-    let want = this.#appSpeed.get(app.id);
-    if (want && want.key !== key) want = undefined;
-    if (!want) {
-      want = { speed: 1, key, at: report.speed === 1 ? now : 0 };
-      this.#appSpeed.set(app.id, want);
-    } else if (report.speed !== want.speed) {
-      const input = this.#pageInput.get(app.id);
-      const justChose = input !== undefined && now - input <= PAGE_INPUT_MS;
-      const settled = now - want.at >= SPEED_REAPPLY_MS;
-      if (justChose || (settled && report.speed !== 1)) {
-        want.speed = report.speed;
-        want.at = now;
-        return;
-      }
-    }
-    if (report.speed === want.speed || now - want.at < SPEED_REAPPLY_MS) return;
-    want.at = now;
-    app.setSpeed(want.speed);
+    const apply = this.#appSpeed.report(app.id, videoKey(report), report.speed);
+    if (apply !== undefined) app.setSpeed(apply);
   }
 
   /** Now Playing for the front web App, from what its page last reported. */
@@ -1880,7 +1854,7 @@ export class Core {
       if (this.#leaveConfirm && this.#state.confirm === this.#leaveConfirm) this.#dismissConfirm();
       this.#state.typingBy = undefined;
       this.#playback.delete(this.#state.app ?? "");
-      this.#appSpeed.delete(this.#state.app ?? "");
+      this.#appSpeed.clear(this.#state.app ?? "");
       this.#apps.get(this.#state.app ?? "")?.hide();
     }
     if (view !== "app" && view !== "appError") delete this.#state.app;
@@ -1954,7 +1928,7 @@ export class Core {
         this.#sound.appOutput(app.id, event.name, event.ok);
         return;
       case "input":
-        this.#pageInput.set(app.id, this.#ports.clock.now());
+        this.#appSpeed.input(app.id);
         return;
       case "playback":
         if (event.playback) {

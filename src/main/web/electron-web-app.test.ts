@@ -246,3 +246,66 @@ describe("the page's confirmation buttons", () => {
     ]);
   });
 });
+
+describe("page input (the household using the page itself)", () => {
+  function watched() {
+    const web = new ElectronWebApp(youtubeDescription("130.0.0.0"), win);
+    const wc = fake.views.at(-1)!;
+    const events: Array<{ type: string }> = [];
+    web.onEvent((e) => events.push(e));
+    const inputs = () => events.filter((e) => e.type === "input").length;
+    const key = (k: string, extra: Record<string, unknown> = {}) => {
+      const event = { preventDefault: vi.fn() };
+      wc.emit("before-input-event", event, { type: "keyDown", key: k, ...extra });
+      return event;
+    };
+    return { web, wc, inputs, key };
+  }
+
+  test("a mouse press reaches the page", () => {
+    const { wc, inputs } = watched();
+    wc.emit("before-mouse-event", {}, { type: "mouseDown" });
+    expect(inputs()).toBe(1);
+    wc.emit("before-mouse-event", {}, { type: "mouseUp" });
+    expect(inputs()).toBe(1);
+  });
+
+  test("a key that reaches the page counts, such as YouTube's Shift+> and Shift+<", () => {
+    const { inputs, key } = watched();
+    key(">", { shift: true });
+    key("<", { shift: true });
+    expect(inputs()).toBe(2);
+  });
+
+  test("a key Couch turns into a command or swallows doesn't count", () => {
+    const { inputs, key } = watched();
+    key(" ");
+    key("ArrowLeft");
+    key("Enter");
+    key("/");
+    key("f", { meta: true });
+    expect(inputs()).toBe(0);
+  });
+
+  test("a key the Picture off gate takes doesn't count", () => {
+    const { web, inputs, key } = watched();
+    web.setKeyGate(() => true);
+    key(">", { shift: true });
+    expect(inputs()).toBe(0);
+  });
+
+  test("nothing counts while the phone is typing (text capture), mouse included", () => {
+    const { web, wc, inputs, key } = watched();
+    web.captureText(true);
+    key("a");
+    wc.emit("before-mouse-event", {}, { type: "mouseDown" });
+    expect(inputs()).toBe(0);
+  });
+
+  test("Couch's own synthetic input doesn't count", () => {
+    const { web, inputs } = watched();
+    web.playPause();
+    web.sendKey("ok");
+    expect(inputs()).toBe(0);
+  });
+});

@@ -182,11 +182,10 @@ export class ElectronWebApp implements YouTube {
     });
     wc.on("before-mouse-event", (_event, mouse) => {
       if (this.#sending) return;
-      if (mouse.type === "mouseDown") this.#emit({ type: "input" });
+      if (mouse.type === "mouseDown" && !this.#capturing) this.#emit({ type: "input" });
     });
     wc.on("before-input-event", (event, input) => {
       if (this.#sending) return;
-      if (input.type === "keyDown" && !this.#capturing) this.#emit({ type: "input" });
       if (this.#keyGate?.(event, input)) return;
       if (this.#capturing) {
         event.preventDefault();
@@ -206,7 +205,13 @@ export class ElectronWebApp implements YouTube {
         if (edit) this.#emit({ type: "edit", edit });
         return;
       }
-      if (this.#fieldFocused && keyBelongsToField({ key: input.key, meta: input.meta })) return;
+      const toPage = () => {
+        if (input.type === "keyDown") this.#emit({ type: "input" });
+      };
+      if (this.#fieldFocused && keyBelongsToField({ key: input.key, meta: input.meta })) {
+        toPage();
+        return;
+      }
       if (input.type === "keyDown" && !input.control && !input.alt) {
         const find = input.meta ? input.key.toLowerCase() === "f" : input.key === "/";
         if (find) {
@@ -216,7 +221,10 @@ export class ElectronWebApp implements YouTube {
         }
       }
       const command = SCREEN_KEYS[input.key];
-      if (!command || input.control || input.meta || input.alt) return;
+      if (!command || input.control || input.meta || input.alt) {
+        toPage();
+        return;
+      }
       event.preventDefault();
       if (input.type === "keyDown") this.#emit({ type: "key", command });
     });
