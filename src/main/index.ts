@@ -249,7 +249,10 @@ async function createScreen(): Promise<void> {
   };
   wireCursor(lifecycle, cursor);
   // Quick settings and its glass vanish at once, with no slide, when Couch is no longer in front or is quitting.
-  wireTeardown(lifecycle, () => drawer.teardown());
+  wireTeardown(lifecycle, () => {
+    drawer.teardown();
+    couch?.screenCommand({ command: "quickClose" });
+  });
   win.once("closed", () => {
     drawer.teardown();
     disposeNativeWindow();
