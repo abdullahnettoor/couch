@@ -25,11 +25,12 @@ import { chooseBinding } from "./listener.ts";
 import {
   createDrawerGlass,
   createEmbedFactory,
+  disposeNativeWindow,
   setCursorHidden,
   watchMouseMoves,
 } from "./mpv/embed-addon.ts";
 import { CursorHider } from "./cursor-hider.ts";
-import { wireCursor, type CursorHost } from "./cursor-lifecycle.ts";
+import { wireCursor, wireTeardown, type CursorHost } from "./cursor-lifecycle.ts";
 import { PictureCover } from "./web/picture-cover.ts";
 import { QuickDrawer } from "./web/quick-drawer.ts";
 import { EdgeGesture } from "./quick-edge.ts";
@@ -247,6 +248,12 @@ async function createScreen(): Promise<void> {
     onScreen: (cb) => screenListeners.push(cb),
   };
   wireCursor(lifecycle, cursor);
+  // Quick settings and its glass vanish at once, with no slide, when Couch is no longer in front or is quitting.
+  wireTeardown(lifecycle, () => drawer.teardown());
+  win.once("closed", () => {
+    drawer.teardown();
+    disposeNativeWindow();
+  });
   // The edge gesture follows the same focus, hide and quit events but doesn't depend on playback.
   wireCursor(
     { ...lifecycle, onScreen: (cb) => cb(true) },
@@ -257,6 +264,7 @@ async function createScreen(): Promise<void> {
     isDrawer: (sender) => sender === drawer.webContents,
     ids: () => drawer.itemIds,
     send: (command) => couch?.screenCommand(command),
+    slide: (phase) => drawer.slideStart(phase),
   });
   couch.onScreen((payload) => {
     for (const listener of screenListeners) listener(payload.playing);

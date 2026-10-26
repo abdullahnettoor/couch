@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
 import { CursorHider } from "./cursor-hider.ts";
-import { type CursorHost, type HostEvent, wireCursor } from "./cursor-lifecycle.ts";
+import { type CursorHost, type HostEvent, wireCursor, wireTeardown } from "./cursor-lifecycle.ts";
+import { QuickDrawer } from "./web/quick-drawer.ts";
 import { FakeClock } from "./ports/fakes.ts";
 
 function setup(focused = true) {
@@ -103,5 +104,79 @@ describe("cursor lifecycle", () => {
     clock.advance(3100);
     screen(false);
     expect(mac.visible).toBe(true);
+  });
+});
+
+describe("tearing things down when Couch leaves the front", () => {
+  function wire() {
+    const events = new Map<HostEvent, Array<() => void>>();
+    let teardowns = 0;
+    wireTeardown(
+      { on: (event, cb) => events.set(event, [...(events.get(event) ?? []), cb]) },
+      () => teardowns++,
+    );
+    return { emit: (e: HostEvent) => events.get(e)?.forEach((cb) => cb()), count: () => teardowns };
+  }
+
+  test.each(["blur", "hide", "quit"] as const)("%s tears down", (event) => {
+    const { emit, count } = wire();
+    emit(event);
+    expect(count()).toBe(1);
+  });
+
+  test("focus and show do not", () => {
+    const { emit, count } = wire();
+    emit("focus");
+    emit("show");
+    expect(count()).toBe(0);
+  });
+
+  test("tears the Quick settings drawer down at once, with its glass, on blur, hide and quit", () => {
+    for (const event of ["blur", "hide", "quit"] as const) {
+      const children: unknown[] = [];
+      const glass: string[] = [];
+      const view = {
+        webContents: {
+          loadURL: () => Promise.resolve(),
+          on: () => {},
+          send: () => {},
+        },
+        setBounds: () => {},
+        setBackgroundColor: () => {},
+      };
+      const clock = new FakeClock();
+      const drawer = new QuickDrawer(
+        {
+          contentView: {
+            children,
+            addChildView: (v) => children.push(v),
+            removeChildView: (v) => children.splice(children.indexOf(v), 1),
+          },
+          getContentBounds: () => ({ width: 1920, height: 1080 }),
+        },
+        () => view as never,
+        () => {},
+        clock,
+        () => {},
+        {
+          beginRegistration: () => {},
+          endRegistration: () => {},
+          open: () => glass.push("open"),
+          hide: () => glass.push("hide"),
+          close: (ms) => glass.push(`close ${ms}`),
+        },
+      );
+      const events = new Map<HostEvent, Array<() => void>>();
+      wireTeardown({ on: (e, cb) => events.set(e, [...(events.get(e) ?? []), cb]) }, () =>
+        drawer.teardown(),
+      );
+      drawer.set({ items: [], focusedId: "", volume: 0, muted: false });
+      drawer.slideStart("in");
+      events.get(event)!.forEach((cb) => cb());
+      expect(children).toEqual([]);
+      expect(glass.at(-1)).toBe("close 0");
+      clock.advance(1000);
+      expect(glass.filter((c) => c === "close 0")).toHaveLength(1);
+    }
   });
 });

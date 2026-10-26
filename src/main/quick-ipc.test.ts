@@ -45,15 +45,19 @@ describe("what the drawer's page may ask for", () => {
 describe("the drawer's IPC channel", () => {
   function setup(known = ids) {
     const handlers: Array<(event: { sender: unknown }, raw: unknown) => void> = [];
+    const slideHandlers: typeof handlers = [];
+    const slides: string[] = [];
     const sent: Command[] = [];
     const drawerPage = { id: "drawer" };
     wireQuickIpc({
-      on: (_channel, handler) => handlers.push(handler),
+      on: (channel, handler) =>
+        (channel === Channel.quickSlide ? slideHandlers : handlers).push(handler),
+      slide: (phase) => slides.push(phase),
       isDrawer: (sender) => sender === drawerPage,
       ids: () => known,
       send: (command) => sent.push(command),
     });
-    return { handlers, sent, drawerPage };
+    return { handlers, slideHandlers, slides, sent, drawerPage };
   }
 
   test("a valid command from the drawer's page reaches the core", () => {
@@ -84,9 +88,43 @@ describe("the drawer's IPC channel", () => {
   });
 });
 
+describe("the drawer's slide-start message", () => {
+  function setup() {
+    const slideHandlers: Array<(event: { sender: unknown }, raw: unknown) => void> = [];
+    const slides: string[] = [];
+    const drawerPage = { id: "drawer" };
+    wireQuickIpc({
+      on: (channel, handler) => {
+        if (channel === Channel.quickSlide) slideHandlers.push(handler);
+      },
+      isDrawer: (sender) => sender === drawerPage,
+      ids: () => [],
+      send: () => {},
+      slide: (phase) => slides.push(phase),
+    });
+    return { handler: slideHandlers[0]!, slides, drawerPage };
+  }
+
+  test("in and out from the drawer's page reach the drawer", () => {
+    const { handler, slides, drawerPage } = setup();
+    handler({ sender: drawerPage }, "in");
+    handler({ sender: drawerPage }, "out");
+    expect(slides).toEqual(["in", "out"]);
+  });
+
+  test("from any other page, or with anything else, it is dropped", () => {
+    const { handler, slides, drawerPage } = setup();
+    handler({ sender: { id: "youtube" } }, "in");
+    for (const raw of ["sideways", 1, null, undefined, { phase: "in" }, ["in"], "IN"])
+      handler({ sender: drawerPage }, raw);
+    expect(slides).toEqual([]);
+  });
+});
+
 test("the drawer's preload uses the channel names main listens on", () => {
   const source = readFileSync(new URL("../preload/quick.ts", import.meta.url), "utf8");
   expect(source).toContain(`quick: "${Channel.quick}"`);
   expect(source).toContain(`quickCommand: "${Channel.quickCommand}"`);
+  expect(source).toContain(`quickSlide: "${Channel.quickSlide}"`);
   expect(source).not.toMatch(/import (?!type)[^;]*shared/);
 });

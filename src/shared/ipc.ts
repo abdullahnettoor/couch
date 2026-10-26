@@ -12,6 +12,8 @@ export const Channel = {
   quick: "couch:quick",
   /** the Quick settings view → main: a pick or a close, and nothing else */
   quickCommand: "couch:quick-command",
+  /** the Quick settings view → main: its panel has just started sliding in or out */
+  quickSlide: "couch:quick-slide",
   /** main → renderer: mpv state, for the "needs mpv" notice */
   mpv: "couch:mpv",
   /** renderer → main: where the dock / Up next row are, for native glass behind them */
@@ -56,5 +58,7 @@ export interface CouchApi {
 export interface QuickApi {
   pick(item: string): void;
   close(): void;
+  /** Tells main the panel's slide has just started, so the native glass can follow it. */
+  slideStart(phase: "in" | "out"): void;
   onQuick(listener: (quick: QuickPayload | undefined) => void): void;
 }

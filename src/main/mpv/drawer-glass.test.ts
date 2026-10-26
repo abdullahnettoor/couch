@@ -1,6 +1,6 @@
 import type { BrowserWindow } from "electron";
 import { afterEach, describe, expect, test } from "vite-plus/test";
-import { createDrawerGlass } from "./embed-addon.ts";
+import { createDrawerGlass, disposeNativeWindow } from "./embed-addon.ts";
 
 const handle = Buffer.from("window");
 const win = { isDestroyed: () => false, getNativeWindowHandle: () => handle } as BrowserWindow;
@@ -13,6 +13,9 @@ function fake(supported: boolean) {
     addon: {
       glassSupported: () => supported,
       setDrawerGlass: (...args: unknown[]) => calls.push(args),
+      beginDrawerRegistration: (...args: unknown[]) => calls.push(["begin", ...args]),
+      endDrawerRegistration: (...args: unknown[]) => (calls.push(["end", ...args]), true),
+      hideDrawerGlass: () => calls.push(["hide"]),
     },
   };
 }
@@ -35,6 +38,24 @@ describe("the drawer glass through the native add-on", () => {
       [handle, true, 1286.4, 0, 633.6, 1080, 36, 250],
       [handle, false, 0, 0, 0, 0, 0, 250],
       [handle, false, 0, 0, 0, 0, 0, 0],
+    ]);
+  });
+
+  test("registration, hide and the slide go to the add-on in the order they are called", () => {
+    const { addon, calls } = fake(true);
+    const glass = createDrawerGlass(
+      () => win,
+      () => addon,
+    )!;
+    glass.beginRegistration();
+    glass.endRegistration();
+    glass.open(rect, 250);
+    glass.hide();
+    expect(calls).toEqual([
+      ["begin", handle],
+      ["end", handle],
+      [handle, true, 1286.4, 0, 633.6, 1080, 36, 250],
+      ["hide"],
     ]);
   });
 
@@ -71,5 +92,18 @@ describe("the drawer glass through the native add-on", () => {
     )!;
     glass.close(0);
     expect(calls).toEqual([]);
+  });
+});
+
+describe("disposing the native window state", () => {
+  test("asks the add-on once, and is harmless without one", () => {
+    const calls: string[] = [];
+    disposeNativeWindow(() => ({ disposeWindow: () => calls.push("dispose") }));
+    expect(calls).toEqual(["dispose"]);
+    expect(() =>
+      disposeNativeWindow(() => {
+        throw new Error("no add-on");
+      }),
+    ).not.toThrow();
   });
 });

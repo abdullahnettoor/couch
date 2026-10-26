@@ -87,13 +87,19 @@ int main() {
   FakeWindow d;
   d.stack = {"compositor", "web:renderer", "web:youtube"};
   vieworder::Keeper<std::string> dk(d, [&](std::function<void()> n) { d.notify = n; });
+  // The explicit registration TS drives: snapshot, the drawer's view is added, then the one new view is the drawer's.
+  auto openDrawer = [&](FakeWindow &win, vieworder::Keeper<std::string> &k, const std::string &g, const std::string &view) {
+    k.beginDrawerRegistration();
+    win.electronAdds(view);
+    CHECK(k.endDrawerRegistration());
+    CHECK(k.setDrawer(g));
+  };
   auto directlyUnder = [&](FakeWindow &win, const std::string &g, const std::string &a) {
     return win.has(g) && win.has(a) && win.at(g) == win.at(a) - 1;
   };
 
   // Opening over a web App: the drawer's view is added last, then the glass goes right under it.
-  d.electronAdds("web:drawer");
-  dk.setDrawer("dglass", "web:drawer");
+  openDrawer(d, dk, "dglass", "web:drawer");
   CHECK(directlyUnder(d, "dglass", "web:drawer"));
   CHECK(d.at("web:youtube") < d.at("dglass") && d.at("web:renderer") < d.at("dglass"));
   CHECK(d.stack.back() == "web:drawer");
@@ -123,16 +129,14 @@ int main() {
   CHECK(!d.has("dglass"));
 
   // The drawer's view leaves first (removed mid-slide): the glass goes with it on the next check.
-  d.electronAdds("web:drawer2");
-  dk.setDrawer("dglass2", "web:drawer2");
+  openDrawer(d, dk, "dglass2", "web:drawer2");
   CHECK(directlyUnder(d, "dglass2", "web:drawer2"));
   d.erase("web:drawer2");
   d.changed();
   CHECK(!d.has("dglass2"));
 
   // Reopening after that works.
-  d.electronAdds("web:drawer3");
-  dk.setDrawer("dglass3", "web:drawer3");
+  openDrawer(d, dk, "dglass3", "web:drawer3");
   CHECK(directlyUnder(d, "dglass3", "web:drawer3"));
   dk.clearDrawer();
 
@@ -143,8 +147,7 @@ int main() {
   pk.setVideo("video", true);
   pk.addGlass("glass0");
   p.electronAdds("web:cover");
-  p.electronAdds("web:drawer");
-  pk.setDrawer("dglass", "web:drawer");
+  openDrawer(p, pk, "dglass", "web:drawer");
   CHECK(p.videoGlassWeb({"glass0"}));
   CHECK(directlyUnder(p, "dglass", "web:drawer"));
   CHECK(p.at("web:cover") < p.at("dglass"));
@@ -159,6 +162,89 @@ int main() {
   CHECK(directlyUnder(p, "dglass", "web:drawer"));
   pk.clearDrawer();
   CHECK(!p.has("dglass"));
+
+  // ---- Anchor identity: registered once, never inferred from the stacking order. ----
+  FakeWindow a;
+  a.stack = {"compositor", "web:renderer", "web:youtube"};
+  vieworder::Keeper<std::string> ak(a, [&](std::function<void()> n) { a.notify = n; });
+  openDrawer(a, ak, "dglass", "web:drawer");
+  // Another sibling lands above the drawer later (and is not lifted back): the glass stays under the drawer.
+  a.electronAdds("web:late");
+  CHECK(a.at("dglass") == a.at("web:drawer") - 1);
+  CHECK(a.at("web:late") > a.at("web:drawer"));
+  // A geometry update (resize) calls setDrawer again: it still resolves to the drawer, not the topmost view.
+  CHECK(ak.setDrawer("dglass"));
+  CHECK(a.at("dglass") == a.at("web:drawer") - 1);
+  a.electronAdds("web:later");
+  a.electronRaises("dglass");
+  CHECK(a.at("dglass") == a.at("web:drawer") - 1);
+  ak.clearDrawer();
+
+  // Registration is ambiguous when two views appear in between: no anchor, no glass.
+  FakeWindow amb;
+  amb.stack = {"compositor", "web:renderer"};
+  vieworder::Keeper<std::string> bk(amb, [&](std::function<void()> n) { amb.notify = n; });
+  bk.beginDrawerRegistration();
+  amb.electronAdds("web:drawer");
+  amb.electronAdds("web:intruder");
+  CHECK(!bk.endDrawerRegistration());
+  CHECK(!bk.setDrawer("dglass"));
+  CHECK(!amb.has("dglass"));
+  // No anchor registered at all: nothing is placed.
+  vieworder::Keeper<std::string> nk(amb, [&](std::function<void()> n) { amb.notify = n; });
+  CHECK(!nk.setDrawer("dglass"));
+
+  // The same view lifted back (nothing new): the registered anchor is kept.
+  FakeWindow lift;
+  lift.stack = {"compositor", "web:renderer"};
+  vieworder::Keeper<std::string> lk(lift, [&](std::function<void()> n) { lift.notify = n; });
+  openDrawer(lift, lk, "dglass", "web:drawer");
+  lk.beginDrawerRegistration();
+  lift.electronRaises("web:drawer");
+  CHECK(!lk.endDrawerRegistration());
+  CHECK(lk.setDrawer("dglass"));
+  CHECK(lift.at("dglass") == lift.at("web:drawer") - 1);
+
+  // The anchor leaving forgets it: a stale anchor can't be reused.
+  lift.erase("web:drawer");
+  lift.changed();
+  CHECK(!lift.has("dglass"));
+  CHECK(!lk.setDrawer("dglass"));
+
+  // ---- Destroying the player vs disposing the window. ----
+  FakeWindow pl;
+  pl.stack = {"compositor", "web:renderer", "web:youtube"};
+  vieworder::Keeper<std::string> plk(pl, [&](std::function<void()> n) { pl.notify = n; });
+  plk.setVideo("video", true);
+  plk.addGlass("glass0");
+  openDrawer(pl, plk, "dglass", "web:drawer");
+  // Destroy the player (as Destroy does: its glass leaves, the keeper releases) with the drawer open.
+  pl.remove("glass0");
+  plk.release();
+  pl.remove("video");
+  pl.electronAdds("web:later");
+  CHECK(pl.at("dglass") == pl.at("web:drawer") - 1);
+  CHECK(plk.setDrawer("dglass"));
+  CHECK(pl.at("dglass") == pl.at("web:drawer") - 1);
+  // Disposing the window: the drawer's glass leaves the host, and nothing is placed afterwards.
+  plk.dispose();
+  CHECK(!pl.has("dglass"));
+  auto afterDispose = pl.stack;
+  pl.electronRaises("web:youtube");
+  CHECK(pl.stack.back() == "web:youtube" && pl.stack.size() == afterDispose.size());
+  CHECK(!plk.setDrawer("dglass"));
+  CHECK(!pl.has("dglass"));
+  plk.dispose();  // twice is harmless
+
+  // Disposing also releases the video's role: a later Electron reorder isn't repaired.
+  FakeWindow dv;
+  dv.stack = {"compositor", "web:renderer"};
+  vieworder::Keeper<std::string> dvk(dv, [&](std::function<void()> n) { dv.notify = n; });
+  dvk.setVideo("video", true);
+  dvk.addGlass("glass0");
+  dvk.dispose();
+  dv.electronRaises("video");
+  CHECK(dv.stack.back() == "video");
 
   std::printf("ok\n");
   return 0;

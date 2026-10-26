@@ -10,6 +10,7 @@ class FakeView implements DrawerView {
   calls: string[] = [];
   bounds?: { x: number; y: number; width: number; height: number };
   url = "";
+  isDrawer = false;
   sent: Array<QuickPayload | undefined> = [];
   keyHandler?: KeyHandler;
   loaded?: () => void;
@@ -44,10 +45,13 @@ const quick = (focusedId = "out:default"): QuickPayload => ({
 
 function setup(glass = false) {
   const children: unknown[] = [];
+  const glassCalls: string[] = [];
+  let bounds = { width: 1920, height: 1080 };
   const host: DrawerHost<FakeView> = {
     contentView: {
       children,
       addChildView: (v) => {
+        if (glass && v instanceof FakeView && v.isDrawer) glassCalls.push("add");
         const i = children.indexOf(v);
         if (i >= 0) children.splice(i, 1);
         children.push(v);
@@ -57,13 +61,13 @@ function setup(glass = false) {
         if (i >= 0) children.splice(i, 1);
       },
     },
-    getContentBounds: () => ({ width: 1920, height: 1080 }),
+    getContentBounds: () => bounds,
   };
   const clock = new FakeClock();
   const commands: unknown[] = [];
   const closed: string[] = [];
   const view = new FakeView();
-  const glassCalls: string[] = [];
+  view.isDrawer = true;
   const drawer = new QuickDrawer<FakeView>(
     host,
     () => view,
@@ -72,14 +76,30 @@ function setup(glass = false) {
     () => closed.push("closed"),
     glass
       ? {
+          beginRegistration: () => glassCalls.push("begin"),
+          endRegistration: () => glassCalls.push("end"),
           open: (rect, ms) => glassCalls.push(`open ${JSON.stringify(rect)} ${ms}`),
+          hide: () => glassCalls.push("hide"),
           close: (ms) => glassCalls.push(`close ${ms}`),
         }
       : undefined,
   );
   const appView = new FakeView();
   children.push(appView);
-  return { children, drawer, view, appView, commands, clock, closed, glassCalls };
+  return {
+    children,
+    drawer,
+    view,
+    appView,
+    commands,
+    clock,
+    closed,
+    glassCalls,
+    resize: (width: number, height: number) => {
+      bounds = { width, height };
+      drawer.fit();
+    },
+  };
 }
 
 const event = () => {
@@ -181,53 +201,202 @@ describe("the Quick settings view", () => {
   });
 
   describe("native glass", () => {
-    const rect = JSON.stringify(drawerGlassRect(1920, 1080));
+    const rectFor = (w: number, h: number) => JSON.stringify(drawerGlassRect(w, h));
+    const rect = rectFor(1920, 1080);
+    const S = QUICK_SLIDE_MS;
 
-    test("opens with the slide, once, after the drawer's view is on top", () => {
+    test("registers the drawer's view around the one add, and not when it is only lifted back", () => {
+      const { drawer, children, glassCalls } = setup(true);
+      drawer.set(quick());
+      expect(glassCalls).toEqual(["begin", "add", "end"]);
+      children.push(new FakeView());
+      drawer.set(quick("settings"));
+      expect(glassCalls).toEqual(["begin", "add", "end", "add"]);
+    });
+
+    test("no glass before the page reports slideStart, however late it loads", () => {
+      const { drawer, view, glassCalls, clock } = setup(true);
+      drawer.set(quick());
+      clock.advance(5000);
+      drawer.set(quick("settings"));
+      view.loaded!();
+      expect(glassCalls.some((c) => c.startsWith("open"))).toBe(false);
+      drawer.slideStart("in");
+      expect(glassCalls.filter((c) => c.startsWith("open"))).toEqual([`open ${rect} ${S}`]);
+    });
+
+    test("a slideStart in after the drawer was already closed is ignored", () => {
       const { drawer, glassCalls } = setup(true);
       drawer.set(quick());
-      drawer.set(quick("settings"));
-      expect(glassCalls).toEqual([`open ${rect} ${QUICK_SLIDE_MS}`]);
+      drawer.set(undefined);
+      drawer.slideStart("in");
+      expect(glassCalls.some((c) => c.startsWith("open"))).toBe(false);
     });
 
-    test("slides out with the drawer and is removed for good when the slide ends", () => {
+    test("slides out only when the page reports it, and is removed for good when the slide ends", () => {
       const { drawer, glassCalls, clock } = setup(true);
       drawer.set(quick());
+      drawer.slideStart("in");
       drawer.set(undefined);
-      expect(glassCalls.slice(1)).toEqual([`close ${QUICK_SLIDE_MS}`]);
-      clock.advance(QUICK_SLIDE_MS + 10);
-      expect(glassCalls.slice(1)).toEqual([`close ${QUICK_SLIDE_MS}`, "close 0"]);
-    });
-
-    test("closing mid-slide-in still ends with the glass removed", () => {
-      const { drawer, glassCalls, clock } = setup(true);
-      drawer.set(quick());
-      clock.advance(QUICK_SLIDE_MS / 2);
-      drawer.set(undefined);
-      clock.advance(QUICK_SLIDE_MS + 10);
+      expect(glassCalls.some((c) => c === `close ${S}`)).toBe(false);
+      drawer.slideStart("out");
+      expect(glassCalls.at(-1)).toBe(`close ${S}`);
+      clock.advance(S + 10);
       expect(glassCalls.at(-1)).toBe("close 0");
     });
 
-    test("reopening before the slide ended slides back in and the old removal does not fire", () => {
-      const { drawer, glassCalls, clock } = setup(true);
+    test("closed before the page ever slid: nothing to animate, and still removed at the end", () => {
+      const { drawer, glassCalls, clock, children } = setup(true);
       drawer.set(quick());
       drawer.set(undefined);
+      drawer.slideStart("out");
+      clock.advance(S + 10);
+      expect(glassCalls.filter((c) => c.startsWith("close"))).toEqual(["close 0"]);
+      expect(children).toHaveLength(1);
+    });
+
+    test("closing mid-slide-in slides out from there and ends with the glass removed", () => {
+      const { drawer, glassCalls, clock } = setup(true);
       drawer.set(quick());
-      clock.advance(QUICK_SLIDE_MS + 10);
-      expect(glassCalls).toEqual([
-        `open ${rect} ${QUICK_SLIDE_MS}`,
-        `close ${QUICK_SLIDE_MS}`,
-        `open ${rect} ${QUICK_SLIDE_MS}`,
+      drawer.slideStart("in");
+      clock.advance(S / 2);
+      drawer.set(undefined);
+      drawer.slideStart("out");
+      clock.advance(S + 10);
+      expect(glassCalls.filter((c) => c.startsWith("open") || c.startsWith("close"))).toEqual([
+        `open ${rect} ${S}`,
+        `close ${S}`,
+        "close 0",
       ]);
     });
 
-    test("follows a resized window at once while open, and not while closed", () => {
+    test("a slide-out report that arrives after reopening is stale and ignored", () => {
       const { drawer, glassCalls } = setup(true);
-      drawer.fit();
+      drawer.set(quick());
+      drawer.slideStart("in");
+      drawer.set(undefined);
+      drawer.set(quick());
+      drawer.slideStart("out");
+      expect(glassCalls.some((c) => c === `close ${S}`)).toBe(false);
+    });
+
+    test("rapid reopening slides back in once, and the old removal never fires", () => {
+      const { drawer, glassCalls, clock, children, view } = setup(true);
+      drawer.set(quick());
+      drawer.slideStart("in");
+      drawer.set(undefined);
+      drawer.slideStart("out");
+      clock.advance(S / 2);
+      drawer.set(quick());
+      drawer.slideStart("in");
+      clock.advance(S * 2);
+      expect(glassCalls.filter((c) => c.startsWith("open") || c.startsWith("close"))).toEqual([
+        `open ${rect} ${S}`,
+        `close ${S}`,
+        `open ${rect} ${S}`,
+      ]);
+      expect(children).toContain(view);
+    });
+
+    test("a resize while sliding in hides the glass and shows it at the final rectangle when the slide ends", () => {
+      const { drawer, glassCalls, clock, resize } = setup(true);
+      drawer.set(quick());
+      drawer.slideStart("in");
+      clock.advance(S / 2);
+      resize(1000, 600);
+      expect(glassCalls.at(-1)).toBe("hide");
+      clock.advance(S);
+      expect(glassCalls.at(-1)).toBe(`open ${rectFor(1000, 600)} 0`);
+      expect(glassCalls.filter((c) => c.startsWith("open"))).toEqual([
+        `open ${rect} ${S}`,
+        `open ${rectFor(1000, 600)} 0`,
+      ]);
+    });
+
+    test("a resize while sliding out hides the glass and it is never shown again", () => {
+      const { drawer, glassCalls, clock, resize } = setup(true);
+      drawer.set(quick());
+      drawer.slideStart("in");
+      clock.advance(S + 10);
+      drawer.set(undefined);
+      drawer.slideStart("out");
+      clock.advance(S / 2);
+      resize(1000, 600);
+      expect(glassCalls.at(-1)).toBe("hide");
+      clock.advance(S);
+      expect(glassCalls.filter((c) => c.startsWith("open"))).toEqual([`open ${rect} ${S}`]);
+      expect(glassCalls.at(-1)).toBe("close 0");
+    });
+
+    test("a resize before the page has started sliding changes nothing; after the slide it follows at once", () => {
+      const { drawer, glassCalls, clock, resize } = setup(true);
+      resize(1280, 720);
       expect(glassCalls).toEqual([]);
       drawer.set(quick());
-      drawer.fit();
+      resize(1000, 600);
+      expect(glassCalls.some((c) => c === "hide" || c.startsWith("open"))).toBe(false);
+      drawer.slideStart("in");
+      clock.advance(S + 10);
+      resize(1920, 1080);
       expect(glassCalls.at(-1)).toBe(`open ${rect} 0`);
+    });
+
+    test("every open gets the rectangle and radius of the window it opens in", () => {
+      const { drawer, glassCalls, clock, resize } = setup(true);
+      drawer.set(quick());
+      drawer.slideStart("in");
+      clock.advance(S + 10);
+      drawer.set(undefined);
+      drawer.slideStart("out");
+      clock.advance(S + 10);
+      resize(1000, 600);
+      drawer.set(quick());
+      drawer.slideStart("in");
+      const opens = glassCalls.filter((c) => c.startsWith("open"));
+      expect(opens).toEqual([
+        `open ${rectFor(1920, 1080)} ${S}`,
+        `open ${rectFor(1000, 600)} ${S}`,
+      ]);
+      expect(drawerGlassRect(1920, 1080).r).not.toBe(drawerGlassRect(1000, 600).r);
+    });
+
+    test("teardown removes everything at once and no timer fires afterwards", () => {
+      const { drawer, glassCalls, clock, children, appView, closed } = setup(true);
+      drawer.set(quick());
+      drawer.slideStart("in");
+      drawer.teardown();
+      expect(glassCalls.at(-1)).toBe("close 0");
+      expect(children).toEqual([appView]);
+      const before = [...glassCalls];
+      clock.advance(S * 4);
+      expect(glassCalls).toEqual(before);
+      expect(closed).toEqual([]);
+      expect(drawer.intercept({ preventDefault() {} }, { type: "keyDown", key: "ArrowDown" })).toBe(
+        false,
+      );
+    });
+
+    test("teardown mid-close cancels the pending removal timer and is safe twice", () => {
+      const { drawer, glassCalls, clock, closed } = setup(true);
+      drawer.set(quick());
+      drawer.slideStart("in");
+      drawer.set(undefined);
+      drawer.teardown();
+      drawer.teardown();
+      clock.advance(S * 4);
+      expect(glassCalls.filter((c) => c === "close 0")).toHaveLength(2);
+      expect(closed).toEqual([]);
+    });
+
+    test("it can open again after a teardown", () => {
+      const { drawer, glassCalls, children, view } = setup(true);
+      drawer.set(quick());
+      drawer.teardown();
+      drawer.set(quick());
+      drawer.slideStart("in");
+      expect(children).toContain(view);
+      expect(glassCalls.filter((c) => c === "begin")).toHaveLength(2);
+      expect(glassCalls.at(-1)).toBe(`open ${rect} ${S}`);
     });
 
     test("its page drops the tint only when glass is on", () => {

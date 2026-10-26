@@ -37,6 +37,7 @@ function load() {
   const script = /<script>([\s\S]*)<\/script>/.exec(quickSettingsPage({ glass: false }))![1]!;
   const drawer = { innerHTML: "", className: "", contains: (t: unknown) => t === drawer };
   const sent: unknown[] = [];
+  const slides: unknown[] = [];
   const listeners: Record<string, (e: unknown) => void> = {};
   let onQuick!: (q: QuickPayload | undefined) => void;
   runInNewContext(script, {
@@ -49,11 +50,12 @@ function load() {
         onQuick: (f: typeof onQuick) => (onQuick = f),
         pick: (item: string) => sent.push({ command: "quickPick", args: { item } }),
         close: () => sent.push({ command: "quickClose" }),
+        slideStart: (phase: string) => slides.push({ slide: phase }),
       },
     },
     requestAnimationFrame: (f: () => void) => f(),
   });
-  return { drawer, sent, listeners, onQuick };
+  return { drawer, sent, slides, listeners, onQuick };
 }
 
 const payload: QuickPayload = {
@@ -164,12 +166,62 @@ describe("the Quick settings page", () => {
     expect(sent).toEqual([{ command: "quickPick", args: { item: id } }]);
   });
 
+  test("reports the slide start only when it applies the transform, once per direction", () => {
+    const { onQuick, drawer, slides: sent } = load();
+    onQuick(undefined);
+    expect(sent).toEqual([]);
+    onQuick(payload);
+    expect(drawer.className).toBe("in");
+    expect(sent).toEqual([{ slide: "in" }]);
+    onQuick({ ...payload, focusedId: "vol" });
+    expect(sent).toEqual([{ slide: "in" }]);
+    onQuick(undefined);
+    expect(drawer.className).toBe("");
+    expect(sent).toEqual([{ slide: "in" }, { slide: "out" }]);
+    onQuick(undefined);
+    expect(sent).toHaveLength(2);
+  });
+
+  test("does not report a slide in when it was closed before the frame ran", () => {
+    const script = /<script>([\s\S]*)<\/script>/.exec(quickSettingsPage({ glass: true }))![1]!;
+    const drawer = { innerHTML: "", className: "", contains: () => false };
+    const sent: unknown[] = [];
+    const frames: Array<() => void> = [];
+    let onQuick!: (q: QuickPayload | undefined) => void;
+    runInNewContext(script, {
+      document: { getElementById: () => drawer, addEventListener: () => {} },
+      window: {
+        couchQuick: {
+          onQuick: (f: typeof onQuick) => (onQuick = f),
+          pick: () => {},
+          close: () => {},
+          slideStart: (phase: string) => sent.push(phase),
+        },
+      },
+      requestAnimationFrame: (f: () => void) => frames.push(f),
+    });
+    onQuick(payload);
+    expect(sent).toEqual([]);
+    onQuick(undefined);
+    frames.forEach((f) => f());
+    expect(drawer.className).toBe("");
+    expect(sent).toEqual([]);
+  });
+
+  test("the native glass starts where the panel starts: at the window's right edge, the same travel", () => {
+    const r = drawerGlassRect(1920, 1080);
+    const panelWidth = Number(/width:(\d+)vw/.exec(pageCss())![1]) * 19.2;
+    expect(r.w).toBeCloseTo(panelWidth);
+    expect(r.x + r.w).toBeCloseTo(1920);
+  });
+
   test("the drawer is anchored to the right edge and slides in from off-screen right", () => {
     const html = quickSettingsPage();
     const rule = /#drawer \{([^}]*)\}/.exec(html)![1]!;
     expect(rule).toMatch(/right:0/);
     expect(rule).not.toMatch(/(^|[;\s])left:/);
-    expect(rule).toMatch(/translateX\(102%\)/);
+    expect(rule).toMatch(/translateX\(100%\)/);
+    expect(rule).toMatch(/transition:transform 250ms var\(--ease\)/);
     expect(rule).toMatch(/border-radius:calc\(36\*var\(--u\)\) 0 0 calc\(36\*var\(--u\)\)/);
   });
 });

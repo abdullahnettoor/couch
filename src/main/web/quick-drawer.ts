@@ -20,10 +20,19 @@ export interface DrawerView extends TopViewLike {
   setBackgroundColor(color: string): void;
 }
 
-/** The native glass panel behind the drawer's view; the native side keeps it directly under that view. */
+/**
+ * The native glass panel behind the drawer's view. The native side is told explicitly which view is
+ * the drawer's (it never guesses from the stacking order) and keeps the glass directly under it.
+ */
 export interface DrawerGlass {
-  /** Slide it in over `ms` to `rect` (window points); the drawer's view is already the window's top view. */
+  /** Just before the drawer's view is added to the window. */
+  beginRegistration(): void;
+  /** Just after: the one new view in the window is the drawer's, kept until it leaves. */
+  endRegistration(): void;
+  /** Slide it in over `ms` to `rect` (window points), now; 0 puts it there at once and shows it. */
   open(rect: ReturnType<typeof drawerGlassRect>, ms: number): void;
+  /** Hide it where it is and stop any slide, without removing it. */
+  hide(): void;
   /** Slide it out over `ms` and remove it; 0 removes it at once. Safe to call any time. */
   close(ms: number): void;
 }
@@ -41,6 +50,10 @@ export class QuickDrawer<V extends DrawerView = DrawerView> {
   #loaded = false;
   #quick: QuickPayload | undefined;
   #in = false;
+  #glassOn = false;
+  #moving = false;
+  #refit = false;
+  #cancelSlide: (() => void) | undefined;
   readonly #glass: DrawerGlass | undefined;
   #host: DrawerHost<V>;
   #cancelRemove: (() => void) | undefined;
@@ -64,6 +77,8 @@ export class QuickDrawer<V extends DrawerView = DrawerView> {
     this.#onClosed = onClosed;
     this.#top = new TopView<V>(host, {
       create,
+      beforeAdd: () => glass?.beginRegistration(),
+      afterAdd: () => glass?.endRegistration(),
       page: () => quickSettingsPage({ glass: glass !== undefined }),
       onInput: (event, input) => {
         this.intercept(event, input);
@@ -99,28 +114,82 @@ export class QuickDrawer<V extends DrawerView = DrawerView> {
       this.#in = false;
       this.#push();
       this.#top.show();
-      this.#glass?.close(QUICK_SLIDE_MS);
-      this.#cancelRemove?.();
-      this.#cancelRemove = this.#clock.setTimeout(() => {
-        this.#cancelRemove = undefined;
-        this.#glass?.close(0);
-        this.#top.hide();
-        this.#onClosed();
-      }, QUICK_SLIDE_MS);
+      this.#cancelSlide?.();
+      this.#moving = this.#glassOn;
+      this.#scheduleRemove();
       return;
     }
     this.#cancelRemove?.();
     this.#cancelRemove = undefined;
-    const opening = !this.#in;
     this.#in = true;
     this.#top.show();
-    if (opening) this.#glassOpen(QUICK_SLIDE_MS);
     this.#push();
   }
 
-  #glassOpen(ms: number): void {
+  /**
+   * The page's own report that it has just applied its slide transform (after load and its next
+   * frame). Only now does the native glass follow, over the same time, so it never leads the panel.
+   */
+  slideStart(phase: "in" | "out"): void {
+    if (!this.#glass) return;
+    if (phase === "in") {
+      if (!this.#in) return;
+      this.#cancelSlide?.();
+      this.#glassOn = true;
+      this.#moving = true;
+      this.#refit = false;
+      this.#glass.open(this.#rect(), QUICK_SLIDE_MS);
+      this.#cancelSlide = this.#clock.setTimeout(() => {
+        this.#cancelSlide = undefined;
+        this.#moving = false;
+        if (this.#refit) {
+          this.#refit = false;
+          this.#glass?.open(this.#rect(), 0);
+        }
+      }, QUICK_SLIDE_MS);
+      return;
+    }
+    if (this.#in || !this.#glassOn || !this.#cancelRemove) return;
+    this.#moving = true;
+    this.#glass.close(QUICK_SLIDE_MS);
+    this.#scheduleRemove();
+  }
+
+  /** Gone at once, with no slide: the window lost focus, was hidden, or Couch is quitting. */
+  teardown(): void {
+    this.#cancelRemove?.();
+    this.#cancelRemove = undefined;
+    this.#cancelSlide?.();
+    this.#cancelSlide = undefined;
+    const wasIn = this.#in;
+    this.#in = false;
+    this.#glassOn = false;
+    this.#moving = false;
+    this.#refit = false;
+    this.#glass?.close(0);
+    if (wasIn || this.#quick) {
+      this.#quick = undefined;
+      this.#push();
+    }
+    this.#top.hide();
+  }
+
+  #scheduleRemove(): void {
+    this.#cancelRemove?.();
+    this.#cancelRemove = this.#clock.setTimeout(() => {
+      this.#cancelRemove = undefined;
+      this.#glassOn = false;
+      this.#moving = false;
+      this.#refit = false;
+      this.#glass?.close(0);
+      this.#top.hide();
+      this.#onClosed();
+    }, QUICK_SLIDE_MS);
+  }
+
+  #rect(): ReturnType<typeof drawerGlassRect> {
     const { width, height } = this.#host.getContentBounds();
-    this.#glass?.open(drawerGlassRect(width, height), ms);
+    return drawerGlassRect(width, height);
   }
 
   #push(): void {
@@ -146,6 +215,12 @@ export class QuickDrawer<V extends DrawerView = DrawerView> {
 
   fit(): void {
     this.#top.fit();
-    if (this.#in) this.#glassOpen(0);
+    if (!this.#glassOn) return;
+    if (this.#moving) {
+      this.#glass?.hide();
+      this.#refit = this.#in;
+    } else if (this.#in) {
+      this.#glass?.open(this.#rect(), 0);
+    }
   }
 }

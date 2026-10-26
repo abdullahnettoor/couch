@@ -29,6 +29,10 @@ interface Addon {
     r: number,
     ms: number,
   ): void;
+  beginDrawerRegistration(handle: Buffer): void;
+  endDrawerRegistration(handle: Buffer): boolean;
+  hideDrawerGlass(): void;
+  disposeWindow(): void;
   getColor(id: number): [number, number, number] | null;
   glassSupported(): boolean;
   destroy(id: number): void;
@@ -72,7 +76,14 @@ export function watchMouseMoves(cb: () => void): () => void {
  */
 export function createDrawerGlass(
   win: () => BrowserWindow | undefined,
-  load: () => Pick<Addon, "glassSupported" | "setDrawerGlass"> = loadAddon,
+  load: () => Pick<
+    Addon,
+    | "glassSupported"
+    | "setDrawerGlass"
+    | "beginDrawerRegistration"
+    | "endDrawerRegistration"
+    | "hideDrawerGlass"
+  > = loadAddon,
 ): DrawerGlass | undefined {
   try {
     const addon = load();
@@ -83,9 +94,39 @@ export function createDrawerGlass(
         addon.setDrawerGlass(window.getNativeWindowHandle(), open, r.x, r.y, r.w, r.h, r.r, ms);
     };
     const none = { x: 0, y: 0, w: 0, h: 0, r: 0 };
-    return { open: (rect, ms) => call(true, rect, ms), close: (ms) => call(false, none, ms) };
+    const live = () => {
+      const window = win();
+      return window && !window.isDestroyed() ? window : undefined;
+    };
+    return {
+      beginRegistration: () => {
+        const window = live();
+        if (window) addon.beginDrawerRegistration(window.getNativeWindowHandle());
+      },
+      endRegistration: () => {
+        const window = live();
+        if (window) addon.endDrawerRegistration(window.getNativeWindowHandle());
+      },
+      open: (rect, ms) => call(true, rect, ms),
+      hide: () => {
+        if (live()) addon.hideDrawerGlass();
+      },
+      close: (ms) => call(false, none, ms),
+    };
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * The Screen window is closing: the add-on drops its per-window state (pending glass animations, the
+ * drawer's glass, the view-order keeper and its run-loop observer). A no-op without the add-on.
+ */
+export function disposeNativeWindow(load: () => Pick<Addon, "disposeWindow"> = loadAddon): void {
+  try {
+    load().disposeWindow();
+  } catch {
+    // no native add-on: nothing to dispose
   }
 }
 

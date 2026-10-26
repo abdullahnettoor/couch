@@ -36,3 +36,8 @@ export function wireCursor(host: CursorHost, cursor: Lifecycle): void {
   host.on("quit", () => ((quit = true), sync()));
   host.onScreen((on) => ((playing = on), sync()));
 }
+
+/** Things that must vanish at once, not fade, when Couch loses focus, is hidden, or quits. */
+export function wireTeardown(host: Pick<CursorHost, "on">, teardown: () => void): void {
+  for (const event of ["blur", "hide", "quit"] as const) host.on(event, teardown);
+}

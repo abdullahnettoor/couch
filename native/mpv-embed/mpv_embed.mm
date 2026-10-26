@@ -333,63 +333,135 @@ static napi_value SetGlass(napi_env env, napi_callback_info info) {
   return NULL;
 }
 
-// setDrawerGlass(handle, open, x, y, w, h, radius, ms): the Quick settings drawer's glass, directly under the
-// drawer's own view (the window's topmost view at the moment of opening). Rect in window content points, top-left
-// origin. open=true slides it in from the right edge over `ms`; open=false slides it out and removes it when done
-// (ms=0 removes it at once, the caller's final guarantee). The page's own panel slides over the same time.
+static NSView *windowParent(napi_env env, napi_value handle) {
+  void *data; size_t len;
+  if (napi_get_buffer_info(env, handle, &data, &len) != napi_ok || len < sizeof(void *)) return nil;
+  return (__bridge NSView *)(*(void **)data);
+}
+static void onMain(void (^body)(void)) {
+  if ([NSThread isMainThread]) body(); else dispatch_sync(dispatch_get_main_queue(), body);
+}
+// Bumped by every drawer glass change that must outrun an older animation's completion (and by window disposal).
+static int drawerGen = 0;
+static void stopDrawerAnimation(NSView *g) {
+  [NSAnimationContext runAnimationGroup:^(NSAnimationContext *ctx) { ctx.duration = 0; g.animator.frame = g.frame; }];
+}
+
+// beginDrawerRegistration(handle) / endDrawerRegistration(handle): the drawer's view is never inferred from the stacking
+// order. Call begin just before the drawer's WebContentsView is added to the window and end just after: the one new
+// subview is the drawer's and is kept as the glass's anchor until it leaves the window (view_order.h).
+static napi_value BeginDrawerRegistration(napi_env env, napi_callback_info info) {
+  size_t argc = 1; napi_value argv[1];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  NSView *parent = windowParent(env, argv[0]);
+  if (!parent || !glassAvailable()) return NULL;
+  onMain(^{ orderFor(parent)->keeper.beginDrawerRegistration(); });
+  return NULL;
+}
+static napi_value EndDrawerRegistration(napi_env env, napi_callback_info info) {
+  size_t argc = 1; napi_value argv[1];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  NSView *parent = windowParent(env, argv[0]);
+  __block bool ok = false;
+  if (parent && glassAvailable()) onMain(^{ ok = orderFor(parent)->keeper.endDrawerRegistration(); });
+  napi_value out; napi_get_boolean(env, ok, &out);
+  return out;
+}
+
+static void removeDrawerGlass() {
+  NSView *g = drawerGlass;
+  drawerGlass = nil;
+  drawerGen++;
+  if (winOrder) winOrder->keeper.clearDrawer();
+  [g removeFromSuperview];
+}
+
+// setDrawerGlass(handle, open, x, y, w, h, radius, ms): the Quick settings drawer's glass, directly under the drawer's
+// registered view. Rect in window content points, top-left origin. open=true slides it in from the right edge over `ms`
+// (ms=0 puts it at the rectangle at once and shows it); the page calls this only when its own slide has started, with
+// the same travel (panel's left edge from the window's right edge to x), duration and easing. open=false slides it out
+// and removes it when done (ms=0 removes it at once, the caller's final guarantee). The radius applies on every call.
 static napi_value SetDrawerGlass(napi_env env, napi_callback_info info) {
   size_t argc = 8; napi_value argv[8];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
-  void *data; size_t len;
-  if (napi_get_buffer_info(env, argv[0], &data, &len) != napi_ok || len < sizeof(void *)) return fail(env, "bad native handle");
-  NSView *parent = (__bridge NSView *)(*(void **)data);
+  NSView *parent = windowParent(env, argv[0]);
+  if (!parent) return fail(env, "bad native handle");
   bool open; napi_get_value_bool(env, argv[1], &open);
   double d[6];
   for (int i = 0; i < 6; i++) napi_get_value_double(env, argv[i + 2], &d[i]);
   if (!glassAvailable()) return NULL;
-  double seconds = d[5] / 1000.0;
-  static int drawerGen = 0;
-  int gen = ++drawerGen;
-  if (!open) {
-    NSView *g = drawerGlass;
-    if (!g) return NULL;
-    void (^remove)(void) = ^{
-      if (drawerGen != gen || drawerGlass != g) return; // reopened since
-      drawerGlass = nil;
-      if (winOrder) winOrder->keeper.clearDrawer();
-      [g removeFromSuperview];
+  std::vector<double> v(d, d + 6);
+  onMain(^{
+    double seconds = v[5] / 1000.0;
+    auto slide = ^(NSView *g, NSRect to, void (^done)(void)) {
+      [NSAnimationContext runAnimationGroup:^(NSAnimationContext *ctx) {
+        ctx.duration = seconds;
+        ctx.timingFunction = [CAMediaTimingFunction functionWithControlPoints:0.16 :1 :0.3 :1];
+        g.animator.frame = to;
+      } completionHandler:done];
     };
-    if (d[5] < 1) { remove(); return NULL; }
-    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *ctx) {
-      ctx.duration = seconds;
-      ctx.timingFunction = [CAMediaTimingFunction functionWithControlPoints:0.16 :1 :0.3 :1];
-      g.animator.frame = NSMakeRect(parent.bounds.size.width, g.frame.origin.y, g.frame.size.width, g.frame.size.height);
-    } completionHandler:remove];
-    return NULL;
-  }
-  PlayerOrder *po = orderFor(parent);
-  NSView *anchor = nil;
-  for (NSView *v in [parent.subviews reverseObjectEnumerator]) { if (v != drawerGlass) { anchor = v; break; } }
-  if (!anchor) return NULL;
-  CGFloat H = parent.bounds.size.height, W = parent.bounds.size.width;
-  // Wider than the panel by its radius so the glass's right-hand corners fall outside the window.
-  NSRect end = NSMakeRect(d[0], parent.isFlipped ? d[1] : H - d[1] - d[3], d[2] + d[4], d[3]);
-  bool fresh = !drawerGlass;
-  if (fresh) {
-    drawerGlass = [[NSClassFromString(@"NSGlassEffectView") alloc] init];
-    drawerGlass.wantsLayer = YES;
-    [drawerGlass setValue:@(d[4]) forKey:@"cornerRadius"];
-  }
-  NSView *g = drawerGlass;
-  [CATransaction begin]; [CATransaction setDisableActions:YES];
-  if (fresh) g.frame = NSMakeRect(W, end.origin.y, end.size.width, end.size.height);
-  po->keeper.setDrawer(g, anchor);
-  [CATransaction commit];
-  [NSAnimationContext runAnimationGroup:^(NSAnimationContext *ctx) {
-    ctx.duration = seconds;
-    ctx.timingFunction = [CAMediaTimingFunction functionWithControlPoints:0.16 :1 :0.3 :1];
-    g.animator.frame = end;
-  }];
+    if (!open) {
+      NSView *g = drawerGlass;
+      if (!g) return;
+      if (v[5] < 1) { removeDrawerGlass(); return; }
+      int gen = ++drawerGen;
+      slide(g, NSMakeRect(parent.bounds.size.width, g.frame.origin.y, g.frame.size.width, g.frame.size.height), ^{
+        if (drawerGen != gen || drawerGlass != g) return; // reopened, hidden or disposed since
+        removeDrawerGlass();
+      });
+      return;
+    }
+    PlayerOrder *po = orderFor(parent);
+    CGFloat H = parent.bounds.size.height, W = parent.bounds.size.width;
+    // Wider than the panel by its radius so the glass's right-hand corners fall outside the window.
+    NSRect end = NSMakeRect(v[0], parent.isFlipped ? v[1] : H - v[1] - v[3], v[2] + v[4], v[3]);
+    bool fresh = !drawerGlass;
+    NSView *g = drawerGlass;
+    if (fresh) {
+      g = [[NSClassFromString(@"NSGlassEffectView") alloc] init];
+      g.wantsLayer = YES;
+    }
+    [CATransaction begin]; [CATransaction setDisableActions:YES];
+    [g setValue:@(v[4]) forKey:@"cornerRadius"];
+    if (fresh) g.frame = NSMakeRect(W, end.origin.y, end.size.width, end.size.height);
+    // Placed only under the registered anchor; without one nothing is shown.
+    bool placed = po->keeper.setDrawer(g);
+    [CATransaction commit];
+    if (!placed) return;
+    drawerGlass = g;
+    int gen = ++drawerGen;
+    g.hidden = NO;
+    if (v[5] < 1) { stopDrawerAnimation(g); g.frame = end; return; }
+    slide(g, end, ^{ (void)gen; });
+  });
+  return NULL;
+}
+
+// hideDrawerGlass(): hides the glass where it is and stops its slide (a resize during a slide); setDrawerGlass shows it again.
+static napi_value HideDrawerGlass(napi_env env, napi_callback_info info) {
+  onMain(^{
+    drawerGen++;
+    if (!drawerGlass) return;
+    stopDrawerAnimation(drawerGlass);
+    drawerGlass.hidden = YES;
+  });
+  return NULL;
+}
+
+// disposeWindow(): the Screen window is closing. Pending animation completions are invalidated, the drawer's glass and
+// the keeper (with its run-loop observer) go, and the globals reset, all on the main thread. Safe to call twice.
+static napi_value DisposeWindow(napi_env env, napi_callback_info info) {
+  onMain(^{
+    drawerGen++;
+    if (winOrder) winOrder->keeper.dispose();
+    [drawerGlass removeFromSuperview];
+    drawerGlass = nil;
+    for (auto &kv : glass) [kv.second removeFromSuperview];
+    glass.clear();
+    delete winOrder;
+    winOrder = NULL;
+    videoId = 0;
+  });
   return NULL;
 }
 
@@ -487,13 +559,17 @@ static napi_value Init(napi_env env, napi_value exports) {
     {"setPlacement", 0, SetPlacement, 0, 0, 0, napi_default, 0},
     {"setGlass", 0, SetGlass, 0, 0, 0, napi_default, 0},
     {"setDrawerGlass", 0, SetDrawerGlass, 0, 0, 0, napi_default, 0},
+    {"beginDrawerRegistration", 0, BeginDrawerRegistration, 0, 0, 0, napi_default, 0},
+    {"endDrawerRegistration", 0, EndDrawerRegistration, 0, 0, 0, napi_default, 0},
+    {"hideDrawerGlass", 0, HideDrawerGlass, 0, 0, 0, napi_default, 0},
+    {"disposeWindow", 0, DisposeWindow, 0, 0, 0, napi_default, 0},
     {"getColor", 0, GetColor, 0, 0, 0, napi_default, 0},
     {"glassSupported", 0, GlassSupported, 0, 0, 0, napi_default, 0},
     {"setCursorHidden", 0, SetCursorHidden, 0, 0, 0, napi_default, 0},
     {"watchMouseMoves", 0, WatchMouseMoves, 0, 0, 0, napi_default, 0},
     {"unwatchMouseMoves", 0, UnwatchMouseMoves, 0, 0, 0, napi_default, 0},
     {"destroy", 0, Destroy, 0, 0, 0, napi_default, 0}};
-  napi_define_properties(env, exports, 11, d);
+  napi_define_properties(env, exports, sizeof(d) / sizeof(d[0]), d);
   return exports;
 }
 NAPI_MODULE(NODE_GYP_MODULE_NAME, Init)

@@ -1,6 +1,6 @@
 // Keeps the video and its glass at the bottom of the window's view stack: video < glass < everything else.
-// A second role, the drawer's glass, sits directly under the drawer's own view wherever that is, and goes
-// with it: it is removed when the drawer is cleared or its view leaves the window.
+// A second role, the drawer's glass, sits directly under the drawer's own view (registered explicitly, see
+// beginDrawerRegistration) and goes with it: it is removed when the drawer is cleared or its view leaves the window.
 // Electron reorders its sibling views on its own (a new WebContentsView moved the video above the renderer),
 // so the order is enforced on every subview change instead of being set at a few call sites.
 // Host-agnostic: mpv_embed.mm adapts NSView, view_order_test.cc uses a fake host.
@@ -40,19 +40,52 @@ class Keeper {
   // Ends the video's role (its glass stays in the host for the caller to remove); the drawer's glass is untouched.
   void release() { has_ = false; glass_.clear(); }
 
-  // `anchor` is the drawer's view; `glass` is kept directly under it until clearDrawer or the anchor leaves.
-  void setDrawer(V glass, V anchor) {
+  // The drawer's view is identified once, explicitly, never inferred from the stacking order: snapshot the
+  // subviews just before the drawer's view is added, and after the add the one new view is the drawer's.
+  // It stays the anchor (whatever is added above it later) until it leaves the host. No new view, or
+  // several, registers nothing and keeps any earlier anchor.
+  void beginDrawerRegistration() { before_ = host_.subviews(); registering_ = true; }
+  bool endDrawerRegistration() {
+    if (!registering_) return false;
+    registering_ = false;
+    std::vector<V> now = host_.subviews();
+    bool found = false, many = false;
+    V added{};
+    for (V v : now) {
+      if (std::find(before_.begin(), before_.end(), v) != before_.end()) continue;
+      if (found) many = true;
+      added = v; found = true;
+    }
+    before_.clear();
+    if (!found || many) return false;
+    anchor_ = added; hasAnchor_ = true;
+    return true;
+  }
+
+  // `glass` is kept directly under the registered anchor until clearDrawer or the anchor leaves. Safe to call
+  // again with new geometry. False (and nothing placed) without a live registered anchor.
+  bool setDrawer(V glass) {
+    if (!hasAnchor_) return false;
+    std::vector<V> s = host_.subviews();
+    if (std::find(s.begin(), s.end(), anchor_) == s.end()) { hasAnchor_ = false; return false; }
     bool swap = drawerOn_ && !(drawerGlass_ == glass);
     V old = drawerGlass_;
-    drawerGlass_ = glass; anchor_ = anchor; drawerOn_ = true;
+    drawerGlass_ = glass; drawerOn_ = true;
     if (swap) host_.remove(old);
     ensure();
+    return drawerOn_;
   }
   // Safe to call any time, any number of times.
   void clearDrawer() {
     if (!drawerOn_) return;
     drawerOn_ = false;
     host_.remove(drawerGlass_);
+  }
+
+  // The window is going away: nothing is placed or kept any more, and the drawer's glass leaves the host.
+  void dispose() {
+    clearDrawer();
+    has_ = false; glass_.clear(); hasAnchor_ = false; registering_ = false; before_.clear();
   }
 
   // Idempotent. Only the video and glass views are ever moved; the host's other views keep their order.
@@ -76,10 +109,15 @@ class Keeper {
   }
 
   void placeDrawer() {
-    if (!drawerOn_) return;
+    if (!hasAnchor_) return;
     std::vector<V> s = host_.subviews();
     auto a = std::find(s.begin(), s.end(), anchor_);
-    if (a == s.end()) { drawerOn_ = false; host_.remove(drawerGlass_); return; }
+    if (a == s.end()) {
+      hasAnchor_ = false;
+      if (drawerOn_) { drawerOn_ = false; host_.remove(drawerGlass_); }
+      return;
+    }
+    if (!drawerOn_) return;
     size_t ai = a - s.begin();
     if (ai > 0 && s[ai - 1] == drawerGlass_) return;
     bool found = false;
@@ -101,8 +139,8 @@ class Keeper {
   Host<V> &host_;
   V video_{};
   V drawerGlass_{}, anchor_{};
-  bool below_ = true, has_ = false, busy_ = false, drawerOn_ = false;
-  std::vector<V> glass_;
+  bool below_ = true, has_ = false, busy_ = false, drawerOn_ = false, hasAnchor_ = false, registering_ = false;
+  std::vector<V> glass_, before_;
 };
 
 }  // namespace vieworder

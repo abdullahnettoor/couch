@@ -29,6 +29,9 @@ export interface TopViewOptions<V extends TopViewLike> {
   onInput: (event: { preventDefault(): void }, input: Input) => void;
   /** Runs once on the new view, before its page loads. */
   setup?: (view: V) => void;
+  /** Around the one call that adds the view to the window (not when it is only lifted back to the top). */
+  beforeAdd?: () => void;
+  afterAdd?: () => void;
 }
 
 /**
@@ -69,7 +72,11 @@ export class TopView<V extends TopViewLike = TopViewLike> {
     this.#shown = true;
     this.fit();
     const { children } = this.#host.contentView;
-    if (children?.at(-1) !== this.#view) this.#host.contentView.addChildView(this.#view);
+    if (children?.at(-1) === this.#view) return;
+    const fresh = !children?.includes(this.#view);
+    if (fresh) this.#o.beforeAdd?.();
+    this.#host.contentView.addChildView(this.#view);
+    if (fresh) this.#o.afterAdd?.();
   }
 
   hide(): void {
