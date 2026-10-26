@@ -208,7 +208,8 @@ async function createScreen(): Promise<void> {
       if (front.view === "app" && front.app && webs[front.app]) webs[front.app]!.focus();
       else win?.webContents.focus();
     },
-    createDrawerGlass(() => win),
+    // Off until the drawer's glass is proven under its view on a real Screen (ticket 104); COUCH_DRAWER_GLASS=1 turns it on.
+    process.env.COUCH_DRAWER_GLASS === "1" ? createDrawerGlass(() => win) : undefined,
   );
   win.on("resize", () => {
     cover.fit();
