@@ -22,7 +22,12 @@ import { TmdbMetadata } from "./ports/tmdb-metadata.ts";
 import { PROJECT_TMDB_KEY } from "./ports/project-key.ts";
 import { detectListener } from "./frontdoor.ts";
 import { chooseBinding } from "./listener.ts";
-import { createEmbedFactory, setCursorHidden, watchMouseMoves } from "./mpv/embed-addon.ts";
+import {
+  createDrawerGlass,
+  createEmbedFactory,
+  setCursorHidden,
+  watchMouseMoves,
+} from "./mpv/embed-addon.ts";
 import { CursorHider } from "./cursor-hider.ts";
 import { wireCursor, type CursorHost } from "./cursor-lifecycle.ts";
 import { PictureCover } from "./web/picture-cover.ts";
@@ -202,6 +207,7 @@ async function createScreen(): Promise<void> {
       if (front.view === "app" && front.app && webs[front.app]) webs[front.app]!.focus();
       else win?.webContents.focus();
     },
+    createDrawerGlass(() => win),
   );
   win.on("resize", () => {
     cover.fit();

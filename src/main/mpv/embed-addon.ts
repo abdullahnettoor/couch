@@ -1,7 +1,10 @@
 import type { BrowserWindow } from "electron";
 import { createRequire } from "node:module";
 import { join } from "node:path";
+import type { DrawerGlass } from "../web/quick-drawer.ts";
 import type { EmbedFactory } from "./mpv-player.ts";
+
+type DrawerGlassRect = Parameters<DrawerGlass["open"]>[0];
 
 interface Addon {
   create(handle: Buffer, options: Record<string, string>, libraryPath?: string): number;
@@ -15,6 +18,16 @@ interface Addon {
     h: number,
     r: number,
     alpha: number,
+  ): void;
+  setDrawerGlass(
+    handle: Buffer,
+    open: boolean,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    r: number,
+    ms: number,
   ): void;
   getColor(id: number): [number, number, number] | null;
   glassSupported(): boolean;
@@ -50,6 +63,29 @@ export function watchMouseMoves(cb: () => void): () => void {
     return () => addon.unwatchMouseMoves();
   } catch {
     return () => {};
+  }
+}
+
+/**
+ * The Quick settings drawer's native glass, or undefined when it isn't available (older macOS,
+ * `COUCH_NATIVE_GLASS=0`, no add-on). Independent of the player: it works with no video loaded.
+ */
+export function createDrawerGlass(
+  win: () => BrowserWindow | undefined,
+  load: () => Pick<Addon, "glassSupported" | "setDrawerGlass"> = loadAddon,
+): DrawerGlass | undefined {
+  try {
+    const addon = load();
+    if (!addon.glassSupported() || process.env.COUCH_NATIVE_GLASS === "0") return undefined;
+    const call = (open: boolean, r: DrawerGlassRect, ms: number) => {
+      const window = win();
+      if (window && !window.isDestroyed())
+        addon.setDrawerGlass(window.getNativeWindowHandle(), open, r.x, r.y, r.w, r.h, r.r, ms);
+    };
+    const none = { x: 0, y: 0, w: 0, h: 0, r: 0 };
+    return { open: (rect, ms) => call(true, rect, ms), close: (ms) => call(false, none, ms) };
+  } catch {
+    return undefined;
   }
 }
 

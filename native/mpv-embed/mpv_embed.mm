@@ -182,6 +182,7 @@ struct NSViewHost : vieworder::Host<NSView *> {
   void placeBottom(NSView *v) override { [parent addSubview:v positioned:NSWindowBelow relativeTo:nil]; }
   void placeTop(NSView *v) override { [parent addSubview:v positioned:NSWindowAbove relativeTo:nil]; }
   void placeAbove(NSView *v, NSView *ref) override { [parent addSubview:v positioned:NSWindowAbove relativeTo:ref]; }
+  void remove(NSView *v) override { [v removeFromSuperview]; }
 };
 
 struct PlayerOrder {
@@ -200,7 +201,15 @@ struct PlayerOrder {
     if (observer) { CFRunLoopRemoveObserver(CFRunLoopGetMain(), observer, kCFRunLoopCommonModes); CFRelease(observer); }
   }
 };
-static std::map<int, PlayerOrder *> order;
+// One keeper per window orders the video, the player's glass and the drawer's glass.
+static PlayerOrder *winOrder = NULL;
+static int videoId = 0;
+static PlayerOrder *orderFor(NSView *parent) {
+  if (winOrder && winOrder->host.parent != parent) { delete winOrder; winOrder = NULL; }
+  if (!winOrder) winOrder = new PlayerOrder(parent);
+  return winOrder;
+}
+static NSView *drawerGlass = nil;
 static std::map<int, NSView *> glass; // key: id * 16 + slot, glass sits between the video and the web contents
 
 static std::map<int, MpvView *> views;
@@ -253,9 +262,8 @@ static napi_value Create(napi_env env, napi_callback_info info) {
   int id = nextId++;
   views[id] = view;
   below[id] = true;
-  PlayerOrder *po = new PlayerOrder(parent);
-  order[id] = po;
-  po->keeper.setVideo(view, true);
+  videoId = id;
+  orderFor(parent)->keeper.setVideo(view, true);
   napi_value out; napi_create_int32(env, id, &out);
   return out;
 }
@@ -267,7 +275,7 @@ static napi_value SetVisible(napi_env env, napi_callback_info info) {
   napi_get_value_int32(env, argv[0], &id); napi_get_value_bool(env, argv[1], &vis);
   MpvView *v = views[id];
   if (v) {
-    if (order.count(id)) order[id]->keeper.ensure();
+    if (winOrder && videoId == id) winOrder->keeper.ensure();
     [CATransaction begin]; [CATransaction setDisableActions:YES];
     v.layer.opacity = vis ? 1 : 0;
     [CATransaction commit];
@@ -283,7 +291,7 @@ static napi_value SetPlacement(napi_env env, napi_callback_info info) {
   int32_t id; bool b;
   napi_get_value_int32(env, argv[0], &id); napi_get_value_bool(env, argv[1], &b);
   below[id] = b;
-  if (order.count(id)) order[id]->keeper.setBelow(b);
+  if (winOrder && videoId == id) winOrder->keeper.setBelow(b);
   return NULL;
 }
 
@@ -314,7 +322,7 @@ static napi_value SetGlass(napi_env env, napi_callback_info info) {
     glass[key] = g;
   }
   [CATransaction begin]; [CATransaction setDisableActions:YES];
-  if (!g.superview && order.count(id)) order[id]->keeper.addGlass(g);
+  if (!g.superview && winOrder && videoId == id) winOrder->keeper.addGlass(g);
   CGFloat H = parent.bounds.size.height;
   NSRect r = NSMakeRect(d[0], parent.isFlipped ? d[1] : H - d[1] - d[3], d[2], d[3]);
   g.frame = r;
@@ -322,6 +330,66 @@ static napi_value SetGlass(napi_env env, napi_callback_info info) {
   g.hidden = d[5] < 0.01 || r.size.width < 1 || r.size.height < 1;
   g.alphaValue = d[5];
   [CATransaction commit];
+  return NULL;
+}
+
+// setDrawerGlass(handle, open, x, y, w, h, radius, ms): the Quick settings drawer's glass, directly under the
+// drawer's own view (the window's topmost view at the moment of opening). Rect in window content points, top-left
+// origin. open=true slides it in from the right edge over `ms`; open=false slides it out and removes it when done
+// (ms=0 removes it at once, the caller's final guarantee). The page's own panel slides over the same time.
+static napi_value SetDrawerGlass(napi_env env, napi_callback_info info) {
+  size_t argc = 8; napi_value argv[8];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  void *data; size_t len;
+  if (napi_get_buffer_info(env, argv[0], &data, &len) != napi_ok || len < sizeof(void *)) return fail(env, "bad native handle");
+  NSView *parent = (__bridge NSView *)(*(void **)data);
+  bool open; napi_get_value_bool(env, argv[1], &open);
+  double d[6];
+  for (int i = 0; i < 6; i++) napi_get_value_double(env, argv[i + 2], &d[i]);
+  if (!glassAvailable()) return NULL;
+  double seconds = d[5] / 1000.0;
+  static int drawerGen = 0;
+  int gen = ++drawerGen;
+  if (!open) {
+    NSView *g = drawerGlass;
+    if (!g) return NULL;
+    void (^remove)(void) = ^{
+      if (drawerGen != gen || drawerGlass != g) return; // reopened since
+      drawerGlass = nil;
+      if (winOrder) winOrder->keeper.clearDrawer();
+      [g removeFromSuperview];
+    };
+    if (d[5] < 1) { remove(); return NULL; }
+    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *ctx) {
+      ctx.duration = seconds;
+      ctx.timingFunction = [CAMediaTimingFunction functionWithControlPoints:0.16 :1 :0.3 :1];
+      g.animator.frame = NSMakeRect(parent.bounds.size.width, g.frame.origin.y, g.frame.size.width, g.frame.size.height);
+    } completionHandler:remove];
+    return NULL;
+  }
+  PlayerOrder *po = orderFor(parent);
+  NSView *anchor = nil;
+  for (NSView *v in [parent.subviews reverseObjectEnumerator]) { if (v != drawerGlass) { anchor = v; break; } }
+  if (!anchor) return NULL;
+  CGFloat H = parent.bounds.size.height, W = parent.bounds.size.width;
+  // Wider than the panel by its radius so the glass's right-hand corners fall outside the window.
+  NSRect end = NSMakeRect(d[0], parent.isFlipped ? d[1] : H - d[1] - d[3], d[2] + d[4], d[3]);
+  bool fresh = !drawerGlass;
+  if (fresh) {
+    drawerGlass = [[NSClassFromString(@"NSGlassEffectView") alloc] init];
+    drawerGlass.wantsLayer = YES;
+    [drawerGlass setValue:@(d[4]) forKey:@"cornerRadius"];
+  }
+  NSView *g = drawerGlass;
+  [CATransaction begin]; [CATransaction setDisableActions:YES];
+  if (fresh) g.frame = NSMakeRect(W, end.origin.y, end.size.width, end.size.height);
+  po->keeper.setDrawer(g, anchor);
+  [CATransaction commit];
+  [NSAnimationContext runAnimationGroup:^(NSAnimationContext *ctx) {
+    ctx.duration = seconds;
+    ctx.timingFunction = [CAMediaTimingFunction functionWithControlPoints:0.16 :1 :0.3 :1];
+    g.animator.frame = end;
+  }];
   return NULL;
 }
 
@@ -349,12 +417,7 @@ static napi_value Destroy(napi_env env, napi_callback_info info) {
   if (v) {
     views.erase(id);
     for (int k = 0; k < 16; k++) if (glass.count(id * 16 + k)) { [glass[id * 16 + k] removeFromSuperview]; glass.erase(id * 16 + k); }
-    if (order.count(id)) {
-      PlayerOrder *po = order[id];
-      po->keeper.release();
-      delete po;
-      order.erase(id);
-    }
+    if (winOrder && videoId == id) { winOrder->keeper.release(); videoId = 0; }
     [(MpvLayer *)v.layer shutdown];
     [v removeFromSuperview];
   }
@@ -423,13 +486,14 @@ static napi_value Init(napi_env env, napi_value exports) {
     {"setVisible", 0, SetVisible, 0, 0, 0, napi_default, 0},
     {"setPlacement", 0, SetPlacement, 0, 0, 0, napi_default, 0},
     {"setGlass", 0, SetGlass, 0, 0, 0, napi_default, 0},
+    {"setDrawerGlass", 0, SetDrawerGlass, 0, 0, 0, napi_default, 0},
     {"getColor", 0, GetColor, 0, 0, 0, napi_default, 0},
     {"glassSupported", 0, GlassSupported, 0, 0, 0, napi_default, 0},
     {"setCursorHidden", 0, SetCursorHidden, 0, 0, 0, napi_default, 0},
     {"watchMouseMoves", 0, WatchMouseMoves, 0, 0, 0, napi_default, 0},
     {"unwatchMouseMoves", 0, UnwatchMouseMoves, 0, 0, 0, napi_default, 0},
     {"destroy", 0, Destroy, 0, 0, 0, napi_default, 0}};
-  napi_define_properties(env, exports, 10, d);
+  napi_define_properties(env, exports, 11, d);
   return exports;
 }
 NAPI_MODULE(NODE_GYP_MODULE_NAME, Init)

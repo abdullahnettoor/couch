@@ -1,7 +1,11 @@
 import { screenKeyCommand } from "../../shared/keyboard.ts";
 import { Channel } from "../../shared/ipc.ts";
 import type { Command, QuickPayload } from "../../shared/protocol.ts";
-import { QUICK_SLIDE_MS, quickSettingsPage } from "../../shared/quick-settings-page.ts";
+import {
+  QUICK_SLIDE_MS,
+  drawerGlassRect,
+  quickSettingsPage,
+} from "../../shared/quick-settings-page.ts";
 import type { Clock } from "../ports/clock.ts";
 import { TopView, type TopHost, type TopViewLike } from "./top-view.ts";
 
@@ -14,6 +18,14 @@ export interface DrawerView extends TopViewLike {
     on(event: "did-finish-load", handler: () => void): void;
   };
   setBackgroundColor(color: string): void;
+}
+
+/** The native glass panel behind the drawer's view; the native side keeps it directly under that view. */
+export interface DrawerGlass {
+  /** Slide it in over `ms` to `rect` (window points); the drawer's view is already the window's top view. */
+  open(rect: ReturnType<typeof drawerGlassRect>, ms: number): void;
+  /** Slide it out over `ms` and remove it; 0 removes it at once. Safe to call any time. */
+  close(ms: number): void;
 }
 
 export type DrawerHost<V extends DrawerView = DrawerView> = TopHost<V>;
@@ -29,6 +41,8 @@ export class QuickDrawer<V extends DrawerView = DrawerView> {
   #loaded = false;
   #quick: QuickPayload | undefined;
   #in = false;
+  readonly #glass: DrawerGlass | undefined;
+  #host: DrawerHost<V>;
   #cancelRemove: (() => void) | undefined;
 
   readonly #onKey: (command: Command) => void;
@@ -41,13 +55,16 @@ export class QuickDrawer<V extends DrawerView = DrawerView> {
     onKey: (command: Command) => void,
     clock: Clock,
     onClosed: () => void,
+    glass?: DrawerGlass,
   ) {
+    this.#glass = glass;
+    this.#host = host;
     this.#onKey = onKey;
     this.#clock = clock;
     this.#onClosed = onClosed;
     this.#top = new TopView<V>(host, {
       create,
-      page: quickSettingsPage,
+      page: () => quickSettingsPage({ glass: glass !== undefined }),
       onInput: (event, input) => {
         this.intercept(event, input);
       },
@@ -82,9 +99,11 @@ export class QuickDrawer<V extends DrawerView = DrawerView> {
       this.#in = false;
       this.#push();
       this.#top.show();
+      this.#glass?.close(QUICK_SLIDE_MS);
       this.#cancelRemove?.();
       this.#cancelRemove = this.#clock.setTimeout(() => {
         this.#cancelRemove = undefined;
+        this.#glass?.close(0);
         this.#top.hide();
         this.#onClosed();
       }, QUICK_SLIDE_MS);
@@ -92,9 +111,16 @@ export class QuickDrawer<V extends DrawerView = DrawerView> {
     }
     this.#cancelRemove?.();
     this.#cancelRemove = undefined;
+    const opening = !this.#in;
     this.#in = true;
     this.#top.show();
+    if (opening) this.#glassOpen(QUICK_SLIDE_MS);
     this.#push();
+  }
+
+  #glassOpen(ms: number): void {
+    const { width, height } = this.#host.getContentBounds();
+    this.#glass?.open(drawerGlassRect(width, height), ms);
   }
 
   #push(): void {
@@ -120,5 +146,6 @@ export class QuickDrawer<V extends DrawerView = DrawerView> {
 
   fit(): void {
     this.#top.fit();
+    if (this.#in) this.#glassOpen(0);
   }
 }

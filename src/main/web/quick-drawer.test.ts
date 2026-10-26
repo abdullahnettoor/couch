@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
 import type { QuickPayload } from "../../shared/protocol.ts";
-import { QUICK_SLIDE_MS } from "../../shared/quick-settings-page.ts";
+import { QUICK_SLIDE_MS, drawerGlassRect } from "../../shared/quick-settings-page.ts";
 import { FakeClock } from "../ports/fakes.ts";
 import { QuickDrawer, type DrawerHost, type DrawerView } from "./quick-drawer.ts";
 
@@ -42,7 +42,7 @@ const quick = (focusedId = "out:default"): QuickPayload => ({
   muted: false,
 });
 
-function setup() {
+function setup(glass = false) {
   const children: unknown[] = [];
   const host: DrawerHost<FakeView> = {
     contentView: {
@@ -63,16 +63,23 @@ function setup() {
   const commands: unknown[] = [];
   const closed: string[] = [];
   const view = new FakeView();
+  const glassCalls: string[] = [];
   const drawer = new QuickDrawer<FakeView>(
     host,
     () => view,
     (c) => commands.push(c),
     clock,
     () => closed.push("closed"),
+    glass
+      ? {
+          open: (rect, ms) => glassCalls.push(`open ${JSON.stringify(rect)} ${ms}`),
+          close: (ms) => glassCalls.push(`close ${ms}`),
+        }
+      : undefined,
   );
   const appView = new FakeView();
   children.push(appView);
-  return { children, drawer, view, appView, commands, clock, closed };
+  return { children, drawer, view, appView, commands, clock, closed, glassCalls };
 }
 
 const event = () => {
@@ -171,5 +178,66 @@ describe("the Quick settings view", () => {
     view.keyHandler!(e, { type: "keyDown", key: "Escape" });
     expect(e.prevented).toBe(true);
     expect(commands).toEqual([{ command: "back" }]);
+  });
+
+  describe("native glass", () => {
+    const rect = JSON.stringify(drawerGlassRect(1920, 1080));
+
+    test("opens with the slide, once, after the drawer's view is on top", () => {
+      const { drawer, glassCalls } = setup(true);
+      drawer.set(quick());
+      drawer.set(quick("settings"));
+      expect(glassCalls).toEqual([`open ${rect} ${QUICK_SLIDE_MS}`]);
+    });
+
+    test("slides out with the drawer and is removed for good when the slide ends", () => {
+      const { drawer, glassCalls, clock } = setup(true);
+      drawer.set(quick());
+      drawer.set(undefined);
+      expect(glassCalls.slice(1)).toEqual([`close ${QUICK_SLIDE_MS}`]);
+      clock.advance(QUICK_SLIDE_MS + 10);
+      expect(glassCalls.slice(1)).toEqual([`close ${QUICK_SLIDE_MS}`, "close 0"]);
+    });
+
+    test("closing mid-slide-in still ends with the glass removed", () => {
+      const { drawer, glassCalls, clock } = setup(true);
+      drawer.set(quick());
+      clock.advance(QUICK_SLIDE_MS / 2);
+      drawer.set(undefined);
+      clock.advance(QUICK_SLIDE_MS + 10);
+      expect(glassCalls.at(-1)).toBe("close 0");
+    });
+
+    test("reopening before the slide ended slides back in and the old removal does not fire", () => {
+      const { drawer, glassCalls, clock } = setup(true);
+      drawer.set(quick());
+      drawer.set(undefined);
+      drawer.set(quick());
+      clock.advance(QUICK_SLIDE_MS + 10);
+      expect(glassCalls).toEqual([
+        `open ${rect} ${QUICK_SLIDE_MS}`,
+        `close ${QUICK_SLIDE_MS}`,
+        `open ${rect} ${QUICK_SLIDE_MS}`,
+      ]);
+    });
+
+    test("follows a resized window at once while open, and not while closed", () => {
+      const { drawer, glassCalls } = setup(true);
+      drawer.fit();
+      expect(glassCalls).toEqual([]);
+      drawer.set(quick());
+      drawer.fit();
+      expect(glassCalls.at(-1)).toBe(`open ${rect} 0`);
+    });
+
+    test("its page drops the tint only when glass is on", () => {
+      const withGlass = setup(true);
+      withGlass.drawer.set(quick());
+      expect(decodeURIComponent(withGlass.view.url)).not.toContain("backdrop-filter");
+      const without = setup();
+      without.drawer.set(quick());
+      expect(decodeURIComponent(without.view.url)).toContain("backdrop-filter");
+      expect(without.glassCalls).toEqual([]);
+    });
   });
 });
