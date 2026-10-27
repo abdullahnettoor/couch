@@ -88,44 +88,51 @@ export const WALLPAPERS: Wallpaper[] = [
   },
 ];
 
-/** What is stored under `home.wallpaper`. */
-export type WallpaperChoice = { kind: "builtin"; id: string } | { kind: "photo"; id: string };
+/** What is stored under `home.wallpaper`. A `file` is a file name inside its folder, never a path. */
+export type WallpaperChoice =
+  | { kind: "builtin"; id: string }
+  | { kind: "mac" }
+  | { kind: "folder"; file: string }
+  | { kind: "apple"; file: string };
 
-/** A photo as stored under `home.photos`. */
-export interface StoredPhoto {
-  id: string;
-  /** How much black goes over it, 0.35 to 0.65: brighter photos are dimmed more. */
-  dim: number;
-  addedAt: number;
+export type PictureKind = "mac" | "folder" | "apple";
+
+/** How often Home moves to the next folder picture. */
+export type Slideshow = "off" | "hour" | "day";
+
+export const SLIDESHOW_MS: Record<Exclude<Slideshow, "off">, number> = {
+  hour: 60 * 60 * 1000,
+  day: 24 * 60 * 60 * 1000,
+};
+
+/** The most folder pictures Settings shows. */
+export const FOLDER_LIMIT = 48;
+
+/** A picture from the Mac as the Screen draws it. `url` and `thumb` are there once it is converted. */
+export interface PictureTile {
+  kind: PictureKind;
+  /** The file name inside its folder (folder and apple pictures). */
+  file?: string;
+  label: string;
+  /** The TV-size copy, a Couch-only `file:` URL. */
+  url?: string;
+  thumb?: string;
+  /** How much black goes over it, 0.35 to 0.65: brighter pictures are dimmed more. */
+  dim?: number;
 }
 
-/** A photo as the Screen draws it: where to load it from, and its dim. */
-export interface PhotoTile {
-  id: string;
-  url: string;
-  dim: number;
-}
-
-export const PHOTO_LIMIT = 6;
-
-/** The most a photo may weigh after the phone has shrunk and encoded it. */
-export const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
-
-/** The same limit as base64 text: the longest `addPhoto` data the server passes on. */
-export const MAX_PHOTO_DATA = Math.ceil(MAX_PHOTO_BYTES / 3) * 4;
-
-/** The dim for a photo of this average brightness (0 black to 1 white). */
+/** The dim for a picture of this average brightness (0 black to 1 white). */
 export function dimFor(brightness: number): number {
   const b = Number.isFinite(brightness) ? Math.min(1, Math.max(0, brightness)) : 1;
   return Math.round((0.35 + 0.3 * b) * 1000) / 1000;
 }
 
-/** A photo id is 12 hex characters; anything else never reaches a file path. */
-export const PHOTO_ID = /^[0-9a-f]{12}$/;
+/** A converted copy's key is 12 hex characters; anything else never reaches a file path. */
+export const CACHE_KEY = /^[0-9a-f]{12}$/;
 
 export const DEFAULT_WALLPAPER: WallpaperChoice = { kind: "builtin", id: "couch" };
 
-/** Any stored value to a wallpaper; unknown or malformed becomes Couch. */
+/** Any stored value to a built-in wallpaper; unknown or malformed becomes Couch. */
 export function resolveWallpaper(value: unknown): Wallpaper {
   const v = value as Partial<WallpaperChoice> | null | undefined;
   const found =
@@ -135,17 +142,45 @@ export function resolveWallpaper(value: unknown): Wallpaper {
   return found ?? WALLPAPERS[0]!;
 }
 
-/** A stored choice to a valid one: a photo only while it exists, anything else unknown becomes Couch. */
-export function resolveChoice(value: unknown, photos: Array<{ id: string }>): WallpaperChoice {
-  const v = value as Partial<WallpaperChoice> | null | undefined;
-  if (v && v.kind === "photo" && typeof v.id === "string" && photos.some((p) => p.id === v.id))
-    return { kind: "photo", id: v.id };
+/** A stored value to a well-formed choice (whether the picture still exists is for Couch to check); anything else is Couch. */
+export function parseChoice(value: unknown): WallpaperChoice {
+  const v = value as Record<string, unknown> | null | undefined;
+  if (v && v.kind === "mac") return { kind: "mac" };
+  if (v && (v.kind === "folder" || v.kind === "apple") && isFileName(v.file))
+    return { kind: v.kind, file: v.file };
   return { kind: "builtin", id: resolveWallpaper(v).id };
 }
 
-/** The CSS variables a photo adds to `.home`: `--wp-photo` and `--wp-dim`. */
-export function photoVars(photo: PhotoTile): Record<string, string> {
-  return { "--wp-photo": `url("${photo.url}")`, "--wp-dim": String(photo.dim) };
+/** A name inside a folder: non-empty, no separators, not `.` or `..`. */
+export function isFileName(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= 255 &&
+    !value.includes("/") &&
+    !value.includes("\\") &&
+    !value.includes("\0") &&
+    value !== "." &&
+    value !== ".."
+  );
+}
+
+/** A file name as a tile label: no extension, no size tokens or trailing ids, separators as spaces. */
+export function tidyName(file: string): string {
+  const base = file.replace(/\.[^./]+$/, "");
+  const words = base
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\d{3,5}x\d{3,5}\b/gi, " ")
+    .replace(/\s+\d{4,}\s*$/, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const out = words || base.trim() || file;
+  return out.charAt(0).toUpperCase() + out.slice(1);
+}
+
+/** The CSS variables a picture adds to `.home`: `--wp-photo` and `--wp-dim`. */
+export function photoVars(tile: { url: string; dim: number }): Record<string, string> {
+  return { "--wp-photo": `url("${tile.url}")`, "--wp-dim": String(tile.dim) };
 }
 
 /** The CSS variables `.home` reads: `--wp-base`, `--wp-glow` and `--wp-drift`. */

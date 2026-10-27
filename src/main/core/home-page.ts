@@ -1,111 +1,349 @@
-import { randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import type { GridItem, HomePayload } from "../../shared/protocol.ts";
 import {
+  CACHE_KEY,
   DEFAULT_WALLPAPER,
-  MAX_PHOTO_BYTES,
-  MAX_PHOTO_DATA,
-  PHOTO_ID,
-  PHOTO_LIMIT,
+  FOLDER_LIMIT,
+  SLIDESHOW_MS,
   WALLPAPERS,
   dimFor,
-  resolveChoice,
-  type StoredPhoto,
+  isFileName,
+  parseChoice,
+  tidyName,
+  type PictureKind,
+  type PictureTile,
+  type Slideshow,
   type WallpaperChoice,
 } from "../../shared/wallpapers.ts";
-import { looksLikeImage, type Photos } from "../ports/photos.ts";
+import type { MacEntry, WallpaperPorts } from "../ports/pictures.ts";
+import type { Clock } from "../ports/clock.ts";
 import type { Store } from "../ports/store.ts";
 
 const PICK = "home:wallpaper:";
-const PHOTO = "home:photo:";
+const PIC = "home:pic:";
 const ARTWORK = "home:artwork";
+const FOLDER = "home:folder";
+const SLIDESHOW = "home:slideshow";
 const ARTWORK_ID = "artwork";
+const FOLDER_ID = "folder";
+const SLIDESHOW_ID = "slideshow";
+
+/** Home re-reads the Mac's desktop picture at most this often. */
+const READ_EVERY = 60_000;
+const IMAGE_FILE = /\.(jpe?g|png|heic)$/i;
+const SLIDESHOW_ORDER: Slideshow[] = ["off", "hour", "day"];
 
 export interface HomePageHost {
   store: Store;
-  photos?: Photos;
-  now(): number;
+  /** The Mac's pictures; without it only the built-in wallpapers are offered. */
+  wallpapers?: WallpaperPorts;
+  clock: Clock;
   toast(text: string): void;
-  ask(title: string, buttons: [string, string], answers: [() => void, () => void]): void;
   changed(): void;
 }
 
 interface Saved {
   wallpaper?: unknown;
   artwork?: unknown;
+  folder?: unknown;
+  slideshow?: unknown;
+  slideshowAt?: unknown;
+  /** The dim of each converted copy, by key. */
+  dims?: unknown;
+  /** Ticket 107's phone photos; migrated away. */
   photos?: unknown;
 }
 
-/** Settings → Home: the wallpaper tiles (previewed as focus moves, chosen with OK), the household's photos and the artwork switch. */
+/** A picture on the Mac that Settings offers: what it is, where it is, and the key its converted copy is kept under. */
+interface Source {
+  kind: PictureKind;
+  file?: string;
+  label: string;
+  entry: MacEntry;
+  key: string;
+}
+
+const keyFor = (e: MacEntry) =>
+  createHash("sha1").update(`${e.path}\0${e.size}\0${e.mtimeMs}`).digest("hex").slice(0, 12);
+
+const byName = (a: MacEntry, b: MacEntry) =>
+  a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+
+const shortPath = (p: string) => p.replace(/^\/Users\/[^/]+(?=\/|$)/, "~");
+
+/** Settings → Home: the wallpaper tiles (previewed as focus moves, chosen with OK), the Mac's pictures and their conversion, the folder and the slideshow. */
 export class HomePage {
   #h: HomePageHost;
+  #sources: Source[] = [];
+  #failed = new Set<string>();
+  #queue: Source[] = [];
+  #busy = false;
+  #readAt: number | undefined;
 
   constructor(host: HomePageHost) {
     this.#h = host;
+    this.#migrate();
+    this.refresh(false);
   }
 
   #saved(): Saved {
     return this.#h.store.read<Saved>("home", {});
   }
 
-  /** The stored photos that are well formed; an odd id never becomes a file path. */
-  #photos(): StoredPhoto[] {
-    const list = this.#saved().photos;
-    if (!Array.isArray(list)) return [];
-    return list.filter(
-      (p): p is StoredPhoto =>
-        !!p &&
-        typeof p.id === "string" &&
-        PHOTO_ID.test(p.id) &&
-        typeof p.dim === "number" &&
-        typeof p.addedAt === "number",
+  /** Ticket 107's phone photos are gone: their files are removed and a photo choice goes back to Couch. */
+  #migrate(): void {
+    const saved = this.#saved();
+    const old = saved.photos;
+    const chosen = saved.wallpaper as { kind?: unknown } | undefined;
+    if (old === undefined && chosen?.kind !== "photo") return;
+    if (Array.isArray(old))
+      for (const p of old) {
+        const id = (p as { id?: unknown } | null)?.id;
+        if (typeof id === "string" && CACHE_KEY.test(id)) this.#h.wallpapers?.files.remove(id);
+      }
+    const { photos: _photos, ...rest } = saved;
+    this.#h.store.write("home", {
+      ...rest,
+      ...(chosen?.kind === "photo" ? { wallpaper: DEFAULT_WALLPAPER } : {}),
+    });
+  }
+
+  #folder(): string {
+    const f = this.#saved().folder;
+    return typeof f === "string" && f.startsWith("/") ? f : this.#h.wallpapers!.mac.defaultFolder();
+  }
+
+  #slideshow(): Slideshow {
+    const s = this.#saved().slideshow;
+    return s === "hour" || s === "day" ? s : "off";
+  }
+
+  #dims(): Record<string, number> {
+    const d = this.#saved().dims;
+    return d && typeof d === "object" ? { ...(d as Record<string, number>) } : {};
+  }
+
+  /** The stored choice, kept only while its picture exists on the Mac; anything else shows as Couch. */
+  #chosen(): WallpaperChoice {
+    const choice = parseChoice(this.#saved().wallpaper);
+    if (choice.kind === "builtin") return choice;
+    return this.#find(choice) ? choice : DEFAULT_WALLPAPER;
+  }
+
+  #find(choice: WallpaperChoice): Source | undefined {
+    if (choice.kind === "builtin") return undefined;
+    return this.#sources.find(
+      (s) => s.kind === choice.kind && (choice.kind === "mac" || s.file === choice.file),
     );
   }
 
-  #chosen(): WallpaperChoice {
-    return resolveChoice(this.#saved().wallpaper, this.#photos());
+  /**
+   * Reads the Mac again. `full` (Settings → Home is open) lists everything and converts every picture;
+   * otherwise it is Home, at most once a minute, and only the picture in use is converted.
+   */
+  refresh(full: boolean): void {
+    const w = this.#h.wallpapers;
+    if (!w) return;
+    const now = this.#h.clock.now();
+    if (!full && this.#readAt !== undefined && now - this.#readAt < READ_EVERY) return;
+    this.#readAt = now;
+    const sources: Source[] = [];
+    const add = (kind: PictureKind, entry: MacEntry, label: string, file?: string) =>
+      sources.push({ kind, entry, label, ...(file ? { file } : {}), key: keyFor(entry) });
+    const desktop = w.mac.desktopPicture();
+    if (desktop && IMAGE_FILE.test(desktop.name)) add("mac", desktop, "Same as Mac");
+    const listed = w.mac.listFolder(this.#folder());
+    const folder = (listed ?? [])
+      .filter((e) => e.kind === "file" && !e.name.startsWith(".") && IMAGE_FILE.test(e.name))
+      .sort(byName)
+      .slice(0, FOLDER_LIMIT);
+    for (const e of folder) add("folder", e, tidyName(e.name), e.name);
+    const apple = w.mac
+      .appleWallpapers()
+      .filter((e) => e.kind === "file" && /\.heic$/i.test(e.name) && !e.name.startsWith("."))
+      .sort(byName);
+    for (const e of apple) add("apple", e, tidyName(e.name), e.name);
+    this.#sources = sources;
+    this.#forget(listed !== undefined);
+    const inUse = this.#find(parseChoice(this.#saved().wallpaper));
+    for (const s of sources) if (full || s === inUse) this.#want(s);
+    this.#pump();
+  }
+
+  /** Converted copies of pictures that are in no source any more are removed (kept when the folder couldn't be read). */
+  #forget(folderRead: boolean): void {
+    const w = this.#h.wallpapers!;
+    const live = new Set(this.#sources.map((s) => s.key));
+    this.#failed = new Set([...this.#failed].filter((k) => live.has(k)));
+    this.#queue = this.#queue.filter((s) => live.has(s.key));
+    if (!folderRead) return;
+    const dims = this.#dims();
+    for (const key of w.files.keys()) if (!live.has(key)) w.files.remove(key);
+    let changed = false;
+    for (const key of Object.keys(dims))
+      if (!live.has(key)) {
+        delete dims[key];
+        changed = true;
+      }
+    if (changed) this.#write({ dims });
+  }
+
+  #converted(s: Source): boolean {
+    return this.#h.wallpapers!.files.has(s.key) && this.#dims()[s.key] !== undefined;
+  }
+
+  #want(s: Source): void {
+    if (this.#failed.has(s.key) || this.#converted(s) || this.#queue.some((q) => q.key === s.key))
+      return;
+    this.#queue.push(s);
+  }
+
+  #prioritize(s: Source): void {
+    const at = this.#queue.findIndex((q) => q.key === s.key);
+    if (at > 0) this.#queue.unshift(...this.#queue.splice(at, 1));
+  }
+
+  /** One conversion at a time, so a folder of large pictures never holds up the app. */
+  #pump(): void {
+    const w = this.#h.wallpapers;
+    if (!w || this.#busy) return;
+    const next = this.#queue.shift();
+    if (!next) return;
+    this.#busy = true;
+    const done = (converted: Awaited<ReturnType<typeof w.converter.convert>>) => {
+      if (!converted) this.#failed.add(next.key);
+      else if (this.#sources.some((s) => s.key === next.key)) {
+        try {
+          w.files.save(next.key, converted.jpeg, converted.thumb);
+          this.#write({ dims: { ...this.#dims(), [next.key]: dimFor(converted.brightness) } });
+        } catch {
+          this.#failed.add(next.key);
+        }
+      }
+      this.#busy = false;
+      this.#h.changed();
+      this.#pump();
+    };
+    w.converter.convert(next.entry.path).then(done, () => done(undefined));
+  }
+
+  /** Called on each minute: re-reads the Mac when Home is up, and moves the slideshow on when it is due. */
+  tick(onHome: boolean): void {
+    if (!this.#h.wallpapers) return;
+    if (onHome) this.refresh(false);
+    const mode = this.#slideshow();
+    if (mode === "off") return;
+    const now = this.#h.clock.now();
+    const at = this.#saved().slideshowAt;
+    if (typeof at !== "number") return this.#write({ slideshowAt: now });
+    if (now - at < SLIDESHOW_MS[mode]) return;
+    const chosen = this.#chosen();
+    const pictures = this.#sources.filter((s) => s.kind === "folder" && !this.#failed.has(s.key));
+    const here = pictures.findIndex((s) => chosen.kind === "folder" && s.file === chosen.file);
+    if (here < 0) return;
+    const next = pictures[(here + 1) % pictures.length]!;
+    this.#write({ wallpaper: { kind: "folder", file: next.file! }, slideshowAt: now });
+    this.#want(next);
+    this.#pump();
+    this.#h.changed();
+  }
+
+  #tile(s: Source): PictureTile {
+    const w = this.#h.wallpapers!;
+    const dim = this.#dims()[s.key];
+    const ready = w.files.has(s.key) && dim !== undefined;
+    return {
+      kind: s.kind,
+      ...(s.file ? { file: s.file } : {}),
+      label: s.label,
+      ...(ready ? { url: w.files.url(s.key), thumb: w.files.thumbUrl(s.key), dim } : {}),
+    };
+  }
+
+  /** Same as Mac first (always offered), then the folder's pictures, then Apple's; pictures that failed their checks are left out. */
+  #tiles(): PictureTile[] {
+    if (!this.#h.wallpapers) return [];
+    const shown = this.#sources.filter((s) => !this.#failed.has(s.key));
+    const mac = shown.find((s) => s.kind === "mac");
+    return [
+      mac ? this.#tile(mac) : { kind: "mac", label: "Same as Mac" },
+      ...shown.filter((s) => s.kind !== "mac").map((s) => this.#tile(s)),
+    ];
   }
 
   /** `previewId` is the focused tile while the Home page is open: it shows as `preview` without being saved. */
   payload(previewId?: string): HomePayload {
-    const photos = this.#photos();
-    const builtin = WALLPAPERS.find((w) => `wp:${w.id}` === previewId);
-    const photo = photos.find((p) => `ph:${p.id}` === previewId);
-    const preview: WallpaperChoice | undefined = builtin
-      ? { kind: "builtin", id: builtin.id }
-      : photo && { kind: "photo", id: photo.id };
-    const photoTiles = this.#h.photos
-      ? photos.map((p) => ({ id: p.id, dim: p.dim, url: this.#h.photos!.url(p.id) }))
-      : [];
+    const w = this.#h.wallpapers;
+    const builtin = WALLPAPERS.find((x) => `wp:${x.id}` === previewId);
+    let preview: WallpaperChoice | undefined = builtin && { kind: "builtin", id: builtin.id };
+    if (!preview && w && previewId?.startsWith("pic:")) {
+      const s = this.#byTileId(previewId);
+      if (s) {
+        preview = s.kind === "mac" ? { kind: "mac" } : { kind: s.kind, file: s.file! };
+        this.#prioritize(s);
+      }
+    }
     return {
       wallpaper: this.#chosen(),
       ...(preview ? { preview } : {}),
       artwork: this.#saved().artwork !== false,
-      ...(photoTiles.length ? { photos: photoTiles } : {}),
+      ...(w
+        ? {
+            pictures: this.#tiles(),
+            folder: shortPath(this.#folder()),
+            slideshow: this.#slideshow(),
+          }
+        : {}),
     };
+  }
+
+  #byTileId(id: string): Source | undefined {
+    const rest = id.slice("pic:".length);
+    if (rest === "mac") return this.#sources.find((s) => s.kind === "mac");
+    const at = rest.indexOf(":");
+    const kind = rest.slice(0, at);
+    const file = rest.slice(at + 1);
+    if ((kind !== "folder" && kind !== "apple") || !isFileName(file)) return undefined;
+    return this.#sources.find((s) => s.kind === kind && s.file === file);
   }
 
   grid(): GridItem[] {
     const chosen = this.#chosen();
-    const photos = this.#h.photos ? this.#photos() : [];
-    return [
-      ...WALLPAPERS.map((w, c) => ({
-        id: `wp:${w.id}`,
-        r: 0,
-        c,
-        label: w.label,
-        action: `${PICK}${w.id}`,
-        ...(chosen.kind === "builtin" && w.id === chosen.id ? { initial: true } : {}),
-      })),
-      ...photos.map((p, i) => ({
-        id: `ph:${p.id}`,
+    const items: GridItem[] = WALLPAPERS.map((w, c) => ({
+      id: `wp:${w.id}`,
+      r: 0,
+      c,
+      label: w.label,
+      action: `${PICK}${w.id}`,
+      ...(chosen.kind === "builtin" && w.id === chosen.id ? { initial: true } : {}),
+    }));
+    this.#tiles().forEach((p, i) => {
+      const id = p.kind === "mac" ? "mac" : `${p.kind}:${p.file}`;
+      items.push({
+        id: `pic:${id}`,
         r: 0,
         c: WALLPAPERS.length + i,
-        label: "Photo",
-        action: `${PHOTO}${p.id}`,
-        ...(chosen.kind === "photo" && p.id === chosen.id ? { initial: true } : {}),
-      })),
-      { id: ARTWORK_ID, r: 1, c: 0, label: "Show artwork behind Resume", action: ARTWORK },
-    ];
+        label: p.label,
+        action: `${PIC}${id}`,
+        ...(chosen.kind === p.kind && (chosen.kind === "mac" || chosen.file === p.file)
+          ? { initial: true }
+          : {}),
+      });
+    });
+    items.push({
+      id: ARTWORK_ID,
+      r: 1,
+      c: 0,
+      label: "Show artwork behind Resume",
+      action: ARTWORK,
+    });
+    if (this.#h.wallpapers) {
+      items.push(
+        { id: FOLDER_ID, r: 2, c: 0, label: "Wallpaper folder", action: FOLDER },
+        { id: SLIDESHOW_ID, r: 3, c: 0, label: "Slideshow", action: SLIDESHOW },
+      );
+    }
+    return items;
   }
 
   action(action: string): boolean {
@@ -114,94 +352,48 @@ export class HomePage {
     } else if (action.startsWith(PICK)) {
       const w = WALLPAPERS.find((x) => x.id === action.slice(PICK.length));
       if (!w) return true;
-      this.#write({ wallpaper: { kind: "builtin", id: w.id } });
-    } else if (action.startsWith(PHOTO)) {
-      this.#photoMenu(action.slice(PHOTO.length));
-      this.#h.changed();
+      this.#choose({ kind: "builtin", id: w.id });
+    } else if (action.startsWith(PIC)) {
+      this.#choosePicture(action.slice(PIC.length));
+    } else if (action === FOLDER) {
+      this.#chooseFolder();
       return true;
+    } else if (action === SLIDESHOW) {
+      const next = SLIDESHOW_ORDER[(SLIDESHOW_ORDER.indexOf(this.#slideshow()) + 1) % 3]!;
+      this.#write({ slideshow: next, slideshowAt: this.#h.clock.now() });
     } else return false;
     this.#h.changed();
     return true;
   }
 
-  #photoMenu(id: string): void {
-    if (!this.#photos().some((p) => p.id === id)) return;
-    this.#h.ask(
-      "This photo",
-      ["Use", "Remove"],
-      [
-        () => {
-          if (!this.#photos().some((p) => p.id === id)) return;
-          this.#write({ wallpaper: { kind: "photo", id } });
-        },
-        () =>
-          this.#h.ask(
-            "Remove this photo?",
-            ["Cancel", "Remove"],
-            [() => {}, () => this.#remove(id)],
-          ),
-      ],
-    );
-  }
-
-  #remove(id: string): void {
-    const photos = this.#photos();
-    if (!photos.some((p) => p.id === id)) return;
-    this.#h.photos?.remove(id);
-    const current = this.#chosen();
-    this.#write({
-      photos: photos.filter((p) => p.id !== id),
-      ...(current.kind === "photo" && current.id === id ? { wallpaper: DEFAULT_WALLPAPER } : {}),
-    });
-  }
-
-  /** A photo from a phone, as base64: checked, re-encoded as JPEG, saved, and made the wallpaper (after asking, if six are kept). */
-  addPhoto(data: string | undefined): void {
-    const fail = (text: string) => {
-      this.#h.toast(text);
-      this.#h.changed();
-    };
-    if (!this.#h.photos) return fail("Photos aren't available");
-    if (data === undefined) return fail("That photo is too big or didn't arrive");
-    if (data.length > MAX_PHOTO_DATA) return fail("That photo is too big");
-    const bytes = Buffer.from(data, "base64");
-    if (bytes.length > MAX_PHOTO_BYTES) return fail("That photo is too big");
-    if (!looksLikeImage(bytes)) return fail("Couch can only use JPEG or PNG photos");
-    let encoded;
-    try {
-      encoded = this.#h.photos.encode(bytes);
-    } catch {
-      encoded = undefined;
-    }
-    if (!encoded) return fail("Couch couldn't read that photo");
-    const { jpeg, brightness } = encoded;
-    const keep = () => this.#keep(jpeg, dimFor(brightness));
-    if (this.#photos().length >= PHOTO_LIMIT) {
-      this.#h.ask("Replace the oldest photo?", ["Cancel", "Replace"], [() => {}, keep]);
-      this.#h.changed();
-    } else keep();
-  }
-
-  #keep(jpeg: Buffer, dim: number): void {
-    const photos = this.#h.photos;
-    if (!photos) return;
-    const id = randomBytes(6).toString("hex");
-    let list = this.#photos();
-    try {
-      photos.save(id, jpeg);
-    } catch {
-      this.#h.toast("Couch couldn't save that photo");
+  #choosePicture(id: string): void {
+    const s = this.#byTileId(`pic:${id}`);
+    if (!s || this.#failed.has(s.key)) {
+      if (id === "mac") this.#h.toast("Couch can't use the Mac's desktop picture");
       return;
     }
-    while (list.length >= PHOTO_LIMIT) {
-      const oldest = list.reduce((a, b) => (b.addedAt < a.addedAt ? b : a));
-      photos.remove(oldest.id);
-      list = list.filter((p) => p !== oldest);
-    }
-    this.#write({
-      photos: [...list, { id, dim, addedAt: this.#h.now() }],
-      wallpaper: { kind: "photo", id },
-    });
+    this.#choose(s.kind === "mac" ? { kind: "mac" } : { kind: s.kind, file: s.file! });
+    this.#want(s);
+    this.#prioritize(s);
+    this.#pump();
+  }
+
+  #choose(choice: WallpaperChoice): void {
+    this.#write({ wallpaper: choice, slideshowAt: this.#h.clock.now() });
+  }
+
+  #chooseFolder(): void {
+    const w = this.#h.wallpapers;
+    if (!w) return;
+    w.mac.chooseFolder(this.#folder()).then(
+      (path) => {
+        if (!path || !path.startsWith("/")) return;
+        this.#write({ folder: path });
+        this.refresh(true);
+        this.#h.changed();
+      },
+      () => this.#h.toast("Couch couldn't open the folder chooser"),
+    );
   }
 
   #write(change: Saved): void {

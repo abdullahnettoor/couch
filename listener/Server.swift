@@ -320,7 +320,7 @@ final class Proxy: Session {
     self.client = client
     self.upstream = NWConnection(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: appPort)!, using: .tcp)
     self.head = head
-    self.filter = websocket ? FrameFilter(maxMessage: FrameFilter.proxiedMaxMessage) : nil
+    self.filter = websocket ? FrameFilter() : nil
     self.server = server
     self.power = power
     self.q = q

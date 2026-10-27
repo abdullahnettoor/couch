@@ -49,7 +49,7 @@ import { AddonsPage } from "./addons-page.ts";
 import { APPS_MENU_KEY, HomeApps, leavesOnHide } from "./home-apps.ts";
 import { DetailsPage } from "./details-page.ts";
 import { HomePage } from "./home-page.ts";
-import type { Photos } from "../ports/photos.ts";
+import type { WallpaperPorts } from "../ports/pictures.ts";
 import { SoundOutput } from "./sound-output.ts";
 import { QuickSettings } from "./quick-settings.ts";
 import { LibrarySearchView } from "./library-search-view.ts";
@@ -114,8 +114,8 @@ export interface Ports {
   clock: Clock;
   store: Store;
   thumbnails?: Thumbnails;
-  /** Wallpaper photos from a phone; without it Add photo is refused. */
-  photos?: Photos;
+  /** The Mac's pictures as wallpapers (its desktop picture, a folder, Apple's); without it Home offers the built-ins only. */
+  wallpapers?: WallpaperPorts;
   /** Show and film details (TMDB). Without it, everything uses frames. */
   metadata?: Metadata;
   /** The project's TMDB key, built into release builds; used when the household has none of its own. */
@@ -320,10 +320,9 @@ export class Core {
     });
     this.#homePage = new HomePage({
       store: ports.store,
-      photos: ports.photos,
-      now: () => ports.clock.now(),
+      wallpapers: ports.wallpapers,
+      clock: ports.clock,
       toast: (text) => this.#toast(text),
-      ask: (title, buttons, answers) => this.#ask(title, buttons, answers),
       changed: () => this.#emit(),
     });
     this.#homeApps = new HomeApps({
@@ -1266,7 +1265,6 @@ export class Core {
           }
         : {}),
       ...(s.confirm ? { confirm: s.confirm } : {}),
-      ...(s.view === "settingsHome" ? { addPhoto: true } : {}),
       typeAvailable: (s.view === "app" && !!front?.typing) || s.view === "details" || searchable,
       ...(this.#show.fixTarget() ? { fixAvailable: true } : {}),
       ...(s.view === "details" ? { typeLabel: "Type TMDB key" } : {}),
@@ -1538,9 +1536,6 @@ export class Core {
         break;
       case "openSettings":
         if (this.#state.view === "home") this.#setView("settings");
-        break;
-      case "addPhoto":
-        if (this.#state.view === "settingsHome") this.#homePage.addPhoto(command.args?.data);
         break;
       case "typeOpen":
       case "typeText":
@@ -1969,6 +1964,7 @@ export class Core {
     this.#armAmbient();
     this.#releaseStrayTyping();
     if (from === "details") this.#detailsPage.cancel();
+    if (view === "home" || view === "settingsHome") this.#homePage.refresh(view === "settingsHome");
     if (view === "library") void this.library.refresh(this.#libraryFolders);
     if (view === "settingsRemotes") void this.refreshLoginItem();
   }
@@ -2210,6 +2206,7 @@ export class Core {
     const wait = 60_000 - (this.#ports.clock.now() % 60_000);
     this.#cancelMinute = this.#ports.clock.setTimeout(() => {
       this.#readTimeFormat();
+      this.#homePage.tick(this.#state.view === "home");
       this.#emit();
       this.#scheduleMinute();
     }, wait);

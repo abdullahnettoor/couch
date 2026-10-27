@@ -23,7 +23,9 @@ import {
   FakeMac,
   FakePlayer,
   FakeMetadata,
-  FakePhotos,
+  FakeConverter,
+  FakeMacWallpapers,
+  FakeWallpaperFiles,
   FakeThumbnails,
   FakeYouTube,
 } from "../ports/fakes.ts";
@@ -132,8 +134,10 @@ export interface Harness {
   mac: FakeMac;
   clock: FakeClock;
   thumbnails: FakeThumbnails;
-  /** The wallpaper photo files, in memory. */
-  photos: FakePhotos;
+  /** The Mac's wallpaper sources, the converter and the converted copies. */
+  wallpapers: { mac: FakeMacWallpapers; converter: FakeConverter; files: FakeWallpaperFiles };
+  /** Lets background work (picture conversion) finish. */
+  settle(): Promise<void>;
   /** The TMDB stand-in; every search and fetch is recorded. */
   metadata: FakeMetadata;
   /** Folder the Remote server serves thumbnails from. */
@@ -164,6 +168,8 @@ export async function startHarness(
     metadata?: (fake: FakeMetadata) => void;
     /** More web Apps next to YouTube, each with the entry Home shows for it. */
     apps?: Array<{ entry: AppEntry; app: App }>;
+    /** Offer the Mac's pictures as wallpapers: `true` for fresh fakes, or the previous harness's to keep its converted copies across a restart. */
+    wallpapers?: true | Harness["wallpapers"];
   } = {},
 ): Promise<Harness> {
   const tmp = given ? undefined : mkdtempSync(join(tmpdir(), "couch-store-"));
@@ -174,7 +180,14 @@ export async function startHarness(
   const mac = new FakeMac();
   const clock = new FakeClock();
   const thumbnails = new FakeThumbnails();
-  const photos = new FakePhotos();
+  const wallpapers =
+    options.wallpapers && options.wallpapers !== true
+      ? options.wallpapers
+      : {
+          mac: new FakeMacWallpapers(),
+          converter: new FakeConverter(),
+          files: new FakeWallpaperFiles(),
+        };
   const metadata = new FakeMetadata();
   options.metadata?.(metadata);
   const thumbDir = mkdtempSync(join(tmpdir(), "couch-thumbs-"));
@@ -208,7 +221,7 @@ export async function startHarness(
     clock,
     store,
     thumbnails,
-    photos,
+    ...(options.wallpapers ? { wallpapers } : {}),
     metadata,
     tmdbProjectKey: options.tmdbProjectKey,
     listener: options.listener,
@@ -231,7 +244,10 @@ export async function startHarness(
     mac,
     clock,
     thumbnails,
-    photos,
+    wallpapers,
+    async settle() {
+      for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+    },
     metadata,
     thumbDir,
     phones,

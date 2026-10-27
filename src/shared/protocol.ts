@@ -1,7 +1,7 @@
 import type { TimeFormat } from "./clock-format.ts";
 /** Remote protocol and the state shapes shared by the core, the Remote page and the Screen renderer. */
 import type { PlayerOverlay } from "./player.ts";
-import type { PhotoTile, WallpaperChoice } from "./wallpapers.ts";
+import type { PictureTile, Slideshow, WallpaperChoice } from "./wallpapers.ts";
 
 export type RemoteId = string;
 
@@ -60,7 +60,6 @@ export const COMMAND_NAMES = [
   "openSettings",
   "setPictureOff",
   "quickSettings",
-  "addPhoto",
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
@@ -113,8 +112,6 @@ export interface CommandArgs {
   on?: boolean;
   /** quickPick (Screen only): the id of the drawer row clicked */
   item?: string;
-  /** addPhoto: the photo, JPEG or PNG bytes in base64 (at most about 3 MB decoded) */
-  data?: string;
   /** typeText: the whole current text; typeOpen and screenKey (Screen only): the first character */
   text?: string;
 }
@@ -353,8 +350,11 @@ export interface HomePayload {
   preview?: WallpaperChoice;
   /** The Resume artwork fades over the wallpaper. */
   artwork: boolean;
-  /** The household's photos, oldest first; absent when there are none. */
-  photos?: PhotoTile[];
+  /** The Mac's pictures after the built-ins, in tile order: Same as Mac (when the Mac has a desktop picture), the folder's, then Apple's. */
+  pictures?: PictureTile[];
+  /** Settings → Home: the wallpaper folder, shortened for display, and the slideshow setting. */
+  folder?: string;
+  slideshow?: Slideshow;
 }
 
 export interface ScreenPayload {
@@ -499,8 +499,6 @@ export interface RemoteSnapshot {
   pictureOff: boolean;
   /** The Quick settings drawer is open on the Screen (the phone shows the D-pad). */
   quickSettings: boolean;
-  /** Settings → Home is on the Screen: the phone offers Add photo. */
-  addPhoto?: boolean;
   remotes: number;
 }
 

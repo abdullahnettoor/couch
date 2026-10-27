@@ -447,13 +447,10 @@ const wideFrame = (opcode, body, { fin = true } = {}) => {
   return Buffer.concat([head, mask, masked]);
 };
 
-const photoMessage = (size) => {
-  const pad = JSON.stringify({ type: "command", command: "addPhoto", args: { data: "" } }).length;
-  return JSON.stringify({
-    type: "command",
-    command: "addPhoto",
-    args: { data: "A".repeat(size - pad) },
-  });
+/** A text message of exactly `size` bytes. */
+const bigMessage = (size) => {
+  const pad = JSON.stringify({ type: "command", command: "ok", args: { data: "" } }).length;
+  return JSON.stringify({ type: "command", command: "ok", args: { data: "A".repeat(size - pad) } });
 };
 
 async function proxiedPhone(env) {
@@ -464,41 +461,35 @@ async function proxiedPhone(env) {
   return rawPhone(env);
 }
 
-// 4 MiB of base64 (Couch's MAX_PHOTO_DATA) plus its envelope.
-const PROXIED_LIMIT = 4 * 1024 * 1024 + 4096;
+// The Listener's own 1 MiB, for its own endpoint and for proxied Remote connections alike.
+const LIMIT = 1 << 20;
 
-void test("the proxy limit matches Couch's photo allowance", () => {
-  const src = readFileSync(join(root, "src/shared/wallpapers.ts"), "utf8");
-  assert.ok(src.includes("MAX_PHOTO_BYTES = 3 * 1024 * 1024"));
-  assert.equal(Math.ceil((3 * 1024 * 1024) / 3) * 4 + 4096, PROXIED_LIMIT);
-});
-
-void test("a photo-sized message in one frame goes through the proxy", async () => {
+void test("a message at the 1 MiB limit goes through the proxy, in one frame", async () => {
   const env = await setup();
   const c = await proxiedPhone(env);
-  c.socket.write(wideFrame(1, Buffer.from(photoMessage(PROXIED_LIMIT - 10))));
-  await until(() => env.appLog().includes(`ws big ${PROXIED_LIMIT - 10}`), "upload reached app");
+  c.socket.write(wideFrame(1, Buffer.from(bigMessage(LIMIT))));
+  await until(() => env.appLog().includes(`ws big ${LIMIT}`), "message reached app");
   assert.equal(c.closed(), false);
 });
 
-void test("a fragmented photo-sized message goes through the proxy", async () => {
+void test("a message at the limit goes through the proxy, fragmented", async () => {
   const env = await setup();
   const c = await proxiedPhone(env);
-  const msg = Buffer.from(photoMessage(PROXIED_LIMIT - 10));
+  const msg = Buffer.from(bigMessage(LIMIT));
   const third = Math.floor(msg.length / 3);
   c.socket.write(wideFrame(1, msg.subarray(0, third), { fin: false }));
   c.socket.write(wideFrame(0, msg.subarray(third, 2 * third), { fin: false }));
   c.socket.write(wideFrame(0, msg.subarray(2 * third)));
-  await until(() => env.appLog().includes(`ws big ${msg.length}`), "upload reached app");
+  await until(() => env.appLog().includes(`ws big ${msg.length}`), "message reached app");
   assert.equal(c.closed(), false);
 });
 
-void test("an over-limit upload through the proxy is dropped cleanly, the app and others keep working", async () => {
+void test("a proxied message over 1 MiB is dropped cleanly, the app and others keep working", async () => {
   const env = await setup();
   const c = await proxiedPhone(env);
   const other = await phone(env);
   await until(() => other.messages.some((m) => m.type === "snapshot"), "other connected");
-  c.socket.write(wideFrame(1, Buffer.alloc(PROXIED_LIMIT + 1, 0x41)));
+  c.socket.write(wideFrame(1, Buffer.alloc(LIMIT + 1, 0x41)));
   await until(() => c.closed(), "over-limit connection closed");
   assert.equal(env.appLog().includes("big"), false, "nothing of it reached the app");
   other.send("play");
@@ -506,20 +497,20 @@ void test("an over-limit upload through the proxy is dropped cleanly, the app an
   assert.equal(await alive(env), true);
 });
 
-void test("a fragmented upload that adds up past the limit is dropped", async () => {
+void test("a proxied fragmented message that adds up past 1 MiB is dropped", async () => {
   const env = await setup();
   const c = await proxiedPhone(env);
-  const half = Buffer.alloc(PROXIED_LIMIT / 2 + 100, 0x41);
+  const half = Buffer.alloc(LIMIT / 2 + 100, 0x41);
   c.socket.write(wideFrame(1, half, { fin: false }));
   c.socket.write(wideFrame(0, half));
   await until(() => c.closed(), "closed");
   assert.equal(env.appLog().includes("big"), false);
 });
 
-void test("the listener's own endpoint keeps the small limit", async () => {
+void test("the listener's own endpoint keeps the same limit", async () => {
   const env = await setup();
   const c = await rawPhone(env);
-  c.socket.write(wideFrame(1, Buffer.alloc((1 << 20) + 1, 0x41)));
+  c.socket.write(wideFrame(1, Buffer.alloc(LIMIT + 1, 0x41)));
   await until(() => c.closed(), "closed");
   assert.equal(await alive(env), true);
 });

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, screen, WebContentsView } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, screen, WebContentsView } from "electron";
 import { join } from "node:path";
 import { screenPointer } from "./pointer-position.ts";
 import { Channel, type GlassRect, type GridReport } from "../shared/ipc.ts";
@@ -20,7 +20,9 @@ import { IdleUnloader } from "./web/idle-unload.ts";
 import { FileStore } from "./ports/store.ts";
 import { readChoices } from "./web/addon.ts";
 import { FfmpegThumbnails } from "./ports/thumbnails.ts";
-import { ElectronPhotos } from "./ports/electron-photos.ts";
+import { ElectronConverter } from "./ports/electron-pictures.ts";
+import { RealMacWallpapers } from "./ports/mac-wallpapers.ts";
+import { WallpaperFilesOnDisk } from "./ports/pictures.ts";
 import { TmdbMetadata } from "./ports/tmdb-metadata.ts";
 import { PROJECT_TMDB_KEY } from "./ports/project-key.ts";
 import { detectListener } from "./frontdoor.ts";
@@ -179,7 +181,18 @@ async function createScreen(): Promise<void> {
     clock: systemClock,
     store,
     thumbnails: new FfmpegThumbnails(join(app.getPath("userData"), "thumbnails")),
-    photos: new ElectronPhotos(join(app.getPath("userData"), "wallpapers")),
+    wallpapers: {
+      mac: new RealMacWallpapers(app.getPath("home"), async (current) => {
+        const picked = await dialog.showOpenDialog(win!, {
+          title: "Wallpaper folder",
+          defaultPath: current,
+          properties: ["openDirectory"],
+        });
+        return picked.canceled ? undefined : picked.filePaths[0];
+      }),
+      converter: new ElectronConverter(join(app.getPath("userData"), "wallpapers")),
+      files: new WallpaperFilesOnDisk(join(app.getPath("userData"), "wallpapers")),
+    },
     thumbnailDir: join(app.getPath("userData"), "thumbnails"),
     iconDir: join(import.meta.dirname, "../renderer"),
     metadata: new TmdbMetadata(join(app.getPath("userData"), "thumbnails")),

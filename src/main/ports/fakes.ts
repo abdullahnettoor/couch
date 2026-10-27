@@ -1,5 +1,11 @@
 import type { Thumbnails } from "./thumbnails.ts";
-import type { EncodedPhoto, Photos } from "./photos.ts";
+import type {
+  ConvertedPicture,
+  MacEntry,
+  MacWallpapers,
+  WallpaperConverter,
+  WallpaperFiles,
+} from "./pictures.ts";
 import type {
   Candidate,
   Details,
@@ -527,26 +533,86 @@ export class FakeMetadata implements Metadata {
   }
 }
 
+/** A file the fake Mac lists. */
+export const macFile = (
+  dir: string,
+  name: string,
+  extra: Partial<Pick<MacEntry, "kind" | "size" | "mtimeMs">> = {},
+): MacEntry => ({
+  name,
+  path: `${dir}/${name}`,
+  kind: "file",
+  size: 1000,
+  mtimeMs: 1_000_000,
+  ...extra,
+});
+
+/** The Mac's wallpaper sources, scripted: folders by path, the desktop picture, Apple's folder and what the chooser returns. */
+export class FakeMacWallpapers implements MacWallpapers {
+  folders = new Map<string, MacEntry[]>();
+  desktop: MacEntry | undefined;
+  apple: MacEntry[] = [];
+  /** What the folder chooser returns next (undefined: cancelled). */
+  chooses: string | undefined;
+  choosers: string[] = [];
+  desktopReads = 0;
+  defaultFolder() {
+    return "/Users/me/Pictures/Wallpapers";
+  }
+  listFolder(path: string) {
+    return this.folders.get(path);
+  }
+  desktopPicture() {
+    this.desktopReads++;
+    return this.desktop;
+  }
+  appleWallpapers() {
+    return this.apple;
+  }
+  chooseFolder(current: string) {
+    this.choosers.push(current);
+    return Promise.resolve(this.chooses);
+  }
+}
+
 /**
- * Photos kept in memory. The fixture format: byte 8 (after the magic, padded to 8) is the photo's brightness (0-255);
- * fewer than 9 bytes don't decode. `encode` returns different bytes from its input, as a real re-encode does.
+ * Converts by path: the result's bytes name the source, and brightness comes from `brightness` (default 0.5).
+ * Paths in `fails` don't pass the checks.
  */
-export class FakePhotos implements Photos {
-  files = new Map<string, Buffer>();
-  encode(bytes: Buffer): EncodedPhoto | undefined {
-    if (bytes.length < 9) return undefined;
-    return {
-      jpeg: Buffer.concat([Buffer.from("reencoded:"), bytes.subarray(8, 9)]),
-      brightness: bytes[8]! / 255,
-    };
+export class FakeConverter implements WallpaperConverter {
+  converted: string[] = [];
+  fails = new Set<string>();
+  brightness = new Map<string, number>();
+  convert(path: string): Promise<ConvertedPicture | undefined> {
+    if (this.fails.has(path)) return Promise.resolve(undefined);
+    this.converted.push(path);
+    return Promise.resolve({
+      jpeg: Buffer.from(`jpeg:${path}`),
+      thumb: Buffer.from(`thumb:${path}`),
+      brightness: this.brightness.get(path) ?? 0.5,
+    });
   }
-  save(id: string, jpeg: Buffer) {
-    this.files.set(id, jpeg);
+}
+
+/** The converted copies, kept in memory. */
+export class FakeWallpaperFiles implements WallpaperFiles {
+  files = new Map<string, { jpeg: Buffer; thumb: Buffer }>();
+  has(key: string) {
+    return this.files.has(key);
   }
-  remove(id: string) {
-    this.files.delete(id);
+  save(key: string, jpeg: Buffer, thumb: Buffer) {
+    this.files.set(key, { jpeg, thumb });
   }
-  url(id: string) {
-    return `file:///userData/wallpapers/${id}.jpg`;
+  remove(key: string) {
+    this.files.delete(key);
+  }
+  keys() {
+    return [...this.files.keys()];
+  }
+  url(key: string) {
+    return `file:///userData/wallpapers/${key}.jpg`;
+  }
+  thumbUrl(key: string) {
+    return `file:///userData/wallpapers/${key}.thumb.jpg`;
   }
 }

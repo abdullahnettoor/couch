@@ -1154,12 +1154,12 @@ body:has(.ls-page) .toast:not(.notice) {
   position: fixed;
   left: 6%;
   right: 6%;
-  bottom: 5%;
-  height: 52%;
-  padding: calc(32 * var(--u)) calc(40 * var(--u));
+  bottom: 4%;
+  height: 68%;
+  padding: calc(28 * var(--u)) calc(40 * var(--u));
   display: flex;
   flex-direction: column;
-  gap: calc(14 * var(--u));
+  gap: calc(8 * var(--u));
   border-radius: calc(36 * var(--u));
   background: rgba(14, 14, 18, 0.62);
   backdrop-filter: blur(calc(40 * var(--u))) saturate(1.2);

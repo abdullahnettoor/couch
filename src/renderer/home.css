@@ -39,6 +39,11 @@
   background: var(--wp-photo, none) center / cover no-repeat;
   animation: h-kenburns 120s ease-in-out infinite alternate;
 }
+.h-photo-prev {
+  animation: none;
+  opacity: 1;
+  transition: opacity 2.5s ease-in-out;
+}
 .h-photo-dim {
   background: #000;
   opacity: var(--wp-dim, 0.5);

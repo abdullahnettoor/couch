@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { WebSocket } from "ws";
 import { afterEach, describe, expect, test } from "vite-plus/test";
-import { MAX_PHOTO_DATA } from "../../shared/wallpapers.ts";
 import { FileStore } from "../ports/store.ts";
 import { startHarness, type Harness } from "../testing/harness.ts";
 import { MAX_MESSAGE, parseCommand } from "./server.ts";
@@ -32,12 +31,7 @@ describe("parseCommand limits", () => {
     ).toBeUndefined();
   });
 
-  test("a photo's data gets the photo allowance (the core toasts over it), and no other command does", () => {
-    const max = "A".repeat(MAX_PHOTO_DATA);
-    expect(parseCommand(raw("addPhoto", { data: max }))?.args?.data).toBe(max);
-    const over = "A".repeat(MAX_PHOTO_DATA + 12);
-    expect(parseCommand(raw("addPhoto", { data: over }))?.args?.data).toBe(over);
-    expect(parseCommand(raw("addPhoto", { data: "A".repeat(MAX_MESSAGE + 1) }))).toBeUndefined();
+  test("no command takes a photo's data", () => {
     expect(parseCommand(raw("typeText", { data: "AAEC" }))).toBeUndefined();
     expect(parseCommand(raw("typeText", { text: "a".repeat(5000) }))).toBeUndefined();
   });
@@ -46,17 +40,14 @@ describe("parseCommand limits", () => {
     expect(parseCommand(raw("seekBy", { seconds: 5, extra: 1 }))).toBeUndefined();
     expect(parseCommand(raw("ok", { text: "x" }))).toBeUndefined();
     expect(parseCommand(raw("seekBy", { seconds: "5" }))).toBeUndefined();
-    expect(parseCommand(raw("addPhoto", { data: 42 }))).toBeUndefined();
+    expect(parseCommand(raw("typeText", { text: 42 }))).toBeUndefined();
     expect(
-      parseCommand(raw("addPhoto", { __proto__: { x: 1 }, data: "AA", y: 2 })),
+      parseCommand(raw("typeText", { __proto__: { x: 1 }, text: "AA", y: 2 })),
     ).toBeUndefined();
   });
 
-  test("the transport ceiling fits a photo, and is no lower than the old 1 MiB cap", () => {
-    expect(MAX_MESSAGE).toBeGreaterThanOrEqual(1 << 20);
-    expect(MAX_MESSAGE).toBeGreaterThan(
-      raw("addPhoto", { data: "A".repeat(MAX_PHOTO_DATA) }).length,
-    );
+  test("the transport ceiling is the Listener's 1 MiB", () => {
+    expect(MAX_MESSAGE).toBe(1 << 20);
   });
 });
 

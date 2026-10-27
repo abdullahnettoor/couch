@@ -19,6 +19,7 @@ afterEach(async () => {
 });
 
 const view = () => h.screen.last.state.view;
+const builtinId = (c: { kind: string } | undefined) => (c as { id?: string } | undefined)?.id;
 const wallpaper = () => h.screen.last.home?.wallpaper;
 const preview = () => h.screen.last.home?.preview;
 const start = async () => {
@@ -90,7 +91,7 @@ describe("Home wallpaper", () => {
     expect(store.read("home", {})).toEqual({});
     await phone.press("back");
     expect(view()).toBe("settings");
-    expect(wallpaper()?.id).toBe("couch");
+    expect(builtinId(wallpaper())).toBe("couch");
     expect(preview()).toBeUndefined();
   });
 
@@ -99,10 +100,10 @@ describe("Home wallpaper", () => {
     await openHomePage();
     await phone.press("right");
     await phone.press("right");
-    expect(wallpaper()?.id).toBe("couch");
-    expect(preview()?.id).toBe("ocean");
+    expect(builtinId(wallpaper())).toBe("couch");
+    expect(builtinId(preview())).toBe("ocean");
     await phone.press("ok");
-    expect(wallpaper()?.id).toBe("ocean");
+    expect(builtinId(wallpaper())).toBe("ocean");
   });
 
   test("the tiles are one row: down from any tile reaches the artwork switch", async () => {
@@ -132,9 +133,9 @@ describe("Home wallpaper", () => {
     await phone.press("right");
     await phone.press("ok");
     await phone.press("right");
-    expect(preview()?.id).toBe("forest");
+    expect(builtinId(preview())).toBe("forest");
     await phone.press("back");
-    expect(wallpaper()?.id).toBe("ocean");
+    expect(builtinId(wallpaper())).toBe("ocean");
   });
 
   test("the artwork switch is stored and survives a restart", async () => {

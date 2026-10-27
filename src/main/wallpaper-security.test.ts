@@ -51,8 +51,8 @@ import { join } from "node:path";
 import { netflixDescription } from "./apps/netflix/netflix-web.ts";
 import { youtubeDescription } from "./apps/youtube/youtube-web.ts";
 import { FileStore } from "./ports/store.ts";
-import { MAX_MESSAGE, parseCommand } from "./remote/server.ts";
 import { ElectronWebApp } from "./web/electron-web-app.ts";
+import { macFile } from "./ports/fakes.ts";
 import { startHarness, type Harness } from "./testing/harness.ts";
 
 const win: any = {
@@ -123,7 +123,7 @@ describe("the Screen's CSP", () => {
   });
 });
 
-describe("the photo is not on the network", () => {
+describe("the converted picture is not on the network", () => {
   let h: Harness | undefined;
   let dir = "";
   afterEach(async () => {
@@ -134,17 +134,18 @@ describe("the photo is not on the network", () => {
 
   test("the Remote server serves no wallpaper path, with or without the key", async () => {
     dir = mkdtempSync(join(tmpdir(), "couch-sec-"));
-    h = await startHarness(new FileStore(dir));
+    h = await startHarness(new FileStore(dir), { wallpapers: true });
     const phone = await h.connectPhone();
+    h.wallpapers.mac.folders.set("/Users/me/Pictures/Wallpapers", [
+      macFile("/Users/me/Pictures/Wallpapers", "a.jpg"),
+    ]);
     await phone.press("up");
     await phone.press("ok");
     for (let i = 0; i < 12 && h.screen.last.focusedLabel !== "Home"; i++) await phone.press("down");
     await phone.press("ok");
-    await phone.press({
-      command: "addPhoto",
-      args: { data: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 128]).toString("base64") },
-    });
-    const id = h.screen.last.home!.photos![0]!.id;
+    await h.settle();
+    const url = h.screen.last.home!.pictures!.find((p) => p.kind === "folder")!.url!;
+    const id = /([0-9a-f]{12})\.jpg$/.exec(url)![1]!;
     const base = `http://127.0.0.1:${h.app.remote.port}`;
     const key = h.pairingKey();
     for (const path of [
@@ -158,23 +159,5 @@ describe("the photo is not on the network", () => {
       expect(res.status, path).toBeGreaterThanOrEqual(401);
       expect(res.headers.get("content-type") ?? "", path).not.toContain("image");
     }
-  });
-});
-
-describe("the addPhoto command on the wire", () => {
-  const raw = (command: string, args: unknown) =>
-    JSON.stringify({ type: "command", command, args });
-
-  test("carries its data, and only that command does", () => {
-    expect(parseCommand(raw("addPhoto", { data: "AAEC" }))).toEqual({
-      command: "addPhoto",
-      args: { data: "AAEC" },
-    });
-    expect(parseCommand(raw("typeText", { data: "AAEC" }))?.args?.data).toBeUndefined();
-  });
-
-  test("data past the transport ceiling is refused, and non-strings too", () => {
-    expect(parseCommand(raw("addPhoto", { data: "A".repeat(MAX_MESSAGE + 1) }))).toBeUndefined();
-    expect(parseCommand(raw("addPhoto", { data: 42 }))).toBeUndefined();
   });
 });

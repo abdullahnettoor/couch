@@ -2,7 +2,8 @@ import { clockParts } from "../../shared/clock-format.ts";
 import type { LibraryEntry, ScreenPayload } from "../../shared/protocol.ts";
 import { el, focusable, genreLabels, qrSvg, root } from "./dom.ts";
 import { glassPill, topbar } from "./glass.ts";
-import { photoVars, wallpaperVars } from "../../shared/wallpapers.ts";
+import { photoVars, wallpaperVars, type PictureTile } from "../../shared/wallpapers.ts";
+import type { WallpaperChoice } from "../../shared/wallpapers.ts";
 
 function escapeHtml(text: string): string {
   return text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -82,6 +83,31 @@ function syncBackdrop(videos: LibraryEntry[], hero: LibraryEntry | undefined): v
   }
 }
 
+/** The converted picture a choice points at, once it is ready to draw. */
+export function pictureFor(
+  pictures: PictureTile[] | undefined,
+  choice: WallpaperChoice,
+): PictureTile | undefined {
+  if (choice.kind === "builtin") return undefined;
+  return pictures?.find(
+    (p) => p.kind === choice.kind && (choice.kind === "mac" || p.file === choice.file),
+  );
+}
+
+const FADE_MS = 2500;
+
+/** A slow crossfade: the picture that was showing stays over the new one and fades out. */
+function fadeFrom(previous: string): void {
+  const layer = photoEl?.querySelector<HTMLElement>(".h-photo-img");
+  if (!layer) return;
+  const old = document.createElement("i");
+  old.className = "h-photo-img h-photo-prev";
+  old.style.backgroundImage = previous;
+  layer.after(old);
+  requestAnimationFrame(() => (old.style.opacity = "0"));
+  setTimeout(() => old.remove(), FADE_MS + 200);
+}
+
 /** Layers that outlive a render so state changes can cross-fade. */
 let ambientBg: HTMLElement | undefined;
 let photoEl: HTMLElement | undefined;
@@ -140,15 +166,17 @@ export function render(payload: ScreenPayload): void {
   view.classList.toggle("ambient", !!payload.ambient);
   view.classList.toggle("no-art", payload.home?.artwork === false);
   const choice = payload.home?.preview ?? payload.home?.wallpaper;
-  const photo =
-    choice?.kind === "photo" ? payload.home?.photos?.find((p) => p.id === choice.id) : undefined;
+  const tile = choice && pictureFor(payload.home?.pictures, choice);
+  const photo = tile?.url && tile.dim !== undefined ? { url: tile.url, dim: tile.dim } : undefined;
   const vars = {
     ...wallpaperVars(choice?.kind === "builtin" ? choice.id : ""),
     ...(photo ? photoVars(photo) : {}),
   };
+  const before = view.style.getPropertyValue("--wp-photo");
   for (const [name, value] of Object.entries(vars)) view.style.setProperty(name, value);
   if (!photo) for (const name of ["--wp-photo", "--wp-dim"]) view.style.removeProperty(name);
   view.classList.toggle("photo", !!photo);
+  if (photo && before && before !== view.style.getPropertyValue("--wp-photo")) fadeFrom(before);
   bg!.classList.toggle("on", !!hero && payload.home?.artwork !== false);
   heroEl!.classList.toggle("on", !!hero);
   clockEl!.classList.toggle("on", !hero);

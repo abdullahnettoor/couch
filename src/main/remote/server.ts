@@ -4,7 +4,6 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import { WebSocketServer, type WebSocket } from "ws";
 import { COMMAND_NAMES, type Command, type CommandName } from "../../shared/protocol.ts";
-import { MAX_PHOTO_DATA } from "../../shared/wallpapers.ts";
 import type { Core } from "../core/core.ts";
 import { safeEqual } from "../constant-time.ts";
 import { remoteManifest } from "./manifest.ts";
@@ -22,8 +21,8 @@ const ICON_FILES: Record<string, string> = {
   "/icon-512.png": "icon-512.png",
 };
 
-/** The most a Remote's WebSocket message may be: a photo's base64 plus the command's envelope. */
-export const MAX_MESSAGE = MAX_PHOTO_DATA + 4096;
+/** The most a Remote's WebSocket message may be: the same 1 MiB the Listener allows. */
+export const MAX_MESSAGE = 1 << 20;
 
 const MAX_TEXT = 4096;
 
@@ -48,8 +47,6 @@ const ARGS: Partial<Record<CommandName, Record<string, Field>>> = {
   toggleAddon: { addon: text() },
   pressPrompt: { id: { kind: "enum", values: ["skipIntro", "skipRecap", "nextEpisode"] } },
   setPictureOff: { on: { kind: "boolean" } },
-  // Up to the transport ceiling: the core answers anything over the photo allowance with a "too big" toast.
-  addPhoto: { data: text(MAX_MESSAGE) },
 };
 
 function valid(field: Field, value: unknown): boolean {

@@ -1,9 +1,18 @@
-// Real-Electron check of Home wallpaper photos (ticket 107). Headless: no window is ever shown, nothing
+// Real-Electron check of Home wallpapers (tickets 107 and 108). Headless: no window is ever shown, nothing
 // takes focus, nothing is captured. userData is a FRESH temp folder, never the household's.
 // Run: env -u ELECTRON_RUN_AS_NODE ./node_modules/.bin/electron scripts/real-photos-check.mts
 import { app, BrowserWindow, nativeImage, session } from "electron";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { createHash } from "node:crypto";
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -82,17 +91,29 @@ const LAT_BYTES = Buffer.from([0, 0, 0x11, 0x70]); // 4464 as a big-endian long:
 
 void app.whenReady().then(async () => {
   try {
-    const { ElectronPhotos } = await import(resolve("src/main/ports/electron-photos.ts"));
+    const { ElectronConverter } = await import(resolve("src/main/ports/electron-pictures.ts"));
+    const { WallpaperFilesOnDisk } = await import(resolve("src/main/ports/pictures.ts"));
+    const { RealMacWallpapers } = await import(resolve("src/main/ports/mac-wallpapers.ts"));
     const { dimFor } = await import(resolve("src/shared/wallpapers.ts"));
-    const photos = new ElectronPhotos(join(userData, "wallpapers"));
+    const converter = new ElectronConverter(join(userData, "wallpapers"));
+    const files = new WallpaperFilesOnDisk(join(userData, "wallpapers"));
+    let inputs = 0;
+    /** The converter reads files: put the bytes in a file of our own and convert that. */
+    const encode = async (bytes: Buffer) => {
+      const path = join(userData, `in-${(inputs += 1)}.bin`);
+      writeFileSync(path, bytes);
+      return converter.convert(path) as Promise<
+        { jpeg: Buffer; thumb: Buffer; brightness: number } | undefined
+      >;
+    };
 
     const dark = { jpeg: flat(20).toJPEG(92), png: flat(20).toPNG() };
     const bright = { jpeg: flat(235).toJPEG(92), png: flat(235).toPNG() };
     const encoded = {
-      darkJpeg: photos.encode(dark.jpeg),
-      brightJpeg: photos.encode(bright.jpeg),
-      darkPng: photos.encode(dark.png),
-      brightPng: photos.encode(bright.png),
+      darkJpeg: await encode(dark.jpeg),
+      brightJpeg: await encode(bright.jpeg),
+      darkPng: await encode(dark.png),
+      brightPng: await encode(bright.png),
     };
     for (const [name, e] of Object.entries(encoded)) check(`${name} encodes`, e !== undefined);
     const b = (k: keyof typeof encoded) => encoded[k]?.brightness ?? NaN;
@@ -113,16 +134,19 @@ void app.whenReady().then(async () => {
     );
 
     // Save and read back: the saved file is a JPEG that decodes, with the same brightness ordering.
-    photos.save("aaaaaaaaaaaa", encoded.darkJpeg.jpeg);
-    photos.save("bbbbbbbbbbbb", encoded.brightPng.jpeg);
+    files.save("aaaaaaaaaaaa", encoded.darkJpeg!.jpeg, encoded.darkJpeg!.thumb);
+    files.save("bbbbbbbbbbbb", encoded.brightPng!.jpeg, encoded.brightPng!.thumb);
     const savedDark = readFileSync(join(userData, "wallpapers", "aaaaaaaaaaaa.jpg"));
     const savedBright = readFileSync(join(userData, "wallpapers", "bbbbbbbbbbbb.jpg"));
     check(
       "saved files are JPEGs",
       savedDark[0] === 0xff && savedDark[1] === 0xd8 && savedBright[1] === 0xd8,
     );
-    const reread = (buf: Buffer) => photos.encode(buf)?.brightness ?? NaN;
-    check("saved brightness ordering holds", reread(savedDark) < reread(savedBright));
+    const reread = async (buf: Buffer) => (await encode(buf))?.brightness ?? NaN;
+    check(
+      "saved brightness ordering holds",
+      (await reread(savedDark)) < (await reread(savedBright)),
+    );
 
     // GPS: a JPEG carrying EXIF with a GPS IFD comes out with no APP1 and no trace of it.
     const base = flat(120).toJPEG(90);
@@ -131,7 +155,7 @@ void app.whenReady().then(async () => {
       "fixture really has EXIF and GPS",
       markers(tagged).includes(0xe1) && tagged.includes(LAT_BYTES),
     );
-    const clean = photos.encode(tagged);
+    const clean = await encode(tagged);
     check("GPS-tagged JPEG encodes", clean !== undefined);
     if (clean) {
       check("output has no APP1 segment", !markers(clean.jpeg).includes(0xe1));
@@ -149,14 +173,106 @@ void app.whenReady().then(async () => {
     const t0 = Date.now();
     check(
       "65535 x 65535 JPEG header is refused fast",
-      photos.encode(bomb) === undefined && Date.now() - t0 < 200,
+      (await encode(bomb)) === undefined && Date.now() - t0 < 200,
     );
+
+    // 108: pictures that already sit on the Mac. Everything below only READS ~/Pictures/Wallpapers,
+    // /System/Library/Desktop Pictures and the desktop picture; the sources are fingerprinted before and after.
+    {
+      const mac = new RealMacWallpapers(homedir(), async () => undefined);
+      const fingerprint = (path: string) => {
+        const st = statSync(path);
+        return `${st.size}:${st.mtimeMs}:${createHash("sha1").update(readFileSync(path)).digest("hex")}`;
+      };
+      const listing = (dir: string) =>
+        readdirSync(dir)
+          .map((n) => `${n}:${statSync(join(dir, n)).mtimeMs}`)
+          .join("|");
+      const folder = mac.defaultFolder();
+      const apple = "/System/Library/Desktop Pictures";
+      const folderBefore = existsSync(folder) ? listing(folder) : "";
+      const appleBefore = listing(apple);
+
+      const entries = mac.listFolder(folder);
+      check("the wallpaper folder lists", !!entries && entries.length > 0, folder);
+      const jpeg = entries?.find(
+        (e: { kind: string; name: string }) => e.kind === "file" && /\.jpe?g$/i.test(e.name),
+      );
+      check("the folder has a real JPEG", !!jpeg, jpeg?.name ?? "none");
+      const heicEntry = mac
+        .appleWallpapers()
+        .find((e: { kind: string; name: string }) => e.kind === "file" && /\.heic$/i.test(e.name));
+      check("Apple's folder has a real HEIC", !!heicEntry, heicEntry?.name ?? "none");
+      check(
+        "listing reports kinds (a subfolder or symlink is never a file)",
+        (entries ?? []).every((e: { kind: string }) =>
+          ["file", "dir", "symlink", "other"].includes(e.kind),
+        ),
+      );
+
+      const desktop = mac.desktopPicture();
+      check(
+        "the real desktop picture path is read",
+        !!desktop && existsSync(desktop.path) && /\.(jpe?g|png|heic)$/i.test(desktop.name),
+        desktop?.path ?? "none",
+      );
+
+      const inspect = async (label: string, path: string | undefined) => {
+        if (!path) return check(`${label} converts`, false, "no path");
+        const before = fingerprint(path);
+        const t = Date.now();
+        const out = await converter.convert(path);
+        const ms = Date.now() - t;
+        check(`${label} converts`, !!out, `${ms} ms`);
+        if (!out) return;
+        const full = nativeImage.createFromBuffer(out.jpeg);
+        const { width, height } = full.getSize();
+        check(
+          `${label}: TV-size JPEG, at most 3840 x 2160`,
+          out.jpeg[0] === 0xff &&
+            out.jpeg[1] === 0xd8 &&
+            width <= 3840 &&
+            height <= 2160 &&
+            width > 0,
+          `${width}x${height}, ${Math.round(out.jpeg.length / 1024)} KiB`,
+        );
+        const thumb = nativeImage.createFromBuffer(out.thumb).getSize();
+        check(
+          `${label}: thumbnail is a small JPEG`,
+          out.thumb[0] === 0xff && thumb.width <= 320 && thumb.height <= 320 && thumb.width > 0,
+          `${thumb.width}x${thumb.height}`,
+        );
+        check(
+          `${label}: brightness in 0..1 and dim in 0.35..0.65`,
+          out.brightness >= 0 &&
+            out.brightness <= 1 &&
+            dimFor(out.brightness) >= 0.35 &&
+            dimFor(out.brightness) <= 0.65,
+          `${out.brightness.toFixed(3)}`,
+        );
+        check(`${label}: no EXIF in the copy`, !markers(out.jpeg).includes(0xe1));
+        check(`${label}: the source is untouched`, fingerprint(path) === before);
+      };
+      await inspect("a real JPEG from the wallpaper folder", jpeg?.path);
+      await inspect("a real HEIC from Apple's wallpapers", heicEntry?.path);
+      await inspect("the real desktop picture", desktop?.path);
+
+      check(
+        "no temporary files are left in our wallpapers folder",
+        !readdirSync(join(userData, "wallpapers")).some((n) => n.startsWith(".convert-")),
+      );
+      check(
+        "the source folders are unchanged",
+        (existsSync(folder) ? listing(folder) : "") === folderBefore &&
+          listing(apple) === appleBefore,
+      );
+    }
 
     // The Screen's CSP (read from the real index.html) allows the wallpaper URL; without file: it doesn't.
     const html = readFileSync(resolve("src/renderer/index.html"), "utf8");
     const csp = /http-equiv="Content-Security-Policy"\s+content="([^"]+)"/.exec(html)?.[1] ?? "";
     check("index.html has a CSP", csp.length > 0, csp);
-    const url = photos.url("aaaaaaaaaaaa");
+    const url = files.url("aaaaaaaaaaaa");
     let pageNo = 0;
     const loads = async (policy: string) => {
       const page = join(userData, `page-${(pageNo += 1)}.html`);

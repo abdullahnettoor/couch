@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 import type { LibraryEntry, ScreenPayload } from "../../shared/protocol.ts";
-import { WALLPAPERS, wallpaperVars } from "../../shared/wallpapers.ts";
+import { WALLPAPERS, wallpaperVars, type PictureTile } from "../../shared/wallpapers.ts";
 
 type Mod = { render(p: ScreenPayload): void };
 let home: Mod;
@@ -171,23 +171,37 @@ describe("Settings → Home keeps the real Home mounted", () => {
   });
 });
 
-describe("Home with a photo wallpaper", () => {
-  const photos = [
-    { id: "aaaaaaaaaaaa", url: "file:///u/wallpapers/aaaaaaaaaaaa.jpg", dim: 0.4 },
-    { id: "bbbbbbbbbbbb", url: "file:///u/wallpapers/bbbbbbbbbbbb.jpg", dim: 0.6 },
+describe("Home with a picture from the Mac", () => {
+  const pictures: PictureTile[] = [
+    {
+      kind: "mac",
+      label: "Same as Mac",
+      url: "file:///u/wallpapers/aaaaaaaaaaaa.jpg",
+      thumb: "file:///u/wallpapers/aaaaaaaaaaaa.thumb.jpg",
+      dim: 0.4,
+    },
+    {
+      kind: "folder",
+      file: "b.jpg",
+      label: "B",
+      url: "file:///u/wallpapers/bbbbbbbbbbbb.jpg",
+      thumb: "file:///u/wallpapers/bbbbbbbbbbbb.thumb.jpg",
+      dim: 0.6,
+    },
+    { kind: "apple", file: "Mac Blue.heic", label: "Mac Blue" },
   ];
-  const withPhoto = (id: string, extra: Partial<ScreenPayload> = {}) =>
-    payload({
-      home: { wallpaper: { kind: "photo", id }, artwork: true, photos },
-      ...extra,
-    });
+  const withPhoto = (
+    choice: NonNullable<ScreenPayload["home"]>["wallpaper"],
+    extra: Partial<ScreenPayload> = {},
+  ) => payload({ home: { wallpaper: choice, artwork: true, pictures }, ...extra });
+  const bPhoto = { kind: "folder", file: "b.jpg" } as const;
   const rule = (selector: string) =>
     Array.from(document.styleSheets)
       .flatMap((s) => Array.from(s.cssRules))
       .find((r) => (r as CSSStyleRule).selectorText === selector) as CSSStyleRule | undefined;
 
-  test("the photo and its dim are set as variables and the photo layer is on", () => {
-    home.render(withPhoto("bbbbbbbbbbbb"));
+  test("the picture and its dim are set as variables and the photo layer is on", () => {
+    home.render(withPhoto(bPhoto));
     expect(cls(homeEl()).includes("photo")).toBe(true);
     expect(homeEl().style.getPropertyValue("--wp-photo")).toBe(
       'url("file:///u/wallpapers/bbbbbbbbbbbb.jpg")',
@@ -195,27 +209,34 @@ describe("Home with a photo wallpaper", () => {
     expect(homeEl().style.getPropertyValue("--wp-dim")).toBe("0.6");
   });
 
-  test("a built-in after a photo clears the photo", () => {
-    home.render(withPhoto("aaaaaaaaaaaa"));
+  test("Same as Mac draws its picture", () => {
+    home.render(withPhoto({ kind: "mac" }));
+    expect(homeEl().style.getPropertyValue("--wp-dim")).toBe("0.4");
+  });
+
+  test("a built-in after a picture clears it", () => {
+    home.render(withPhoto({ kind: "mac" }));
     home.render(payload());
     expect(cls(homeEl()).includes("photo")).toBe(false);
     expect(homeEl().style.getPropertyValue("--wp-photo")).toBe("");
   });
 
-  test("a photo that is not in the list draws as Couch", () => {
-    home.render(withPhoto("cccccccccccc"));
+  test("a picture that is not ready yet, or not in the list, draws as Couch", () => {
+    home.render(withPhoto({ kind: "apple", file: "Mac Blue.heic" }));
+    expect(cls(homeEl()).includes("photo")).toBe(false);
+    home.render(withPhoto({ kind: "folder", file: "gone.jpg" }));
     expect(cls(homeEl()).includes("photo")).toBe(false);
     expect(homeEl().style.getPropertyValue("--wp-base")).toBe(wallpaperVars("couch")["--wp-base"]);
   });
 
-  test("the preview photo wins over the saved wallpaper", () => {
+  test("the preview picture wins over the saved wallpaper", () => {
     home.render(
       payload({
         home: {
           wallpaper: { kind: "builtin", id: "couch" },
-          preview: { kind: "photo", id: "aaaaaaaaaaaa" },
+          preview: { kind: "mac" },
           artwork: true,
-          photos,
+          pictures,
         },
       }),
     );
@@ -223,7 +244,7 @@ describe("Home with a photo wallpaper", () => {
   });
 
   test("layers: photo, dim and blur sit over the drift and under the scrim, clock and tiles; ambient keeps them", () => {
-    home.render(withPhoto("aaaaaaaaaaaa", { ambient: true }));
+    home.render(withPhoto({ kind: "mac" }, { ambient: true }));
     const order = Array.from(homeEl().children).map((c) => c.className.split(" ")[0]);
     const at = (c: string) => order.indexOf(c);
     expect(at("h-photo")).toBeGreaterThan(at("h-drift"));
@@ -241,7 +262,7 @@ describe("Home with a photo wallpaper", () => {
   });
 
   test("the stylesheet: dim comes from --wp-dim, a blur sits behind the clock and the tiles, and the drift is 1.0 to 1.06 over 120 s", () => {
-    home.render(withPhoto("aaaaaaaaaaaa"));
+    home.render(withPhoto({ kind: "mac" }));
     expect(rule(".h-photo-dim")!.style.getPropertyValue("opacity")).toBe("var(--wp-dim, 0.5)");
     expect(rule(".h-photo-blur")!.style.getPropertyValue("backdrop-filter")).toContain("blur(");
     expect(rule(".h-photo-blur.top")!.style.getPropertyValue("top")).toBe("0px");
@@ -259,38 +280,78 @@ describe("Home with a photo wallpaper", () => {
   });
 });
 
-describe("Settings → Home with photos", () => {
-  const photos = [{ id: "aaaaaaaaaaaa", url: "file:///u/wallpapers/aaaaaaaaaaaa.jpg", dim: 0.4 }];
-  const page = (focusedId: string, saved: "photo" | "couch") =>
+describe("Settings → Home with the Mac's pictures", () => {
+  const pictures: PictureTile[] = [
+    {
+      kind: "mac",
+      label: "Same as Mac",
+      url: "file:///u/wallpapers/aaaaaaaaaaaa.jpg",
+      thumb: "file:///u/wallpapers/aaaaaaaaaaaa.thumb.jpg",
+      dim: 0.4,
+    },
+    { kind: "folder", file: "b.jpg", label: "B" },
+    { kind: "apple", file: "Mac Blue.heic", label: "Mac Blue", thumb: "file:///u/t.jpg", dim: 0.5 },
+  ];
+  const page = (focusedId: string, wallpaper: NonNullable<ScreenPayload["home"]>["wallpaper"]) =>
     payload({
       view: "settingsHome",
       focusedId,
       home: {
-        wallpaper:
-          saved === "photo"
-            ? { kind: "photo", id: "aaaaaaaaaaaa" }
-            : { kind: "builtin", id: "couch" },
+        wallpaper,
         artwork: true,
-        photos,
+        pictures,
+        folder: "~/Pictures/Wallpapers",
+        slideshow: "hour",
       },
     });
 
-  test("photo tiles follow the built-ins, show the photo, and the saved one is In use", () => {
-    settingsHome.render(page("ph:aaaaaaaaaaaa", "photo"));
-    const tiles = Array.from(screen.querySelectorAll(".wp-tile"));
-    expect(tiles).toHaveLength(7);
-    const last = tiles[6] as HTMLElement;
-    expect(last.getAttribute("data-id")).toBe("ph:aaaaaaaaaaaa");
-    expect((last.querySelector(".wp-swatch") as HTMLElement).style.backgroundImage).toContain(
-      "aaaaaaaaaaaa.jpg",
+  test("the tiles follow the built-ins in order, with thumbnails once converted, and the saved one is In use", () => {
+    settingsHome.render(page("pic:folder:b.jpg", { kind: "folder", file: "b.jpg" }));
+    const tiles = Array.from(screen.querySelectorAll(".wp-tile")) as HTMLElement[];
+    expect(tiles.map((t) => t.querySelector(".wp-name")!.textContent)).toEqual([
+      ...WALLPAPERS.map((w) => w.label),
+      "Same as Mac",
+      "B",
+      "Mac Blue",
+    ]);
+    expect(tiles.map((t) => t.getAttribute("data-id")).slice(6)).toEqual([
+      "pic:mac",
+      "pic:folder:b.jpg",
+      "pic:apple:Mac Blue.heic",
+    ]);
+    expect(tiles[6]!.querySelector<HTMLElement>(".wp-swatch")!.style.backgroundImage).toContain(
+      "aaaaaaaaaaaa.thumb.jpg",
     );
-    expect(last.className.split(" ")).toContain("chosen");
-    expect(last.className.split(" ")).toContain("focused");
-    expect(tiles.slice(0, 6).some((t) => t.className.split(" ").includes("chosen"))).toBe(false);
+    expect(tiles[7]!.querySelector<HTMLElement>(".wp-swatch")!.style.backgroundImage).toBe("");
+    const chosen = tiles.filter((t) => t.className.split(" ").includes("chosen"));
+    expect(chosen.map((t) => t.getAttribute("data-id"))).toEqual(["pic:folder:b.jpg"]);
+    expect(tiles[7]!.className.split(" ")).toContain("focused");
   });
 
-  test("a built-in saved while a photo exists marks only that built-in", () => {
-    settingsHome.render(page("ph:aaaaaaaaaaaa", "couch"));
+  test("a file name is shown as text, never as markup", () => {
+    const evil: PictureTile[] = [{ kind: "folder", file: "x.jpg", label: "<img src=x onerror=1>" }];
+    settingsHome.render(
+      payload({
+        view: "settingsHome",
+        focusedId: "wp:couch",
+        home: { wallpaper: { kind: "builtin", id: "couch" }, artwork: true, pictures: evil },
+      }),
+    );
+    expect(screen.querySelector(".wp-tile img")).toBeNull();
+  });
+
+  test("the folder and slideshow rows show their values", () => {
+    settingsHome.render(page("folder", { kind: "builtin", id: "couch" }));
+    const rows = Array.from(screen.querySelectorAll(".wp-panel .g-row")).map((r) => r.textContent);
+    expect(rows).toEqual([
+      "Show artwork behind ResumeOn",
+      "Wallpaper folder~/Pictures/Wallpapers",
+      "SlideshowEvery hour",
+    ]);
+  });
+
+  test("a built-in saved marks only that built-in", () => {
+    settingsHome.render(page("pic:mac", { kind: "builtin", id: "couch" }));
     const chosen = Array.from(screen.querySelectorAll(".wp-tile.chosen")).map(
       (t) => t.querySelector(".wp-name")!.textContent,
     );

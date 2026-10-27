@@ -26,17 +26,24 @@ export function render(payload: ScreenPayload): void {
     setVars(tile, w.id);
     tiles.append(focusable(tile, id));
   }
-  for (const p of home?.photos ?? []) {
-    const id = `ph:${p.id}`;
+  const chosen = home?.wallpaper;
+  for (const p of home?.pictures ?? []) {
+    const id = p.kind === "mac" ? "pic:mac" : `pic:${p.kind}:${p.file}`;
+    const inUse =
+      chosen?.kind === p.kind &&
+      (chosen.kind === "mac" || (chosen as { file?: string }).file === p.file);
     const tile = el(
       "button",
-      `wp-tile${id === payload.focusedId ? " focused" : ""}${home?.wallpaper.kind === "photo" && home.wallpaper.id === p.id ? " chosen" : ""}`,
-      `<span class="wp-swatch"></span><span class="wp-name">Photo</span>`,
+      `wp-tile${id === payload.focusedId ? " focused" : ""}${inUse ? " chosen" : ""}`,
+      `<span class="wp-swatch"></span><span class="wp-name"></span>`,
     );
-    const swatch = tile.querySelector<HTMLElement>(".wp-swatch")!;
-    swatch.style.backgroundImage = `url("${p.url}")`;
-    swatch.style.backgroundSize = "cover";
-    swatch.style.backgroundPosition = "center";
+    tile.querySelector<HTMLElement>(".wp-name")!.textContent = p.label;
+    if (p.thumb) {
+      const swatch = tile.querySelector<HTMLElement>(".wp-swatch")!;
+      swatch.style.backgroundImage = `url("${p.thumb}")`;
+      swatch.style.backgroundSize = "cover";
+      swatch.style.backgroundPosition = "center";
+    }
     tiles.append(focusable(tile, id));
   }
   panel?.remove();
@@ -52,6 +59,24 @@ export function render(payload: ScreenPayload): void {
       value: home?.artwork === false ? "Off" : "On",
       chevron: false,
     }),
+    ...(home?.pictures
+      ? [
+          glassRow({
+            id: "folder",
+            label: "Wallpaper folder",
+            focused: payload.focusedId === "folder",
+            value: home.folder ?? "",
+            chevron: false,
+          }),
+          glassRow({
+            id: "slideshow",
+            label: "Slideshow",
+            focused: payload.focusedId === "slideshow",
+            value: { off: "Off", hour: "Every hour", day: "Every day" }[home.slideshow ?? "off"],
+            chevron: false,
+          }),
+        ]
+      : []),
   );
   root.append(panel);
   const focused = tiles.querySelector<HTMLElement>(".wp-tile.focused");

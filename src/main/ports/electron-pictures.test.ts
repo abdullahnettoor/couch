@@ -1,11 +1,14 @@
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { deflateSync } from "node:zlib";
-import { beforeEach, describe, expect, test, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
 const native = vi.hoisted(() => ({ createFromBuffer: vi.fn() }));
 vi.mock("electron", () => ({ nativeImage: native }));
 
-import { ElectronPhotos } from "./electron-photos.ts";
-import { imageSize, MAX_PIXELS, MAX_SIDE } from "./photos.ts";
+import { ElectronConverter } from "./electron-pictures.ts";
+import { imageSize, MAX_PIXELS, MAX_SIDE } from "./pictures.ts";
 
 const crcTable = Array.from({ length: 256 }, (_, n) => {
   let c = n;
@@ -84,9 +87,19 @@ describe("imageSize reads the header only", () => {
   });
 });
 
-describe("ElectronPhotos refuses decoding bombs before decoding", () => {
-  beforeEach(() => native.createFromBuffer.mockReset());
-  const photos = new ElectronPhotos("/nowhere");
+describe("ElectronConverter refuses decoding bombs and non-pictures before decoding", () => {
+  let dir = "";
+  beforeEach(() => {
+    native.createFromBuffer.mockReset();
+    dir = mkdtempSync(join(tmpdir(), "couch-conv-"));
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+  const converter = () => new ElectronConverter(join(dir, "wallpapers"));
+  const file = (bytes: Buffer | string, name = "a.jpg") => {
+    const path = join(dir, name);
+    writeFileSync(path, bytes);
+    return path;
+  };
 
   test.each([
     ["a JPEG 65535 px wide", jpegDeclaring(65535, 100)],
@@ -98,16 +111,33 @@ describe("ElectronPhotos refuses decoding bombs before decoding", () => {
     ["a PNG over 40 megapixels", pngDeclaring(7000, 7000)],
     ["a JPEG with zero size", jpegDeclaring(0, 0)],
     ["a JPEG with no readable size", Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 2])],
-  ])("%s", (_name, bytes) => {
+    ["a text file", Buffer.from("not a picture at all")],
+    ["a GIF", Buffer.from("GIF89a\x01\x00\x01\x00")],
+  ])("%s", async (_name, bytes) => {
     expect(bytes.length).toBeLessThan(200);
-    expect(photos.encode(bytes)).toBeUndefined();
+    expect(await converter().convert(file(bytes))).toBeUndefined();
     expect(native.createFromBuffer).not.toHaveBeenCalled();
   });
 
-  test("a picture within the limits does reach the decoder", () => {
+  test("a folder and a missing file are refused", async () => {
+    expect(await converter().convert(dir)).toBeUndefined();
+    expect(await converter().convert(join(dir, "nope.jpg"))).toBeUndefined();
+  });
+
+  test("a picture within the limits does reach the decoder", async () => {
     native.createFromBuffer.mockReturnValue({ isEmpty: () => true });
-    expect(photos.encode(jpegDeclaring(MAX_SIDE, 4000))).toBeUndefined();
+    expect(await converter().convert(file(jpegDeclaring(MAX_SIDE, 4000)))).toBeUndefined();
     expect(native.createFromBuffer).toHaveBeenCalledOnce();
     expect(MAX_PIXELS).toBe(40_000_000);
+  });
+
+  test("the source file is only read: its bytes and modification time stay as they were", async () => {
+    native.createFromBuffer.mockReturnValue({ isEmpty: () => true });
+    const path = file(jpegDeclaring(100, 100));
+    const before = statSync(path);
+    await converter().convert(path);
+    const after = statSync(path);
+    expect(after.mtimeMs).toBe(before.mtimeMs);
+    expect(readFileSync(path).equals(jpegDeclaring(100, 100))).toBe(true);
   });
 });
