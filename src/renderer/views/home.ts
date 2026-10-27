@@ -151,8 +151,10 @@ export function render(payload: ScreenPayload): void {
     `<div class="d">${greeting(date)} · ${date.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" })}</div>`;
 
   const row = el("div", "h-row");
-  for (const app of HOME_ITEMS.filter((i) => i.id !== "settings"))
-    row.append(appTile(app.id, app.label, focused(app.id)));
+  const apps = payload.homeApps
+    ? payload.homeApps.filter((a) => a.shown)
+    : HOME_ITEMS.filter((i) => i.id !== "settings");
+  for (const app of apps) row.append(appTile(app.id, app.label, focused(app.id)));
   if (videos.length) {
     row.append(el("div", "h-divider"));
     for (const v of videos) row.append(filmTile(v, focused(v.path)));

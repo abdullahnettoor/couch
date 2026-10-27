@@ -61,14 +61,20 @@ describe("Settings nesting", () => {
     expect(view()).toBe("settings");
   });
 
-  test("Apps lists each web App; YouTube has Restart and Add-ons", async () => {
+  test("Apps lists every App; YouTube has Home choices, Restart and Add-ons", async () => {
     const phone = await openSettings();
     await enter(phone, "Apps");
     expect(view()).toBe("settingsApps");
-    expect(labels()).toEqual(["YouTube", "Netflix"]);
+    expect(labels()).toEqual(["YouTube", "Netflix", "Library"]);
     await phone.press("ok");
     expect(view()).toBe("settingsApp");
-    expect(labels()).toEqual(["Restart YouTube", "Add-ons"]);
+    expect(labels()).toEqual([
+      "Hide from Home",
+      "Move left",
+      "Move right",
+      "Restart YouTube",
+      "Add-ons",
+    ]);
   });
 
   test("Back walks up one level at a time: add-ons → YouTube → Apps → Settings → Home", async () => {

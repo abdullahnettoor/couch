@@ -1,7 +1,6 @@
 import { HOME_ITEMS } from "../../shared/home-grid.ts";
 import {
   ADD_PHONE_ITEMS,
-  APPS_ITEMS,
   LIBRARY_ITEMS,
   REMOTES_ITEMS,
   SETTINGS_ITEMS,
@@ -33,7 +32,7 @@ export const VIEWS: Partial<Record<View, ViewModule & { grid?: GridItem[] }>> = 
   settings: { ...settings, grid: SETTINGS_ITEMS },
   settingsRemotes: { ...settingsGroup, grid: REMOTES_ITEMS },
   settingsLibrary: { ...settingsGroup, grid: LIBRARY_ITEMS },
-  settingsApps: { ...settingsGroup, grid: APPS_ITEMS },
+  settingsApps: { ...settingsGroup },
   settingsApp: { ...settingsGroup },
   addPhone: { ...addPhone, grid: ADD_PHONE_ITEMS },
   app: { ...app, grid: [] },

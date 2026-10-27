@@ -25,14 +25,14 @@ import {
 import type { Clock } from "../ports/clock.ts";
 import type { Mac } from "../ports/mac.ts";
 import { pickTargetDisplay } from "../display.ts";
-import { appEntry } from "../apps/index.ts";
+import { APP_ENTRIES, appEntry } from "../apps/index.ts";
 import type { App, AppEvent, AppTyping, PlaybackReport } from "../apps/app.ts";
 import { randomBytes } from "node:crypto";
 import type { Store } from "../ports/store.ts";
 import type { Thumbnails } from "../ports/thumbnails.ts";
 import { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
 import { confirmMouseCommand } from "../../shared/confirm-layout.ts";
-import { appSettingsItems } from "../../shared/settings-grid.ts";
+import { SETTINGS_APP, appSettingsItems } from "../../shared/settings-grid.ts";
 import { actionFor, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
 import { MediaLibrary } from "./media-library.ts";
@@ -46,6 +46,7 @@ import { PlayerControls } from "./player-controls.ts";
 import { History } from "./history.ts";
 import { ShowView } from "./show-view.ts";
 import { AddonsPage } from "./addons-page.ts";
+import { HomeApps } from "./home-apps.ts";
 import { DetailsPage } from "./details-page.ts";
 import { HomePage } from "./home-page.ts";
 import { SoundOutput } from "./sound-output.ts";
@@ -204,6 +205,7 @@ export class Core {
   #detailsPage: DetailsPage;
   #addonsPage: AddonsPage;
   #homePage: HomePage;
+  #homeApps: HomeApps;
   #sound: SoundOutput;
   #quick: QuickSettings;
   #search: LibrarySearchView;
@@ -312,6 +314,15 @@ export class Core {
       changed: () => this.#emit(),
     });
     this.#homePage = new HomePage({ store: ports.store, changed: () => this.#emit() });
+    this.#homeApps = new HomeApps({
+      store: ports.store,
+      known: () => this.#knownApps(),
+      toast: (text) => this.#toast(text),
+      hidden: (id) => {
+        if (this.#state.view === "app" && this.#state.app === id) this.#setView("home");
+      },
+      changed: () => this.#emit(),
+    });
     this.#addonsPage = new AddonsPage({
       store: ports.store,
       apply: (app, ids, note) => this.#apps.get(app)?.setAddons?.(ids, note),
@@ -590,6 +601,7 @@ export class Core {
   }
 
   #continueEntries(): LibraryEntry[] {
+    if (!this.#homeApps.isShown("library")) return [];
     return this.#history.continueWatching().map((c) => {
       const { title, line } = presentation(c.path);
       const { details, episode } = this.#art(c.path);
@@ -613,7 +625,7 @@ export class Core {
 
   #currentGrid(): GridItem[] {
     if (this.#state.view === "home") {
-      const base = this.#grids.get("home") ?? [];
+      const base = this.#homeBase();
       const videos = base.length ? this.#continueEntries().slice(0, HOME_VIDEOS) : [];
       const gridFor = () =>
         homeGrid(
@@ -635,7 +647,13 @@ export class Core {
     if (this.#state.view === "soundOutput") return this.#sound.grid();
     if (this.#state.view === "settingsHome") return this.#homePage.grid();
     if (this.#state.view === "addons") return this.#addonsPage.grid();
-    if (this.#state.view === "settingsApp") return appSettingsItems(this.#settingsApp ?? "");
+    if (this.#state.view === "settingsApps")
+      return this.#homeApps.grid((id) => `${SETTINGS_APP}${id}`);
+    if (this.#state.view === "settingsApp")
+      return appSettingsItems(
+        this.#settingsApp ?? "",
+        this.#homeApps.pageItems(this.#settingsApp ?? ""),
+      );
     if (this.#state.view === "show") return this.#show.grid();
     if (this.#state.view === "fixMatch") return this.#show.fixGrid();
     if (this.#state.view === "librarySearch") return this.#search.grid();
@@ -848,7 +866,7 @@ export class Core {
 
   /** Back on Home after a video started there: focus returns to its card, so its backdrop shows. */
   #focusHomeCard(path: string): void {
-    const base = this.#grids.get("home") ?? [];
+    const base = this.#homeBase();
     const videos = this.#continueEntries().slice(0, HOME_VIDEOS);
     const film = videos.find((v) => v.path === path);
     const card = homeGrid(base, videos, film).find((i) => i.id === path);
@@ -1157,6 +1175,7 @@ export class Core {
       ...(this.#state.view === "settings" || this.#state.view === "soundOutput"
         ? { sound: this.#sound.payload() }
         : {}),
+      homeApps: this.#homeApps.rows(),
       ...(this.#state.view === "settingsApp" || this.#state.view === "addons"
         ? { addons: this.#addonsPage.payload() }
         : {}),
@@ -1845,6 +1864,7 @@ export class Core {
       this.#sound.action(item.action) ||
       this.#homePage.action(item.action) ||
       this.#addonsPage.action(item.action) ||
+      this.#homeApps.action(item.action) ||
       this.#search.action(item.action, this.#source) ||
       this.#show.action(item.action)
     )
@@ -1924,9 +1944,44 @@ export class Core {
     if (view === "settingsRemotes") void this.refreshLoginItem();
   }
 
+  /** Every App Couch has, in its default order: the App list, then any others that were given. */
+  #knownApps(): Array<{ id: string; label: string }> {
+    const listed = APP_ENTRIES.map((e) => ({ id: e.id, label: e.label }));
+    const extra = [...this.#apps.values()]
+      .filter((a) => !listed.some((l) => l.id === a.id))
+      .map((a) => ({ id: a.id, label: a.label }));
+    return [...listed, ...extra];
+  }
+
+  /** What the renderer reported for Home, cut to the shown Apps in the household's order. */
+  #homeBase(): GridItem[] {
+    const reported = this.#grids.get("home") ?? [];
+    if (reported.length === 0) return reported;
+    const apps = new Map(reported.filter((i) => i.id !== "settings").map((i) => [i.id, i]));
+    const ordered = this.#homeApps.shownIds().flatMap((id) => apps.get(id) ?? []);
+    return [
+      ...reported.filter((i) => i.id === "settings"),
+      ...ordered.map((i, c) => {
+        const { initial: _initial, ...item } = i;
+        return { ...item, c, ...(c === 0 ? { initial: true } : {}) };
+      }),
+    ];
+  }
+
+  /** Opens an App from Home; a hidden App stays closed. */
+  openApp(id: string): void {
+    this.#openApp(id);
+    this.#emit();
+  }
+
+  /** Shows or hides an App on Home (hiding the open App goes Home first). */
+  setAppShown(id: string, shown: boolean): void {
+    this.#homeApps.setShown(id, shown);
+  }
+
   #openApp(id: string): void {
     const app = this.#apps.get(id);
-    if (!app) return;
+    if (!app || !this.#homeApps.isShown(id)) return;
     this.#state.app = id;
     if (this.#appsFailed.has(id)) {
       this.#state.appNote = this.#appsFailed.get(id);
@@ -2092,7 +2147,7 @@ export class Core {
   #settingsApp: string | undefined;
 
   #appSettingsPayload(): Pick<ScreenPayload, "appSettings"> {
-    const app = this.#apps.get(this.#settingsApp ?? "");
+    const app = this.#knownApps().find((a) => a.id === this.#settingsApp);
     return app ? { appSettings: { id: app.id, label: app.label } } : {};
   }
 

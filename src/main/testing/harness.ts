@@ -2,7 +2,6 @@ import { WebSocket } from "ws";
 import { HOME_ITEMS, homeItems } from "../../shared/home-grid.ts";
 import {
   ADD_PHONE_ITEMS,
-  APPS_ITEMS,
   LIBRARY_ITEMS,
   REMOTES_ITEMS,
   SETTINGS_ITEMS,
@@ -100,7 +99,6 @@ const DEFAULT_GRIDS: Record<string, GridItem[]> = {
   settings: SETTINGS_ITEMS,
   settingsRemotes: REMOTES_ITEMS,
   settingsLibrary: LIBRARY_ITEMS,
-  settingsApps: APPS_ITEMS,
   addPhone: ADD_PHONE_ITEMS,
   appError: APP_ERROR_ITEMS,
 };

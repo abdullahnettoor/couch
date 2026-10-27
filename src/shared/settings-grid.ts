@@ -31,22 +31,15 @@ export const LIBRARY_ITEMS: GridItem[] = column([
   { id: "details", label: "Show and film details", action: "settings:details" },
 ]);
 
-/** One row per web App from the App list. */
-export const APPS_ITEMS: GridItem[] = column(
-  APP_ENTRIES.filter((app) => app.web).map((app) => ({
-    id: app.id,
-    label: app.label,
-    action: `${SETTINGS_APP}${app.id}`,
-  })),
-);
-
-/** An App's settings page: Restart, and Add-ons when it has them. */
-export function appSettingsItems(id: string): GridItem[] {
+/** An App's settings page: `leading` rows (Home choices), then Restart and Add-ons for a web App. */
+export function appSettingsItems(id: string, leading: SettingsItem[] = []): GridItem[] {
   const app = APP_ENTRIES.find((e) => e.id === id);
-  if (!app) return [];
   return column([
-    { id: "restart", label: `Restart ${app.label}`, action: `${RESTART_APP}${app.id}` },
-    ...(app.addons ? [{ id: "addons", label: "Add-ons", action: "settings:addons" }] : []),
+    ...leading,
+    ...(app?.web
+      ? [{ id: "restart", label: `Restart ${app.label}`, action: `${RESTART_APP}${app.id}` }]
+      : []),
+    ...(app?.addons ? [{ id: "addons", label: "Add-ons", action: "settings:addons" }] : []),
   ]);
 }
 

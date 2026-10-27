@@ -154,7 +154,7 @@ describe("Netflix App", () => {
     expect(h.netflix.outputName).toBe("L27h-4A");
   });
 
-  test("Settings → Apps → Netflix has Restart Netflix and no Add-ons", async () => {
+  test("Settings → Apps → Netflix has Home choices, Restart Netflix and no Add-ons", async () => {
     await phone.press("up");
     await phone.press("ok");
     for (let i = 0; i < 3; i++) await phone.press("down");
@@ -163,7 +163,13 @@ describe("Netflix App", () => {
     await phone.press("down");
     await phone.press("ok");
     expect(h.screen.last.state.view).toBe("settingsApp");
-    expect(h.screen.last.grid.map((g) => g.label)).toEqual(["Restart Netflix"]);
+    expect(h.screen.last.grid.map((g) => g.label)).toEqual([
+      "Hide from Home",
+      "Move left",
+      "Move right",
+      "Restart Netflix",
+    ]);
+    for (let i = 0; i < 3; i++) await phone.press("down");
     await phone.press("ok");
     expect(calls("restart")).toHaveLength(1);
     expect(h.screen.last.state.toast).toBe("Restarting Netflix");

@@ -66,7 +66,6 @@ export class ElectronWebApp implements YouTube {
   #started = false;
   /** The App's home has been asked for (after the DRM gate); a blank page before that is just not loaded yet. */
   #loadIssued = false;
-  #unloaded = false;
   #identityApplied = false;
   #lifecycle: IdleLifecycle | undefined;
   #sending = false;
@@ -347,7 +346,6 @@ export class ElectronWebApp implements YouTube {
     if (this.#visible || !this.#started) return;
     this.#started = false;
     this.#loadIssued = false;
-    this.#unloaded = true;
     this.#failed = false;
     this.#ready = false;
     this.#fieldFocused = false;
@@ -381,7 +379,7 @@ export class ElectronWebApp implements YouTube {
   }
 
   show(note?: string): void {
-    if ((this.#desc.loadOnShow || this.#unloaded) && !this.#started) this.start();
+    if (!this.#started) this.start();
     else if (this.#loadIssued) void this.#guard.onShow();
     this.#lifecycle?.shown();
     this.#visible = true;

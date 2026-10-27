@@ -165,6 +165,7 @@ describe("YouTube App", () => {
     expect(h.screen.last.focusedLabel).toBe("Apps");
     await phone.press("ok");
     await phone.press("ok");
+    for (let i = 0; i < 3; i++) await phone.press("down");
     expect(h.screen.last.focusedLabel).toBe("Restart YouTube");
     await phone.press("ok");
     expect(calls("restart")).toHaveLength(1);

@@ -18,7 +18,12 @@ export function render(payload: ScreenPayload): void {
         id: item.id,
         label: item.label,
         focused: item.id === payload.focusedId,
-        value: rowValue(item.id, payload),
+        value:
+          view === "settingsApps"
+            ? payload.homeApps?.find((a) => a.id === item.id)?.shown === false
+              ? "Hidden"
+              : "On Home"
+            : rowValue(item.id, payload),
         logo: view === "settingsApps" ? appEntry(item.id)?.icon : undefined,
       }),
     ),

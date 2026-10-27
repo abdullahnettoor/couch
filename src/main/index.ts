@@ -282,7 +282,9 @@ async function createScreen(): Promise<void> {
     );
     publishScreen();
   });
-  youtube.start();
+  // A hidden App isn't loaded at start; showing it again loads it on first open.
+  if (!(store.read<{ hidden?: string[] }>("home.apps", {}).hidden ?? []).includes("youtube"))
+    youtube.start();
   publishScreen();
 }
 
