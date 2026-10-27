@@ -26,7 +26,7 @@ async function enter(phone: FakePhone, label: string) {
 }
 
 describe("Settings nesting", () => {
-  test("Settings lists five rows", async () => {
+  test("Settings lists six rows", async () => {
     await openSettings();
     expect(view()).toBe("settings");
     expect(labels()).toEqual([
@@ -34,6 +34,7 @@ describe("Settings nesting", () => {
       "Library",
       "Sound output",
       "Apps",
+      "Home",
       "Quit Couch",
     ]);
   });

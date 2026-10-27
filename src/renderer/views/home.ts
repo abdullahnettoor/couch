@@ -4,6 +4,7 @@ import { APP_ENTRIES } from "../../main/apps/index.ts";
 import type { LibraryEntry, ScreenPayload } from "../../shared/protocol.ts";
 import { el, focusable, genreLabels, qrSvg, root } from "./dom.ts";
 import { glassPill, topbar } from "./glass.ts";
+import { wallpaperVars } from "../../shared/wallpapers.ts";
 
 function escapeHtml(text: string): string {
   return text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -85,6 +86,7 @@ function syncBackdrop(videos: LibraryEntry[], hero: LibraryEntry | undefined): v
 
 /** Layers that outlive a render so state changes can cross-fade. */
 let ambientBg: HTMLElement | undefined;
+let scrim: HTMLElement | undefined;
 let clockEl: HTMLElement | undefined;
 let heroEl: HTMLElement | undefined;
 let chrome: HTMLElement | undefined;
@@ -118,19 +120,23 @@ export function render(payload: ScreenPayload): void {
     view = el("div", "screen-glass home");
     bg = el("div", "h-bg");
     ambientBg = el("div", "h-drift");
+    scrim = el("div", "h-scrim");
     clockEl = el("div", "h-clock");
     heroEl = el("div", "h-hero");
     chrome = el("div", "h-chrome");
     bgKey = "";
     root.replaceChildren(view);
-    view.append(ambientBg, bg, clockEl, heroEl, chrome);
+    view.append(ambientBg, scrim, bg, clockEl, heroEl, chrome);
   }
   syncBackdrop(videos, hero);
   const focused = (id: string) => payload.focusedId === id;
   view.classList.toggle("empty", videos.length === 0);
   view.classList.toggle("film", !!hero);
   view.classList.toggle("ambient", !!payload.ambient);
-  bg!.classList.toggle("on", !!hero);
+  view.classList.toggle("no-art", payload.home?.artwork === false);
+  for (const [name, value] of Object.entries(wallpaperVars(payload.home?.wallpaper.id ?? "")))
+    view.style.setProperty(name, value);
+  bg!.classList.toggle("on", !!hero && payload.home?.artwork !== false);
   heroEl!.classList.toggle("on", !!hero);
   clockEl!.classList.toggle("on", !hero);
   // The last hero stays drawn while it fades out.

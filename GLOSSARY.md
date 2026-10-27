@@ -16,6 +16,9 @@ _Avoid_: controller, phone app, mobile app
 The first page the Screen shows: a simple launcher with a clock and the Apps.
 _Avoid_: launcher, dashboard, main menu
 
+**Wallpaper**:
+The calm background Home draws behind the clock and tiles; the household picks one in Settings → Home (six built-in ones, Couch by default).
+
 **App**:
 A full-screen experience launched from Home, such as YouTube or the Library. It should feel like an app on a smart TV.
 _Avoid_: tile, channel, section

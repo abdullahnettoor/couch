@@ -19,6 +19,7 @@ import * as librarySearch from "./library-search.ts";
 import * as libraryFolders from "./library-folders.ts";
 import * as player from "./player.ts";
 import * as addons from "./addons.ts";
+import * as settingsHome from "./settings-home.ts";
 import * as soundOutput from "./sound-output.ts";
 import * as settings from "./settings.ts";
 import * as settingsGroup from "./settings-group.ts";
@@ -45,6 +46,7 @@ export const VIEWS: Partial<Record<View, ViewModule & { grid?: GridItem[] }>> = 
   player: { ...player },
   details: { ...details },
   soundOutput: { ...soundOutput },
+  settingsHome: { ...settingsHome },
   addons: { ...addons },
   show: { ...show },
   fixMatch: { ...fixMatch },

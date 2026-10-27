@@ -1,20 +1,42 @@
 /* Home: Cinema layout (hero frame, Resume / From start, Apps and in-progress videos) and the empty clock layout. */
 .home {
-  background: radial-gradient(70% 90% at 22% 18%, #2a2a2f 0%, #0b0b0d 60%, #000 100%);
+  background: var(
+    --wp-base,
+    radial-gradient(70% 90% at 22% 18%, #2a2a2f 0%, #0b0b0d 60%, #000 100%)
+  );
   overflow: hidden;
 }
 .h-drift {
   position: absolute;
   inset: -20%;
-  background:
+  background: var(
+    --wp-glow,
     radial-gradient(40% 50% at 30% 30%, rgba(120, 130, 170, 0.16), transparent 70%),
-    radial-gradient(35% 45% at 70% 70%, rgba(150, 110, 150, 0.1), transparent 70%);
-  animation: h-drift 90s ease-in-out infinite alternate;
+    radial-gradient(35% 45% at 70% 70%, rgba(150, 110, 150, 0.1), transparent 70%)
+  );
+  animation: h-drift var(--wp-drift, 90s) ease-in-out infinite alternate;
+}
+/* Always on, over any wallpaper: keeps the edges dark and the clock and tile row readable. */
+.h-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(0deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.2) 35%, rgba(0, 0, 0, 0) 55%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0) 22%),
+    radial-gradient(110% 100% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.45) 100%);
 }
 @keyframes h-drift {
   to {
     transform: translate(6%, 4%) scale(1.08);
   }
+}
+/* Artwork off: the hero's text sits straight on the wallpaper, so the scrim also darkens its side. */
+.home.no-art.film .h-scrim {
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.3) 40%, rgba(0, 0, 0, 0) 65%),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.3) 40%, rgba(0, 0, 0, 0) 60%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0) 22%);
 }
 .h-bg,
 .h-frame {

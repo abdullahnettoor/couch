@@ -1148,3 +1148,50 @@ body:has(.ls-page) .toast:not(.notice) {
 .g-row .typing-input {
   text-align: right;
 }
+
+/* Settings → Home: the page shows the wallpaper in focus; its tiles are small copies of it. */
+.screen-glass.wp-page {
+  background: var(--wp-base);
+}
+.wp-head {
+  margin: 0 0 calc(16 * var(--u));
+  font-size: calc(30 * var(--u));
+  font-weight: 600;
+  color: var(--t2);
+}
+.wp-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: calc(16 * var(--u));
+  margin-bottom: calc(24 * var(--u));
+}
+.wp-tile {
+  display: flex;
+  flex-direction: column;
+  gap: calc(10 * var(--u));
+  align-items: stretch;
+  color: var(--t2);
+  font-size: calc(26 * var(--u));
+  font-weight: 600;
+  transition:
+    transform 0.3s var(--ease),
+    color 0.25s;
+}
+.wp-swatch {
+  height: calc(110 * var(--u));
+  border-radius: var(--r-row);
+  background: var(--wp-base);
+  box-shadow: inset 0 0 0 calc(2 * var(--u)) rgba(255, 255, 255, 0.12);
+}
+.wp-tile.chosen .wp-name::after {
+  content: " ·  In use";
+  font-weight: 500;
+  opacity: 0.6;
+}
+.wp-tile.focused {
+  color: #fff;
+  transform: scale(1.04);
+}
+.wp-tile.focused .wp-swatch {
+  box-shadow: 0 0 0 calc(5 * var(--u)) #fff;
+}

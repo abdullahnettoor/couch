@@ -10,12 +10,13 @@ function column(items: SettingsItem[]): GridItem[] {
 
 export const SETTINGS_APP = "settings:app:";
 
-/** Settings: five rows, each a group page except Quit. */
+/** Settings: six rows, each a group page except Quit. */
 export const SETTINGS_ITEMS: GridItem[] = column([
   { id: "remotes", label: "Remotes and Devices", action: "settings:remotes" },
   { id: "library", label: "Library", action: "settings:library" },
   { id: "sound", label: "Sound output", action: "settings:sound" },
   { id: "apps", label: "Apps", action: "settings:apps" },
+  { id: "home", label: "Home", action: "settings:home" },
   { id: "quit", label: "Quit Couch", action: "settings:quit" },
 ]);
 

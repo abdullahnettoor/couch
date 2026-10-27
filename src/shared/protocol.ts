@@ -1,6 +1,7 @@
 import type { TimeFormat } from "./clock-format.ts";
 /** Remote protocol and the state shapes shared by the core, the Remote page and the Screen renderer. */
 import type { PlayerOverlay } from "./player.ts";
+import type { WallpaperChoice } from "./wallpapers.ts";
 
 export type RemoteId = string;
 
@@ -20,6 +21,7 @@ export type View =
   | "libraryFolders"
   | "details"
   | "soundOutput"
+  | "settingsHome"
   | "addons"
   | "credits"
   | "show"
@@ -342,6 +344,12 @@ export interface QuickPayload {
 }
 
 /** Core → Screen renderer. */
+export interface HomePayload {
+  wallpaper: WallpaperChoice;
+  /** The Resume artwork fades over the wallpaper. */
+  artwork: boolean;
+}
+
 export interface ScreenPayload {
   /** The Quick settings drawer, present while it is open. */
   quick?: QuickPayload;
@@ -358,6 +366,8 @@ export interface ScreenPayload {
   details?: { keyLabel: string; hasOwnKey: boolean; enabled: boolean; hint?: string };
   /** On an App's settings page: which App. */
   appSettings?: { id: string; label: string };
+  /** What Home draws behind everything; on the Home settings page, the tile in focus. */
+  home?: HomePayload;
   /** Settings and the Sound output page. */
   sound?: SoundPayload;
   /** Settings and the YouTube add-ons page: each add-on and whether it is on. */
@@ -499,6 +509,7 @@ export const VIEW_LABELS: Record<View, string> = {
   libraryFolders: "Library folders",
   details: "Show and film details",
   soundOutput: "Sound output",
+  settingsHome: "Home",
   addons: "YouTube add-ons",
   credits: "Credits",
   show: "Show",

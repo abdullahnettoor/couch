@@ -43,6 +43,7 @@ function appAction(action: string): ActionHandler | undefined {
 const settingsActions: Record<string, ActionHandler> = {
   "settings:remotes": (ctx) => ctx.open("settingsRemotes"),
   "settings:library": (ctx) => ctx.open("settingsLibrary"),
+  "settings:home": (ctx) => ctx.open("settingsHome"),
   "settings:apps": (ctx) => ctx.open("settingsApps"),
   "settings:add-phone": (ctx) => ctx.open("addPhone"),
   "settings:forget-phones": (ctx) => ctx.forgetAllPhones(),
@@ -76,6 +77,7 @@ export const BACK_TARGETS: Partial<Record<View, View>> = {
   libraryFolders: "settingsLibrary",
   details: "settingsLibrary",
   soundOutput: "settings",
+  settingsHome: "settings",
   addons: "settingsApp",
   credits: "details",
   library: "home",

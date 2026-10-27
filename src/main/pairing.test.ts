@@ -104,6 +104,7 @@ describe("Settings", () => {
       "Library",
       "Sound output",
       "Apps",
+      "Home",
       "Quit Couch",
     ]);
   });
@@ -128,7 +129,7 @@ describe("Settings", () => {
 
   test("Quit Couch asks, then quits", async () => {
     const phone = await openSettings();
-    for (let i = 0; i < 4; i++) await phone.press("down");
+    for (let i = 0; i < 5; i++) await phone.press("down");
     await phone.press("ok");
     await phone.press("right");
     await phone.press("ok");

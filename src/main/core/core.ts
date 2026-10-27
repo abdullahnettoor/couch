@@ -47,6 +47,7 @@ import { History } from "./history.ts";
 import { ShowView } from "./show-view.ts";
 import { AddonsPage } from "./addons-page.ts";
 import { DetailsPage } from "./details-page.ts";
+import { HomePage } from "./home-page.ts";
 import { SoundOutput } from "./sound-output.ts";
 import { QuickSettings } from "./quick-settings.ts";
 import { LibrarySearchView } from "./library-search-view.ts";
@@ -202,6 +203,7 @@ export class Core {
   #show: ShowView;
   #detailsPage: DetailsPage;
   #addonsPage: AddonsPage;
+  #homePage: HomePage;
   #sound: SoundOutput;
   #quick: QuickSettings;
   #search: LibrarySearchView;
@@ -309,6 +311,7 @@ export class Core {
       },
       changed: () => this.#emit(),
     });
+    this.#homePage = new HomePage({ store: ports.store, changed: () => this.#emit() });
     this.#addonsPage = new AddonsPage({
       store: ports.store,
       apply: (app, ids, note) => this.#apps.get(app)?.setAddons?.(ids, note),
@@ -630,6 +633,7 @@ export class Core {
     if (this.#state.view === "player") return this.#controls.grid();
     if (this.#state.view === "details") return this.#detailsPage.grid();
     if (this.#state.view === "soundOutput") return this.#sound.grid();
+    if (this.#state.view === "settingsHome") return this.#homePage.grid();
     if (this.#state.view === "addons") return this.#addonsPage.grid();
     if (this.#state.view === "settingsApp") return appSettingsItems(this.#settingsApp ?? "");
     if (this.#state.view === "show") return this.#show.grid();
@@ -1160,6 +1164,7 @@ export class Core {
       ...(this.#state.view === "settingsApp" || this.#state.view === "addons"
         ? this.#appSettingsPayload()
         : {}),
+      home: this.#homePage.payload(this.#state.view === "settingsHome" ? focused?.id : undefined),
       continueCard: this.#continueEntries()[0],
       homeVideos,
       hero:
@@ -1838,6 +1843,7 @@ export class Core {
       this.#libraryAction(item.action) ||
       this.#detailsPage.action(item.action, this.#source) ||
       this.#sound.action(item.action) ||
+      this.#homePage.action(item.action) ||
       this.#addonsPage.action(item.action) ||
       this.#search.action(item.action, this.#source) ||
       this.#show.action(item.action)
