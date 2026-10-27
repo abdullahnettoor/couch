@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
 const sessions = vi.hoisted(() => ({
   before: [] as Array<(d: any, cb: (r: any) => void) => void>,
+  byPartition: new Map<string, any>(),
 }));
 
 vi.mock("electron", () => {
@@ -18,7 +19,7 @@ vi.mock("electron", () => {
     setVisible() {}
     setBounds() {}
   }
-  const makeSession = () => ({
+  const makeSession = (): any => ({
     setUserAgent() {},
     setPermissionRequestHandler() {},
     setPermissionCheckHandler() {},
@@ -35,11 +36,17 @@ vi.mock("electron", () => {
     WebContentsView,
     clipboard: { readText: () => "" },
     components: { whenReady: async () => {} },
-    session: { fromPartition: () => makeSession() },
+    session: {
+      fromPartition: (name: string) => {
+        if (!sessions.byPartition.has(name)) sessions.byPartition.set(name, makeSession());
+        return sessions.byPartition.get(name);
+      },
+    },
   };
 });
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { session } from "electron";
 import { join } from "node:path";
 import { netflixDescription } from "./apps/netflix/netflix-web.ts";
 import { youtubeDescription } from "./apps/youtube/youtube-web.ts";
@@ -64,6 +71,7 @@ const ask = (listener: (d: any, cb: (r: any) => void) => void, url: string) =>
 describe("web App sessions can't reach the wallpaper photo", () => {
   test("every App's session cancels file: requests, and lets https ones through", async () => {
     sessions.before.length = 0;
+    sessions.byPartition.clear();
     new ElectronWebApp(netflixDescription("130.0.0.0"), win);
     new ElectronWebApp(youtubeDescription("130.0.0.0"), win);
     expect(sessions.before).toHaveLength(2);
@@ -74,6 +82,45 @@ describe("web App sessions can't reach the wallpaper photo", () => {
       });
       expect(await ask(listener, "https://www.netflix.com/browse")).toEqual({});
     }
+  });
+});
+
+describe("the mocked session", () => {
+  test("is one object per partition, like Electron's", () => {
+    expect(session.fromPartition("persist:youtube")).toBe(session.fromPartition("persist:youtube"));
+    expect(session.fromPartition("persist:youtube")).not.toBe(session.fromPartition("persist:x"));
+  });
+
+  test("an App holds the same session object it was built on", async () => {
+    sessions.before.length = 0;
+    sessions.byPartition.clear();
+    new ElectronWebApp(youtubeDescription("130.0.0.0"), win);
+    expect(sessions.before).toHaveLength(1);
+    const held = session.fromPartition("persist:youtube") as any;
+    expect(sessions.byPartition.size).toBe(1);
+    expect(held.webRequest.onBeforeRequest).toBeDefined();
+    expect(await ask(sessions.before[0]!, WALLPAPER_URL)).toEqual({ cancel: true });
+  });
+});
+
+describe("the Screen's CSP", () => {
+  const html = readFileSync(join(import.meta.dirname, "../renderer/index.html"), "utf8");
+  const csp = /http-equiv="Content-Security-Policy"\s+content="([^"]+)"/.exec(html)![1]!;
+  const sources = (directive: string) =>
+    csp
+      .split(";")
+      .map((d) => d.trim().split(/\s+/))
+      .find(([name]) => name === directive)
+      ?.slice(1) ?? [];
+
+  test("lets the Screen load the wallpaper's file: URL as an image", () => {
+    expect(sources("img-src")).toContain("file:");
+    expect(WALLPAPER_URL.startsWith("file:")).toBe(true);
+  });
+
+  test("and scripts only from the page itself", () => {
+    expect(sources("default-src")).toEqual(["'self'"]);
+    expect(sources("script-src")).toEqual([]);
   });
 });
 

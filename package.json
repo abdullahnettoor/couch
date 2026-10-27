@@ -14,6 +14,7 @@
     "drm-check": "node scripts/drm-check/run.mjs",
     "sample": "sh scripts/make-sample.sh",
     "icons": "sh scripts/make-icons.sh",
+    "photos:real": "node scripts/run-real-photos.mjs",
     "listener": "sh listener/build.sh",
     "listener:test": "vp run listener && node --test listener/test/run.mjs",
     "check": "vp check",
