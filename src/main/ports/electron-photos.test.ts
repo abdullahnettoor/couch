@@ -41,10 +41,29 @@ export const pngDeclaring = (width: number, height: number) => {
 };
 
 export const jpegDeclaring = (width: number, height: number, sof = 0xc0) => {
-  const app0 = Buffer.from([0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0]);
+  const app0 = Buffer.from([
+    0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0,
+  ]);
   const frame = Buffer.from([
-    0xff, sof, 0, 17, 8, height >> 8, height & 255, width >> 8, width & 255, 3,
-    1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1,
+    0xff,
+    sof,
+    0,
+    17,
+    8,
+    height >> 8,
+    height & 255,
+    width >> 8,
+    width & 255,
+    3,
+    1,
+    0x22,
+    0,
+    2,
+    0x11,
+    1,
+    3,
+    0x11,
+    1,
   ]);
   return Buffer.concat([Buffer.from([0xff, 0xd8]), app0, frame, Buffer.from([0xff, 0xd9])]);
 };

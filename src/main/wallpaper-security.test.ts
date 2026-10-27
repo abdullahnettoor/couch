@@ -51,10 +51,9 @@ import { join } from "node:path";
 import { netflixDescription } from "./apps/netflix/netflix-web.ts";
 import { youtubeDescription } from "./apps/youtube/youtube-web.ts";
 import { FileStore } from "./ports/store.ts";
-import { parseCommand } from "./remote/server.ts";
+import { MAX_MESSAGE, parseCommand } from "./remote/server.ts";
 import { ElectronWebApp } from "./web/electron-web-app.ts";
 import { startHarness, type Harness } from "./testing/harness.ts";
-import { MAX_PHOTO_DATA } from "../shared/wallpapers.ts";
 
 const win: any = {
   contentView: { addChildView() {}, removeChildView() {} },
@@ -174,10 +173,8 @@ describe("the addPhoto command on the wire", () => {
     expect(parseCommand(raw("typeText", { data: "AAEC" }))?.args?.data).toBeUndefined();
   });
 
-  test("data longer than 3 MB of base64 is dropped, and non-strings too", () => {
-    expect(
-      parseCommand(raw("addPhoto", { data: "A".repeat(MAX_PHOTO_DATA + 1) }))?.args?.data,
-    ).toBeUndefined();
-    expect(parseCommand(raw("addPhoto", { data: 42 }))?.args?.data).toBeUndefined();
+  test("data past the transport ceiling is refused, and non-strings too", () => {
+    expect(parseCommand(raw("addPhoto", { data: "A".repeat(MAX_MESSAGE + 1) }))).toBeUndefined();
+    expect(parseCommand(raw("addPhoto", { data: 42 }))).toBeUndefined();
   });
 });

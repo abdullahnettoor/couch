@@ -1,5 +1,13 @@
 import { nativeImage } from "electron";
-import { imageSize, MAX_PIXELS, MAX_SIDE, meanBrightness, PhotoFiles, type EncodedPhoto, type Photos } from "./photos.ts";
+import {
+  imageSize,
+  MAX_PIXELS,
+  MAX_SIDE,
+  meanBrightness,
+  PhotoFiles,
+  type EncodedPhoto,
+  type Photos,
+} from "./photos.ts";
 
 const SAMPLE = 32;
 

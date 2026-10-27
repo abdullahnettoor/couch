@@ -48,7 +48,8 @@ const ARGS: Partial<Record<CommandName, Record<string, Field>>> = {
   toggleAddon: { addon: text() },
   pressPrompt: { id: { kind: "enum", values: ["skipIntro", "skipRecap", "nextEpisode"] } },
   setPictureOff: { on: { kind: "boolean" } },
-  addPhoto: { data: text(MAX_PHOTO_DATA) },
+  // Up to the transport ceiling: the core answers anything over the photo allowance with a "too big" toast.
+  addPhoto: { data: text(MAX_MESSAGE) },
 };
 
 function valid(field: Field, value: unknown): boolean {

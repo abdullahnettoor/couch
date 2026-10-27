@@ -467,13 +467,13 @@ async function proxiedPhone(env) {
 // 4 MiB of base64 (Couch's MAX_PHOTO_DATA) plus its envelope.
 const PROXIED_LIMIT = 4 * 1024 * 1024 + 4096;
 
-test("the proxy limit matches Couch's photo allowance", () => {
+void test("the proxy limit matches Couch's photo allowance", () => {
   const src = readFileSync(join(root, "src/shared/wallpapers.ts"), "utf8");
   assert.ok(src.includes("MAX_PHOTO_BYTES = 3 * 1024 * 1024"));
   assert.equal(Math.ceil((3 * 1024 * 1024) / 3) * 4 + 4096, PROXIED_LIMIT);
 });
 
-test("a photo-sized message in one frame goes through the proxy", async () => {
+void test("a photo-sized message in one frame goes through the proxy", async () => {
   const env = await setup();
   const c = await proxiedPhone(env);
   c.socket.write(wideFrame(1, Buffer.from(photoMessage(PROXIED_LIMIT - 10))));
@@ -481,7 +481,7 @@ test("a photo-sized message in one frame goes through the proxy", async () => {
   assert.equal(c.closed(), false);
 });
 
-test("a fragmented photo-sized message goes through the proxy", async () => {
+void test("a fragmented photo-sized message goes through the proxy", async () => {
   const env = await setup();
   const c = await proxiedPhone(env);
   const msg = Buffer.from(photoMessage(PROXIED_LIMIT - 10));
@@ -493,7 +493,7 @@ test("a fragmented photo-sized message goes through the proxy", async () => {
   assert.equal(c.closed(), false);
 });
 
-test("an over-limit upload through the proxy is dropped cleanly, the app and others keep working", async () => {
+void test("an over-limit upload through the proxy is dropped cleanly, the app and others keep working", async () => {
   const env = await setup();
   const c = await proxiedPhone(env);
   const other = await phone(env);
@@ -506,7 +506,7 @@ test("an over-limit upload through the proxy is dropped cleanly, the app and oth
   assert.equal(await alive(env), true);
 });
 
-test("a fragmented upload that adds up past the limit is dropped", async () => {
+void test("a fragmented upload that adds up past the limit is dropped", async () => {
   const env = await setup();
   const c = await proxiedPhone(env);
   const half = Buffer.alloc(PROXIED_LIMIT / 2 + 100, 0x41);
@@ -516,7 +516,7 @@ test("a fragmented upload that adds up past the limit is dropped", async () => {
   assert.equal(env.appLog().includes("big"), false);
 });
 
-test("the listener's own endpoint keeps the small limit", async () => {
+void test("the listener's own endpoint keeps the small limit", async () => {
   const env = await setup();
   const c = await rawPhone(env);
   c.socket.write(wideFrame(1, Buffer.alloc((1 << 20) + 1, 0x41)));

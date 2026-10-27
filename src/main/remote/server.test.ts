@@ -32,10 +32,12 @@ describe("parseCommand limits", () => {
     ).toBeUndefined();
   });
 
-  test("a photo's data gets the photo allowance, and no other command does", () => {
+  test("a photo's data gets the photo allowance (the core toasts over it), and no other command does", () => {
     const max = "A".repeat(MAX_PHOTO_DATA);
     expect(parseCommand(raw("addPhoto", { data: max }))?.args?.data).toBe(max);
-    expect(parseCommand(raw("addPhoto", { data: max + "A" }))).toBeUndefined();
+    const over = "A".repeat(MAX_PHOTO_DATA + 12);
+    expect(parseCommand(raw("addPhoto", { data: over }))?.args?.data).toBe(over);
+    expect(parseCommand(raw("addPhoto", { data: "A".repeat(MAX_MESSAGE + 1) }))).toBeUndefined();
     expect(parseCommand(raw("typeText", { data: "AAEC" }))).toBeUndefined();
     expect(parseCommand(raw("typeText", { text: "a".repeat(5000) }))).toBeUndefined();
   });
@@ -45,12 +47,16 @@ describe("parseCommand limits", () => {
     expect(parseCommand(raw("ok", { text: "x" }))).toBeUndefined();
     expect(parseCommand(raw("seekBy", { seconds: "5" }))).toBeUndefined();
     expect(parseCommand(raw("addPhoto", { data: 42 }))).toBeUndefined();
-    expect(parseCommand(raw("addPhoto", { __proto__: { x: 1 }, data: "AA", y: 2 }))).toBeUndefined();
+    expect(
+      parseCommand(raw("addPhoto", { __proto__: { x: 1 }, data: "AA", y: 2 })),
+    ).toBeUndefined();
   });
 
   test("the transport ceiling fits a photo, and is no lower than the old 1 MiB cap", () => {
     expect(MAX_MESSAGE).toBeGreaterThanOrEqual(1 << 20);
-    expect(MAX_MESSAGE).toBeGreaterThan(raw("addPhoto", { data: "A".repeat(MAX_PHOTO_DATA) }).length);
+    expect(MAX_MESSAGE).toBeGreaterThan(
+      raw("addPhoto", { data: "A".repeat(MAX_PHOTO_DATA) }).length,
+    );
   });
 });
 

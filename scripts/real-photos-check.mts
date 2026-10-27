@@ -28,7 +28,7 @@ const flat = (rgb: number, size = 256) => {
 /** Segment markers of a JPEG up to its scan. */
 function markers(jpeg: Buffer): number[] {
   const out: number[] = [];
-  for (let at = 2; at + 4 <= jpeg.length; ) {
+  for (let at = 2; at + 4 <= jpeg.length;) {
     const marker = jpeg[at + 1]!;
     out.push(marker);
     if (marker === 0xda) break;
@@ -55,9 +55,17 @@ function exifWithGps(): Buffer {
   const lon = [0, 1, 7, 1, 4080, 100].flatMap((v) => be32(v));
   void rational;
   const tiff = [
-    0x4d, 0x4d, 0, 42, ...be32(8),
-    0, 1, ...entry(0x8825, 4, 1, be32(26)), ...be32(0),
-    0, 4,
+    0x4d,
+    0x4d,
+    0,
+    42,
+    ...be32(8),
+    0,
+    1,
+    ...entry(0x8825, 4, 1, be32(26)),
+    ...be32(0),
+    0,
+    4,
     ...entry(1, 2, 2, [0x4e, 0]),
     ...entry(2, 5, 3, be32(dataAt)),
     ...entry(3, 2, 2, [0x57, 0]),
@@ -88,37 +96,61 @@ void app.whenReady().then(async () => {
     };
     for (const [name, e] of Object.entries(encoded)) check(`${name} encodes`, e !== undefined);
     const b = (k: keyof typeof encoded) => encoded[k]?.brightness ?? NaN;
-    check("JPEG: dark < bright", b("darkJpeg") < b("brightJpeg"), `${b("darkJpeg")} < ${b("brightJpeg")}`);
-    check("PNG: dark < bright", b("darkPng") < b("brightPng"), `${b("darkPng")} < ${b("brightPng")}`);
+    check(
+      "JPEG: dark < bright",
+      b("darkJpeg") < b("brightJpeg"),
+      `${b("darkJpeg")} < ${b("brightJpeg")}`,
+    );
+    check(
+      "PNG: dark < bright",
+      b("darkPng") < b("brightPng"),
+      `${b("darkPng")} < ${b("brightPng")}`,
+    );
     check("a bright photo is dimmed more", dimFor(b("brightJpeg")) > dimFor(b("darkJpeg")));
-    check("dim stays within 0.35..0.65", dimFor(b("darkPng")) >= 0.35 && dimFor(b("brightPng")) <= 0.65);
+    check(
+      "dim stays within 0.35..0.65",
+      dimFor(b("darkPng")) >= 0.35 && dimFor(b("brightPng")) <= 0.65,
+    );
 
     // Save and read back: the saved file is a JPEG that decodes, with the same brightness ordering.
     photos.save("aaaaaaaaaaaa", encoded.darkJpeg.jpeg);
     photos.save("bbbbbbbbbbbb", encoded.brightPng.jpeg);
     const savedDark = readFileSync(join(userData, "wallpapers", "aaaaaaaaaaaa.jpg"));
     const savedBright = readFileSync(join(userData, "wallpapers", "bbbbbbbbbbbb.jpg"));
-    check("saved files are JPEGs", savedDark[0] === 0xff && savedDark[1] === 0xd8 && savedBright[1] === 0xd8);
+    check(
+      "saved files are JPEGs",
+      savedDark[0] === 0xff && savedDark[1] === 0xd8 && savedBright[1] === 0xd8,
+    );
     const reread = (buf: Buffer) => photos.encode(buf)?.brightness ?? NaN;
     check("saved brightness ordering holds", reread(savedDark) < reread(savedBright));
 
     // GPS: a JPEG carrying EXIF with a GPS IFD comes out with no APP1 and no trace of it.
     const base = flat(120).toJPEG(90);
     const tagged = Buffer.concat([base.subarray(0, 2), exifWithGps(), base.subarray(2)]);
-    check("fixture really has EXIF and GPS", markers(tagged).includes(0xe1) && tagged.includes(LAT_BYTES));
+    check(
+      "fixture really has EXIF and GPS",
+      markers(tagged).includes(0xe1) && tagged.includes(LAT_BYTES),
+    );
     const clean = photos.encode(tagged);
     check("GPS-tagged JPEG encodes", clean !== undefined);
     if (clean) {
       check("output has no APP1 segment", !markers(clean.jpeg).includes(0xe1));
-      check("output has no Exif or GPS bytes", !clean.jpeg.includes("Exif") && !clean.jpeg.includes(LAT_BYTES));
+      check(
+        "output has no Exif or GPS bytes",
+        !clean.jpeg.includes("Exif") && !clean.jpeg.includes(LAT_BYTES),
+      );
     }
 
     // Decoding bombs: tiny files that declare huge pictures are refused before decoding.
     const bomb = Buffer.from([
-      0xff, 0xd8, 0xff, 0xc0, 0, 17, 8, 0xff, 0xff, 0xff, 0xff, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1, 0xff, 0xd9,
+      0xff, 0xd8, 0xff, 0xc0, 0, 17, 8, 0xff, 0xff, 0xff, 0xff, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11,
+      1, 0xff, 0xd9,
     ]);
     const t0 = Date.now();
-    check("65535 x 65535 JPEG header is refused fast", photos.encode(bomb) === undefined && Date.now() - t0 < 200);
+    check(
+      "65535 x 65535 JPEG header is refused fast",
+      photos.encode(bomb) === undefined && Date.now() - t0 < 200,
+    );
 
     // The Screen's CSP (read from the real index.html) allows the wallpaper URL; without file: it doesn't.
     const html = readFileSync(resolve("src/renderer/index.html"), "utf8");
@@ -132,7 +164,11 @@ void app.whenReady().then(async () => {
         page,
         `<!doctype html><meta http-equiv="Content-Security-Policy" content="${policy}"><img id=i src="${url}">`,
       );
-      const win = new BrowserWindow({ show: false, focusable: false, webPreferences: { sandbox: true } });
+      const win = new BrowserWindow({
+        show: false,
+        focusable: false,
+        webPreferences: { sandbox: true },
+      });
       await win.loadURL(pathToFileURL(page).href);
       await new Promise((r) => setTimeout(r, 300));
       const ok = await win.webContents.executeJavaScript(
@@ -143,14 +179,68 @@ void app.whenReady().then(async () => {
       return ok as boolean;
     };
     check("the Screen's CSP lets the wallpaper load", await loads(csp));
-    check("control: a CSP without file: blocks it", !(await loads("default-src 'none'; img-src data:")));
+    check(
+      "control: a CSP without file: blocks it",
+      !(await loads("default-src 'none'; img-src data:")),
+    );
+
+    // Blur behind the clock: at 1920x1080 the top blur is fully opaque past the real clock and date boxes.
+    {
+      const sheet = (f: string) => readFileSync(resolve("src/renderer", f), "utf8");
+      const page = join(userData, "home-blur.html");
+      writeFileSync(
+        page,
+        `<!doctype html><style>html,body{margin:0}${sheet("glass.css")}${sheet("home.css")}</style>` +
+          `<div class="screen-glass home photo ambient-off" style="position:relative;width:1920px;height:1080px">` +
+          `<div class="h-photo"><i class="h-photo-blur top"></i></div>` +
+          `<div class="h-clock on"><div class="t num">8:05<small>PM</small></div><div class="d">Good evening · Wednesday 28 October</div></div>` +
+          `<i id="probe" style="position:absolute;height:var(--clock-clear)"></i></div>`,
+      );
+      const win = new BrowserWindow({
+        show: false,
+        focusable: false,
+        width: 1920,
+        height: 1080,
+        useContentSize: true,
+      });
+      await win.loadURL(pathToFileURL(page).href);
+      const m = (await win.webContents.executeJavaScript(`(() => {
+        const r = (s) => { const b = document.querySelector(s).getBoundingClientRect(); return { top: b.top, bottom: b.bottom }; };
+        const blur = getComputedStyle(document.querySelector('.h-photo-blur.top'));
+        return { t: r('.h-clock .t'), d: r('.h-clock .d'), clock: r('.h-clock'), blur: r('.h-photo-blur.top'),
+          clear: document.getElementById('probe').getBoundingClientRect().height, mask: blur.maskImage || blur.webkitMaskImage,
+          vw: innerWidth };
+      })()`)) as any;
+      win.destroy();
+      await new Promise((r) => setTimeout(r, 200));
+      check("viewport is 1920 wide", m.vw === 1920, String(m.vw));
+      check("clock starts near y=210", Math.abs(m.clock.top - 210) < 1, String(m.clock.top));
+      check(
+        "opaque stop is below the date's bottom",
+        m.clear >= m.d.bottom,
+        `${m.clear} >= ${m.d.bottom}`,
+      );
+      check(
+        "blur box covers the clock and fades beyond it",
+        m.blur.top === 0 && m.blur.bottom > m.clear,
+        `${m.blur.bottom}`,
+      );
+      check(
+        "the mask is a gradient to transparent",
+        /linear-gradient/.test(m.mask) && /rgba\(0, 0, 0, 0\)/.test(m.mask),
+        m.mask,
+      );
+    }
 
     // A real App session, held as one object, cancels file: loads; another session doesn't.
     const { ElectronWebApp } = await import(resolve("src/main/web/electron-web-app.ts"));
     const { youtubeDescription } = await import(resolve("src/main/apps/youtube/youtube-web.ts"));
     const host = new BrowserWindow({ show: false, focusable: false });
     const ses = session.fromPartition("persist:youtube");
-    check("fromPartition returns one object per partition", ses === session.fromPartition("persist:youtube"));
+    check(
+      "fromPartition returns one object per partition",
+      ses === session.fromPartition("persist:youtube"),
+    );
     const webApp = new ElectronWebApp(youtubeDescription("130.0.0.0"), host);
     const fetched = async (s: Electron.Session) => {
       try {
@@ -159,7 +249,10 @@ void app.whenReady().then(async () => {
         return false;
       }
     };
-    check("control: an ordinary session can fetch the file", await fetched(session.fromPartition("persist:control")));
+    check(
+      "control: an ordinary session can fetch the file",
+      await fetched(session.fromPartition("persist:control")),
+    );
     check("the YouTube App's session cancels the wallpaper file:", !(await fetched(ses)));
     void webApp;
     host.destroy();
