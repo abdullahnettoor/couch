@@ -434,3 +434,92 @@ test("with no pairing key the page says to open Couch once, and nothing connects
   const paired = await setup();
   assert.doesNotMatch(await (await fetch(paired.url("/"))).text(), /COUCH_UNPAIRED/);
 });
+
+/** A masked frame of any size (64-bit length), optionally with only the header written. */
+const wideFrame = (opcode, body, { fin = true } = {}) => {
+  const mask = Buffer.from([5, 6, 7, 8]);
+  const head = Buffer.alloc(10);
+  head[0] = (fin ? 0x80 : 0) | opcode;
+  head[1] = 0x80 | 127;
+  head.writeBigUInt64BE(BigInt(body.length), 2);
+  const masked = Buffer.from(body);
+  for (let i = 0; i < masked.length; i++) masked[i] ^= mask[i % 4];
+  return Buffer.concat([head, mask, masked]);
+};
+
+const photoMessage = (size) => {
+  const pad = JSON.stringify({ type: "command", command: "addPhoto", args: { data: "" } }).length;
+  return JSON.stringify({
+    type: "command",
+    command: "addPhoto",
+    args: { data: "A".repeat(size - pad) },
+  });
+};
+
+async function proxiedPhone(env) {
+  const p = await phone(env);
+  p.send("power");
+  await until(() => p.powerStates().includes("on"), "on");
+  await until(() => p.closed(), "own socket closed");
+  return rawPhone(env);
+}
+
+// 4 MiB of base64 (Couch's MAX_PHOTO_DATA) plus its envelope.
+const PROXIED_LIMIT = 4 * 1024 * 1024 + 4096;
+
+test("the proxy limit matches Couch's photo allowance", () => {
+  const src = readFileSync(join(root, "src/shared/wallpapers.ts"), "utf8");
+  assert.ok(src.includes("MAX_PHOTO_BYTES = 3 * 1024 * 1024"));
+  assert.equal(Math.ceil((3 * 1024 * 1024) / 3) * 4 + 4096, PROXIED_LIMIT);
+});
+
+test("a photo-sized message in one frame goes through the proxy", async () => {
+  const env = await setup();
+  const c = await proxiedPhone(env);
+  c.socket.write(wideFrame(1, Buffer.from(photoMessage(PROXIED_LIMIT - 10))));
+  await until(() => env.appLog().includes(`ws big ${PROXIED_LIMIT - 10}`), "upload reached app");
+  assert.equal(c.closed(), false);
+});
+
+test("a fragmented photo-sized message goes through the proxy", async () => {
+  const env = await setup();
+  const c = await proxiedPhone(env);
+  const msg = Buffer.from(photoMessage(PROXIED_LIMIT - 10));
+  const third = Math.floor(msg.length / 3);
+  c.socket.write(wideFrame(1, msg.subarray(0, third), { fin: false }));
+  c.socket.write(wideFrame(0, msg.subarray(third, 2 * third), { fin: false }));
+  c.socket.write(wideFrame(0, msg.subarray(2 * third)));
+  await until(() => env.appLog().includes(`ws big ${msg.length}`), "upload reached app");
+  assert.equal(c.closed(), false);
+});
+
+test("an over-limit upload through the proxy is dropped cleanly, the app and others keep working", async () => {
+  const env = await setup();
+  const c = await proxiedPhone(env);
+  const other = await phone(env);
+  await until(() => other.messages.some((m) => m.type === "snapshot"), "other connected");
+  c.socket.write(wideFrame(1, Buffer.alloc(PROXIED_LIMIT + 1, 0x41)));
+  await until(() => c.closed(), "over-limit connection closed");
+  assert.equal(env.appLog().includes("big"), false, "nothing of it reached the app");
+  other.send("play");
+  await until(() => env.appLog().includes("play"), "other Remote still works");
+  assert.equal(await alive(env), true);
+});
+
+test("a fragmented upload that adds up past the limit is dropped", async () => {
+  const env = await setup();
+  const c = await proxiedPhone(env);
+  const half = Buffer.alloc(PROXIED_LIMIT / 2 + 100, 0x41);
+  c.socket.write(wideFrame(1, half, { fin: false }));
+  c.socket.write(wideFrame(0, half));
+  await until(() => c.closed(), "closed");
+  assert.equal(env.appLog().includes("big"), false);
+});
+
+test("the listener's own endpoint keeps the small limit", async () => {
+  const env = await setup();
+  const c = await rawPhone(env);
+  c.socket.write(wideFrame(1, Buffer.alloc((1 << 20) + 1, 0x41)));
+  await until(() => c.closed(), "closed");
+  assert.equal(await alive(env), true);
+});

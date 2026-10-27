@@ -24,6 +24,6 @@ const http = createServer((req, res) => {
 const wss = new WebSocketServer({ server: http });
 wss.on("connection", (ws) => {
   ws.send(JSON.stringify({ type: "snapshot" }));
-  ws.on("message", (m) => record(`ws ${m.toString()}`));
+  ws.on("message", (m) => record(m.length > 1000 ? `ws big ${m.length}` : `ws ${m.toString()}`));
 });
 setTimeout(() => http.listen(port, "127.0.0.1"), delay);

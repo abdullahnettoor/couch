@@ -40,7 +40,14 @@ final class FrameFilter {
     case violation(UInt16)
   }
 
-  static let maxMessage = 1 << 20
+  /// The listener's own endpoints only ever see `power`, so they keep a small limit.
+  static let ownMaxMessage = 1 << 20
+  /// Proxied Remote connections carry photos: Couch's MAX_PHOTO_DATA (4 MiB of base64) plus its envelope.
+  static let proxiedMaxMessage = 4 * 1024 * 1024 + 4096
+
+  let maxMessage: Int
+
+  init(maxMessage: Int = FrameFilter.ownMaxMessage) { self.maxMessage = maxMessage }
 
   private var buf: [UInt8] = []
   private var failed = false
@@ -92,10 +99,10 @@ final class FrameFilter {
       if buf[2] & 0x80 != 0 { return fail(1002) }
       var wide: UInt64 = 0
       for byte in buf[2..<10] { wide = wide << 8 | UInt64(byte) }
-      guard wide <= UInt64(FrameFilter.maxMessage) else { return fail(1009) }
+      guard wide <= UInt64(maxMessage) else { return fail(1009) }
       length = Int(wide)
     }
-    guard length <= FrameFilter.maxMessage else { return fail(1009) }
+    guard length <= maxMessage else { return fail(1009) }
     headerLen += 4
     guard buf.count >= headerLen + length else { return nil }
 
@@ -125,7 +132,7 @@ final class FrameFilter {
         return [.raw(whole)]
       }
       guard var f = fragment else { return fail(1002) }
-      if f.payload.count + payload.count > FrameFilter.maxMessage { return fail(1009) }
+      if f.payload.count + payload.count > maxMessage { return fail(1009) }
       f.payload += payload
       f.raw.append(whole)
       if fin {

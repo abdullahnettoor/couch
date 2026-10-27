@@ -22,6 +22,50 @@ const ICON_FILES: Record<string, string> = {
   "/icon-512.png": "icon-512.png",
 };
 
+/** The most a Remote's WebSocket message may be: a photo's base64 plus the command's envelope. */
+export const MAX_MESSAGE = MAX_PHOTO_DATA + 4096;
+
+const MAX_TEXT = 4096;
+
+type Field =
+  | { kind: "number" | "integer" | "boolean" }
+  | { kind: "string"; max: number }
+  | { kind: "enum"; values: readonly string[] };
+
+const text = (max = MAX_TEXT): Field => ({ kind: "string", max });
+const number: Field = { kind: "number" };
+
+/** The args each command takes from a Remote; any other field, or a command with none listed, is refused. */
+const ARGS: Partial<Record<CommandName, Record<string, Field>>> = {
+  seekBy: { seconds: number },
+  seekTo: { seconds: number },
+  setTrack: { kind: { kind: "enum", values: ["subtitles", "audio"] }, track: text() },
+  setSpeed: { speed: number },
+  volSet: { percent: number },
+  playUpNext: { index: { kind: "integer" } },
+  typeOpen: { text: text() },
+  typeText: { text: text() },
+  toggleAddon: { addon: text() },
+  pressPrompt: { id: { kind: "enum", values: ["skipIntro", "skipRecap", "nextEpisode"] } },
+  setPictureOff: { on: { kind: "boolean" } },
+  addPhoto: { data: text(MAX_PHOTO_DATA) },
+};
+
+function valid(field: Field, value: unknown): boolean {
+  switch (field.kind) {
+    case "number":
+      return typeof value === "number" && Number.isFinite(value);
+    case "integer":
+      return typeof value === "number" && Number.isInteger(value);
+    case "boolean":
+      return typeof value === "boolean";
+    case "string":
+      return typeof value === "string" && Buffer.byteLength(value) <= field.max;
+    case "enum":
+      return typeof value === "string" && field.values.includes(value);
+  }
+}
+
 export function parseCommand(raw: string): Command | undefined {
   let msg: unknown;
   try {
@@ -33,25 +77,15 @@ export function parseCommand(raw: string): Command | undefined {
   const { type, command, args } = msg as Record<string, unknown>;
   if (type !== "command" || !COMMAND_NAMES.includes(command as CommandName)) return undefined;
   const out: Command = { command: command as CommandName };
-  if (typeof args === "object" && args !== null) {
-    const { seconds, speed, text, percent, index, addon, kind, track, id, on, data } =
-      args as Record<string, unknown>;
-    out.args = {
-      ...(typeof seconds === "number" && Number.isFinite(seconds) ? { seconds } : {}),
-      ...(typeof speed === "number" && Number.isFinite(speed) ? { speed } : {}),
-      ...(typeof percent === "number" && Number.isFinite(percent) ? { percent } : {}),
-      ...(typeof index === "number" && Number.isInteger(index) ? { index } : {}),
-      ...(typeof on === "boolean" ? { on } : {}),
-      ...(typeof text === "string" ? { text } : {}),
-      ...(typeof addon === "string" ? { addon } : {}),
-      ...(command === "addPhoto" && typeof data === "string" && data.length <= MAX_PHOTO_DATA
-        ? { data }
-        : {}),
-      ...(kind === "subtitles" || kind === "audio" ? { kind } : {}),
-      ...(typeof track === "string" ? { track } : {}),
-      ...(id === "skipIntro" || id === "skipRecap" || id === "nextEpisode" ? { id } : {}),
-    };
+  if (args === undefined || args === null) return out;
+  if (typeof args !== "object" || Array.isArray(args)) return undefined;
+  const allowed = ARGS[command as CommandName] ?? {};
+  const given = Object.entries(args);
+  for (const [key, value] of given) {
+    const field = Object.hasOwn(allowed, key) ? allowed[key] : undefined;
+    if (!field || !valid(field, value)) return undefined;
   }
+  out.args = Object.fromEntries(given) as Command["args"];
   return out;
 }
 
@@ -127,7 +161,7 @@ export async function startRemoteServer(
       res.writeHead(404).end();
     }
   });
-  const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PHOTO_DATA + 4096 });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_MESSAGE });
   http.on("upgrade", (req, socket, head) => {
     const url = new URL(req.url ?? "/", "http://localhost");
     if (url.pathname !== "/ws" || !core.acceptsKey(url.searchParams.get("key"))) {
@@ -154,6 +188,9 @@ export async function startRemoteServer(
     const id = `remote-${nextId++}`;
     sockets.set(ws, id);
     core.connect(id);
+    // An oversize or malformed frame emits 'error' on this socket alone, and ws then closes it (1009 or
+    // 1002); without a handler the event would be uncaught in main.
+    ws.on("error", () => {});
     ws.on("message", (data) => {
       const command = parseCommand(data.toString());
       if (command) core.handle(command, id);
