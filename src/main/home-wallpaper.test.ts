@@ -20,6 +20,7 @@ afterEach(async () => {
 
 const view = () => h.screen.last.state.view;
 const wallpaper = () => h.screen.last.home?.wallpaper;
+const preview = () => h.screen.last.home?.preview;
 const start = async () => {
   h = await startHarness(store);
   phone = await h.connectPhone();
@@ -85,11 +86,43 @@ describe("Home wallpaper", () => {
     await openHomePage();
     await phone.press("right");
     await phone.press("right");
-    expect(wallpaper()?.id).toBe("ocean");
+    expect(preview()).toEqual({ kind: "builtin", id: "ocean" });
     expect(store.read("home", {})).toEqual({});
     await phone.press("back");
     expect(view()).toBe("settings");
     expect(wallpaper()?.id).toBe("couch");
+    expect(preview()).toBeUndefined();
+  });
+
+  test("the saved wallpaper (In use) does not move with focus until OK", async () => {
+    await start();
+    await openHomePage();
+    await phone.press("right");
+    await phone.press("right");
+    expect(wallpaper()?.id).toBe("couch");
+    expect(preview()?.id).toBe("ocean");
+    await phone.press("ok");
+    expect(wallpaper()?.id).toBe("ocean");
+  });
+
+  test("the tiles are one row: down from any tile reaches the artwork switch", async () => {
+    await start();
+    await openHomePage();
+    const tiles = h.screen.last.grid.filter((g) => g.id.startsWith("wp:"));
+    expect(new Set(tiles.map((g) => g.r))).toEqual(new Set([0]));
+    expect(tiles.map((g) => g.c)).toEqual([0, 1, 2, 3, 4, 5]);
+    for (let c = 0; c < 6; c++) {
+      while (h.screen.last.focusedId !== `wp:${tiles[c]!.id.slice(3)}`) await phone.press("right");
+      await phone.press("down");
+      expect(h.screen.last.focusedLabel).toBe("Show artwork behind Resume");
+      await phone.press("up");
+      await phone.press("left");
+      await phone.press("left");
+      await phone.press("left");
+      await phone.press("left");
+      await phone.press("left");
+      for (let i = 0; i < c; i++) await phone.press("right");
+    }
   });
 
   test("Back after choosing keeps the choice", async () => {
@@ -99,7 +132,7 @@ describe("Home wallpaper", () => {
     await phone.press("right");
     await phone.press("ok");
     await phone.press("right");
-    expect(wallpaper()?.id).toBe("forest");
+    expect(preview()?.id).toBe("forest");
     await phone.press("back");
     expect(wallpaper()?.id).toBe("ocean");
   });

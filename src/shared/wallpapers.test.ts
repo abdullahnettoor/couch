@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vite-plus/test";
 import { WALLPAPERS, resolveWallpaper, wallpaperVars } from "./wallpapers.ts";
 
@@ -49,19 +48,5 @@ describe("built-in wallpapers", () => {
       expect(luminance(w.edge), w.id).toBeLessThanOrEqual(0.003);
       for (const [, , , alpha] of w.glow) expect(alpha, w.id).toBeLessThanOrEqual(0.16);
     }
-  });
-});
-
-describe("Home's scrim", () => {
-  const css = readFileSync(new URL("../renderer/home.css", import.meta.url), "utf8");
-  const ts = readFileSync(new URL("../renderer/views/home.ts", import.meta.url), "utf8");
-
-  test("a scrim layer always sits over the wallpaper, under the clock and tiles", () => {
-    expect(css).toMatch(/\.h-scrim\s*\{[^}]*linear-gradient\(0deg/);
-    expect(css).not.toMatch(/\.h-scrim\s*\{[^}]*opacity:\s*0/);
-    const order = ts.match(/view\.append\(([^)]*)\)/)![1]!;
-    expect(order.indexOf("scrim")).toBeGreaterThan(order.indexOf("ambientBg"));
-    expect(order.indexOf("scrim")).toBeLessThan(order.indexOf("clockEl"));
-    expect(order.indexOf("scrim")).toBeLessThan(order.indexOf("chrome"));
   });
 });

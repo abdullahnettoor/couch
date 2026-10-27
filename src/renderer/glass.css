@@ -1149,23 +1149,46 @@ body:has(.ls-page) .toast:not(.notice) {
   text-align: right;
 }
 
-/* Settings → Home: the page shows the wallpaper in focus; its tiles are small copies of it. */
-.screen-glass.wp-page {
-  background: var(--wp-base);
+/* Settings → Home: the real Home stays mounted; this glass panel sits over its lower half. */
+.wp-panel {
+  position: fixed;
+  left: 6%;
+  right: 6%;
+  bottom: 5%;
+  height: 52%;
+  padding: calc(32 * var(--u)) calc(40 * var(--u));
+  display: flex;
+  flex-direction: column;
+  gap: calc(14 * var(--u));
+  border-radius: calc(36 * var(--u));
+  background: rgba(14, 14, 18, 0.62);
+  backdrop-filter: blur(calc(40 * var(--u))) saturate(1.2);
+  box-shadow: inset 0 0 0 calc(1.5 * var(--u)) rgba(255, 255, 255, 0.1);
+  color: var(--t1);
+}
+.wp-title {
+  margin: 0;
+  font-size: calc(44 * var(--u));
+  font-weight: 700;
 }
 .wp-head {
-  margin: 0 0 calc(16 * var(--u));
-  font-size: calc(30 * var(--u));
+  margin: 0;
+  font-size: calc(26 * var(--u));
   font-weight: 600;
   color: var(--t2);
 }
 .wp-tiles {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: calc(16 * var(--u));
-  margin-bottom: calc(24 * var(--u));
+  display: flex;
+  flex-wrap: nowrap;
+  gap: calc(20 * var(--u));
+  position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: calc(14 * var(--u)) calc(10 * var(--u));
+  scrollbar-width: none;
 }
 .wp-tile {
+  flex: 0 0 calc(300 * var(--u));
   display: flex;
   flex-direction: column;
   gap: calc(10 * var(--u));

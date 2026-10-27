@@ -32,13 +32,12 @@ export class HomePage {
     return resolveWallpaper(this.#saved().wallpaper).id;
   }
 
-  /** `previewId` is the focused tile while the Home page is open: it shows without being saved. */
+  /** `previewId` is the focused tile while the Home page is open: it shows as `preview` without being saved. */
   payload(previewId?: string): HomePayload {
     const preview = WALLPAPERS.find((w) => `wp:${w.id}` === previewId);
     return {
-      wallpaper: preview
-        ? { kind: "builtin", id: preview.id }
-        : { ...DEFAULT_WALLPAPER, id: this.#chosen() },
+      wallpaper: { ...DEFAULT_WALLPAPER, id: this.#chosen() },
+      ...(preview ? { preview: { kind: "builtin" as const, id: preview.id } } : {}),
       artwork: this.#saved().artwork !== false,
     };
   }

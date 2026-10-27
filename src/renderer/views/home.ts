@@ -116,6 +116,7 @@ export function render(payload: ScreenPayload): void {
   const date = new Date(payload.now);
   const videos = payload.homeVideos ?? [];
   const hero = payload.hero;
+  root.querySelector(".wp-panel")?.remove();
   if (!view || root.firstElementChild !== view) {
     view = el("div", "screen-glass home");
     bg = el("div", "h-bg");
@@ -134,7 +135,9 @@ export function render(payload: ScreenPayload): void {
   view.classList.toggle("film", !!hero);
   view.classList.toggle("ambient", !!payload.ambient);
   view.classList.toggle("no-art", payload.home?.artwork === false);
-  for (const [name, value] of Object.entries(wallpaperVars(payload.home?.wallpaper.id ?? "")))
+  for (const [name, value] of Object.entries(
+    wallpaperVars((payload.home?.preview ?? payload.home?.wallpaper)?.id ?? ""),
+  ))
     view.style.setProperty(name, value);
   bg!.classList.toggle("on", !!hero && payload.home?.artwork !== false);
   heroEl!.classList.toggle("on", !!hero);

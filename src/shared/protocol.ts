@@ -345,7 +345,10 @@ export interface QuickPayload {
 
 /** Core → Screen renderer. */
 export interface HomePayload {
+  /** The saved wallpaper ("In use"). */
   wallpaper: WallpaperChoice;
+  /** Only on Settings → Home: the wallpaper in focus, shown live but not saved. */
+  preview?: WallpaperChoice;
   /** The Resume artwork fades over the wallpaper. */
   artwork: boolean;
 }
@@ -366,7 +369,7 @@ export interface ScreenPayload {
   details?: { keyLabel: string; hasOwnKey: boolean; enabled: boolean; hint?: string };
   /** On an App's settings page: which App. */
   appSettings?: { id: string; label: string };
-  /** What Home draws behind everything; on the Home settings page, the tile in focus. */
+  /** What Home draws behind everything; on the Home settings page, shown with the tile in focus as `preview`. */
   home?: HomePayload;
   /** Settings and the Sound output page. */
   sound?: SoundPayload;
