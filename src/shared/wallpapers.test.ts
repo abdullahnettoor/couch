@@ -1,5 +1,12 @@
 import { describe, expect, test } from "vite-plus/test";
-import { WALLPAPERS, resolveWallpaper, wallpaperVars } from "./wallpapers.ts";
+import {
+  WALLPAPERS,
+  dimFor,
+  photoVars,
+  resolveChoice,
+  resolveWallpaper,
+  wallpaperVars,
+} from "./wallpapers.ts";
 
 const channel = (v: number) => {
   const s = v / 255;
@@ -48,5 +55,47 @@ describe("built-in wallpapers", () => {
       expect(luminance(w.edge), w.id).toBeLessThanOrEqual(0.003);
       for (const [, , , alpha] of w.glow) expect(alpha, w.id).toBeLessThanOrEqual(0.16);
     }
+  });
+});
+
+describe("photo wallpapers", () => {
+  test("dim runs from 35% for a black photo to 65% for a white one", () => {
+    expect(dimFor(0)).toBeCloseTo(0.35);
+    expect(dimFor(1)).toBeCloseTo(0.65);
+    expect(dimFor(0.5)).toBeCloseTo(0.5);
+    expect(dimFor(-3)).toBeCloseTo(0.35);
+    expect(dimFor(7)).toBeCloseTo(0.65);
+    expect(dimFor(Number.NaN)).toBeCloseTo(0.65);
+  });
+
+  test("a stored photo choice is kept only while that photo exists", () => {
+    const photos = [{ id: "aaaaaaaaaaaa" }];
+    expect(resolveChoice({ kind: "photo", id: "aaaaaaaaaaaa" }, photos)).toEqual({
+      kind: "photo",
+      id: "aaaaaaaaaaaa",
+    });
+    expect(resolveChoice({ kind: "photo", id: "bbbbbbbbbbbb" }, photos)).toEqual({
+      kind: "builtin",
+      id: "couch",
+    });
+    expect(resolveChoice({ kind: "photo", id: "aaaaaaaaaaaa" }, [])).toEqual({
+      kind: "builtin",
+      id: "couch",
+    });
+    expect(resolveChoice({ kind: "builtin", id: "dusk" }, photos)).toEqual({
+      kind: "builtin",
+      id: "dusk",
+    });
+    expect(resolveChoice({ kind: "builtin", id: "nope" }, photos)).toEqual({
+      kind: "builtin",
+      id: "couch",
+    });
+  });
+
+  test("a photo sets its picture and dim variables", () => {
+    expect(photoVars({ id: "a", url: "file:///u/wallpapers/a.jpg", dim: 0.5 })).toEqual({
+      "--wp-photo": 'url("file:///u/wallpapers/a.jpg")',
+      "--wp-dim": "0.5",
+    });
   });
 });

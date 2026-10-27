@@ -60,6 +60,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .search { margin-top:18px; height:56px; border-radius:28px; background:var(--card); display:flex; align-items:center; gap:12px; padding:0 20px; color:var(--t3); font-size:17px; width:100%; }
   .search svg { font-size:22px; }
   .search.dim { opacity:.35; }
+  .gtoast { position:fixed; top:64px; z-index:9; }
   .cw { margin-top:18px; display:flex; gap:14px; align-items:center; padding:10px; border-radius:20px; background:var(--card); width:100%; text-align:left; }
   .cw .pic { width:104px; height:58px; border-radius:10px; background:#3a3a3c center/cover; flex:none; }
   .cw.nx { margin:10px 0 0; }
@@ -169,6 +170,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   <button class="big" id="pw-btn" data-cmd="power" aria-label="Power" data-i="power"></button>
   <div class="spin" id="pw-spin" hidden></div>
 </div>
+<div class="toast gtoast" id="gtoast" role="status" aria-live="polite"></div>
 <div class="sheet" id="confirm" hidden>
   <div class="form" role="dialog" aria-label="Turn Couch off?">
     <b style="font-size:19px">Turn Couch off?</b>
@@ -215,6 +217,8 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   <div class="bar" id="ibar">__BAR_ID__<button id="qs" data-cmd="quickSettings" aria-label="Quick settings" data-i="sliders"></button><button id="gear" data-cmd="openSettings" aria-label="Settings" data-i="gear" hidden></button></div>
   <button class="cw" id="cw" data-cmd="resume" hidden><span class="pic" id="cw-pic"></span><span class="txt"><b id="cw-title"></b><span class="l" id="cw-left"></span></span><span class="go" data-i="play"></span></button>
   <button class="search" id="fixbtn" data-cmd="menu" hidden><span id="fix-label">Fix match</span></button>
+  <button class="search" id="addphoto" hidden><span data-i="plus"></span><span>Add photo</span></button>
+  <input type="file" id="photo-file" accept="image/*" hidden>
   <button class="search" id="search" data-cmd="typeOpen" hidden><span data-i="search"></span><span id="search-label">Search</span></button>
   <div class="other" id="other" hidden>Typing on another phone</div>
   <div class="padwrap"><div class="pad" id="dpad">__PAD__</div></div>
@@ -319,6 +323,49 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     toastTimer = setTimeout(function () { t.classList.remove("show"); }, 900);
   }
 
+  var gtoastTimer = null;
+  function gtoast(text) {
+    var t = $("gtoast");
+    t.textContent = text;
+    t.classList.add("show");
+    clearTimeout(gtoastTimer);
+    gtoastTimer = setTimeout(function () { t.classList.remove("show"); }, 2500);
+  }
+
+  var PHOTO_W = 2560, PHOTO_H = 1440, PHOTO_MAX = 3 * 1024 * 1024;
+  function sendPhoto(file) {
+    createImageBitmap(file).then(function (img) {
+      var k = Math.min(1, PHOTO_W / img.width, PHOTO_H / img.height);
+      var w = Math.max(1, Math.round(img.width * k)), h = Math.max(1, Math.round(img.height * k));
+      var canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      var g = canvas.getContext("2d");
+      g.fillStyle = "#000";
+      g.fillRect(0, 0, w, h);
+      g.drawImage(img, 0, 0, w, h);
+      if (img.close) img.close();
+      canvas.toBlob(function (blob) {
+        if (!blob) return gtoast("Couldn't read that photo");
+        if (blob.size > PHOTO_MAX) return gtoast("That photo is too big");
+        var reader = new FileReader();
+        reader.onload = function () {
+          var url = String(reader.result);
+          sendArgs("addPhoto", { data: url.slice(url.indexOf(",") + 1) });
+          gtoast("Sending photo…");
+        };
+        reader.onerror = function () { gtoast("Couldn't read that photo"); };
+        reader.readAsDataURL(blob);
+      }, "image/jpeg", 0.85);
+    }).catch(function () { gtoast("Couldn't read that photo"); });
+  }
+  $("addphoto").addEventListener("click", function () { $("photo-file").click(); });
+  $("photo-file").addEventListener("change", function () {
+    var file = $("photo-file").files && $("photo-file").files[0];
+    $("photo-file").value = "";
+    if (file) sendPhoto(file);
+  });
+
   var padOpen = false;
   function setMute(on) {
     var els = document.querySelectorAll(".mutebtn");
@@ -412,6 +459,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     }
     $("fixbtn").hidden = !s.fixAvailable || !!np;
     $("search").hidden = !(s.typeLabel && s.typeAvailable) || !!np || !!s.fixAvailable;
+    $("addphoto").hidden = !s.addPhoto || !!np;
     $("search-label").textContent = s.typeLabel || "Search";
     $("search").classList.toggle("dim", !s.typeAvailable);
     $("other").hidden = s.typing !== "other" && s.typing !== "screen";

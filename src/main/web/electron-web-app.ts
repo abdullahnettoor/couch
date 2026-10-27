@@ -17,6 +17,7 @@ import {
 } from "./page-focus.ts";
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import { requestHooksFor, type RequestHooks } from "./request-hooks.ts";
+import { blockLocalFiles } from "./local-files.ts";
 import { HIDE_SCROLLBARS_CSS } from "./hide-scrollbars.ts";
 import { SessionPreloads } from "./session-preloads.ts";
 import type { IdleLifecycle } from "./idle-unload.ts";
@@ -110,6 +111,7 @@ export class ElectronWebApp implements YouTube {
     hooks.onBeforeSendHeaders((details) =>
       desc.identity.headersFor(new URL(details.url), details.requestHeaders),
     );
+    hooks.onBeforeRequest(blockLocalFiles);
     // The view may ask the Mac for nothing (no microphone, no camera). Its media permission *check*
     // is answered yes only for the App's own origin, and only for what choosing an output needs.
     ses.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));

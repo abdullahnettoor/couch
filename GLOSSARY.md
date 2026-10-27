@@ -17,7 +17,7 @@ The first page the Screen shows: a simple launcher with a clock and the Apps.
 _Avoid_: launcher, dashboard, main menu
 
 **Wallpaper**:
-The calm background Home draws behind the clock and tiles; the household picks one in Settings → Home (six built-in ones, Couch by default).
+The calm background Home draws behind the clock and tiles; the household picks one in Settings → Home (six built-in ones, Couch by default, or up to six of their own photos sent from the phone).
 
 **App**:
 A full-screen experience launched from Home, such as YouTube or the Library. It should feel like an app on a smart TV.

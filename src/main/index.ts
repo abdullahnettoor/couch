@@ -20,6 +20,7 @@ import { IdleUnloader } from "./web/idle-unload.ts";
 import { FileStore } from "./ports/store.ts";
 import { readChoices } from "./web/addon.ts";
 import { FfmpegThumbnails } from "./ports/thumbnails.ts";
+import { ElectronPhotos } from "./ports/electron-photos.ts";
 import { TmdbMetadata } from "./ports/tmdb-metadata.ts";
 import { PROJECT_TMDB_KEY } from "./ports/project-key.ts";
 import { detectListener } from "./frontdoor.ts";
@@ -178,6 +179,7 @@ async function createScreen(): Promise<void> {
     clock: systemClock,
     store,
     thumbnails: new FfmpegThumbnails(join(app.getPath("userData"), "thumbnails")),
+    photos: new ElectronPhotos(join(app.getPath("userData"), "wallpapers")),
     thumbnailDir: join(app.getPath("userData"), "thumbnails"),
     iconDir: join(import.meta.dirname, "../renderer"),
     metadata: new TmdbMetadata(join(app.getPath("userData"), "thumbnails")),

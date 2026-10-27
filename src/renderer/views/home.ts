@@ -2,7 +2,7 @@ import { clockParts } from "../../shared/clock-format.ts";
 import type { LibraryEntry, ScreenPayload } from "../../shared/protocol.ts";
 import { el, focusable, genreLabels, qrSvg, root } from "./dom.ts";
 import { glassPill, topbar } from "./glass.ts";
-import { wallpaperVars } from "../../shared/wallpapers.ts";
+import { photoVars, wallpaperVars } from "../../shared/wallpapers.ts";
 
 function escapeHtml(text: string): string {
   return text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -84,6 +84,7 @@ function syncBackdrop(videos: LibraryEntry[], hero: LibraryEntry | undefined): v
 
 /** Layers that outlive a render so state changes can cross-fade. */
 let ambientBg: HTMLElement | undefined;
+let photoEl: HTMLElement | undefined;
 let scrim: HTMLElement | undefined;
 let clockEl: HTMLElement | undefined;
 let heroEl: HTMLElement | undefined;
@@ -119,13 +120,18 @@ export function render(payload: ScreenPayload): void {
     view = el("div", "screen-glass home");
     bg = el("div", "h-bg");
     ambientBg = el("div", "h-drift");
+    photoEl = el(
+      "div",
+      "h-photo",
+      '<i class="h-photo-img"></i><i class="h-photo-dim"></i><i class="h-photo-blur top"></i><i class="h-photo-blur bottom"></i>',
+    );
     scrim = el("div", "h-scrim");
     clockEl = el("div", "h-clock");
     heroEl = el("div", "h-hero");
     chrome = el("div", "h-chrome");
     bgKey = "";
     root.replaceChildren(view);
-    view.append(ambientBg, scrim, bg, clockEl, heroEl, chrome);
+    view.append(ambientBg, photoEl, scrim, bg, clockEl, heroEl, chrome);
   }
   syncBackdrop(videos, hero);
   const focused = (id: string) => payload.focusedId === id;
@@ -133,10 +139,16 @@ export function render(payload: ScreenPayload): void {
   view.classList.toggle("film", !!hero);
   view.classList.toggle("ambient", !!payload.ambient);
   view.classList.toggle("no-art", payload.home?.artwork === false);
-  for (const [name, value] of Object.entries(
-    wallpaperVars((payload.home?.preview ?? payload.home?.wallpaper)?.id ?? ""),
-  ))
-    view.style.setProperty(name, value);
+  const choice = payload.home?.preview ?? payload.home?.wallpaper;
+  const photo =
+    choice?.kind === "photo" ? payload.home?.photos?.find((p) => p.id === choice.id) : undefined;
+  const vars = {
+    ...wallpaperVars(choice?.kind === "builtin" ? choice.id : ""),
+    ...(photo ? photoVars(photo) : {}),
+  };
+  for (const [name, value] of Object.entries(vars)) view.style.setProperty(name, value);
+  if (!photo) for (const name of ["--wp-photo", "--wp-dim"]) view.style.removeProperty(name);
+  view.classList.toggle("photo", !!photo);
   bg!.classList.toggle("on", !!hero && payload.home?.artwork !== false);
   heroEl!.classList.toggle("on", !!hero);
   clockEl!.classList.toggle("on", !hero);

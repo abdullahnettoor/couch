@@ -4,6 +4,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import { WebSocketServer, type WebSocket } from "ws";
 import { COMMAND_NAMES, type Command, type CommandName } from "../../shared/protocol.ts";
+import { MAX_PHOTO_DATA } from "../../shared/wallpapers.ts";
 import type { Core } from "../core/core.ts";
 import { safeEqual } from "../constant-time.ts";
 import { remoteManifest } from "./manifest.ts";
@@ -33,10 +34,8 @@ export function parseCommand(raw: string): Command | undefined {
   if (type !== "command" || !COMMAND_NAMES.includes(command as CommandName)) return undefined;
   const out: Command = { command: command as CommandName };
   if (typeof args === "object" && args !== null) {
-    const { seconds, speed, text, percent, index, addon, kind, track, id, on } = args as Record<
-      string,
-      unknown
-    >;
+    const { seconds, speed, text, percent, index, addon, kind, track, id, on, data } =
+      args as Record<string, unknown>;
     out.args = {
       ...(typeof seconds === "number" && Number.isFinite(seconds) ? { seconds } : {}),
       ...(typeof speed === "number" && Number.isFinite(speed) ? { speed } : {}),
@@ -45,6 +44,9 @@ export function parseCommand(raw: string): Command | undefined {
       ...(typeof on === "boolean" ? { on } : {}),
       ...(typeof text === "string" ? { text } : {}),
       ...(typeof addon === "string" ? { addon } : {}),
+      ...(command === "addPhoto" && typeof data === "string" && data.length <= MAX_PHOTO_DATA
+        ? { data }
+        : {}),
       ...(kind === "subtitles" || kind === "audio" ? { kind } : {}),
       ...(typeof track === "string" ? { track } : {}),
       ...(id === "skipIntro" || id === "skipRecap" || id === "nextEpisode" ? { id } : {}),
@@ -125,7 +127,7 @@ export async function startRemoteServer(
       res.writeHead(404).end();
     }
   });
-  const wss = new WebSocketServer({ noServer: true });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PHOTO_DATA + 4096 });
   http.on("upgrade", (req, socket, head) => {
     const url = new URL(req.url ?? "/", "http://localhost");
     if (url.pathname !== "/ws" || !core.acceptsKey(url.searchParams.get("key"))) {

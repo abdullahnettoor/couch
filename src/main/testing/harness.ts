@@ -23,6 +23,7 @@ import {
   FakeMac,
   FakePlayer,
   FakeMetadata,
+  FakePhotos,
   FakeThumbnails,
   FakeYouTube,
 } from "../ports/fakes.ts";
@@ -131,6 +132,8 @@ export interface Harness {
   mac: FakeMac;
   clock: FakeClock;
   thumbnails: FakeThumbnails;
+  /** The wallpaper photo files, in memory. */
+  photos: FakePhotos;
   /** The TMDB stand-in; every search and fetch is recorded. */
   metadata: FakeMetadata;
   /** Folder the Remote server serves thumbnails from. */
@@ -171,6 +174,7 @@ export async function startHarness(
   const mac = new FakeMac();
   const clock = new FakeClock();
   const thumbnails = new FakeThumbnails();
+  const photos = new FakePhotos();
   const metadata = new FakeMetadata();
   options.metadata?.(metadata);
   const thumbDir = mkdtempSync(join(tmpdir(), "couch-thumbs-"));
@@ -204,6 +208,7 @@ export async function startHarness(
     clock,
     store,
     thumbnails,
+    photos,
     metadata,
     tmdbProjectKey: options.tmdbProjectKey,
     listener: options.listener,
@@ -226,6 +231,7 @@ export async function startHarness(
     mac,
     clock,
     thumbnails,
+    photos,
     metadata,
     thumbDir,
     phones,

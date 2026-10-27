@@ -20,10 +20,23 @@ export function render(payload: ScreenPayload): void {
     const id = `wp:${w.id}`;
     const tile = el(
       "button",
-      `wp-tile${id === payload.focusedId ? " focused" : ""}${home?.wallpaper.id === w.id ? " chosen" : ""}`,
+      `wp-tile${id === payload.focusedId ? " focused" : ""}${home?.wallpaper.kind === "builtin" && home.wallpaper.id === w.id ? " chosen" : ""}`,
       `<span class="wp-swatch"></span><span class="wp-name">${w.label}</span>`,
     );
     setVars(tile, w.id);
+    tiles.append(focusable(tile, id));
+  }
+  for (const p of home?.photos ?? []) {
+    const id = `ph:${p.id}`;
+    const tile = el(
+      "button",
+      `wp-tile${id === payload.focusedId ? " focused" : ""}${home?.wallpaper.kind === "photo" && home.wallpaper.id === p.id ? " chosen" : ""}`,
+      `<span class="wp-swatch"></span><span class="wp-name">Photo</span>`,
+    );
+    const swatch = tile.querySelector<HTMLElement>(".wp-swatch")!;
+    swatch.style.backgroundImage = `url("${p.url}")`;
+    swatch.style.backgroundSize = "cover";
+    swatch.style.backgroundPosition = "center";
     tiles.append(focusable(tile, id));
   }
   panel?.remove();

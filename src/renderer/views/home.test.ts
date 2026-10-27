@@ -170,3 +170,130 @@ describe("Settings → Home keeps the real Home mounted", () => {
     expect(screen.querySelector(".wp-panel")).toBeNull();
   });
 });
+
+describe("Home with a photo wallpaper", () => {
+  const photos = [
+    { id: "aaaaaaaaaaaa", url: "file:///u/wallpapers/aaaaaaaaaaaa.jpg", dim: 0.4 },
+    { id: "bbbbbbbbbbbb", url: "file:///u/wallpapers/bbbbbbbbbbbb.jpg", dim: 0.6 },
+  ];
+  const withPhoto = (id: string, extra: Partial<ScreenPayload> = {}) =>
+    payload({
+      home: { wallpaper: { kind: "photo", id }, artwork: true, photos },
+      ...extra,
+    });
+  const rule = (selector: string) =>
+    Array.from(document.styleSheets)
+      .flatMap((s) => Array.from(s.cssRules))
+      .find((r) => (r as CSSStyleRule).selectorText === selector) as CSSStyleRule | undefined;
+
+  test("the photo and its dim are set as variables and the photo layer is on", () => {
+    home.render(withPhoto("bbbbbbbbbbbb"));
+    expect(cls(homeEl()).includes("photo")).toBe(true);
+    expect(homeEl().style.getPropertyValue("--wp-photo")).toBe(
+      'url("file:///u/wallpapers/bbbbbbbbbbbb.jpg")',
+    );
+    expect(homeEl().style.getPropertyValue("--wp-dim")).toBe("0.6");
+  });
+
+  test("a built-in after a photo clears the photo", () => {
+    home.render(withPhoto("aaaaaaaaaaaa"));
+    home.render(payload());
+    expect(cls(homeEl()).includes("photo")).toBe(false);
+    expect(homeEl().style.getPropertyValue("--wp-photo")).toBe("");
+  });
+
+  test("a photo that is not in the list draws as Couch", () => {
+    home.render(withPhoto("cccccccccccc"));
+    expect(cls(homeEl()).includes("photo")).toBe(false);
+    expect(homeEl().style.getPropertyValue("--wp-base")).toBe(wallpaperVars("couch")["--wp-base"]);
+  });
+
+  test("the preview photo wins over the saved wallpaper", () => {
+    home.render(
+      payload({
+        home: {
+          wallpaper: { kind: "builtin", id: "couch" },
+          preview: { kind: "photo", id: "aaaaaaaaaaaa" },
+          artwork: true,
+          photos,
+        },
+      }),
+    );
+    expect(homeEl().style.getPropertyValue("--wp-dim")).toBe("0.4");
+  });
+
+  test("layers: photo, dim and blur sit over the drift and under the scrim, clock and tiles; ambient keeps them", () => {
+    home.render(withPhoto("aaaaaaaaaaaa", { ambient: true }));
+    const order = Array.from(homeEl().children).map((c) => c.className.split(" ")[0]);
+    const at = (c: string) => order.indexOf(c);
+    expect(at("h-photo")).toBeGreaterThan(at("h-drift"));
+    for (const above of ["h-scrim", "h-clock", "h-hero", "h-chrome"])
+      expect(at("h-photo"), above).toBeLessThan(at(above));
+    const photoLayer = homeEl().querySelector(".h-photo")!;
+    for (const part of [
+      ".h-photo-img",
+      ".h-photo-dim",
+      ".h-photo-blur.top",
+      ".h-photo-blur.bottom",
+    ])
+      expect(photoLayer.querySelector(part), part).not.toBeNull();
+    expect(homeEl().querySelector(".h-scrim")).not.toBeNull();
+  });
+
+  test("the stylesheet: dim comes from --wp-dim, a blur sits behind the clock and the tiles, and the drift is 1.0 to 1.06 over 120 s", () => {
+    home.render(withPhoto("aaaaaaaaaaaa"));
+    expect(rule(".h-photo-dim")!.style.getPropertyValue("opacity")).toBe("var(--wp-dim, 0.5)");
+    expect(rule(".h-photo-blur")!.style.getPropertyValue("backdrop-filter")).toContain("blur(");
+    expect(rule(".h-photo-blur.top")!.style.getPropertyValue("top")).toBe("0px");
+    expect(rule(".h-photo-blur.bottom")!.style.getPropertyValue("bottom")).toBe("0px");
+    expect(rule(".h-photo-img")!.style.getPropertyValue("animation")).toContain("120s");
+    const css = document.head.querySelector("style")!.textContent!;
+    expect(css).toMatch(/@keyframes h-kenburns\s*{\s*from\s*{\s*transform: scale\(1\)/);
+    expect(css).toMatch(/to\s*{\s*transform: scale\(1\.06\)/);
+  });
+
+  test("the photo layer is hidden for built-ins, and the drift for photos", () => {
+    expect(rule(".h-photo")!.style.getPropertyValue("display")).toBe("none");
+    expect(rule(".home.photo .h-photo")!.style.getPropertyValue("display")).toBe("block");
+    expect(rule(".home.photo .h-drift")!.style.getPropertyValue("display")).toBe("none");
+  });
+});
+
+describe("Settings → Home with photos", () => {
+  const photos = [{ id: "aaaaaaaaaaaa", url: "file:///u/wallpapers/aaaaaaaaaaaa.jpg", dim: 0.4 }];
+  const page = (focusedId: string, saved: "photo" | "couch") =>
+    payload({
+      view: "settingsHome",
+      focusedId,
+      home: {
+        wallpaper:
+          saved === "photo"
+            ? { kind: "photo", id: "aaaaaaaaaaaa" }
+            : { kind: "builtin", id: "couch" },
+        artwork: true,
+        photos,
+      },
+    });
+
+  test("photo tiles follow the built-ins, show the photo, and the saved one is In use", () => {
+    settingsHome.render(page("ph:aaaaaaaaaaaa", "photo"));
+    const tiles = Array.from(screen.querySelectorAll(".wp-tile"));
+    expect(tiles).toHaveLength(7);
+    const last = tiles[6] as HTMLElement;
+    expect(last.getAttribute("data-id")).toBe("ph:aaaaaaaaaaaa");
+    expect((last.querySelector(".wp-swatch") as HTMLElement).style.backgroundImage).toContain(
+      "aaaaaaaaaaaa.jpg",
+    );
+    expect(last.className.split(" ")).toContain("chosen");
+    expect(last.className.split(" ")).toContain("focused");
+    expect(tiles.slice(0, 6).some((t) => t.className.split(" ").includes("chosen"))).toBe(false);
+  });
+
+  test("a built-in saved while a photo exists marks only that built-in", () => {
+    settingsHome.render(page("ph:aaaaaaaaaaaa", "couch"));
+    const chosen = Array.from(screen.querySelectorAll(".wp-tile.chosen")).map(
+      (t) => t.querySelector(".wp-name")!.textContent,
+    );
+    expect(chosen).toEqual(["Couch"]);
+  });
+});

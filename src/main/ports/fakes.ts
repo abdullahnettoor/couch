@@ -1,4 +1,5 @@
 import type { Thumbnails } from "./thumbnails.ts";
+import type { EncodedPhoto, Photos } from "./photos.ts";
 import type {
   Candidate,
   Details,
@@ -523,5 +524,29 @@ export class FakeMetadata implements Metadata {
     this.images.push(`${kind}${path}`);
     this.#cached.add(`${kind}${path}`);
     return Promise.resolve(`file:///tmdb/${kind}${path}`);
+  }
+}
+
+/**
+ * Photos kept in memory. The fixture format: byte 8 (after the magic, padded to 8) is the photo's brightness (0-255);
+ * fewer than 9 bytes don't decode. `encode` returns different bytes from its input, as a real re-encode does.
+ */
+export class FakePhotos implements Photos {
+  files = new Map<string, Buffer>();
+  encode(bytes: Buffer): EncodedPhoto | undefined {
+    if (bytes.length < 9) return undefined;
+    return {
+      jpeg: Buffer.concat([Buffer.from("reencoded:"), bytes.subarray(8, 9)]),
+      brightness: bytes[8]! / 255,
+    };
+  }
+  save(id: string, jpeg: Buffer) {
+    this.files.set(id, jpeg);
+  }
+  remove(id: string) {
+    this.files.delete(id);
+  }
+  url(id: string) {
+    return `file:///userData/wallpapers/${id}.jpg`;
   }
 }

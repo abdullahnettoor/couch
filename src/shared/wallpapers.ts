@@ -88,8 +88,40 @@ export const WALLPAPERS: Wallpaper[] = [
   },
 ];
 
-/** What is stored under `home.wallpaper`; a `photo` kind can join the union later. */
-export type WallpaperChoice = { kind: "builtin"; id: string };
+/** What is stored under `home.wallpaper`. */
+export type WallpaperChoice = { kind: "builtin"; id: string } | { kind: "photo"; id: string };
+
+/** A photo as stored under `home.photos`. */
+export interface StoredPhoto {
+  id: string;
+  /** How much black goes over it, 0.35 to 0.65: brighter photos are dimmed more. */
+  dim: number;
+  addedAt: number;
+}
+
+/** A photo as the Screen draws it: where to load it from, and its dim. */
+export interface PhotoTile {
+  id: string;
+  url: string;
+  dim: number;
+}
+
+export const PHOTO_LIMIT = 6;
+
+/** The most a photo may weigh after the phone has shrunk and encoded it. */
+export const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
+
+/** The same limit as base64 text: the longest `addPhoto` data the server passes on. */
+export const MAX_PHOTO_DATA = Math.ceil(MAX_PHOTO_BYTES / 3) * 4;
+
+/** The dim for a photo of this average brightness (0 black to 1 white). */
+export function dimFor(brightness: number): number {
+  const b = Number.isFinite(brightness) ? Math.min(1, Math.max(0, brightness)) : 1;
+  return Math.round((0.35 + 0.3 * b) * 1000) / 1000;
+}
+
+/** A photo id is 12 hex characters; anything else never reaches a file path. */
+export const PHOTO_ID = /^[0-9a-f]{12}$/;
 
 export const DEFAULT_WALLPAPER: WallpaperChoice = { kind: "builtin", id: "couch" };
 
@@ -101,6 +133,19 @@ export function resolveWallpaper(value: unknown): Wallpaper {
       ? WALLPAPERS.find((w) => w.id === v.id)
       : undefined;
   return found ?? WALLPAPERS[0]!;
+}
+
+/** A stored choice to a valid one: a photo only while it exists, anything else unknown becomes Couch. */
+export function resolveChoice(value: unknown, photos: Array<{ id: string }>): WallpaperChoice {
+  const v = value as Partial<WallpaperChoice> | null | undefined;
+  if (v && v.kind === "photo" && typeof v.id === "string" && photos.some((p) => p.id === v.id))
+    return { kind: "photo", id: v.id };
+  return { kind: "builtin", id: resolveWallpaper(v).id };
+}
+
+/** The CSS variables a photo adds to `.home`: `--wp-photo` and `--wp-dim`. */
+export function photoVars(photo: PhotoTile): Record<string, string> {
+  return { "--wp-photo": `url("${photo.url}")`, "--wp-dim": String(photo.dim) };
 }
 
 /** The CSS variables `.home` reads: `--wp-base`, `--wp-glow` and `--wp-drift`. */

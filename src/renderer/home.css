@@ -10,6 +10,58 @@
   animation: h-drift var(--wp-drift, 90s) ease-in-out infinite alternate;
 }
 /* Always on, over any wallpaper: keeps the edges dark and the clock and tile row readable. */
+/* A photo wallpaper: the photo, a dim over it (its level is set per photo), and a soft blur behind the clock and the tiles. */
+.h-photo {
+  position: absolute;
+  inset: 0;
+  display: none;
+  overflow: hidden;
+}
+.home.photo .h-photo {
+  display: block;
+}
+.home.photo .h-drift {
+  display: none;
+}
+.h-photo-img,
+.h-photo-dim,
+.h-photo-blur {
+  position: absolute;
+  inset: 0;
+}
+.h-photo-img {
+  background: var(--wp-photo, none) center / cover no-repeat;
+  animation: h-kenburns 120s ease-in-out infinite alternate;
+}
+.h-photo-dim {
+  background: #000;
+  opacity: var(--wp-dim, 0.5);
+}
+.h-photo-blur {
+  inset: auto 0;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.h-photo-blur.top {
+  top: 0;
+  height: 34%;
+  -webkit-mask-image: linear-gradient(180deg, #000 40%, transparent);
+  mask-image: linear-gradient(180deg, #000 40%, transparent);
+}
+.h-photo-blur.bottom {
+  bottom: 0;
+  height: 48%;
+  -webkit-mask-image: linear-gradient(0deg, #000 50%, transparent);
+  mask-image: linear-gradient(0deg, #000 50%, transparent);
+}
+@keyframes h-kenburns {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.06);
+  }
+}
 .h-scrim {
   position: absolute;
   inset: 0;
