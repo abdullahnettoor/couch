@@ -10,6 +10,9 @@
 struct FakeWindow : vieworder::Host<std::string> {
   std::vector<std::string> stack;
   std::function<void()> notify;
+  // The real Electron window (ticket 104): every web view's pixels are drawn by the one compositor view.
+  bool compositorDraws = false;
+  bool drawsWebContent(std::string v) const override { return compositorDraws && v == "compositor"; }
   std::vector<std::string> subviews() const override { return stack; }
   void erase(const std::string &v) { stack.erase(std::find(stack.begin(), stack.end(), v)); }
   void placeBottom(std::string v) override { if (has(v)) erase(v); stack.insert(stack.begin(), v); changed(); }
@@ -245,6 +248,27 @@ int main() {
   dvk.dispose();
   dv.electronRaises("video");
   CHECK(dv.stack.back() == "video");
+
+  // ---- Ticket 104: the real tree. Logged on a real Mac with the drawer open over Home: ----
+  //   [0] MpvView  [1] ViewsCompositorSuperview (layer-hosted; draws the renderer, the Apps AND the drawer's page)
+  //   [2] WebContentsViewCocoa renderer  [3],[4] hidden App views  [5] NSGlassEffectView  [6] WebContentsViewCocoa drawer
+  // The web views' own layers are empty; their pixels come from [1]. A glass "directly under the drawer" (above [1])
+  // is therefore drawn over the drawer's rows. No place above the compositor is under the drawer's pixels, and
+  // below it the glass is behind every opaque web page, so the keeper must refuse rather than blur the rows.
+  FakeWindow real;
+  real.compositorDraws = true;
+  real.stack = {"video", "compositor", "web:renderer", "web:youtube", "web:netflix"};
+  vieworder::Keeper<std::string> rk(real, [&](std::function<void()> n) { real.notify = n; });
+  rk.setVideo("video", true);
+  rk.beginDrawerRegistration();
+  real.electronAdds("web:drawer");
+  CHECK(rk.endDrawerRegistration());
+  CHECK(!rk.setDrawer("dglass"));
+  CHECK(!real.has("dglass"));
+  real.electronAdds("web:later");
+  rk.ensure();
+  CHECK(!real.has("dglass"));
+  rk.clearDrawer();
 
   std::printf("ok\n");
   return 0;

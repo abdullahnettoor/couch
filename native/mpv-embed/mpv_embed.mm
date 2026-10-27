@@ -183,6 +183,8 @@ struct NSViewHost : vieworder::Host<NSView *> {
   void placeTop(NSView *v) override { [parent addSubview:v positioned:NSWindowAbove relativeTo:nil]; }
   void placeAbove(NSView *v, NSView *ref) override { [parent addSubview:v positioned:NSWindowAbove relativeTo:ref]; }
   void remove(NSView *v) override { [v removeFromSuperview]; }
+  // Chromium's compositor view draws every WebContentsView's pixels (their own layers are empty).
+  bool drawsWebContent(NSView *v) const override { return [NSStringFromClass([v class]) isEqualToString:@"ViewsCompositorSuperview"]; }
 };
 
 struct PlayerOrder {

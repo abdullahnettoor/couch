@@ -19,6 +19,8 @@ struct Host {
   virtual void placeTop(V v) = 0;
   virtual void placeAbove(V v, V ref) = 0;
   virtual void remove(V v) = 0;
+  // True for a view that draws other views' pixels (Electron's compositor view draws every WebContentsView).
+  virtual bool drawsWebContent(V) const { return false; }
 };
 
 // Calls `notify` often enough to catch any host reorder (production: every main run loop turn, before the display commit).
@@ -67,7 +69,10 @@ class Keeper {
   bool setDrawer(V glass) {
     if (!hasAnchor_) return false;
     std::vector<V> s = host_.subviews();
-    if (std::find(s.begin(), s.end(), anchor_) == s.end()) { hasAnchor_ = false; return false; }
+    auto a = std::find(s.begin(), s.end(), anchor_);
+    if (a == s.end()) { hasAnchor_ = false; return false; }
+    // Glass above a view that draws the drawer's own pixels would blur the drawer; there is no place under them.
+    for (auto it = s.begin(); it != a; ++it) if (host_.drawsWebContent(*it)) return false;
     bool swap = drawerOn_ && !(drawerGlass_ == glass);
     V old = drawerGlass_;
     drawerGlass_ = glass; drawerOn_ = true;

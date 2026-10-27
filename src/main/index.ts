@@ -208,7 +208,8 @@ async function createScreen(): Promise<void> {
       if (front.view === "app" && front.app && webs[front.app]) webs[front.app]!.focus();
       else win?.webContents.focus();
     },
-    // Off until the drawer's glass is proven under its view on a real Screen (ticket 104); COUCH_DRAWER_GLASS=1 turns it on.
+    // Off, and it stays off: Chromium's compositor view draws every web view (the drawer's page too), so no native glass can sit
+    // under the drawer's rows (ticket 104). With =1 the keeper refuses to place it and the drawer is left untinted: experiments only.
     process.env.COUCH_DRAWER_GLASS === "1" ? createDrawerGlass(() => win) : undefined,
   );
   win.on("resize", () => {
