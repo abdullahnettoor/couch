@@ -16,7 +16,6 @@ export type View =
   | "settingsRemotes"
   | "settingsLibrary"
   | "settingsApps"
-  | "settingsApp"
   | "addPhone"
   | "libraryFolders"
   | "details"
@@ -367,8 +366,8 @@ export interface ScreenPayload {
   focusedLabel?: string;
   /** Settings and its "Show and film details" page: the TMDB key label, On/Off and any hint. */
   details?: { keyLabel: string; hasOwnKey: boolean; enabled: boolean; hint?: string };
-  /** On an App's settings page: which App. */
-  appSettings?: { id: string; label: string };
+  /** Settings → Apps with the menu open: the App it is for (its row stays marked). */
+  appMenu?: { id: string; label: string };
   /** What Home draws behind everything; on the Home settings page, shown with the tile in focus as `preview`. */
   home?: HomePayload;
   /** Settings and the Sound output page. */
@@ -376,7 +375,7 @@ export interface ScreenPayload {
   /** Settings and the YouTube add-ons page: each add-on and whether it is on. */
   addons?: Array<{ id: string; label: string; description: string; on: boolean }>;
   /** Every App with whether Home shows it, in Home order (Store key `home.apps`). */
-  homeApps?: Array<{ id: string; label: string; shown: boolean }>;
+  homeApps?: Array<{ id: string; label: string; icon: string; shown: boolean }>;
   /** Settings: the listener's login item and whether a listener is running now. */
   listener?: { available: boolean; on: boolean; running: boolean };
   /** Present for library, folder and libraryFolders. */
@@ -509,7 +508,6 @@ export const VIEW_LABELS: Record<View, string> = {
   settingsRemotes: "Remotes and Devices",
   settingsLibrary: "Library",
   settingsApps: "Apps",
-  settingsApp: "App settings",
   addPhone: "Add a phone",
   libraryFolders: "Library folders",
   details: "Show and film details",

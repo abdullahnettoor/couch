@@ -183,6 +183,7 @@ export async function startHarness(
       token: options.listener.token,
     });
   }
+  const catalog = [...APP_ENTRIES, ...(options.apps ?? []).map((a) => a.entry)];
   const unloader = new IdleUnloader(clock, store);
   youtube.lifecycle = unloader.track("youtube", () => youtube.unload(), { loaded: true });
   netflix.lifecycle = unloader.track("netflix", () => netflix.unload());
@@ -193,6 +194,7 @@ export async function startHarness(
     },
     frontdoorSetup: options.frontdoor,
     player,
+    entries: catalog,
     apps: [
       new YouTubeApp(youtube, clock),
       new NetflixApp(netflix, clock),
@@ -212,7 +214,7 @@ export async function startHarness(
   });
   const screen = new FakeScreen(app, {
     ...DEFAULT_GRIDS,
-    home: homeItems([...APP_ENTRIES, ...(options.apps ?? []).map((a) => a.entry)]),
+    home: homeItems(catalog),
   });
   const phones: FakePhone[] = [];
   return {

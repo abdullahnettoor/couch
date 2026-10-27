@@ -1,12 +1,16 @@
-import type { GridItem } from "../../shared/protocol.ts";
+import { RESTART_APP, type AppEntry } from "../apps/index.ts";
+import type { GridItem, View } from "../../shared/protocol.ts";
 import type { Store } from "../ports/store.ts";
 
 const KEY = "home.apps";
 export const HOME_APP = "home:";
+/** The menu's own focus, kept apart from the list behind it. */
+export const APPS_MENU_KEY = "settingsApps:menu";
 
 export interface HomeAppRow {
   id: string;
   label: string;
+  icon: string;
   shown: boolean;
 }
 
@@ -15,41 +19,67 @@ interface Stored {
   hidden: string[];
 }
 
+/**
+ * Every App in the household's order with whether Home shows it (Store key `home.apps`, the file
+ * `home.apps.json`). Startup and Core both read it here, so they always agree:
+ * new Apps go last and shown, unknown ids are dropped, hidden applies only to ids in the stored
+ * order, and when everything is hidden the first App is shown.
+ */
+export function resolveHomeApps(
+  store: Store,
+  catalog: Array<Pick<AppEntry, "id" | "label" | "icon">>,
+): HomeAppRow[] {
+  const raw = store.read<Partial<Stored> | null>(KEY, {}) ?? {};
+  const list = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string") : []);
+  const byId = new Map(catalog.map((k) => [k.id, k]));
+  const ids = [...new Set<string>(list(raw.order))].filter((id) => byId.has(id));
+  const hidden = new Set(list(raw.hidden).filter((id) => ids.includes(id)));
+  for (const k of catalog) if (!ids.includes(k.id)) ids.push(k.id);
+  const rows = ids.map((id) => {
+    const k = byId.get(id)!;
+    return { id, label: k.label, icon: k.icon, shown: !hidden.has(id) };
+  });
+  if (rows.length && !rows.some((r) => r.shown)) rows[0]!.shown = true;
+  return rows;
+}
+
+const LIBRARY_VIEWS: View[] = [
+  "library",
+  "folder",
+  "libraryFolders",
+  "librarySearch",
+  "show",
+  "fixMatch",
+  "player",
+];
+
+/** Whether hiding App `id` must take the Screen Home first: the Library owns its views, a web App owns `app`. */
+export function leavesOnHide(id: string, view: View, openApp: string | undefined): boolean {
+  if (view === "app") return openApp === id;
+  return id === "library" && LIBRARY_VIEWS.includes(view);
+}
+
 export interface HomeAppsHost {
   store: Store;
-  /** Every App Couch has, in its default order. */
-  known(): Array<{ id: string; label: string }>;
+  /** Every App Couch has (injected ones too), in its default order. */
+  known(): AppEntry[];
   toast(text: string): void;
   /** An App was hidden: core leaves it first if it is open. */
   hidden(id: string): void;
   changed(): void;
 }
 
-/** Which Apps Home shows and in what order (Store key `home.apps`); Settings → Apps edits it. */
+/** Which Apps Home shows and in what order; Settings → Apps edits it, through a menu over the list. */
 export class HomeApps {
   #h: HomeAppsHost;
+  #menu: string | undefined;
 
   constructor(host: HomeAppsHost) {
     this.#h = host;
   }
 
-  #stored(): Stored {
-    const raw = this.#h.store.read<Partial<Stored>>(KEY, {});
-    const list = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string") : []);
-    return { order: list(raw.order), hidden: list(raw.hidden) };
-  }
-
-  /** Every known App in the stored order (new ones at the end); unknown stored ids are dropped. */
   rows(): HomeAppRow[] {
-    const known = this.#h.known();
-    const stored = this.#stored();
-    const byId = new Map(known.map((k) => [k.id, k]));
-    const ids = [...new Set(stored.order)].filter((id) => byId.has(id));
-    for (const k of known) if (!ids.includes(k.id)) ids.push(k.id);
-    const hidden = new Set(stored.hidden);
-    const rows = ids.map((id) => ({ id, label: byId.get(id)!.label, shown: !hidden.has(id) }));
-    if (rows.length && !rows.some((r) => r.shown)) rows[0]!.shown = true;
-    return rows;
+    return resolveHomeApps(this.#h.store, this.#h.known());
   }
 
   isShown(id: string): boolean {
@@ -61,6 +91,33 @@ export class HomeApps {
     return this.rows()
       .filter((r) => r.shown)
       .map((r) => r.id);
+  }
+
+  /** The App whose menu is open over the Apps list. */
+  get menuId(): string | undefined {
+    return this.#menu;
+  }
+
+  openMenu(id: string): void {
+    if (!this.rows().some((r) => r.id === id)) return;
+    this.#menu = id;
+    this.#h.changed();
+  }
+
+  closeMenu(): void {
+    if (this.#menu === undefined) return;
+    this.#menu = undefined;
+    this.#h.changed();
+  }
+
+  /** Forgets the menu without a redraw (the view is changing anyway). */
+  resetMenu(): void {
+    this.#menu = undefined;
+  }
+
+  /** The row index of the open menu's App in the list behind it. */
+  menuRow(): number {
+    return this.rows().findIndex((r) => r.id === this.#menu);
   }
 
   setShown(id: string, shown: boolean): boolean {
@@ -107,18 +164,25 @@ export class HomeApps {
     }));
   }
 
-  /** The rows on one App's page: show or hide, then the two moves. */
-  pageItems(id: string): Array<{ id: string; label: string; action: string }> {
+  /** The open menu: show or hide, the two moves, then Restart (web) and Add-ons. */
+  menuGrid(): GridItem[] {
+    const id = this.#menu ?? "";
+    const entry = this.#h.known().find((e) => e.id === id);
     const shown = this.isShown(id);
-    return [
+    const items: Array<Omit<GridItem, "r" | "c">> = [
       {
         id: "home-toggle",
         label: shown ? "Hide from Home" : "Show on Home",
         action: `${HOME_APP}${shown ? "hide" : "show"}:${id}`,
       },
-      { id: "home-left", label: "Move left", action: `${HOME_APP}move:-1:${id}` },
-      { id: "home-right", label: "Move right", action: `${HOME_APP}move:1:${id}` },
+      { id: "home-up", label: "Move up", action: `${HOME_APP}move:-1:${id}` },
+      { id: "home-down", label: "Move down", action: `${HOME_APP}move:1:${id}` },
+      ...(entry?.web
+        ? [{ id: "restart", label: `Restart ${entry.label}`, action: `${RESTART_APP}${entry.id}` }]
+        : []),
+      ...(entry?.addons ? [{ id: "addons", label: "Add-ons", action: "settings:addons" }] : []),
     ];
+    return items.map((item, r) => ({ ...item, r, c: 0, ...(r === 0 ? { initial: true } : {}) }));
   }
 
   action(action: string): boolean {

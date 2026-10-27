@@ -84,8 +84,6 @@ export function netflixDescription(version?: string): WebAppDescription {
     route: netflixRoute(),
     seekKeys: { back: "left", forward: "right" },
     drm: true,
-    // Signed in, browse autoplays a billboard trailer: it must not play before Netflix is opened.
-    loadOnShow: true,
     focus: { selectors: FOCUS_SELECTORS, layout: NETFLIX_LAYOUT },
     preloads: [NETFLIX_ART_PRELOAD],
     hideScrollbars: true,

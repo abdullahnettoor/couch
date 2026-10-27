@@ -33,7 +33,6 @@ export const VIEWS: Partial<Record<View, ViewModule & { grid?: GridItem[] }>> = 
   settingsRemotes: { ...settingsGroup, grid: REMOTES_ITEMS },
   settingsLibrary: { ...settingsGroup, grid: LIBRARY_ITEMS },
   settingsApps: { ...settingsGroup },
-  settingsApp: { ...settingsGroup },
   addPhone: { ...addPhone, grid: ADD_PHONE_ITEMS },
   app: { ...app, grid: [] },
   appError: { ...appError, grid: APP_ERROR_ITEMS },

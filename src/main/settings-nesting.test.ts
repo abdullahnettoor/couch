@@ -67,23 +67,24 @@ describe("Settings nesting", () => {
     expect(view()).toBe("settingsApps");
     expect(labels()).toEqual(["YouTube", "Netflix", "Library"]);
     await phone.press("ok");
-    expect(view()).toBe("settingsApp");
+    expect(view()).toBe("settingsApps");
+    expect(h.screen.last.appMenu?.id).toBe("youtube");
     expect(labels()).toEqual([
       "Hide from Home",
-      "Move left",
-      "Move right",
+      "Move up",
+      "Move down",
       "Restart YouTube",
       "Add-ons",
     ]);
   });
 
-  test("Back walks up one level at a time: add-ons → YouTube → Apps → Settings → Home", async () => {
+  test("Back walks up one level at a time: add-ons → YouTube menu → Apps → Settings → Home", async () => {
     const phone = await openSettings();
     await enter(phone, "Apps");
     await phone.press("ok");
     await enter(phone, "Add-ons");
     expect(view()).toBe("addons");
-    for (const expected of ["settingsApp", "settingsApps", "settings", "home"]) {
+    for (const expected of ["settingsApps", "settingsApps", "settings", "home"]) {
       await phone.press("back");
       expect(view()).toBe(expected);
     }

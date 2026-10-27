@@ -132,6 +132,52 @@ beforeEach(() => {
   fake.views.length = 0;
 });
 
+describe("when a web App loads", () => {
+  test("Netflix makes no site request until it is shown", async () => {
+    const web = new ElectronWebApp(netflix, win);
+    contents = fake.views.at(-1)!;
+    await new Promise((r) => setTimeout(r, 30));
+    expect(contents.loads).toEqual([]);
+    expect(contents.url).toBe("about:blank");
+    web.show();
+    await vi.waitFor(() => expect(contents.loads).toContain(HOME));
+  });
+
+  test("an unstarted App loads on show", async () => {
+    const web = new ElectronWebApp(netflix, win);
+    contents = fake.views.at(-1)!;
+    web.show();
+    await vi.waitFor(() => expect(contents.loads.filter((u) => u === HOME)).toHaveLength(1));
+  });
+
+  test("a repeated show doesn't start loading again", async () => {
+    const web = new ElectronWebApp(netflix, win);
+    contents = fake.views.at(-1)!;
+    web.show();
+    await vi.waitFor(() => expect(contents.loads).toContain(HOME));
+    contents.url = PAGE;
+    web.hide();
+    web.show();
+    web.show();
+    await new Promise((r) => setTimeout(r, 30));
+    expect(contents.loads.filter((u) => u === HOME)).toHaveLength(1);
+  });
+
+  test("an idle unload then show recreates the view and loads again", async () => {
+    const web = new ElectronWebApp(netflix, win);
+    const first = fake.views.at(-1)!;
+    web.show();
+    await vi.waitFor(() => expect(first.loads).toContain(HOME));
+    web.hide();
+    web.unload();
+    const second = fake.views.at(-1)!;
+    expect(second).not.toBe(first);
+    expect(second.loads).toEqual([]);
+    web.show();
+    await vi.waitFor(() => expect(second.loads).toContain(HOME));
+  });
+});
+
 describe("showing a web App whose page is blank", () => {
   test("reloads the App's home", async () => {
     const web = await startedNetflix();

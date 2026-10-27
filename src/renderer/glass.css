@@ -1218,3 +1218,53 @@ body:has(.ls-page) .toast:not(.notice) {
 .wp-tile.focused .wp-swatch {
   box-shadow: 0 0 0 calc(5 * var(--u)) #fff;
 }
+/* ---- Settings → Apps: Show on Home switch and the menu over the list ---- */
+.g-switch {
+  position: relative;
+  width: calc(64 * var(--u));
+  height: calc(36 * var(--u));
+  border-radius: calc(18 * var(--u));
+  background: rgba(255, 255, 255, 0.22);
+  transition: background 0.25s;
+}
+.g-switch::after {
+  content: "";
+  position: absolute;
+  top: calc(4 * var(--u));
+  left: calc(4 * var(--u));
+  width: calc(28 * var(--u));
+  height: calc(28 * var(--u));
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.25s var(--ease);
+}
+.g-switch.on {
+  background: #30d158;
+}
+.g-switch.on::after {
+  transform: translateX(calc(28 * var(--u)));
+}
+.g-row.focused .g-switch:not(.on) {
+  background: rgba(0, 0, 0, 0.25);
+}
+.g-row.marked:not(.focused) {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--t1);
+}
+.g-menu {
+  position: fixed;
+  top: 50%;
+  right: calc(120 * var(--u));
+  width: calc(560 * var(--u));
+  transform: translateY(-50%);
+  padding: calc(32 * var(--u));
+  border-radius: calc(36 * var(--u));
+  background: rgba(40, 40, 44, 0.92);
+  backdrop-filter: blur(40px);
+  box-shadow: 0 calc(40 * var(--u)) calc(100 * var(--u)) rgba(0, 0, 0, 0.6);
+}
+.g-menu h2 {
+  margin: 0 0 calc(20 * var(--u));
+  font-size: calc(30 * var(--u));
+  color: var(--t2);
+}

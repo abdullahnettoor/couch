@@ -25,14 +25,14 @@ import {
 import type { Clock } from "../ports/clock.ts";
 import type { Mac } from "../ports/mac.ts";
 import { pickTargetDisplay } from "../display.ts";
-import { APP_ENTRIES, appEntry } from "../apps/index.ts";
+import { APP_ENTRIES, OPEN_APP, type AppEntry } from "../apps/index.ts";
 import type { App, AppEvent, AppTyping, PlaybackReport } from "../apps/app.ts";
 import { randomBytes } from "node:crypto";
 import type { Store } from "../ports/store.ts";
 import type { Thumbnails } from "../ports/thumbnails.ts";
 import { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
 import { confirmMouseCommand } from "../../shared/confirm-layout.ts";
-import { SETTINGS_APP, appSettingsItems } from "../../shared/settings-grid.ts";
+import { SETTINGS_APP } from "../../shared/settings-grid.ts";
 import { actionFor, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
 import { MediaLibrary } from "./media-library.ts";
@@ -46,7 +46,7 @@ import { PlayerControls } from "./player-controls.ts";
 import { History } from "./history.ts";
 import { ShowView } from "./show-view.ts";
 import { AddonsPage } from "./addons-page.ts";
-import { HomeApps } from "./home-apps.ts";
+import { APPS_MENU_KEY, HomeApps, leavesOnHide } from "./home-apps.ts";
 import { DetailsPage } from "./details-page.ts";
 import { HomePage } from "./home-page.ts";
 import { SoundOutput } from "./sound-output.ts";
@@ -107,6 +107,8 @@ export interface Ports {
   player: Player;
   /** The web Apps Home can open (see `apps/index.ts` for their entries). */
   apps: App[];
+  /** The App catalog (tiles, icons, Settings actions); defaults to `APP_ENTRIES`. Injected Apps add theirs here. */
+  entries?: AppEntry[];
   mac: Mac;
   clock: Clock;
   store: Store;
@@ -316,12 +318,21 @@ export class Core {
     this.#homePage = new HomePage({ store: ports.store, changed: () => this.#emit() });
     this.#homeApps = new HomeApps({
       store: ports.store,
-      known: () => this.#knownApps(),
+      known: () => this.#catalog(),
       toast: (text) => this.#toast(text),
       hidden: (id) => {
-        if (this.#state.view === "app" && this.#state.app === id) this.#setView("home");
+        if (!leavesOnHide(id, this.#state.view, this.#state.app)) return;
+        if (this.#state.player) {
+          this.#stopPlayback();
+          this.#endPlayback();
+        }
+        this.#setView("home");
       },
-      changed: () => this.#emit(),
+      changed: () => {
+        const at = this.#homeApps.menuRow();
+        if (at >= 0) this.#state.focus.settingsApps = { r: at, c: 0 };
+        this.#emit();
+      },
     });
     this.#addonsPage = new AddonsPage({
       store: ports.store,
@@ -434,6 +445,7 @@ export class Core {
 
   get viewKey(): string {
     const { view, folderPath } = this.#state;
+    if (view === "settingsApps" && this.#homeApps.menuId) return APPS_MENU_KEY;
     return view === "folder" ? `folder:${folderPath}` : view;
   }
 
@@ -648,12 +660,9 @@ export class Core {
     if (this.#state.view === "settingsHome") return this.#homePage.grid();
     if (this.#state.view === "addons") return this.#addonsPage.grid();
     if (this.#state.view === "settingsApps")
-      return this.#homeApps.grid((id) => `${SETTINGS_APP}${id}`);
-    if (this.#state.view === "settingsApp")
-      return appSettingsItems(
-        this.#settingsApp ?? "",
-        this.#homeApps.pageItems(this.#settingsApp ?? ""),
-      );
+      return this.#homeApps.menuId
+        ? this.#homeApps.menuGrid()
+        : this.#homeApps.grid((id) => `${SETTINGS_APP}${id}`);
     if (this.#state.view === "show") return this.#show.grid();
     if (this.#state.view === "fixMatch") return this.#show.fixGrid();
     if (this.#state.view === "librarySearch") return this.#search.grid();
@@ -1176,13 +1185,11 @@ export class Core {
         ? { sound: this.#sound.payload() }
         : {}),
       homeApps: this.#homeApps.rows(),
-      ...(this.#state.view === "settingsApp" || this.#state.view === "addons"
+      ...(this.#state.view === "settingsApps" || this.#state.view === "addons"
         ? { addons: this.#addonsPage.payload() }
         : {}),
       ...(this.#state.view === "settingsRemotes" ? { listener: { ...this.#loginItem } } : {}),
-      ...(this.#state.view === "settingsApp" || this.#state.view === "addons"
-        ? this.#appSettingsPayload()
-        : {}),
+      ...(this.#state.view === "settingsApps" ? this.#appMenuPayload() : {}),
       home: this.#homePage.payload(this.#state.view === "settingsHome" ? focused?.id : undefined),
       continueCard: this.#continueEntries()[0],
       homeVideos,
@@ -1323,7 +1330,7 @@ export class Core {
   }
 
   #appFace(id: string, label: string): { id: string; label: string; icon: string } | undefined {
-    const icon = appEntry(id)?.icon;
+    const icon = this.#catalog().find((e) => e.id === id)?.icon;
     return icon ? { id, label, icon } : undefined;
   }
 
@@ -1903,6 +1910,10 @@ export class Core {
       this.#state.focus[this.viewKey] = { r: 1, c: 0 };
       return;
     }
+    if (this.#state.view === "settingsApps" && this.#homeApps.menuId) {
+      delete this.#state.focus[APPS_MENU_KEY];
+      return this.#homeApps.closeMenu();
+    }
     if (this.#state.view === "librarySearch") return this.#setView("library");
     if (this.#state.view === "show" && this.#showFrom === "librarySearch")
       return this.#setView("librarySearch");
@@ -1926,6 +1937,10 @@ export class Core {
       this.#homeFilm = undefined;
     }
     if (from === view) return;
+    if (view !== "settingsApps" && view !== "addons") {
+      this.#homeApps.resetMenu();
+      delete this.#state.focus[APPS_MENU_KEY];
+    }
     if (from === "app") {
       if (this.#leaveConfirm && this.#state.confirm === this.#leaveConfirm) this.#dismissConfirm();
       this.#state.typingBy = undefined;
@@ -1944,12 +1959,18 @@ export class Core {
     if (view === "settingsRemotes") void this.refreshLoginItem();
   }
 
-  /** Every App Couch has, in its default order: the App list, then any others that were given. */
-  #knownApps(): Array<{ id: string; label: string }> {
-    const listed = APP_ENTRIES.map((e) => ({ id: e.id, label: e.label }));
+  /** The one App catalog: Home tiles, icons and Settings actions all come from it, injected Apps included. */
+  #catalog(): AppEntry[] {
+    const listed = this.#ports.entries ?? APP_ENTRIES;
     const extra = [...this.#apps.values()]
       .filter((a) => !listed.some((l) => l.id === a.id))
-      .map((a) => ({ id: a.id, label: a.label }));
+      .map((a) => ({
+        id: a.id,
+        label: a.label,
+        icon: "",
+        action: `${OPEN_APP}${a.id}`,
+        web: true,
+      }));
     return [...listed, ...extra];
   }
 
@@ -1966,17 +1987,6 @@ export class Core {
         return { ...item, c, ...(c === 0 ? { initial: true } : {}) };
       }),
     ];
-  }
-
-  /** Opens an App from Home; a hidden App stays closed. */
-  openApp(id: string): void {
-    this.#openApp(id);
-    this.#emit();
-  }
-
-  /** Shows or hides an App on Home (hiding the open App goes Home first). */
-  setAppShown(id: string, shown: boolean): void {
-    this.#homeApps.setShown(id, shown);
   }
 
   #openApp(id: string): void {
@@ -2130,10 +2140,7 @@ export class Core {
   #actionContext(): ActionContext {
     return {
       open: (view) => this.#setView(view),
-      openAppSettings: (id) => {
-        this.#settingsApp = id;
-        this.#setView("settingsApp");
-      },
+      openAppMenu: (id) => this.#homeApps.openMenu(id),
       openApp: (id) => this.#openApp(id),
       retryApp: () => this.#retryApp(),
       restartApp: (id) => this.#restartApp(id),
@@ -2144,11 +2151,9 @@ export class Core {
     };
   }
 
-  #settingsApp: string | undefined;
-
-  #appSettingsPayload(): Pick<ScreenPayload, "appSettings"> {
-    const app = this.#knownApps().find((a) => a.id === this.#settingsApp);
-    return app ? { appSettings: { id: app.id, label: app.label } } : {};
+  #appMenuPayload(): Pick<ScreenPayload, "appMenu"> {
+    const app = this.#catalog().find((a) => a.id === this.#homeApps.menuId);
+    return app ? { appMenu: { id: app.id, label: app.label } } : {};
   }
 
   #loginItem = { available: false, on: false, running: false };

@@ -42,7 +42,8 @@ describe("YouTube add-ons in Settings", () => {
     await focus(phone, "Apps");
     await phone.press("ok");
     await phone.press("ok");
-    expect(h.screen.last.state.view).toBe("settingsApp");
+    expect(h.screen.last.state.view).toBe("settingsApps");
+    expect(h.screen.last.appMenu?.id).toBe("youtube");
     const labels = h.screen.last.grid.map((i) => i.label);
     expect(labels.indexOf("Add-ons")).toBe(labels.indexOf("Restart YouTube") + 1);
     expect(h.screen.last.addons?.filter((a) => a.on)).toHaveLength(1);
@@ -78,7 +79,8 @@ describe("YouTube add-ons in Settings", () => {
   test("Back returns to the YouTube page", async () => {
     const phone = await start();
     await openAddons(phone);
-    expect((await phone.press("back")).view).toBe("settingsApp");
+    expect((await phone.press("back")).view).toBe("settingsApps");
+    expect(h.screen.last.appMenu?.id).toBe("youtube");
   });
 
   test("choices survive a restart", async () => {

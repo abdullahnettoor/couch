@@ -162,11 +162,12 @@ describe("Netflix App", () => {
     expect(h.screen.last.state.view).toBe("settingsApps");
     await phone.press("down");
     await phone.press("ok");
-    expect(h.screen.last.state.view).toBe("settingsApp");
+    expect(h.screen.last.state.view).toBe("settingsApps");
+    expect(h.screen.last.appMenu?.id).toBe("netflix");
     expect(h.screen.last.grid.map((g) => g.label)).toEqual([
       "Hide from Home",
-      "Move left",
-      "Move right",
+      "Move up",
+      "Move down",
       "Restart Netflix",
     ]);
     for (let i = 0; i < 3; i++) await phone.press("down");

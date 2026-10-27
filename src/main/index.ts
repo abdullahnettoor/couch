@@ -14,6 +14,8 @@ import { youtubeDescription } from "./apps/youtube/youtube-web.ts";
 import { netflixDescription } from "./apps/netflix/netflix-web.ts";
 import { NetflixApp } from "./apps/netflix/netflix-app.ts";
 import { YouTubeApp } from "./apps/youtube/youtube-app.ts";
+import { APP_ENTRIES } from "./apps/index.ts";
+import { resolveHomeApps } from "./core/home-apps.ts";
 import { IdleUnloader } from "./web/idle-unload.ts";
 import { FileStore } from "./ports/store.ts";
 import { readChoices } from "./web/addon.ts";
@@ -283,8 +285,7 @@ async function createScreen(): Promise<void> {
     publishScreen();
   });
   // A hidden App isn't loaded at start; showing it again loads it on first open.
-  if (!(store.read<{ hidden?: string[] }>("home.apps", {}).hidden ?? []).includes("youtube"))
-    youtube.start();
+  if (resolveHomeApps(store, APP_ENTRIES).find((r) => r.id === "youtube")?.shown) youtube.start();
   publishScreen();
 }
 

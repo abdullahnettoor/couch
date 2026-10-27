@@ -47,16 +47,29 @@ export interface RowOptions {
   chevron?: boolean;
   /** An App's logo (SVG markup), shown before the label. */
   logo?: string;
+  /** A switch in place of the value: on or off. */
+  switch?: "on" | "off";
+  /** The row a menu is open for. */
+  marked?: boolean;
 }
 
 /** A Glass list row: solid white when focused, red for danger rows. */
 export function glassRow(o: RowOptions): HTMLElement {
-  const row = el("button", `g-row${o.danger ? " danger" : ""}${o.focused ? " focused" : ""}`);
+  const row = el(
+    "button",
+    `g-row${o.danger ? " danger" : ""}${o.focused ? " focused" : ""}${o.marked ? " marked" : ""}`,
+  );
   const label = el("span", "g-row-label");
   if (o.logo) label.insertAdjacentHTML("beforeend", `<span class="g-row-logo">${o.logo}</span>`);
   label.append(document.createTextNode(o.label));
   const value = el("span", "v");
   if (o.value) value.append(document.createTextNode(o.value));
+  if (o.switch) {
+    const sw = el("span", `g-switch ${o.switch}`);
+    sw.setAttribute("role", "switch");
+    sw.setAttribute("aria-checked", String(o.switch === "on"));
+    value.append(sw);
+  }
   if (o.chevron !== false) value.insertAdjacentHTML("beforeend", iconSvg("chev"));
   row.append(label, value);
   return focusable(row, o.id);

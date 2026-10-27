@@ -5,7 +5,7 @@ import type { View } from "../../shared/protocol.ts";
 /** What an action handler may do to the core. */
 export interface ActionContext {
   open(view: View): void;
-  openAppSettings(id: string): void;
+  openAppMenu(id: string): void;
   toast(text: string): void;
   forgetAllPhones(): void;
   openApp(id: string): void;
@@ -34,7 +34,7 @@ const appActions: Record<string, ActionHandler> = {
 function appAction(action: string): ActionHandler | undefined {
   if (action.startsWith(OPEN_APP)) return (ctx) => ctx.openApp(action.slice(OPEN_APP.length));
   if (action.startsWith(SETTINGS_APP))
-    return (ctx) => ctx.openAppSettings(action.slice(SETTINGS_APP.length));
+    return (ctx) => ctx.openAppMenu(action.slice(SETTINGS_APP.length));
   if (action.startsWith(RESTART_APP))
     return (ctx) => ctx.restartApp(action.slice(RESTART_APP.length));
   return undefined;
@@ -71,14 +71,13 @@ export const BACK_TARGETS: Partial<Record<View, View>> = {
   settingsRemotes: "settings",
   settingsLibrary: "settings",
   settingsApps: "settings",
-  settingsApp: "settingsApps",
   addPhone: "settingsRemotes",
   appError: "home",
   libraryFolders: "settingsLibrary",
   details: "settingsLibrary",
   soundOutput: "settings",
   settingsHome: "settings",
-  addons: "settingsApp",
+  addons: "settingsApps",
   credits: "details",
   library: "home",
   show: "library",

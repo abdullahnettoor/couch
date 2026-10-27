@@ -1,6 +1,4 @@
-import { HOME_ITEMS } from "../../shared/home-grid.ts";
 import { clockParts } from "../../shared/clock-format.ts";
-import { APP_ENTRIES } from "../../main/apps/index.ts";
 import type { LibraryEntry, ScreenPayload } from "../../shared/protocol.ts";
 import { el, focusable, genreLabels, qrSvg, root } from "./dom.ts";
 import { glassPill, topbar } from "./glass.ts";
@@ -21,8 +19,8 @@ function greeting(date: Date): string {
         : "Good evening";
 }
 
-function appTile(id: string, label: string, focused: boolean): HTMLElement {
-  const face = APP_ENTRIES.find((e) => e.id === id)?.icon ?? "";
+function appTile(id: string, label: string, icon: string, focused: boolean): HTMLElement {
+  const face = icon;
   return focusable(
     el(
       "button",
@@ -151,10 +149,8 @@ export function render(payload: ScreenPayload): void {
     `<div class="d">${greeting(date)} · ${date.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" })}</div>`;
 
   const row = el("div", "h-row");
-  const apps = payload.homeApps
-    ? payload.homeApps.filter((a) => a.shown)
-    : HOME_ITEMS.filter((i) => i.id !== "settings");
-  for (const app of apps) row.append(appTile(app.id, app.label, focused(app.id)));
+  for (const app of (payload.homeApps ?? []).filter((a) => a.shown))
+    row.append(appTile(app.id, app.label, app.icon, focused(app.id)));
   if (videos.length) {
     row.append(el("div", "h-divider"));
     for (const v of videos) row.append(filmTile(v, focused(v.path)));

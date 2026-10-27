@@ -169,7 +169,8 @@ describe("YouTube App", () => {
     expect(h.screen.last.focusedLabel).toBe("Restart YouTube");
     await phone.press("ok");
     expect(calls("restart")).toHaveLength(1);
-    expect(h.screen.last.state.view).toBe("settingsApp");
+    expect(h.screen.last.state.view).toBe("settingsApps");
+    expect(h.screen.last.appMenu?.id).toBe("youtube");
     expect(h.screen.last.state.toast).toBe("Restarting YouTube");
   });
 
