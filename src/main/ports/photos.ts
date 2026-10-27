@@ -29,6 +29,42 @@ export function looksLikeImage(bytes: Buffer): boolean {
   return isJpeg(bytes) || isPng(bytes);
 }
 
+/** The most a photo may declare, per side and in all, before Couch decodes it (a small file can declare a huge picture). */
+export const MAX_SIDE = 8192;
+export const MAX_PIXELS = 40_000_000;
+
+/** The size a JPEG (its SOF segment) or PNG (its IHDR) declares, read from the header bytes alone. */
+export function imageSize(b: Buffer): { width: number; height: number } | undefined {
+  if (isPng(b)) {
+    if (b.length < 24 || b.toString("latin1", 12, 16) !== "IHDR") return undefined;
+    return { width: b.readUInt32BE(16), height: b.readUInt32BE(20) };
+  }
+  if (!isJpeg(b)) return undefined;
+  let at = 2;
+  while (at + 4 <= b.length) {
+    if (b[at] !== 0xff) return undefined;
+    const marker = b[at + 1]!;
+    if (marker === 0xff) {
+      at++;
+      continue;
+    }
+    if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+      at += 2;
+      continue;
+    }
+    if (marker === 0xd9 || marker === 0xda) return undefined;
+    const length = b.readUInt16BE(at + 2);
+    const isFrame = marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker);
+    if (isFrame) {
+      if (at + 9 > b.length) return undefined;
+      return { height: b.readUInt16BE(at + 5), width: b.readUInt16BE(at + 7) };
+    }
+    if (length < 2) return undefined;
+    at += 2 + length;
+  }
+  return undefined;
+}
+
 /** Mean brightness 0..1 of a BGRA or RGBA bitmap (Rec. 709 weights on the gamma-encoded values). */
 export function meanBrightness(bitmap: Uint8Array, bgra: boolean): number {
   const pixels = Math.floor(bitmap.length / 4);
