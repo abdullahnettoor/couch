@@ -210,7 +210,7 @@ void app.whenReady().then(async () => {
         ),
       );
 
-      const desktop = mac.desktopPicture();
+      const desktop = await mac.desktopPicture();
       check(
         "the real desktop picture path is read",
         !!desktop && existsSync(desktop.path) && /\.(jpe?g|png|heic)$/i.test(desktop.name),

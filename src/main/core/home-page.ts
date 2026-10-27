@@ -77,8 +77,14 @@ export class HomePage {
   #sources: Source[] = [];
   #failed = new Set<string>();
   #queue: Source[] = [];
-  #busy = false;
+  /** The key being converted right now. */
+  #running: string | undefined;
   #readAt: number | undefined;
+  #desktop: MacEntry | undefined;
+  #desktopKnown = false;
+  #reading = false;
+  #watching = true;
+  #cancelRead: (() => void) | undefined;
 
   constructor(host: HomePageHost) {
     this.#h = host;
@@ -127,6 +133,8 @@ export class HomePage {
   #chosen(): WallpaperChoice {
     const choice = parseChoice(this.#saved().wallpaper);
     if (choice.kind === "builtin") return choice;
+    // Until the first read of the desktop picture is back, Same as Mac is kept rather than shown as Couch.
+    if (choice.kind === "mac" && !this.#desktopKnown) return choice;
     return this.#find(choice) ? choice : DEFAULT_WALLPAPER;
   }
 
@@ -139,7 +147,8 @@ export class HomePage {
 
   /**
    * Reads the Mac again. `full` (Settings → Home is open) lists everything and converts every picture;
-   * otherwise it is Home, at most once a minute, and only the picture in use is converted.
+   * otherwise it is Home, at most once a minute, and only the picture in use is converted. The desktop
+   * picture is read in the background; the next read is due 60 s after this one.
    */
   refresh(full: boolean): void {
     const w = this.#h.wallpapers;
@@ -147,10 +156,44 @@ export class HomePage {
     const now = this.#h.clock.now();
     if (!full && this.#readAt !== undefined && now - this.#readAt < READ_EVERY) return;
     this.#readAt = now;
+    this.#rebuild(full);
+    this.#armRead();
+    if (this.#reading) return;
+    this.#reading = true;
+    const done = (desktop: MacEntry | undefined, ok: boolean) => {
+      this.#reading = false;
+      if (ok) this.#desktop = desktop;
+      this.#desktopKnown = true;
+      this.#rebuild(full);
+      this.#h.changed();
+    };
+    w.mac.desktopPicture().then(
+      (d) => done(d, true),
+      () => done(undefined, false),
+    );
+  }
+
+  /** Home is up (or Settings → Home): the desktop picture is re-read 60 s after the last read; elsewhere it isn't. */
+  watch(on: boolean): void {
+    this.#watching = on;
+    if (on) this.#armRead();
+    else this.#cancelRead?.();
+  }
+
+  #armRead(): void {
+    this.#cancelRead?.();
+    this.#cancelRead = undefined;
+    if (!this.#watching || !this.#h.wallpapers || this.#readAt === undefined) return;
+    const wait = Math.max(0, this.#readAt + READ_EVERY - this.#h.clock.now());
+    this.#cancelRead = this.#h.clock.setTimeout(() => this.refresh(false), wait);
+  }
+
+  #rebuild(full: boolean): void {
+    const w = this.#h.wallpapers!;
     const sources: Source[] = [];
     const add = (kind: PictureKind, entry: MacEntry, label: string, file?: string) =>
       sources.push({ kind, entry, label, ...(file ? { file } : {}), key: keyFor(entry) });
-    const desktop = w.mac.desktopPicture();
+    const desktop = this.#desktop;
     if (desktop && IMAGE_FILE.test(desktop.name)) add("mac", desktop, "Same as Mac");
     const listed = w.mac.listFolder(this.#folder());
     const folder = (listed ?? [])
@@ -164,10 +207,25 @@ export class HomePage {
       .sort(byName);
     for (const e of apple) add("apple", e, tidyName(e.name), e.name);
     this.#sources = sources;
-    this.#forget(listed !== undefined);
+    this.#forget(listed !== undefined && this.#desktopKnown);
     const inUse = this.#find(parseChoice(this.#saved().wallpaper));
     for (const s of sources) if (full || s === inUse) this.#want(s);
+    this.#preloadNext();
     this.#pump();
+  }
+
+  /** The next slideshow picture, so it is converted before it is due. */
+  #nextSlide(): Source | undefined {
+    const chosen = this.#chosen();
+    if (this.#slideshow() === "off" || chosen.kind !== "folder") return undefined;
+    const pictures = this.#sources.filter((s) => s.kind === "folder" && !this.#failed.has(s.key));
+    const here = pictures.findIndex((s) => s.file === chosen.file);
+    return here < 0 ? undefined : pictures[(here + 1) % pictures.length];
+  }
+
+  #preloadNext(): void {
+    const next = this.#nextSlide();
+    if (next) this.#want(next);
   }
 
   /** Converted copies of pictures that are in no source any more are removed (kept when the folder couldn't be read). */
@@ -193,7 +251,12 @@ export class HomePage {
   }
 
   #want(s: Source): void {
-    if (this.#failed.has(s.key) || this.#converted(s) || this.#queue.some((q) => q.key === s.key))
+    if (
+      this.#failed.has(s.key) ||
+      this.#running === s.key ||
+      this.#converted(s) ||
+      this.#queue.some((q) => q.key === s.key)
+    )
       return;
     this.#queue.push(s);
   }
@@ -206,44 +269,58 @@ export class HomePage {
   /** One conversion at a time, so a folder of large pictures never holds up the app. */
   #pump(): void {
     const w = this.#h.wallpapers;
-    if (!w || this.#busy) return;
-    const next = this.#queue.shift();
+    if (!w || this.#running) return;
+    let next = this.#queue.shift();
+    // A picture queued twice, or converted while it waited, is not decoded again.
+    while (next && this.#converted(next)) next = this.#queue.shift();
     if (!next) return;
-    this.#busy = true;
+    const job = next;
+    this.#running = job.key;
     const done = (converted: Awaited<ReturnType<typeof w.converter.convert>>) => {
-      if (!converted) this.#failed.add(next.key);
-      else if (this.#sources.some((s) => s.key === next.key)) {
+      this.#running = undefined;
+      if (!converted) this.#failed.add(job.key);
+      else if (this.#sources.some((s) => s.key === job.key)) {
         try {
-          w.files.save(next.key, converted.jpeg, converted.thumb);
-          this.#write({ dims: { ...this.#dims(), [next.key]: dimFor(converted.brightness) } });
+          w.files.save(job.key, converted.jpeg, converted.thumb);
+          this.#write({ dims: { ...this.#dims(), [job.key]: dimFor(converted.brightness) } });
         } catch {
-          this.#failed.add(next.key);
+          this.#failed.add(job.key);
         }
       }
-      this.#busy = false;
+      this.#slide();
       this.#h.changed();
       this.#pump();
     };
-    w.converter.convert(next.entry.path).then(done, () => done(undefined));
+    const { path, size, dev, ino } = job.entry;
+    w.converter.convert(path, { size, dev, ino }).then(done, () => done(undefined));
   }
 
-  /** Called on each minute: re-reads the Mac when Home is up, and moves the slideshow on when it is due. */
-  tick(onHome: boolean): void {
+  /** Called on each minute: moves the slideshow on when it is due. */
+  tick(_onHome?: boolean): void {
     if (!this.#h.wallpapers) return;
-    if (onHome) this.refresh(false);
+    if (this.#slideshow() === "off") return;
+    if (typeof this.#saved().slideshowAt !== "number")
+      return this.#write({ slideshowAt: this.#h.clock.now() });
+    this.#slide();
+  }
+
+  /** When the slideshow is due and the next picture is converted, Home moves to it; until then the current one stays. */
+  #slide(): void {
     const mode = this.#slideshow();
-    if (mode === "off") return;
-    const now = this.#h.clock.now();
     const at = this.#saved().slideshowAt;
-    if (typeof at !== "number") return this.#write({ slideshowAt: now });
+    if (mode === "off" || typeof at !== "number") return;
+    const now = this.#h.clock.now();
     if (now - at < SLIDESHOW_MS[mode]) return;
-    const chosen = this.#chosen();
-    const pictures = this.#sources.filter((s) => s.kind === "folder" && !this.#failed.has(s.key));
-    const here = pictures.findIndex((s) => chosen.kind === "folder" && s.file === chosen.file);
-    if (here < 0) return;
-    const next = pictures[(here + 1) % pictures.length]!;
+    const next = this.#nextSlide();
+    if (!next) return;
+    if (!this.#converted(next)) {
+      this.#want(next);
+      this.#prioritize(next);
+      this.#pump();
+      return;
+    }
     this.#write({ wallpaper: { kind: "folder", file: next.file! }, slideshowAt: now });
-    this.#want(next);
+    this.#preloadNext();
     this.#pump();
     this.#h.changed();
   }

@@ -11,6 +11,9 @@ export interface MacEntry {
   kind: "file" | "dir" | "symlink" | "other";
   size: number;
   mtimeMs: number;
+  /** Which file it was when listed: the converter refuses a path that has since become another file. */
+  dev?: number;
+  ino?: number;
 }
 
 /** The Mac as a source of wallpapers. Read-only: nothing here writes, moves or deletes. */
@@ -20,7 +23,7 @@ export interface MacWallpapers {
   /** What is directly inside a folder (no recursion); undefined when it can't be read. */
   listFolder(path: string): MacEntry[] | undefined;
   /** The main display's current desktop picture, resolved to an image file when it can be; undefined when none. */
-  desktopPicture(): MacEntry | undefined;
+  desktopPicture(): Promise<MacEntry | undefined>;
   /** What is directly inside `/System/Library/Desktop Pictures`. */
   appleWallpapers(): MacEntry[];
   /** The Mac's own folder chooser; undefined when cancelled. */
@@ -39,7 +42,11 @@ export interface ConvertedPicture {
 
 /** Checks a source picture (magic bytes, declared size) and converts it with the 107 pipeline; undefined when it fails any check. */
 export interface WallpaperConverter {
-  convert(path: string): Promise<ConvertedPicture | undefined>;
+  /** `expect` is the listing's view of the file (size, device, inode): the file opened must still be that one. */
+  convert(
+    path: string,
+    expect?: { size: number; dev?: number; ino?: number },
+  ): Promise<ConvertedPicture | undefined>;
 }
 
 /** Converted copies in `<userData>/wallpapers`, by key. */
@@ -197,4 +204,125 @@ export class WallpaperFilesOnDisk implements WallpaperFiles {
   thumbUrl(key: string): string {
     return pathToFileURL(this.#file(key, true)).href;
   }
+}
+
+/** A BMP (as `sips` writes it) read into pixels; undefined when it isn't one Couch understands. */
+export function readBmp(b: Buffer):
+  | {
+      width: number;
+      height: number;
+      pixel(x: number, y: number): [number, number, number];
+      bgra: Uint8Array;
+    }
+  | undefined {
+  if (b.length < 54 || b.toString("latin1", 0, 2) !== "BM") return undefined;
+  const offset = b.readUInt32LE(10);
+  const width = b.readInt32LE(18);
+  const rawHeight = b.readInt32LE(22);
+  const bits = b.readUInt16LE(28);
+  const compression = b.readUInt32LE(30);
+  const height = Math.abs(rawHeight);
+  if (
+    width < 1 ||
+    height < 1 ||
+    (bits !== 24 && bits !== 32) ||
+    (compression !== 0 && compression !== 3)
+  )
+    return undefined;
+  const bytes = bits / 8;
+  const stride = Math.ceil((width * bytes) / 4) * 4;
+  if (offset + stride * height > b.length) return undefined;
+  const bgra = new Uint8Array(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    const row = offset + (rawHeight > 0 ? height - 1 - y : y) * stride;
+    for (let x = 0; x < width; x++) {
+      const at = row + x * bytes;
+      const o = (y * width + x) * 4;
+      bgra[o] = b[at]!;
+      bgra[o + 1] = b[at + 1]!;
+      bgra[o + 2] = b[at + 2]!;
+      bgra[o + 3] = 255;
+    }
+  }
+  return {
+    width,
+    height,
+    bgra,
+    pixel: (x, y) => {
+      const o = (y * width + x) * 4;
+      return [bgra[o + 2]!, bgra[o + 1]!, bgra[o]!];
+    },
+  };
+}
+
+/** The EXIF orientation (1-8) a JPEG declares; 1 when there is none or it can't be read. */
+export function exifOrientation(b: Buffer): number {
+  if (!isJpeg(b)) return 1;
+  let at = 2;
+  while (at + 4 <= b.length && b[at] === 0xff) {
+    const marker = b[at + 1]!;
+    if (marker === 0xda || marker === 0xd9) break;
+    const length = b.readUInt16BE(at + 2);
+    if (marker === 0xe1 && b.toString("latin1", at + 4, at + 10) === "Exif\0\0") {
+      const t = at + 10;
+      const little = b.toString("latin1", t, t + 2) === "II";
+      const u16 = (o: number) => (little ? b.readUInt16LE(o) : b.readUInt16BE(o));
+      const u32 = (o: number) => (little ? b.readUInt32LE(o) : b.readUInt32BE(o));
+      const end = Math.min(b.length, at + 2 + length);
+      if (t + 8 > end) return 1;
+      const ifd = t + u32(t + 4);
+      if (ifd + 2 > end) return 1;
+      const count = u16(ifd);
+      for (let i = 0; i < count; i++) {
+        const e = ifd + 2 + i * 12;
+        if (e + 12 > end) return 1;
+        if (u16(e) === 0x0112) {
+          const v = u16(e + 8);
+          return v >= 1 && v <= 8 ? v : 1;
+        }
+      }
+      return 1;
+    }
+    at += 2 + length;
+  }
+  return 1;
+}
+
+/** `sips` flags that turn a picture stored with this EXIF orientation upright. `sips` applies a command line's operations last first, so the flip is written before the rotation it follows. */
+export function orientationFlags(orientation: number): string[] {
+  const rot = (d: number) => ["-r", String(d)];
+  const flip = (axis: "horizontal" | "vertical") => ["-f", axis];
+  switch (orientation) {
+    case 2:
+      return flip("horizontal");
+    case 3:
+      return rot(180);
+    case 4:
+      return flip("vertical");
+    case 5:
+      return [...flip("horizontal"), ...rot(90)];
+    case 6:
+      return rot(90);
+    case 7:
+      return [...flip("vertical"), ...rot(90)];
+    case 8:
+      return rot(270);
+    default:
+      return [];
+  }
+}
+
+/** A JPEG without its metadata segments (EXIF and XMP in APP1, IPTC in APP13, comments); the picture and its colour profile stay. */
+export function stripMetadata(jpeg: Buffer): Buffer {
+  const parts: Buffer[] = [jpeg.subarray(0, 2)];
+  let at = 2;
+  while (at + 4 <= jpeg.length && jpeg[at] === 0xff) {
+    const marker = jpeg[at + 1]!;
+    if (marker === 0xda || marker === 0xd9) break;
+    const end = at + 2 + jpeg.readUInt16BE(at + 2);
+    if (marker !== 0xe1 && marker !== 0xed && marker !== 0xfe) parts.push(jpeg.subarray(at, end));
+    at = end;
+  }
+  parts.push(jpeg.subarray(at));
+  return Buffer.concat(parts);
 }

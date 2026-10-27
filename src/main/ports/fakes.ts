@@ -537,7 +537,7 @@ export class FakeMetadata implements Metadata {
 export const macFile = (
   dir: string,
   name: string,
-  extra: Partial<Pick<MacEntry, "kind" | "size" | "mtimeMs">> = {},
+  extra: Partial<Pick<MacEntry, "kind" | "size" | "mtimeMs" | "dev" | "ino">> = {},
 ): MacEntry => ({
   name,
   path: `${dir}/${name}`,
@@ -556,14 +556,22 @@ export class FakeMacWallpapers implements MacWallpapers {
   chooses: string | undefined;
   choosers: string[] = [];
   desktopReads = 0;
+  /** While set, `desktopPicture()` stays pending until `release()`: the real read takes a moment. */
+  hold = false;
+  #held: Array<() => void> = [];
+  release() {
+    this.hold = false;
+    for (const f of this.#held.splice(0)) f();
+  }
   defaultFolder() {
     return "/Users/me/Pictures/Wallpapers";
   }
   listFolder(path: string) {
     return this.folders.get(path);
   }
-  desktopPicture() {
+  async desktopPicture() {
     this.desktopReads++;
+    if (this.hold) await new Promise<void>((r) => this.#held.push(r));
     return this.desktop;
   }
   appleWallpapers() {
@@ -583,15 +591,35 @@ export class FakeConverter implements WallpaperConverter {
   converted: string[] = [];
   fails = new Set<string>();
   brightness = new Map<string, number>();
-  convert(path: string): Promise<ConvertedPicture | undefined> {
-    if (this.fails.has(path)) return Promise.resolve(undefined);
+  /** Paths whose conversion stays pending until `release(path)`. */
+  holds = new Set<string>();
+  #held = new Map<string, () => void>();
+  /** Conversions started and not yet finished. */
+  running = 0;
+  maxRunning = 0;
+  release(path: string) {
+    this.holds.delete(path);
+    this.#held.get(path)?.();
+    this.#held.delete(path);
+  }
+  async convert(path: string): Promise<ConvertedPicture | undefined> {
+    this.running++;
+    this.maxRunning = Math.max(this.maxRunning, this.running);
+    this.started.push(path);
+    try {
+      if (this.holds.has(path)) await new Promise<void>((r) => this.#held.set(path, r));
+    } finally {
+      this.running--;
+    }
+    if (this.fails.has(path)) return undefined;
     this.converted.push(path);
-    return Promise.resolve({
+    return {
       jpeg: Buffer.from(`jpeg:${path}`),
       thumb: Buffer.from(`thumb:${path}`),
       brightness: this.brightness.get(path) ?? 0.5,
-    });
+    };
   }
+  started: string[] = [];
 }
 
 /** The converted copies, kept in memory. */

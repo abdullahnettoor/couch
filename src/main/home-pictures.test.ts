@@ -285,6 +285,7 @@ describe("falling back to Couch", () => {
     expect(home().wallpaper).toEqual({ kind: "mac" });
     h.wallpapers.mac.desktop = undefined;
     h.clock.advance(61_000);
+    await h.settle();
     expect(home().wallpaper).toEqual({ kind: "builtin", id: "couch" });
   });
 
@@ -532,8 +533,10 @@ describe("slideshow", () => {
     expect(home().wallpaper).toEqual(folderWallpaper);
     h.clock.advance(120_000);
     expect(home().wallpaper).toEqual({ kind: "folder", file: "b-lake-3840x2160-123456.jpg" });
+    await h.settle();
     h.clock.advance(HOUR);
     expect(home().wallpaper).toEqual({ kind: "folder", file: "c.png" });
+    await h.settle();
     h.clock.advance(HOUR);
     expect(home().wallpaper).toEqual(folderWallpaper);
     expect(saved().wallpaper).toEqual(folderWallpaper);
@@ -605,5 +608,134 @@ describe("107's phone photos", () => {
     store.write("home", { photos: [{ id: "../../etc", dim: 1, addedAt: 1 }] });
     await start();
     expect(saved().photos).toBeUndefined();
+  });
+});
+
+describe("review fixes (108)", () => {
+  const folderWallpaper = { kind: "folder", file: "a_Desert.heic" };
+  const path = (name: string) => `${FOLDER}/${name}`;
+
+  test("the Remote stays responsive while the desktop picture is still being read", async () => {
+    store.write("home", { wallpaper: { kind: "mac" } });
+    kept = fresh();
+    fillMac(kept);
+    kept.mac.hold = true;
+    await start();
+    expect(kept.mac.desktopReads).toBeGreaterThan(0);
+    await phone.press("up");
+    await phone.press("ok");
+    expect(h.screen.last.state.view).toBe("settings");
+    await phone.press("back");
+    expect(h.screen.last.state.view).toBe("home");
+    kept.mac.release();
+    await h.settle();
+    expect(pictures()[0]!.url).toBeDefined();
+  });
+
+  test("the Remote stays responsive while a conversion is pending, and only one runs at a time", async () => {
+    kept = fresh();
+    fillMac(kept);
+    kept.converter.holds.add(path("a_Desert.heic"));
+    await start();
+    await openHomePage();
+    await phone.press("down");
+    expect(h.screen.last.state.view).toBe("settingsHome");
+    await phone.press("back");
+    expect(h.screen.last.state.view).toBe("settings");
+    expect(kept.converter.maxRunning).toBe(1);
+    kept.converter.release(path("a_Desert.heic"));
+    await h.settle();
+  });
+
+  test("the next read of the desktop picture is 60 s after the last, not on the next minute tick", async () => {
+    store.write("home", { wallpaper: { kind: "mac" } });
+    await start();
+    await h.settle();
+    h.clock.advance(30_000);
+    await openHomePage();
+    const reads = h.wallpapers.mac.desktopReads;
+    h.wallpapers.mac.desktop = macFile(FOLDER, "a_Desert.heic", { mtimeMs: 5 });
+    h.clock.advance(59_000);
+    expect(h.wallpapers.mac.desktopReads).toBe(reads);
+    h.clock.advance(1_500);
+    await h.settle();
+    expect(h.wallpapers.mac.desktopReads).toBe(reads + 1);
+    expect(h.wallpapers.converter.converted).toContain(path("a_Desert.heic"));
+  });
+
+  test("a picture is converted once even when Settings is shown again while it converts", async () => {
+    kept = fresh();
+    fillMac(kept);
+    kept.converter.holds.add(path("c.png"));
+    await start();
+    await openHomePage();
+    await phone.press("back");
+    await openHomePage();
+    h.clock.advance(61_000);
+    kept.converter.release(path("c.png"));
+    await h.settle();
+    expect(kept.converter.started.filter((p) => p === path("c.png"))).toHaveLength(1);
+  });
+
+  test("a queued picture that was converted meanwhile is not decoded again", async () => {
+    kept = fresh();
+    fillMac(kept);
+    kept.converter.holds.add(path("a_Desert.heic"));
+    await start();
+    await openHomePage();
+    await focusTile("pic:folder:c.png");
+    await phone.press("ok");
+    kept.converter.release(path("a_Desert.heic"));
+    await h.settle();
+    for (const p of kept.converter.started)
+      expect(kept.converter.started.filter((q) => q === p)).toHaveLength(1);
+  });
+
+  describe("the slideshow from a cold cache", () => {
+    test("the next picture is converted ahead of time", async () => {
+      store.write("home", { wallpaper: folderWallpaper, slideshow: "hour" });
+      await start();
+      await h.settle();
+      expect(h.wallpapers.converter.converted).toContain(path("b-lake-3840x2160-123456.jpg"));
+      expect(h.wallpapers.converter.converted).not.toContain(path("c.png"));
+    });
+
+    test("the current picture stays until the next is converted, then it moves, and never goes to Couch", async () => {
+      store.write("home", { wallpaper: folderWallpaper, slideshow: "hour" });
+      kept = fresh();
+      fillMac(kept);
+      kept.converter.holds.add(path("b-lake-3840x2160-123456.jpg"));
+      await start();
+      await h.settle();
+      const seen: Array<{ kind: string; file?: string; url?: string }> = [];
+      const watch = () => {
+        const wp = home().wallpaper as { kind: string; file?: string };
+        const tile = pictures().find((p) => p.kind === wp.kind && p.file === wp.file);
+        seen.push({ ...wp, url: tile?.url });
+      };
+      h.clock.advance(HOUR + 60_000);
+      watch();
+      expect(seen[0]).toMatchObject({ kind: "folder", file: "a_Desert.heic" });
+      expect(seen[0]!.url).toBeDefined();
+      expect(saved().wallpaper).toEqual(folderWallpaper);
+      kept.converter.release(path("b-lake-3840x2160-123456.jpg"));
+      await h.settle();
+      watch();
+      expect(seen[1]).toMatchObject({ kind: "folder", file: "b-lake-3840x2160-123456.jpg" });
+      expect(seen[1]!.url).toBeDefined();
+      expect(saved().wallpaper).toEqual({ kind: "folder", file: "b-lake-3840x2160-123456.jpg" });
+    });
+
+    test("a picture that can't be converted is skipped, not waited on forever", async () => {
+      store.write("home", { wallpaper: folderWallpaper, slideshow: "hour" });
+      kept = fresh();
+      fillMac(kept);
+      kept.converter.fails.add(path("b-lake-3840x2160-123456.jpg"));
+      await start();
+      await h.settle();
+      h.clock.advance(HOUR + 60_000);
+      await h.settle();
+      expect(home().wallpaper).toEqual({ kind: "folder", file: "c.png" });
+    });
   });
 });

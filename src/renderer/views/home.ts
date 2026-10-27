@@ -4,6 +4,7 @@ import { el, focusable, genreLabels, qrSvg, root } from "./dom.ts";
 import { glassPill, topbar } from "./glass.ts";
 import { photoVars, wallpaperVars, type PictureTile } from "../../shared/wallpapers.ts";
 import type { WallpaperChoice } from "../../shared/wallpapers.ts";
+import { planPhoto, type Photo } from "../photo-plan.ts";
 
 function escapeHtml(text: string): string {
   return text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -96,6 +97,39 @@ export function pictureFor(
 
 const FADE_MS = 2500;
 
+/** The picture on screen, and the one being loaded for it. */
+let shownPhoto: Photo | undefined;
+let loadingUrl = "";
+
+function showPhoto(choice: "builtin" | "picture", ready: Photo | undefined): void {
+  const plan = planPhoto(shownPhoto, choice, ready);
+  const v = view!;
+  if (plan === "clear") {
+    shownPhoto = undefined;
+    loadingUrl = "";
+    for (const name of ["--wp-photo", "--wp-dim"]) v.style.removeProperty(name);
+    v.classList.remove("photo");
+  } else if (plan === "load" && ready && loadingUrl !== ready.url) {
+    loadingUrl = ready.url;
+    const image = new Image();
+    const apply = () => {
+      if (loadingUrl !== ready.url || view !== v) return;
+      const before = v.style.getPropertyValue("--wp-photo");
+      for (const [name, value] of Object.entries(photoVars(ready)))
+        v.style.setProperty(name, value);
+      v.classList.add("photo");
+      if (before && shownPhoto) fadeFrom(before);
+      shownPhoto = ready;
+    };
+    image.onload = apply;
+    // A picture that can't be loaded leaves the current one on screen.
+    image.onerror = () => {
+      if (loadingUrl === ready.url) loadingUrl = "";
+    };
+    image.src = ready.url;
+  }
+}
+
 /** A slow crossfade: the picture that was showing stays over the new one and fades out. */
 function fadeFrom(previous: string): void {
   const layer = photoEl?.querySelector<HTMLElement>(".h-photo-img");
@@ -156,6 +190,8 @@ export function render(payload: ScreenPayload): void {
     heroEl = el("div", "h-hero");
     chrome = el("div", "h-chrome");
     bgKey = "";
+    shownPhoto = undefined;
+    loadingUrl = "";
     root.replaceChildren(view);
     view.append(ambientBg, photoEl, scrim, bg, clockEl, heroEl, chrome);
   }
@@ -167,16 +203,12 @@ export function render(payload: ScreenPayload): void {
   view.classList.toggle("no-art", payload.home?.artwork === false);
   const choice = payload.home?.preview ?? payload.home?.wallpaper;
   const tile = choice && pictureFor(payload.home?.pictures, choice);
-  const photo = tile?.url && tile.dim !== undefined ? { url: tile.url, dim: tile.dim } : undefined;
-  const vars = {
-    ...wallpaperVars(choice?.kind === "builtin" ? choice.id : ""),
-    ...(photo ? photoVars(photo) : {}),
-  };
-  const before = view.style.getPropertyValue("--wp-photo");
-  for (const [name, value] of Object.entries(vars)) view.style.setProperty(name, value);
-  if (!photo) for (const name of ["--wp-photo", "--wp-dim"]) view.style.removeProperty(name);
-  view.classList.toggle("photo", !!photo);
-  if (photo && before && before !== view.style.getPropertyValue("--wp-photo")) fadeFrom(before);
+  const ready = tile?.url && tile.dim !== undefined ? { url: tile.url, dim: tile.dim } : undefined;
+  showPhoto(choice?.kind === "builtin" || !choice ? "builtin" : "picture", ready);
+  for (const [name, value] of Object.entries(
+    wallpaperVars(choice?.kind === "builtin" ? choice.id : ""),
+  ))
+    view.style.setProperty(name, value);
   bg!.classList.toggle("on", !!hero && payload.home?.artwork !== false);
   heroEl!.classList.toggle("on", !!hero);
   clockEl!.classList.toggle("on", !hero);

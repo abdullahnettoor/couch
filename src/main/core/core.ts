@@ -1964,6 +1964,7 @@ export class Core {
     this.#armAmbient();
     this.#releaseStrayTyping();
     if (from === "details") this.#detailsPage.cancel();
+    this.#homePage.watch(view === "home" || view === "settingsHome");
     if (view === "home" || view === "settingsHome") this.#homePage.refresh(view === "settingsHome");
     if (view === "library") void this.library.refresh(this.#libraryFolders);
     if (view === "settingsRemotes") void this.refreshLoginItem();

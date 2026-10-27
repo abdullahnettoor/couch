@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vite-plus/test";
@@ -34,5 +34,54 @@ describe("RealMacWallpapers lists a folder without following anything", () => {
     expect(mac.listFolder(join(dir, "missing"))).toBeUndefined();
     expect(mac.defaultFolder()).toBe(join(dir, "Pictures", "Wallpapers"));
     expect(await mac.chooseFolder("/x")).toBe("/chosen");
+  });
+});
+
+describe("RealMacWallpapers reads the desktop picture without blocking", () => {
+  test("it is asynchronous: the event loop keeps running while the read is pending", async () => {
+    dir = mkdtempSync(join(tmpdir(), "couch-mac-"));
+    const pic = join(dir, "pic.jpg");
+    writeFileSync(pic, "abc");
+    let finish: (out: string) => void = () => {};
+    const mac = new RealMacWallpapers(
+      dir,
+      async () => undefined,
+      () => new Promise((resolve) => (finish = resolve)),
+    );
+    const pending = mac.desktopPicture();
+    let ticked = false;
+    await new Promise((r) => setTimeout(r, 10)).then(() => (ticked = true));
+    expect(ticked).toBe(true);
+    finish(`${pic}\n`);
+    expect(await pending).toMatchObject({
+      name: "pic.jpg",
+      path: realpathSync(pic),
+      size: 3,
+      kind: "file",
+    });
+  });
+
+  test("a failed or timed-out read is no desktop picture", async () => {
+    dir = mkdtempSync(join(tmpdir(), "couch-mac-"));
+    const mac = new RealMacWallpapers(
+      dir,
+      async () => undefined,
+      () => Promise.reject(new Error("timed out")),
+    );
+    expect(await mac.desktopPicture()).toBeUndefined();
+  });
+
+  test("a .madesktop entry resolves to its thumbnail beside it; none means nothing", async () => {
+    dir = mkdtempSync(join(tmpdir(), "couch-mac-"));
+    mkdirSync(join(dir, ".thumbnails"));
+    writeFileSync(join(dir, ".thumbnails", "Big Sur.heic"), "x");
+    const at = (name: string) =>
+      new RealMacWallpapers(
+        dir,
+        async () => undefined,
+        async () => join(dir, name),
+      ).desktopPicture();
+    expect((await at("Big Sur.madesktop"))?.name).toBe("Big Sur.heic");
+    expect(await at("Other.madesktop")).toBeUndefined();
   });
 });

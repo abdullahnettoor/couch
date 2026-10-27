@@ -1,8 +1,24 @@
 // @vitest-environment happy-dom
 import { readFileSync } from "node:fs";
-import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
+import { beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 import type { LibraryEntry, ScreenPayload } from "../../shared/protocol.ts";
 import { WALLPAPERS, wallpaperVars, type PictureTile } from "../../shared/wallpapers.ts";
+
+/** Images load when a test says so: a picture only replaces the one on screen once it has loaded. */
+class FakeImage {
+  static pending: FakeImage[] = [];
+  onload: (() => void) | undefined;
+  onerror: (() => void) | undefined;
+  url = "";
+  set src(v: string) {
+    this.url = v;
+    FakeImage.pending.push(this);
+  }
+}
+vi.stubGlobal("Image", FakeImage);
+const loaded = () => {
+  for (const image of FakeImage.pending.splice(0)) image.onload?.();
+};
 
 type Mod = { render(p: ScreenPayload): void };
 let home: Mod;
@@ -202,6 +218,7 @@ describe("Home with a picture from the Mac", () => {
 
   test("the picture and its dim are set as variables and the photo layer is on", () => {
     home.render(withPhoto(bPhoto));
+    loaded();
     expect(cls(homeEl()).includes("photo")).toBe(true);
     expect(homeEl().style.getPropertyValue("--wp-photo")).toBe(
       'url("file:///u/wallpapers/bbbbbbbbbbbb.jpg")',
@@ -211,11 +228,13 @@ describe("Home with a picture from the Mac", () => {
 
   test("Same as Mac draws its picture", () => {
     home.render(withPhoto({ kind: "mac" }));
+    loaded();
     expect(homeEl().style.getPropertyValue("--wp-dim")).toBe("0.4");
   });
 
   test("a built-in after a picture clears it", () => {
     home.render(withPhoto({ kind: "mac" }));
+    loaded();
     home.render(payload());
     expect(cls(homeEl()).includes("photo")).toBe(false);
     expect(homeEl().style.getPropertyValue("--wp-photo")).toBe("");
@@ -240,7 +259,30 @@ describe("Home with a picture from the Mac", () => {
         },
       }),
     );
+    loaded();
     expect(homeEl().style.getPropertyValue("--wp-dim")).toBe("0.4");
+  });
+
+  test("cold cache: the current picture stays until the next one is converted and loaded, then it crossfades; never Couch", () => {
+    const layer = () => homeEl().querySelectorAll(".h-photo-prev").length;
+    home.render(withPhoto({ kind: "mac" }));
+    loaded();
+    const a = homeEl().style.getPropertyValue("--wp-photo");
+    expect(a).toContain("aaaaaaaaaaaa");
+    // The slideshow (or a choice) points at a picture whose copy doesn't exist yet.
+    home.render(withPhoto({ kind: "apple", file: "Mac Blue.heic" }));
+    loaded();
+    expect(cls(homeEl()).includes("photo")).toBe(true);
+    expect(homeEl().style.getPropertyValue("--wp-photo")).toBe(a);
+    expect(layer()).toBe(0);
+    // Converted: still the old picture until the new one has loaded.
+    home.render(withPhoto(bPhoto));
+    expect(homeEl().style.getPropertyValue("--wp-photo")).toBe(a);
+    loaded();
+    expect(homeEl().style.getPropertyValue("--wp-photo")).toContain("bbbbbbbbbbbb");
+    expect(homeEl().style.getPropertyValue("--wp-dim")).toBe("0.6");
+    expect(cls(homeEl()).includes("photo")).toBe(true);
+    expect(layer()).toBe(1);
   });
 
   test("layers: photo, dim and blur sit over the drift and under the scrim, clock and tiles; ambient keeps them", () => {

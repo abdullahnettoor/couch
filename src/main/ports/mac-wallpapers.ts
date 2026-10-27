@@ -1,5 +1,5 @@
-import { execFileSync } from "node:child_process";
-import { lstatSync, readdirSync, statSync } from "node:fs";
+import { execFile } from "node:child_process";
+import { lstatSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { MacEntry, MacWallpapers } from "./pictures.ts";
 
@@ -7,6 +7,16 @@ const APPLE_FOLDER = "/System/Library/Desktop Pictures";
 
 const DESKTOP_JS =
   'ObjC.import("AppKit"); ObjC.unwrap($.NSWorkspace.sharedWorkspace.desktopImageURLForScreen($.NSScreen.mainScreen).path)';
+
+/** Runs `osascript` without blocking: resolves with its output, rejects on failure or after the timeout. */
+export type Osascript = (args: string[]) => Promise<string>;
+
+const osascript: Osascript = (args) =>
+  new Promise((resolve, reject) =>
+    execFile("/usr/bin/osascript", args, { encoding: "utf8", timeout: 3000 }, (err, out) =>
+      err ? reject(err) : resolve(out),
+    ),
+  );
 
 /**
  * The Mac's own wallpaper sources. Everything here only reads: it lists folders, asks AppKit (through
@@ -16,10 +26,16 @@ const DESKTOP_JS =
 export class RealMacWallpapers implements MacWallpapers {
   #home: string;
   #choose: (current: string) => Promise<string | undefined>;
+  #osascript: Osascript;
 
-  constructor(home: string, chooseFolder: (current: string) => Promise<string | undefined>) {
+  constructor(
+    home: string,
+    chooseFolder: (current: string) => Promise<string | undefined>,
+    runOsascript: Osascript = osascript,
+  ) {
     this.#home = home;
     this.#choose = chooseFolder;
+    this.#osascript = runOsascript;
   }
 
   defaultFolder(): string {
@@ -40,7 +56,15 @@ export class RealMacWallpapers implements MacWallpapers {
               : st.isDirectory()
                 ? "dir"
                 : "other";
-          return { name, path: full, kind, size: st.size, mtimeMs: st.mtimeMs } as MacEntry;
+          return {
+            name,
+            path: full,
+            kind,
+            size: st.size,
+            mtimeMs: st.mtimeMs,
+            dev: st.dev,
+            ino: st.ino,
+          } as MacEntry;
         } catch {
           return { name, path: full, kind: "other", size: 0, mtimeMs: 0 } as MacEntry;
         }
@@ -54,13 +78,9 @@ export class RealMacWallpapers implements MacWallpapers {
    * The main display's picture. A `.madesktop` entry has no image of its own: its thumbnail
    * (`.thumbnails/<name>.heic` beside it) stands in; without one there is nothing to use.
    */
-  desktopPicture(): MacEntry | undefined {
+  async desktopPicture(): Promise<MacEntry | undefined> {
     try {
-      const out = execFileSync("/usr/bin/osascript", ["-l", "JavaScript", "-e", DESKTOP_JS], {
-        encoding: "utf8",
-        timeout: 3000,
-        stdio: ["ignore", "pipe", "ignore"],
-      }).trim();
+      const out = (await this.#osascript(["-l", "JavaScript", "-e", DESKTOP_JS])).trim();
       if (!out.startsWith("/")) return undefined;
       let path = out;
       if (/\.madesktop$/i.test(out)) {
@@ -70,9 +90,19 @@ export class RealMacWallpapers implements MacWallpapers {
           `${basename(out, ".madesktop")}.heic`,
         );
       }
+      // The household chose this picture, so a link to it is resolved once here; the converter then opens the real file.
+      path = realpathSync(path);
       const st = statSync(path);
       if (!st.isFile()) return undefined;
-      return { name: basename(path), path, kind: "file", size: st.size, mtimeMs: st.mtimeMs };
+      return {
+        name: basename(path),
+        path,
+        kind: "file",
+        size: st.size,
+        mtimeMs: st.mtimeMs,
+        dev: st.dev,
+        ino: st.ino,
+      };
     } catch {
       return undefined;
     }
