@@ -201,6 +201,8 @@ export function render(payload: ScreenPayload): void {
   view.classList.toggle("film", !!hero);
   view.classList.toggle("ambient", !!payload.ambient);
   view.classList.toggle("no-art", payload.home?.artwork === false);
+  // Under the Wallpaper page's blurred panel a moving Home is re-blurred every frame; hold it still there.
+  view.classList.toggle("still", payload.state.view === "settingsHome");
   const choice = payload.home?.preview ?? payload.home?.wallpaper;
   const tile = choice && pictureFor(payload.home?.pictures, choice);
   const ready = tile?.url && tile.dim !== undefined ? { url: tile.url, dim: tile.dim } : undefined;

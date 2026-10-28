@@ -159,6 +159,13 @@ describe("Settings → Home keeps the real Home mounted", () => {
     expect(screen.querySelectorAll(".wp-panel").length).toBe(1);
   });
 
+  test("Home holds still under the page and moves again on Home", () => {
+    settingsHome.render(page("wp:dusk"));
+    expect(cls(homeEl()).includes("still")).toBe(true);
+    home.render(payload({ view: "home" }));
+    expect(cls(homeEl()).includes("still")).toBe(false);
+  });
+
   test("In use marks the saved wallpaper, not the focused one", () => {
     settingsHome.render(page("wp:ocean", "dusk"));
     const chosen = Array.from(screen.querySelectorAll(".wp-tile.chosen")).map(
