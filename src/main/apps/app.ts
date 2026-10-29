@@ -84,7 +84,7 @@ export type SignInResult =
   | { ok: true; count: number }
   | { ok: false; reason: "none" | "failed" | "cancelled" };
 
-/** An App whose sign-in Settings can fill from Safari or clear. */
+/** An App whose sign-in Settings can fill from Couch's Chromium or clear. */
 export interface AppSignIn {
   /** Copies the sign-in from Couch's own Chromium engine; absent when the App has no such source. `available` is whether it holds a sign-in to copy. */
   readonly copyFromCouch?: {
