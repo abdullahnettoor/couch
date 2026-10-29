@@ -2,15 +2,23 @@ import { describe, expect, test } from "vite-plus/test";
 import type { YouTubeEvent } from "../ports/youtube.ts";
 import type { WebKitKey } from "./webkit-bridge.ts";
 import { FLAG, WebKitKeyboard, domKey } from "./webkit-keyboard.ts";
+import { KEY_CASES } from "./keyboard-policy.cases.ts";
 
-const key = (over: Partial<WebKitKey> & { chars?: string }): WebKitKey => ({
+let nextId = 1;
+const byId = new Map<number, WebKitKey>();
+const key = (over: Partial<WebKitKey> & { chars?: string }): WebKitKey => {
+  const k = make(over);
+  if (k.id > 0) byId.set(k.id, k);
+  return k;
+};
+const make = (over: Partial<WebKitKey> & { chars?: string }): WebKitKey => ({
+  id: nextId++,
   down: true,
   keyCode: 0,
   characters: over.chars ?? "",
   charactersIgnoringModifiers: over.chars ?? "",
   flags: 0,
   repeat: false,
-  swallowed: true,
   ...over,
 });
 const A = key({ keyCode: 0, chars: "a" });
@@ -18,18 +26,22 @@ const ARROW = FLAG.numericPad | FLAG.function;
 
 function setup(opts: { gate?: (input: { key: string }) => boolean } = {}) {
   const out: YouTubeEvent[] = [];
-  const replayed: Array<Omit<WebKitKey, "swallowed">> = [];
+  const replayed: WebKitKey[] = [];
+  const answers: Array<[number, boolean]> = [];
   const state = { capturing: false, field: false, clipboard: "pasted" };
   const gate = opts.gate;
   const keyboard = new WebKitKeyboard({
     emit: (e) => out.push(e),
-    replay: (k) => replayed.push(k),
+    answer: (id, replay) => {
+      answers.push([id, replay]);
+      if (replay) replayed.push(byId.get(id)!);
+    },
     gate: gate ? (_e, input) => gate(input) : undefined,
     capturing: () => state.capturing,
     fieldFocused: () => state.field,
     readClipboard: () => state.clipboard,
   });
-  return { keyboard, out, replayed, state };
+  return { keyboard, out, replayed, answers, state };
 }
 
 describe("domKey", () => {
@@ -94,8 +106,8 @@ describe("Couch's keys go to the core, the rest go to the page", () => {
 
   test("any other key, down and up, is replayed to the page and says physical input happened", () => {
     const { keyboard, out, replayed } = setup();
-    keyboard.handle(A);
-    keyboard.handle({ ...A, down: false });
+    keyboard.handle(key({ keyCode: 0, chars: "a" }));
+    keyboard.handle(key({ keyCode: 0, chars: "a", down: false }));
     expect(replayed.map((k) => [k.keyCode, k.down])).toEqual([
       [0, true],
       [0, false],
@@ -107,8 +119,7 @@ describe("Couch's keys go to the core, the rest go to the page", () => {
     const { keyboard, replayed } = setup();
     const k = key({ keyCode: 8, chars: "c", flags: FLAG.shift, repeat: true });
     keyboard.handle(k);
-    const { swallowed: _s, ...sent } = k;
-    expect(replayed).toEqual([sent]);
+    expect(replayed).toEqual([k]);
   });
 
   test("Control, Option or Command with a Couch key is the page's", () => {
@@ -122,14 +133,14 @@ describe("Couch's keys go to the core, the rest go to the page", () => {
   test("/ and ⌘F open the search bar and don't reach the page", () => {
     const { keyboard, out, replayed } = setup();
     keyboard.handle(key({ keyCode: 44, chars: "/" }));
-    keyboard.handle(key({ keyCode: 3, chars: "f", flags: FLAG.command, swallowed: false }));
+    keyboard.handle(key({ keyCode: 3, chars: "f", flags: FLAG.command, id: 0 }));
     expect(out).toEqual([{ type: "find" }, { type: "find" }]);
     expect(replayed).toEqual([]);
   });
 
   test("a Command key that was not swallowed is never replayed (it already reached the view)", () => {
     const { keyboard, replayed } = setup();
-    keyboard.handle(key({ keyCode: 9, chars: "v", flags: FLAG.command, swallowed: false }));
+    keyboard.handle(key({ keyCode: 9, chars: "v", flags: FLAG.command, id: 0 }));
     expect(replayed).toEqual([]);
   });
 });
@@ -154,7 +165,7 @@ describe("a text field in the page has focus", () => {
     const { keyboard, out, replayed, state } = setup();
     state.field = true;
     keyboard.handle(key({ keyCode: 53, chars: "\u001b" }));
-    keyboard.handle(key({ keyCode: 3, chars: "f", flags: FLAG.command, swallowed: false }));
+    keyboard.handle(key({ keyCode: 3, chars: "f", flags: FLAG.command, id: 0 }));
     expect(out).toEqual([{ type: "key", command: "back" }, { type: "find" }]);
     expect(replayed).toEqual([]);
   });
@@ -230,7 +241,7 @@ describe("the key gate (Quick settings, Picture off) is asked first", () => {
         chars: "f",
         flags: FLAG.command | FLAG.shift,
         down: false,
-        swallowed: false,
+        id: 0,
       }),
     );
     expect(seen).toEqual([
@@ -242,5 +253,43 @@ describe("the key gate (Quick settings, Picture off) is asked first", () => {
     const { keyboard, out } = setup({ gate: () => false });
     keyboard.handle(key({ keyCode: 36, chars: "\r" }));
     expect(out).toEqual([{ type: "key", command: "ok" }]);
+  });
+});
+
+const NAMED_CODE: Record<string, number> = {
+  ArrowUp: 126,
+  ArrowDown: 125,
+  ArrowLeft: 123,
+  ArrowRight: 124,
+  Enter: 36,
+  Escape: 53,
+  Backspace: 51,
+  " ": 49,
+};
+
+describe("the shared keyboard rules, through the WebKit adapter", () => {
+  test.each(KEY_CASES)("$name", ({ input, state, events, page }) => {
+    const {
+      keyboard,
+      out,
+      answers,
+      state: host,
+    } = setup({ gate: state.gate ? () => true : undefined });
+    host.capturing = state.capturing ?? false;
+    host.field = state.fieldFocused ?? false;
+    const flags =
+      (input.meta ? FLAG.command : 0) |
+      (input.control ? FLAG.control : 0) |
+      (input.alt ? FLAG.option : 0) |
+      (input.shift ? FLAG.shift : 0);
+    const k = key({
+      keyCode: NAMED_CODE[input.key] ?? 0,
+      chars: NAMED_CODE[input.key] === undefined ? input.key : "",
+      flags,
+      down: input.type === "keyDown",
+    });
+    keyboard.handle(k);
+    expect(out).toEqual(events);
+    expect(answers).toEqual([[k.id, page]]);
   });
 });

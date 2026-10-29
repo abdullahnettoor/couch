@@ -750,6 +750,9 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     addEventListener('mousemove', function (e) {
       try {
         if (!e.isTrusted) return;
+        // Couch's own wake of a player's bar arrives as a real move under WebKit: not the household's mouse.
+        var wk = window.__couchWake;
+        if (wk && Date.now() - wk.at < 750 && Math.abs(e.clientX - wk.x) <= 2 && Math.abs(e.clientY - wk.y) <= 2) return;
         if (!dpadAnchor) { dpadAnchor = { x: e.clientX, y: e.clientY }; return; }
         if (Math.abs(e.clientX - dpadAnchor.x) + Math.abs(e.clientY - dpadAnchor.y) > 8) {
           document.documentElement.removeAttribute(DPAD);

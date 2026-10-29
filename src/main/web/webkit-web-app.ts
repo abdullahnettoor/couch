@@ -3,7 +3,7 @@ import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
 import { FIELD_BLURRED, FIELD_FOCUSED } from "./page-focus.ts";
 import { hiddenScript } from "./hidden-audio.ts";
 import { pageFocusFunction } from "./page-focus.ts";
-import type { KeyGate } from "./electron-web-app.ts";
+import type { KeyGate } from "./keyboard-policy.ts";
 import { WebKitKeyboard } from "./webkit-keyboard.ts";
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import type { IdleLifecycle } from "./idle-unload.ts";
@@ -140,7 +140,7 @@ export class WebKitWebApp implements YouTube {
     );
     this.#keyboard = new WebKitKeyboard({
       emit: (event) => this.#emit(event),
-      replay: (key) => this.#view?.replayKey(key),
+      answer: (id, replay) => this.#view?.answerKey(id, replay),
       get gate() {
         return gateOf();
       },
@@ -218,7 +218,7 @@ export class WebKitWebApp implements YouTube {
         this.#onKey(event.key);
         return;
       case "navigated":
-        this.#fieldFocused = false;
+        this.#setFieldFocused(false);
         this.#url = event.url;
         this.#core.navigated(event.url);
         return;
@@ -250,12 +250,20 @@ export class WebKitWebApp implements YouTube {
       this.#core.navigated(message.url);
     } else if (message?.type === "console") {
       this.#onConsole(message.message);
+    } else if (message?.type === "wake-pointer" && this.#visible) {
+      this.#view?.wakePointer(message.x, message.y);
     }
   }
 
+  #setFieldFocused(on: boolean): void {
+    if (on === this.#fieldFocused) return;
+    this.#fieldFocused = on;
+    this.#route();
+  }
+
   #onConsole(text: string): void {
-    if (text === FIELD_FOCUSED) this.#fieldFocused = true;
-    else if (text === FIELD_BLURRED) this.#fieldFocused = false;
+    if (text === FIELD_FOCUSED) this.#setFieldFocused(true);
+    else if (text === FIELD_BLURRED) this.#setFieldFocused(false);
     const pick = CONFIRM_MESSAGE.exec(text);
     if (!pick) return;
     const index = Number(pick[2]);
@@ -276,6 +284,7 @@ export class WebKitWebApp implements YouTube {
     this.#view?.setInputRouting({
       keys: on,
       captureCommands: on && (this.#capturing || this.#overlay),
+      fieldFocused: on && this.#fieldFocused,
       pointer: on && !this.#overlay,
     });
   }
@@ -337,7 +346,12 @@ export class WebKitWebApp implements YouTube {
     this.#confirmButtons = 0;
     this.#fieldFocused = false;
     this.#core.hidden();
-    this.#view?.setInputRouting({ keys: false, captureCommands: false, pointer: false });
+    this.#view?.setInputRouting({
+      keys: false,
+      captureCommands: false,
+      fieldFocused: false,
+      pointer: false,
+    });
     this.#view?.setVisible(false);
     this.#syncDocumentStart();
     this.#applySound();

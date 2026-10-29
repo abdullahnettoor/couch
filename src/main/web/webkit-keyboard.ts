@@ -1,7 +1,5 @@
-import { SCREEN_KEYS, textEditFor } from "../../shared/keyboard.ts";
 import type { YouTubeEvent } from "../ports/youtube.ts";
-import { keyBelongsToField } from "./field-keys.ts";
-import type { KeyGate } from "./electron-web-app.ts";
+import { decideKey, type KeyGate, type KeyInput } from "./keyboard-policy.ts";
 import type { WebKitKey } from "./webkit-bridge.ts";
 
 /** `NSEvent.modifierFlags` bits. */
@@ -48,8 +46,8 @@ export function domKey(
 
 export interface WebKitKeyboardHooks {
   emit(event: YouTubeEvent): void;
-  /** Gives a key to the page, as the same native key it came in as. */
-  replay(key: Omit<WebKitKey, "swallowed">): void;
+  /** Answers a held key: give it to the page (`true`), or Couch has taken it (`false`). Called once for every held key. */
+  answer(id: number, replay: boolean): void;
   gate: KeyGate | undefined;
   /** Couch is taking the typed text itself (its own search sheet). */
   capturing(): boolean;
@@ -59,10 +57,8 @@ export interface WebKitKeyboardHooks {
 }
 
 /**
- * The Mac keyboard rules for a view whose keys the native side hands over (the view is the first responder, so
- * Chromium never sees them): the same as `ElectronWebApp`'s `before-input-event`. The gate (Quick settings, Picture
- * off) goes first; then typed text Couch captures; then a field in the page; then find; then Couch's own keys.
- * Everything else is replayed to the page.
+ * The adapter from native keys to the shared keyboard rules (`decideKey`, also what `ElectronWebApp` applies). A key
+ * with an `id` is held back by the native side until this answers it; one without has already reached the page.
  */
 export class WebKitKeyboard {
   #hooks: WebKitKeyboardHooks;
@@ -73,41 +69,43 @@ export class WebKitKeyboard {
 
   handle(key: WebKitKey): void {
     const hooks = this.#hooks;
-    const name = domKey(key);
-    const meta = (key.flags & FLAG.command) !== 0;
-    const control = (key.flags & FLAG.control) !== 0;
-    const alt = (key.flags & FLAG.option) !== 0;
-    const shift = (key.flags & FLAG.shift) !== 0;
-    const input = { type: key.down ? "keyDown" : "keyUp", key: name, meta, control, alt, shift };
-    if (hooks.gate?.({ preventDefault() {} }, input)) return;
-    if (hooks.capturing()) {
-      if (!key.swallowed || !key.down) return;
-      const edit = textEditFor({ key: name, meta, ctrl: control, alt });
-      if (edit && "paste" in edit) {
-        void Promise.resolve(hooks.readClipboard()).then((text) => {
-          if (text) hooks.emit({ type: "edit", edit: { insert: text } });
-        });
-        return;
-      }
-      if (edit) hooks.emit({ type: "edit", edit });
-      return;
-    }
-    const { swallowed: _swallowed, ...replayable } = key;
-    // A key that was swallowed and isn't Couch's is the page's; one that was never held back already reached it.
-    const toPage = () => {
-      if (key.down) hooks.emit({ type: "input" });
-      if (key.swallowed) hooks.replay(replayable);
+    const input: KeyInput = {
+      type: key.down ? "keyDown" : "keyUp",
+      key: domKey(key),
+      meta: (key.flags & FLAG.command) !== 0,
+      control: (key.flags & FLAG.control) !== 0,
+      alt: (key.flags & FLAG.option) !== 0,
+      shift: (key.flags & FLAG.shift) !== 0,
     };
-    if (hooks.fieldFocused() && keyBelongsToField({ key: name, meta })) return toPage();
-    if (key.down && !control && !alt) {
-      const find = meta ? name.toLowerCase() === "f" : name === "/";
-      if (find) {
-        hooks.emit({ type: "find" });
-        return;
+    const decision = decideKey(
+      input,
+      { gate: hooks.gate, capturing: hooks.capturing(), fieldFocused: hooks.fieldFocused() },
+      { preventDefault() {} },
+    );
+    let toPage = false;
+    switch (decision.kind) {
+      case "gate":
+        break;
+      case "typed": {
+        const edit = decision.edit;
+        if (edit && "paste" in edit) {
+          void Promise.resolve(hooks.readClipboard()).then((text) => {
+            if (text) hooks.emit({ type: "edit", edit: { insert: text } });
+          });
+        } else if (edit) hooks.emit({ type: "edit", edit });
+        break;
       }
+      case "find":
+        hooks.emit({ type: "find" });
+        break;
+      case "command":
+        if (key.down) hooks.emit({ type: "key", command: decision.command });
+        break;
+      case "page":
+        toPage = true;
+        if (key.down) hooks.emit({ type: "input" });
+        break;
     }
-    const command = SCREEN_KEYS[name];
-    if (!command || control || meta || alt) return toPage();
-    if (key.down) hooks.emit({ type: "key", command });
+    if (key.id > 0) hooks.answer(key.id, toPage);
   }
 }

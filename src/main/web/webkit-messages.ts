@@ -4,11 +4,14 @@ import { CONFIRM_MESSAGE } from "./web-hud.ts";
 /** The only messages Couch's own scripts post through the `couch` message handler. */
 export type PageMessage =
   | { type: "route"; url: string; page: Record<string, string | number | boolean | null> | null }
-  | { type: "console"; message: string };
+  | { type: "console"; message: string }
+  /** Couch's own wake of a player's bar: a real mouse-moved event at this point (client coordinates). */
+  | { type: "wake-pointer"; x: number; y: number };
 
 const MAX_URL = 4096;
 const MAX_CONSOLE = 64;
 const MAX_PAGE_KEYS = 16;
+const MAX_COORD = 16384;
 
 const isPrimitive = (v: unknown): v is string | number | boolean | null =>
   v === null || ["string", "number", "boolean"].includes(typeof v);
@@ -47,6 +50,13 @@ export function parsePageMessage(body: unknown): PageMessage | undefined {
     )
       return undefined;
     return { type: "console", message: m.message };
+  }
+  if (m.type === "wake-pointer") {
+    if (!hasOnly(m, ["type", "x", "y"])) return undefined;
+    const inRange = (n: unknown): n is number =>
+      typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= MAX_COORD;
+    if (!inRange(m.x) || !inRange(m.y)) return undefined;
+    return { type: "wake-pointer", x: m.x, y: m.y };
   }
   return undefined;
 }

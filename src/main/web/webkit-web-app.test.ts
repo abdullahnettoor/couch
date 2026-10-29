@@ -26,6 +26,9 @@ import { testPageDescription } from "./webkit-test-page.ts";
 import { webkitStoreId } from "./webkit-stores.ts";
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import { WebKitWebApp, type WebKitHostWindow } from "./webkit-web-app.ts";
+import { WEBKIT_KEY_NAMES } from "./webkit-bridge.ts";
+import { CursorHider } from "../cursor-hider.ts";
+import { MouseMoves } from "../mouse-moves.ts";
 
 class FakeView implements WebKitView {
   options: WebKitViewOptions;
@@ -89,9 +92,18 @@ class FakeView implements WebKitView {
   sendKey(key: string, down: boolean) {
     this.keys.push([key, down]);
   }
-  replayed: Array<Omit<WebKitKey, "swallowed">> = [];
-  replayKey(key: Omit<WebKitKey, "swallowed">) {
-    this.replayed.push(key);
+  /** Every key the native side held back, by id, and what the host answered for each (once per id, or it is a bug). */
+  held = new Map<number, WebKitKey>();
+  keyAnswers: Array<[number, boolean]> = [];
+  answerKey(id: number, replay: boolean) {
+    this.keyAnswers.push([id, replay]);
+  }
+  get replayed(): WebKitKey[] {
+    return this.keyAnswers.filter(([, replay]) => replay).map(([id]) => this.held.get(id)!);
+  }
+  wakes: Array<[number, number]> = [];
+  wakePointer(x: number, y: number) {
+    this.wakes.push([x, y]);
   }
   routing: WebKitInputRouting[] = [];
   setInputRouting(routing: WebKitInputRouting) {
@@ -105,6 +117,7 @@ class FakeView implements WebKitView {
     this.destroyed = true;
   }
   emit(e: WebKitEvent) {
+    if (e.type === "key" && e.key.id > 0) this.held.set(e.key.id, e.key);
     for (const l of Array.from(this.listeners)) l(e);
   }
 }
@@ -957,16 +970,17 @@ describe("the dev test page (ticket 111)", () => {
 });
 
 describe("input", () => {
-  const OFF = { keys: false, captureCommands: false, pointer: false };
-  const ON = { keys: true, captureCommands: false, pointer: true };
+  const OFF = { keys: false, captureCommands: false, fieldFocused: false, pointer: false };
+  const ON = { keys: true, captureCommands: false, fieldFocused: false, pointer: true };
+  let nextId = 1;
   const key = (over: Partial<WebKitKey>): WebKitKey => ({
+    id: nextId++,
     down: true,
     keyCode: 0,
     characters: "a",
     charactersIgnoringModifiers: "a",
     flags: 0,
     repeat: false,
-    swallowed: true,
     ...over,
   });
   const press = (view: FakeView, k: WebKitKey) => view.emit({ type: "key", key: k });
@@ -1084,6 +1098,233 @@ describe("input", () => {
     });
   });
 
+  describe("held keys", () => {
+    test("every key the native side holds is answered exactly once: the page's replayed, Couch's consumed", () => {
+      const { web, view } = make();
+      web.show();
+      press(view(), key({ id: 11, keyCode: 6, characters: "z" }));
+      press(view(), key({ id: 2, ...ARROW_UP }));
+      press(view(), key({ id: 13, keyCode: 6, characters: "z", down: false }));
+      press(view(), key({ id: 14, keyCode: 4, characters: "h", down: false }));
+      expect(view().keyAnswers).toEqual([
+        [11, true],
+        [2, false],
+        [13, true],
+        [14, false],
+      ]);
+    });
+
+    test("a key that already reached the view (id 0) is never answered", () => {
+      const { web, view } = make();
+      web.show();
+      press(view(), key({ id: 0, keyCode: 6, characters: "z" }));
+      expect(view().keyAnswers).toEqual([]);
+      expect(events).toContainEqual({ type: "input" });
+    });
+
+    test("the gate, find, typed text and a key release are answered as consumed or replayed by the same rules", () => {
+      const { web, view } = make();
+      web.show();
+      press(view(), key({ id: 21, keyCode: 44, characters: "/" }));
+      press(
+        view(),
+        key({
+          id: 22,
+          keyCode: 3,
+          characters: "f",
+          charactersIgnoringModifiers: "f",
+          flags: 1 << 20,
+        }),
+      );
+      web.captureText(true);
+      press(view(), key({ id: 23, keyCode: 6, characters: "z" }));
+      press(view(), key({ id: 24, keyCode: 53, characters: "\u001b" }));
+      expect(view().keyAnswers).toEqual([
+        [21, false],
+        [22, false],
+        [23, false],
+        [24, false],
+      ]);
+    });
+  });
+
+  describe("IME and typing", () => {
+    test("with a field of the page focused, the view is told, so typing goes to WebKit unheld", () => {
+      const { web, view } = make();
+      web.show();
+      field(view(), "couch:field-focused");
+      expect(view().routing.at(-1)).toEqual({ ...ON, fieldFocused: true });
+      field(view(), "couch:field-blurred");
+      expect(view().routing.at(-1)).toEqual(ON);
+    });
+
+    test("a new page, hide and unload clear the field flag in the routing", () => {
+      const { web, view } = make();
+      web.show();
+      field(view(), "couch:field-focused");
+      view().emit({ type: "navigated", url: "https://www.netflix.com/browse" });
+      expect(view().routing.at(-1)).toEqual(ON);
+      field(view(), "couch:field-focused");
+      web.hide();
+      web.show();
+      expect(view().routing.at(-1)).toEqual(ON);
+    });
+
+    test("Couch's own search capture holds every key, as in Electron, even with a field focused", () => {
+      const { web, view } = make();
+      web.show();
+      field(view(), "couch:field-focused");
+      web.captureText(true);
+      expect(view().routing.at(-1)).toEqual({
+        keys: true,
+        captureCommands: true,
+        fieldFocused: true,
+        pointer: true,
+      });
+      press(view(), key({ id: 31, keyCode: 0, characters: "a" }));
+      press(view(), key({ id: 32, keyCode: 51, characters: "\u007f" }));
+      press(view(), key({ id: 33, keyCode: 36, characters: "\r" }));
+      press(view(), key({ id: 34, keyCode: 53, characters: "\u001b" }));
+      expect(events.filter((e) => e.type === "edit")).toEqual([
+        { type: "edit", edit: { insert: "a" } },
+        { type: "edit", edit: { erase: "char" } },
+        { type: "edit", edit: { done: "submit" } },
+        { type: "edit", edit: { done: "cancel" } },
+      ]);
+      expect(view().replayed).toEqual([]);
+    });
+
+    test("the picture-off gate holds keys even with a field focused", () => {
+      const { web, view } = make();
+      web.show();
+      field(view(), "couch:field-focused");
+      web.setOverlay(true);
+      expect(view().routing.at(-1)).toMatchObject({ captureCommands: true, fieldFocused: true });
+    });
+  });
+
+  describe("wake pointer", () => {
+    const wake = (view: FakeView, body: unknown, frame: WebKitFrame = MAIN) =>
+      view.emit({ type: "message", name: "couch", body, frame });
+
+    test("Couch's wake of a player's bar becomes a real move in the view, without leaving D-pad mode", () => {
+      const { web, view } = make();
+      web.show();
+      wake(view(), { type: "wake-pointer", x: 521, y: 415 });
+      expect(view().wakes).toEqual([[521, 415]]);
+      expect(events.filter((e) => e.type === "input")).toEqual([]);
+    });
+
+    test("the page script that sends it keeps the shield (the mark the page's own listener checks)", async () => {
+      const { web, view } = make();
+      web.show();
+      const couch = view()
+        .scripts.filter((_s, i) => view().worlds[i] === "couch")
+        .join("\n");
+      expect(couch).toContain("__couchWake");
+      expect(couch).toContain("wake-pointer");
+    });
+
+    test("only the App's own main frame can ask, with finite numbers on the page", () => {
+      const { web, view } = make();
+      web.show();
+      wake(
+        view(),
+        { type: "wake-pointer", x: 1, y: 2 },
+        { isMainFrame: false, origin: MAIN.origin },
+      );
+      wake(
+        view(),
+        { type: "wake-pointer", x: 1, y: 2 },
+        { isMainFrame: true, origin: "https://evil.example" },
+      );
+      wake(view(), { type: "wake-pointer", x: "1", y: 2 });
+      wake(view(), { type: "wake-pointer", x: Number.NaN, y: 2 });
+      wake(view(), { type: "wake-pointer", x: -5, y: 2 });
+      wake(view(), { type: "wake-pointer", x: 1e9, y: 2 });
+      wake(view(), { type: "wake-pointer", x: 1, y: 2, extra: true });
+      expect(view().wakes).toEqual([]);
+    });
+
+    test("while hidden nothing is woken", () => {
+      const { web, view } = make();
+      web.show();
+      web.hide();
+      wake(view(), { type: "wake-pointer", x: 1, y: 2 });
+      expect(view().wakes).toEqual([]);
+    });
+
+    test("with the cursor hidden for playback, a wake neither shows it nor counts as the mouse", () => {
+      const clock = new FakeClock();
+      const hidden: boolean[] = [];
+      const native = { move: () => {} };
+      const moves = new MouseMoves((cb) => {
+        native.move = cb;
+        return () => {};
+      });
+      const hider = new CursorHider({
+        clock,
+        onMouseMoved: moves.subscribe,
+        setHidden: (h) => hidden.push(h),
+      });
+      const { web, view } = make();
+      web.show();
+      hider.playing(true);
+      clock.advance(3100);
+      expect(hidden).toEqual([true]);
+      wake(view(), { type: "wake-pointer", x: 521, y: 415 });
+      clock.advance(3100);
+      expect(view().wakes).toHaveLength(1);
+      expect(hidden).toEqual([true]);
+      native.move();
+      expect(hidden).toEqual([true, false]);
+    });
+  });
+
+  describe("coexisting with the cursor and edge watcher (097)", () => {
+    test("showing, hiding, overlays and unloading again and again never leave the view taking input it shouldn't", () => {
+      const { web, view } = make();
+      for (let i = 0; i < 5; i++) {
+        web.show();
+        expect(view().routing.at(-1)).toEqual(ON);
+        web.setOverlay(true);
+        expect(view().routing.at(-1)).toMatchObject({ pointer: false, captureCommands: true });
+        web.setOverlay(false);
+        web.hide();
+        expect(view().routing.at(-1)).toEqual(OFF);
+      }
+      web.unload();
+      expect(view().routing.at(-1)).toEqual(OFF);
+      expect(view().destroyed).toBe(true);
+    });
+
+    test("the household's mouse stays one subscription of the shared watcher while the cursor hider turns on and off", () => {
+      const starts: number[] = [];
+      let stops = 0;
+      const moves = new MouseMoves(() => {
+        starts.push(1);
+        return () => void stops++;
+      });
+      const hider = new CursorHider({
+        clock: new FakeClock(),
+        onMouseMoved: moves.subscribe,
+        setHidden: () => {},
+      });
+      const { web } = make();
+      for (let i = 0; i < 3; i++) {
+        web.show();
+        hider.playing(true);
+        hider.playing(false);
+        web.hide();
+      }
+      expect(starts).toHaveLength(3);
+      expect(stops).toBe(3);
+      web.unload();
+      hider.release();
+      expect(stops).toBe(3);
+    });
+  });
+
   describe("Remote keys", () => {
     test("every key is a native press, down then up, with no Mac keyboard rules in the way", () => {
       const { web, view } = make();
@@ -1097,12 +1338,49 @@ describe("input", () => {
     });
   });
 
+  describe("Remote keys through the fake bridge", () => {
+    test("every key name a description sends, and Space, is one the native side knows", () => {
+      for (const name of [...Object.values(netflix.keyCodes), "Space"])
+        expect(WEBKIT_KEY_NAMES).toContain(name);
+    });
+
+    test("play/pause goes through the App's own control, not a key", () => {
+      const { web, view } = make();
+      web.show();
+      web.playPause();
+      expect(view().evaluated.at(-1)).toContain("control-play-pause");
+      expect(view().keys).toEqual([]);
+    });
+
+    test("a skip without a position drives the scrubber with Left or Right", () => {
+      const { web, view } = make();
+      web.show();
+      web.seekBy(-10);
+      web.seekBy(10);
+      expect(view().keys.map(([k, down]) => `${k}:${down}`)).toEqual([
+        "Left:true",
+        "Left:false",
+        "Right:true",
+        "Right:false",
+      ]);
+    });
+
+    test("Back asks the page where it is before deciding between history and Escape", async () => {
+      const { web, view } = make();
+      web.show();
+      web.sendKey("back");
+      await vi.waitFor(() =>
+        expect(view().evaluated.some((e) => e.includes("__couchPlayerBack"))).toBe(true),
+      );
+    });
+  });
+
   describe("the mouse", () => {
     test("a Couch overlay (Quick settings, a confirmation, Picture off) takes the pointer and every key", () => {
       const { web, view } = make();
       web.show();
       web.setOverlay(true);
-      expect(view().routing.at(-1)).toEqual({ keys: true, captureCommands: true, pointer: false });
+      expect(view().routing.at(-1)).toEqual({ ...ON, captureCommands: true, pointer: false });
       web.setOverlay(false);
       expect(view().routing.at(-1)).toEqual(ON);
     });
@@ -1114,7 +1392,7 @@ describe("input", () => {
       web.setOverlay(true);
       expect(view().routing.at(-1)).toEqual(OFF);
       web.show();
-      expect(view().routing.at(-1)).toEqual({ keys: true, captureCommands: true, pointer: false });
+      expect(view().routing.at(-1)).toEqual({ ...ON, captureCommands: true, pointer: false });
     });
 
     test("a new view after unload is routed again once shown", () => {

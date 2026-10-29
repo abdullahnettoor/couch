@@ -1,12 +1,11 @@
 import { join } from "node:path";
 import { app, BrowserWindow, WebContentsView, clipboard, components, session } from "electron";
 import type { Confirmation, PromptId, TrackKind } from "../../shared/protocol.ts";
-import { SCREEN_KEYS, textEditFor } from "../../shared/keyboard.ts";
 import { revealScreen } from "../reveal.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
 import { BlankGuard, backIsSafe } from "./blank-guard.ts";
 import { HiddenAudio } from "./hidden-audio.ts";
-import { keyBelongsToField } from "./field-keys.ts";
+import { decideKey, type KeyGate } from "./keyboard-policy.ts";
 import { FIELD_BLURRED, FIELD_FOCUSED, pageFocusFunction } from "./page-focus.ts";
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import { requestHooksFor, type RequestHooks } from "./request-hooks.ts";
@@ -26,12 +25,6 @@ import {
   soundScript,
   type PageOutput,
 } from "./web-sound.ts";
-
-/** Asked first about every physical key on the page; true means it was handled. */
-export type KeyGate = (
-  event: { preventDefault(): void },
-  input: { type: string; key: string; meta?: boolean; control?: boolean; alt?: boolean },
-) => boolean;
 
 /** The web-App host: one persistent, always-loaded view over the Screen window, described by `desc`. */
 export class ElectronWebApp implements YouTube {
@@ -170,47 +163,37 @@ export class ElectronWebApp implements YouTube {
     });
     wc.on("before-input-event", (event, input) => {
       if (this.#sending) return;
-      if (this.#keyGate?.(event, input)) return;
-      if (this.#capturing) {
-        event.preventDefault();
-        if (input.type !== "keyDown") return;
-        const edit = textEditFor({
-          key: input.key,
-          meta: input.meta,
-          ctrl: input.control,
-          alt: input.alt,
-        });
-        if (edit && "paste" in edit) {
-          void Promise.resolve(clipboard.readText()).then((text) => {
-            if (text) this.#emit({ type: "edit", edit: { insert: text } });
-          });
+      const decision = decideKey(
+        input,
+        { gate: this.#keyGate, capturing: this.#capturing, fieldFocused: this.#fieldFocused },
+        event,
+      );
+      switch (decision.kind) {
+        case "gate":
           return;
-        }
-        if (edit) this.#emit({ type: "edit", edit });
-        return;
-      }
-      const toPage = () => {
-        if (input.type === "keyDown") this.#emit({ type: "input" });
-      };
-      if (this.#fieldFocused && keyBelongsToField({ key: input.key, meta: input.meta })) {
-        toPage();
-        return;
-      }
-      if (input.type === "keyDown" && !input.control && !input.alt) {
-        const find = input.meta ? input.key.toLowerCase() === "f" : input.key === "/";
-        if (find) {
+        case "typed":
+          event.preventDefault();
+          if (!decision.edit) return;
+          if ("paste" in decision.edit) {
+            void Promise.resolve(clipboard.readText()).then((text) => {
+              if (text) this.#emit({ type: "edit", edit: { insert: text } });
+            });
+            return;
+          }
+          this.#emit({ type: "edit", edit: decision.edit });
+          return;
+        case "find":
           event.preventDefault();
           this.#emit({ type: "find" });
           return;
-        }
+        case "command":
+          event.preventDefault();
+          if (input.type === "keyDown") this.#emit({ type: "key", command: decision.command });
+          return;
+        case "page":
+          if (input.type === "keyDown") this.#emit({ type: "input" });
+          return;
       }
-      const command = SCREEN_KEYS[input.key];
-      if (!command || input.control || input.meta || input.alt) {
-        toPage();
-        return;
-      }
-      event.preventDefault();
-      if (input.type === "keyDown") this.#emit({ type: "key", command });
     });
     const route = (_e: unknown, url: string) => this.#core.navigated(url);
     wc.on("did-navigate", route);

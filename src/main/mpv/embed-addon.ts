@@ -80,14 +80,23 @@ export interface WebKitAddon {
   webkitSetVisible(id: number, visible: boolean): void;
   webkitFocus(id: number): void;
   webkitSendKey(id: number, key: string, down: boolean): void;
-  /** Replays a physical key (the JSON of a key event's fields, minus `swallowed`) to the view as the same NSEvent. */
-  webkitReplayKey(id: number, keyJson: string): void;
+  /** Answers a held key (its `id` in the key event): replay it to the view as the same NSEvent, or consume it. Once per key id. */
+  webkitAnswerKey(id: number, keyId: number, replay: boolean): void;
+  /** A real mouse-moved event at a point of the page (client coordinates, top-left origin). */
+  webkitWakePointer(id: number, x: number, y: number): void;
   /**
    * What real input the view takes off Chromium's transparent layer: `keys` reports physical keys (kind "key", b = JSON
-   * of the key) while the view is the first responder and keeps them from it; `captureCommands` also takes Command
-   * combinations (except ⌘Q, ⌘H, ⌘M, ⌘W); `pointer` hands clicks, drags and the wheel over the view to it.
+   * of the key, with the id the host answers) while the view is the first responder, holding back the keys Couch may want;
+   * `holdAll` takes every key (Command combinations too, except ⌘Q, ⌘H, ⌘M, ⌘W); `fieldFocused` leaves typing to WebKit;
+   * `pointer` hands clicks, drags and the wheel over the view to it.
    */
-  webkitSetInput(id: number, keys: boolean, captureCommands: boolean, pointer: boolean): void;
+  webkitSetInput(
+    id: number,
+    keys: boolean,
+    holdAll: boolean,
+    fieldFocused: boolean,
+    pointer: boolean,
+  ): void;
   webkitDestroy(id: number): void;
   /** Deletes a persistent data store; calls back with an error message, or null. */
   webkitRemoveStore(storeId: string, callback: (error: string | null) => void): void;
@@ -269,6 +278,7 @@ export function createWebKitBridge(
             emit({
               type: "key",
               key: {
+                id: Number.isInteger(key.id) && (key.id as number) > 0 ? (key.id as number) : 0,
                 down: key.down === true,
                 keyCode: Number(key.keyCode) || 0,
                 characters: typeof key.characters === "string" ? key.characters : "",
@@ -278,7 +288,6 @@ export function createWebKitBridge(
                     : "",
                 flags: Number(key.flags) || 0,
                 repeat: key.repeat === true,
-                swallowed: key.swallowed === true,
               },
             });
           } else if (kind === "loaded" || kind === "navigated") emit({ type: kind, url: a });
@@ -311,8 +320,10 @@ export function createWebKitBridge(
         setVisible: (visible) => addon.webkitSetVisible(id, visible),
         focus: () => addon.webkitFocus(id),
         sendKey: (key, down) => addon.webkitSendKey(id, key, down),
-        replayKey: (key) => addon.webkitReplayKey(id, JSON.stringify(key)),
-        setInputRouting: (r) => addon.webkitSetInput(id, r.keys, r.captureCommands, r.pointer),
+        answerKey: (keyId, replay) => addon.webkitAnswerKey(id, keyId, replay),
+        wakePointer: (x, y) => addon.webkitWakePointer(id, x, y),
+        setInputRouting: (r) =>
+          addon.webkitSetInput(id, r.keys, r.captureCommands, r.fieldFocused, r.pointer),
         onEvent: (listener) => {
           listeners.add(listener);
           return () => void listeners.delete(listener);

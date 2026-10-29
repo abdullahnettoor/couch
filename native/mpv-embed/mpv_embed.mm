@@ -10,7 +10,9 @@
 #include <vector>
 #include <string>
 #include <node_api.h>
+#include <memory>
 #include "view_order.h"
+#include "input_policy.h"
 #include <mpv/client.h>
 #include <mpv/render.h>
 #include <mpv/render_gl.h>
@@ -593,18 +595,48 @@ static NSString *wkJson(id v) {
   return d ? [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding] : @"[null]";
 }
 
-@interface CouchWebKit : NSObject <WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate>
+@class CouchWebKit;
+// The input rules (input_policy.h) with this view's side: real keys and mouse events delivered to its WKWebView.
+struct WkKeyHost : inputpolicy::KeyHost {
+  __unsafe_unretained CouchWebKit *wk;
+  explicit WkKeyHost(CouchWebKit *w) : wk(w) {}
+  bool post(int id, const inputpolicy::Key &k) override;
+  void deliver(const inputpolicy::Key &k) override;
+  void log(const char *m) override { NSLog(@"%s", m); }
+};
+struct WkPointerHost : inputpolicy::PointerHost {
+  __unsafe_unretained CouchWebKit *wk;
+  NSEvent *event = nil;  // the event being routed
+  NSPoint last = NSZeroPoint;
+  explicit WkPointerHost(CouchWebKit *w) : wk(w) {}
+  void deliver(inputpolicy::Kind kind, int button) override;
+  void cancel(int button) override;
+};
+
+@interface CouchWebKit : NSObject <WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate> {
+ @public
+  // Per view, so a press and the keys held belong to the view that took them.
+  std::unique_ptr<WkKeyHost> keyHost;
+  std::unique_ptr<inputpolicy::KeyHold> keys;
+  std::unique_ptr<WkPointerHost> pointerHost;
+  std::unique_ptr<inputpolicy::PointerOwner> pointer;
+}
 @property(nonatomic) WKWebView *web;
 @property(nonatomic) napi_threadsafe_function events;
 @property(nonatomic) NSWindow *offscreen;
 // Every user script in registration order: {slot (or NSNull), src, page}. A slot's script can be replaced, which rebuilds the controller's list.
 @property(nonatomic) NSMutableArray<NSDictionary *> *scripts;
 - (void)post:(const char *)kind a:(NSString *)a b:(NSString *)b;
+- (BOOL)postChecked:(const char *)kind a:(NSString *)a b:(NSString *)b;
 @end
 @implementation CouchWebKit
-- (void)post:(const char *)kind a:(NSString *)a b:(NSString *)b {
-  if (!self.events) return;
-  napi_call_threadsafe_function(self.events, new WkEvent{kind, toStd(a), toStd(b)}, napi_tsfn_nonblocking);
+- (void)post:(const char *)kind a:(NSString *)a b:(NSString *)b { [self postChecked:kind a:a b:b]; }
+// NO when the host could not be reached (no callback, or the queue refused it).
+- (BOOL)postChecked:(const char *)kind a:(NSString *)a b:(NSString *)b {
+  if (!self.events) return NO;
+  WkEvent *e = new WkEvent{kind, toStd(a), toStd(b)};
+  if (napi_call_threadsafe_function(self.events, e, napi_tsfn_nonblocking) != napi_ok) { delete e; return NO; }
+  return YES;
 }
 - (void)userContentController:(WKUserContentController *)c didReceiveScriptMessage:(WKScriptMessage *)m {
   // The frame is WebKit's own report of where the message came from; the host drops anything that isn't the App's main frame.
@@ -681,6 +713,10 @@ static CouchWebKit *newWebKit(NSString *storeId, NSString *ua) API_AVAILABLE(mac
   web.navigationDelegate = wk;
   web.UIDelegate = wk;
   wk.web = web;
+  wk->keyHost = std::make_unique<WkKeyHost>(wk);
+  wk->keys = std::make_unique<inputpolicy::KeyHold>(*wk->keyHost);
+  wk->pointerHost = std::make_unique<WkPointerHost>(wk);
+  wk->pointer = std::make_unique<inputpolicy::PointerOwner>(*wk->pointerHost);
   return wk;
 }
 static void destroyWebKit(CouchWebKit *wk) {
@@ -702,9 +738,14 @@ static void stopInputMonitor() {
   if (inputMonitor) { [NSEvent removeMonitor:inputMonitor]; inputMonitor = nil; }
 }
 
+static void releaseInput(CouchWebKit *wk) {
+  if (wk->pointer) wk->pointer->cancel();
+  if (wk->keys) wk->keys->clear();
+}
+
 static void disposeWebKits() {
   routedWk = nil; routeKeys = routeCaptureCommands = routePointer = false; stopInputMonitor();
-  for (auto &kv : webkits) destroyWebKit(kv.second);
+  for (auto &kv : webkits) { releaseInput(kv.second); destroyWebKit(kv.second); }
   webkits.clear();
 }
 
@@ -923,7 +964,10 @@ static napi_value WebkitSetVisible(napi_env env, napi_callback_info info) {
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
   CouchWebKit *wk = wkFor(env, argv[0]);
   bool v; napi_get_value_bool(env, argv[1], &v);
-  if (wk) onMain(^{ wk.web.hidden = !v; });
+  if (wk) onMain(^{
+    if (!v) releaseInput(wk);
+    wk.web.hidden = !v;
+  });
   return NULL;
 }
 
@@ -967,9 +1011,79 @@ static napi_value WebkitSendKey(napi_env env, napi_callback_info info) {
 
 // ---- Real input (ticket 112). The WKWebView sits under Chromium's transparent layer, so Chromium would take the mouse, and
 // the keys would never reach Chromium's rules while the view is the first responder. One local monitor (before the window
-// dispatches an event) takes them: physical keys go to the host as "key" events (swallowed unless a Command combination)
-// and come back through webkitReplayKey when they are the page's; clicks, drags and the wheel over the view are handed to it.
-// Moves go to the view and carry on to Chromium too (the cursor and the edge gesture watch them). ----
+// dispatches an event) takes them. The rules are in input_policy.h: a key the host may want (Couch's own, or any key while Couch
+// captures) is held with an id and the host answers consume or replay within a deadline, else the key goes to the page; clicks,
+// drags and the wheel over the view are handed to it, and the view that got a press owns it until the release. ----
+
+static double uptime() { return [NSProcessInfo processInfo].systemUptime; }
+
+static NSString *keyJson(int id, const inputpolicy::Key &k) {
+  NSDictionary *d = @{@"id": @(id), @"down": @(k.down), @"keyCode": @(k.code),
+                      @"characters": [NSString stringWithUTF8String:k.chars.c_str()] ?: @"",
+                      @"charactersIgnoringModifiers": [NSString stringWithUTF8String:k.charsIgnoring.c_str()] ?: @"",
+                      @"flags": @(k.flags), @"repeat": @(k.repeat)};
+  NSData *json = [NSJSONSerialization dataWithJSONObject:d options:0 error:nil];
+  return [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding];
+}
+
+// A key as the same NSEvent it came in as, delivered to the view (not the system queue, so no other app sees it).
+static bool deliverKeyEvent(WKWebView *web, const inputpolicy::Key &k) {
+  if (!web.window) return false;
+  NSString *chars = [NSString stringWithUTF8String:k.chars.c_str()] ?: @"";
+  NSString *ignoring = [NSString stringWithUTF8String:k.charsIgnoring.c_str()] ?: @"";
+  NSEvent *e = [NSEvent keyEventWithType:k.down ? NSEventTypeKeyDown : NSEventTypeKeyUp location:NSZeroPoint
+                           modifierFlags:(NSEventModifierFlags)k.flags
+                               timestamp:uptime() windowNumber:web.window.windowNumber
+                                 context:nil characters:chars charactersIgnoringModifiers:ignoring
+                               isARepeat:k.repeat keyCode:(unsigned short)k.code];
+  if (k.down) [web keyDown:e]; else [web keyUp:e];
+  return true;
+}
+
+bool WkKeyHost::post(int id, const inputpolicy::Key &k) {
+  return [wk postChecked:"key" a:@"" b:keyJson(id, k)];
+}
+void WkKeyHost::deliver(const inputpolicy::Key &k) { deliverKeyEvent(wk.web, k); }
+
+void WkPointerHost::deliver(inputpolicy::Kind kind, int button) {
+  using inputpolicy::Kind;
+  WKWebView *web = wk.web;
+  NSEvent *e = event;
+  if (!e) return;
+  last = e.locationInWindow;
+  switch (kind) {
+    case Kind::Move: [web mouseMoved:e]; break;
+    case Kind::Wheel: [web scrollWheel:e]; break;
+    case Kind::Down:
+      [web.window makeFirstResponder:web];
+      if (button == 0) [web mouseDown:e]; else if (button == 1) [web rightMouseDown:e]; else [web otherMouseDown:e];
+      break;
+    case Kind::Drag:
+      if (button == 0) [web mouseDragged:e]; else if (button == 1) [web rightMouseDragged:e]; else [web otherMouseDragged:e];
+      break;
+    case Kind::Up:
+      if (button == 0) [web mouseUp:e]; else if (button == 1) [web rightMouseUp:e]; else [web otherMouseUp:e];
+      break;
+  }
+}
+
+// A press the view still holds when it is hidden, destroyed or another view is routed: a release at the last place, so the page never sticks.
+void WkPointerHost::cancel(int button) {
+  WKWebView *web = wk.web;
+  if (!web.window) return;
+  NSEventType type = button == 0 ? NSEventTypeLeftMouseUp : button == 1 ? NSEventTypeRightMouseUp : NSEventTypeOtherMouseUp;
+  NSEvent *e = [NSEvent mouseEventWithType:type location:last modifierFlags:0 timestamp:uptime()
+                              windowNumber:web.window.windowNumber context:nil eventNumber:0 clickCount:1 pressure:0];
+  if (button == 0) [web mouseUp:e]; else if (button == 1) [web rightMouseUp:e]; else [web otherMouseUp:e];
+}
+
+static void scheduleKeyTick(CouchWebKit *wk) {
+  double next = wk->keys->nextDeadline();
+  if (next < 0) return;
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((next - uptime() + 0.01) * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    wk->keys->tick(uptime());
+  });
+}
 
 static NSEvent *routeInput(NSEvent *e) {
   CouchWebKit *wk = routedWk;
@@ -982,17 +1096,16 @@ static NSEvent *routeInput(NSEvent *e) {
       if (!routeKeys) return e;
       NSResponder *r = window.firstResponder;
       if (![r isKindOfClass:[NSView class]] || ![(NSView *)r isDescendantOf:web]) return e;
-      NSEventModifierFlags f = e.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
-      bool cmd = (f & NSEventModifierFlagCommand) != 0;
-      // Quit, Hide, Minimise and Close stay the menu's, even while Couch captures typed text.
-      bool menuKey = cmd && (e.keyCode == 12 || e.keyCode == 4 || e.keyCode == 46 || e.keyCode == 13);
-      bool swallow = !cmd || (routeCaptureCommands && !menuKey);
-      NSDictionary *d = @{@"down": @(e.type == NSEventTypeKeyDown), @"keyCode": @(e.keyCode),
-                          @"characters": e.characters ?: @"", @"charactersIgnoringModifiers": e.charactersIgnoringModifiers ?: @"",
-                          @"flags": @((unsigned long)f), @"repeat": @(e.type == NSEventTypeKeyDown && e.isARepeat), @"swallowed": @(swallow)};
-      NSData *json = [NSJSONSerialization dataWithJSONObject:d options:0 error:nil];
-      [wk post:"key" a:@"" b:[[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding]];
-      return swallow ? nil : e;
+      inputpolicy::Key k;
+      k.down = e.type == NSEventTypeKeyDown;
+      k.code = e.keyCode;
+      k.flags = (unsigned)(e.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask);
+      k.repeat = k.down && e.isARepeat;
+      k.chars = toStd(e.characters);
+      k.charsIgnoring = toStd(e.charactersIgnoringModifiers);
+      inputpolicy::Verdict v = wk->keys->onKey(k, uptime());
+      scheduleKeyTick(wk);
+      return v == inputpolicy::Verdict::Swallow ? nil : e;
     }
     case NSEventTypeMouseMoved:
     case NSEventTypeLeftMouseDragged:
@@ -1002,26 +1115,27 @@ static NSEvent *routeInput(NSEvent *e) {
     case NSEventTypeRightMouseDown: case NSEventTypeRightMouseUp:
     case NSEventTypeOtherMouseDown: case NSEventTypeOtherMouseUp:
     case NSEventTypeScrollWheel: {
-      if (!routePointer) return e;
-      // Only over the view itself (not the title bar's buttons), and a drag or release belongs to the press that began it.
-      static bool dragging = false;
-      bool inside = NSPointInRect([web convertPoint:e.locationInWindow fromView:nil], web.bounds);
-      bool release = e.type == NSEventTypeLeftMouseUp || e.type == NSEventTypeRightMouseUp || e.type == NSEventTypeOtherMouseUp;
-      bool drag = e.type == NSEventTypeLeftMouseDragged || e.type == NSEventTypeRightMouseDragged || e.type == NSEventTypeOtherMouseDragged;
-      if (!inside && !((drag || release) && dragging)) return e;
+      using inputpolicy::Kind;
+      Kind kind = Kind::Wheel; int button = 0;
       switch (e.type) {
-        case NSEventTypeMouseMoved: [web mouseMoved:e]; return e;
-        case NSEventTypeLeftMouseDown: dragging = true; [window makeFirstResponder:web]; [web mouseDown:e]; return nil;
-        case NSEventTypeRightMouseDown: dragging = true; [window makeFirstResponder:web]; [web rightMouseDown:e]; return nil;
-        case NSEventTypeOtherMouseDown: dragging = true; [window makeFirstResponder:web]; [web otherMouseDown:e]; return nil;
-        case NSEventTypeLeftMouseUp: dragging = false; [web mouseUp:e]; return nil;
-        case NSEventTypeRightMouseUp: dragging = false; [web rightMouseUp:e]; return nil;
-        case NSEventTypeOtherMouseUp: dragging = false; [web otherMouseUp:e]; return nil;
-        case NSEventTypeLeftMouseDragged: [web mouseDragged:e]; return nil;
-        case NSEventTypeRightMouseDragged: [web rightMouseDragged:e]; return nil;
-        case NSEventTypeOtherMouseDragged: [web otherMouseDragged:e]; return nil;
-        default: [web scrollWheel:e]; return nil;
+        case NSEventTypeMouseMoved: kind = Kind::Move; break;
+        case NSEventTypeLeftMouseDown: kind = Kind::Down; break;
+        case NSEventTypeRightMouseDown: kind = Kind::Down; button = 1; break;
+        case NSEventTypeOtherMouseDown: kind = Kind::Down; button = 2; break;
+        case NSEventTypeLeftMouseDragged: kind = Kind::Drag; break;
+        case NSEventTypeRightMouseDragged: kind = Kind::Drag; button = 1; break;
+        case NSEventTypeOtherMouseDragged: kind = Kind::Drag; button = 2; break;
+        case NSEventTypeLeftMouseUp: kind = Kind::Up; break;
+        case NSEventTypeRightMouseUp: kind = Kind::Up; button = 1; break;
+        case NSEventTypeOtherMouseUp: kind = Kind::Up; button = 2; break;
+        default: break;
       }
+      // Only over the view itself (not the title bar's buttons).
+      bool inside = NSPointInRect([web convertPoint:e.locationInWindow fromView:nil], web.bounds);
+      wk->pointerHost->event = e;
+      inputpolicy::Route route = wk->pointer->route(kind, button, inside, routePointer);
+      wk->pointerHost->event = nil;
+      return route == inputpolicy::Route::View ? nil : e;
     }
     default: return e;
   }
@@ -1036,50 +1150,69 @@ static void startInputMonitor() {
   inputMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:mask handler:^NSEvent *(NSEvent *e) { return routeInput(e); }];
 }
 
-// webkitSetInput(id, keys, captureCommands, pointer): what the view takes off Chromium's layer. All off stops the monitor.
+// webkitSetInput(id, keys, holdAll, fieldFocused, pointer): what the view takes off Chromium's layer. All off stops the monitor.
 static napi_value WebkitSetInput(napi_env env, napi_callback_info info) {
-  size_t argc = 4; napi_value argv[4];
+  size_t argc = 5; napi_value argv[5];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
   CouchWebKit *wk = wkFor(env, argv[0]);
-  bool keys, cmds, pointer;
-  napi_get_value_bool(env, argv[1], &keys); napi_get_value_bool(env, argv[2], &cmds); napi_get_value_bool(env, argv[3], &pointer);
+  bool keys, hold, field, pointer;
+  napi_get_value_bool(env, argv[1], &keys); napi_get_value_bool(env, argv[2], &hold);
+  napi_get_value_bool(env, argv[3], &field); napi_get_value_bool(env, argv[4], &pointer);
   if (!wk) return NULL;
   onMain(^{
     if (!(keys || pointer)) {
-      if (routedWk == wk) { routedWk = nil; routeKeys = routeCaptureCommands = routePointer = false; stopInputMonitor(); }
+      if (routedWk == wk) { releaseInput(wk); routedWk = nil; routeKeys = routeCaptureCommands = routePointer = false; stopInputMonitor(); }
       return;
     }
-    routedWk = wk; routeKeys = keys; routeCaptureCommands = cmds; routePointer = pointer;
+    if (routedWk && routedWk != wk) releaseInput(routedWk);
+    inputpolicy::Policy p; p.keys = keys; p.holdAll = hold; p.fieldFocused = field;
+    wk->keys->configure(p);
+    routedWk = wk; routeKeys = keys; routeCaptureCommands = hold; routePointer = pointer;
     startInputMonitor();
   });
   return NULL;
 }
 
-// A physical key the host judged to be the page's, as the same NSEvent it came in as (delivered to the view, not the system queue).
-static bool replayKeyEvent(WKWebView *web, NSDictionary *d) {
-  if (!web.window) return false;
-  bool down = [d[@"down"] boolValue];
-  NSString *chars = d[@"characters"] ?: @"", *ignoring = d[@"charactersIgnoringModifiers"] ?: @"";
-  NSEvent *e = [NSEvent keyEventWithType:down ? NSEventTypeKeyDown : NSEventTypeKeyUp location:NSZeroPoint
-                           modifierFlags:(NSEventModifierFlags)[d[@"flags"] unsignedLongValue]
-                               timestamp:[NSProcessInfo processInfo].systemUptime windowNumber:web.window.windowNumber
-                                 context:nil characters:chars charactersIgnoringModifiers:ignoring
-                               isARepeat:[d[@"repeat"] boolValue] keyCode:(unsigned short)[d[@"keyCode"] unsignedIntValue]];
-  if (down) [web keyDown:e]; else [web keyUp:e];
-  return true;
-}
-
-static napi_value WebkitReplayKey(napi_env env, napi_callback_info info) {
-  size_t argc = 2; napi_value argv[2];
+// The host's answer for a held key: replay it to the view or consume it.
+static napi_value WebkitAnswerKey(napi_env env, napi_callback_info info) {
+  size_t argc = 3; napi_value argv[3];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
   CouchWebKit *wk = wkFor(env, argv[0]);
-  NSData *json = [NSData dataWithBytes:str(env, argv[1]).data() length:str(env, argv[1]).size()];
+  int32_t keyId; bool replay;
+  napi_get_value_int32(env, argv[1], &keyId); napi_get_value_bool(env, argv[2], &replay);
+  if (wk) onMain(^{ wk->keys->answer(keyId, replay); });
+  return NULL;
+}
+
+// A real mouse-moved event at a point of the page (client coordinates, top-left origin), for Couch's own wake of a player's bar.
+static napi_value WebkitWakePointer(napi_env env, napi_callback_info info) {
+  size_t argc = 3; napi_value argv[3];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  CouchWebKit *wk = wkFor(env, argv[0]);
+  double x, y;
+  napi_get_value_double(env, argv[1], &x); napi_get_value_double(env, argv[2], &y);
   if (!wk) return NULL;
   onMain(^{
-    id d = [NSJSONSerialization JSONObjectWithData:json options:0 error:nil];
-    if ([d isKindOfClass:[NSDictionary class]]) replayKeyEvent(wk.web, d);
+    WKWebView *web = wk.web;
+    if (!web.window || web.hidden) return;
+    NSPoint p = [web convertPoint:NSMakePoint(x, y) toView:nil];
+    NSEvent *e = [NSEvent mouseEventWithType:NSEventTypeMouseMoved location:p modifierFlags:0 timestamp:uptime()
+                                windowNumber:web.window.windowNumber context:nil eventNumber:0 clickCount:0 pressure:0];
+    [web mouseMoved:e];
   });
   return NULL;
+}
+
+// The selftest's "replay:" step: a key as a dictionary.
+static bool replayKeyEvent(WKWebView *web, NSDictionary *d) {
+  inputpolicy::Key k;
+  k.down = [d[@"down"] boolValue];
+  k.code = [d[@"keyCode"] unsignedIntValue];
+  k.flags = (unsigned)[d[@"flags"] unsignedLongValue];
+  k.repeat = [d[@"repeat"] boolValue];
+  k.chars = toStd(d[@"characters"] ?: @"");
+  k.charsIgnoring = toStd(d[@"charactersIgnoringModifiers"] ?: @"");
+  return deliverKeyEvent(web, k);
 }
 
 static napi_value WebkitDestroy(napi_env env, napi_callback_info info) {
@@ -1091,6 +1224,7 @@ static napi_value WebkitDestroy(napi_env env, napi_callback_info info) {
   CouchWebKit *wk = it->second;
   webkits.erase(it);
   onMain(^{
+    releaseInput(wk);
     if (routedWk == wk) { routedWk = nil; routeKeys = routeCaptureCommands = routePointer = false; stopInputMonitor(); }
     if (winOrder) winOrder->keeper.removeApp(wk.web);
     destroyWebKit(wk);
@@ -1225,7 +1359,8 @@ static napi_value Init(napi_env env, napi_value exports) {
     {"webkitFocus", 0, WebkitFocus, 0, 0, 0, napi_default, 0},
     {"webkitSendKey", 0, WebkitSendKey, 0, 0, 0, napi_default, 0},
     {"webkitSetInput", 0, WebkitSetInput, 0, 0, 0, napi_default, 0},
-    {"webkitReplayKey", 0, WebkitReplayKey, 0, 0, 0, napi_default, 0},
+    {"webkitAnswerKey", 0, WebkitAnswerKey, 0, 0, 0, napi_default, 0},
+    {"webkitWakePointer", 0, WebkitWakePointer, 0, 0, 0, napi_default, 0},
     {"webkitDestroy", 0, WebkitDestroy, 0, 0, 0, napi_default, 0},
     {"webkitRemoveStore", 0, WebkitRemoveStore, 0, 0, 0, napi_default, 0},
     {"webkitSelfTest", 0, WebkitSelfTest, 0, 0, 0, napi_default, 0},

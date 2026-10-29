@@ -10,6 +10,7 @@ import {
   type Box,
 } from "./page-focus.ts";
 import { runFocusScript } from "./page-focus-runner.ts";
+import { NETFLIX_LAYOUT } from "../apps/netflix/netflix-web.ts";
 
 const box = (left: number, top: number, w = 100, h = 50): Box => ({
   left,
@@ -103,7 +104,12 @@ class El {
   }
 }
 let doc: any;
-function setup(els: El[], selectors?: string[], layout?: FocusLayout) {
+function setup(
+  els: El[],
+  selectors?: string[],
+  layout?: FocusLayout,
+  href = "https://www.netflix.com/browse",
+) {
   doc = {
     activeElement: null,
     readyState: "complete",
@@ -144,7 +150,7 @@ function setup(els: El[], selectors?: string[], layout?: FocusLayout) {
   };
   const run = runFocusScript(pageFocusFunction(selectors, layout), {
     document: doc,
-    href: "https://www.netflix.com/browse",
+    href,
     width: 1000,
     height: 800,
     getComputedStyle: (e: El) => ({ visibility: "visible", display: "block", zIndex: e.zIndex }),
@@ -666,6 +672,45 @@ describe("D-pad mode (no hover from a resting mouse)", () => {
     fire("mousemove", null, mv(0, 0, false));
     fire("mousemove", null, mv(900, 700, false));
     expect(dpad(doc)).toBe(true);
+  });
+  test("Couch's own wake of a player's bar is a real move to the page, but it neither ends the shield nor anchors it", () => {
+    const { key, fire, doc, run } = setup(els());
+    key("ArrowRight");
+    run("window.__couchWake = { x: 521, y: 415, at: Date.now() }");
+    fire("mousemove", null, mv(521, 415));
+    fire("mousemove", null, mv(522, 414));
+    expect(dpad(doc)).toBe(true);
+    // The household's mouse still ends it, but the wake left no anchor: the first real move sets it, the next ends it.
+    fire("mousemove", null, mv(100, 100));
+    expect(dpad(doc)).toBe(true);
+    fire("mousemove", null, mv(300, 100));
+    expect(dpad(doc)).toBe(false);
+  });
+  test("Down in the player brings the bar up and wakes the pointer through the host, and the shield stays", () => {
+    const posted: any[] = [];
+    const { key, fire, doc, run } = setup(
+      els(),
+      undefined,
+      NETFLIX_LAYOUT,
+      "https://www.netflix.com/watch/81234",
+    );
+    run(
+      "window.__wakes = []; window.webkit = { messageHandlers: { couch: { postMessage: (m) => window.__wakes.push(m) } } }",
+    );
+    key("ArrowDown");
+    posted.push(...(run("window.__wakes") as any[]));
+    expect(posted.length).toBeGreaterThan(0);
+    expect(posted.every((m) => m.type === "wake-pointer")).toBe(true);
+    for (const m of posted) fire("mousemove", null, mv(m.x, m.y));
+    expect(dpad(doc)).toBe(true);
+  });
+  test("a real move far from the wake's point, or long after it, is the household's", () => {
+    const { key, fire, doc, run } = setup(els());
+    key("ArrowRight");
+    run("window.__couchWake = { x: 521, y: 415, at: Date.now() - 5000 }");
+    fire("mousemove", null, mv(521, 415));
+    fire("mousemove", null, mv(700, 415));
+    expect(dpad(doc)).toBe(false);
   });
   test("a key after mouse use goes back to D-pad mode", () => {
     const { key, fire, doc } = setup(els());

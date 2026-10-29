@@ -300,6 +300,17 @@ describe("Netflix playback adapter", () => {
     expect(n.playPauseClicks).toBe(2);
   });
 
+  test("under WebKit, bringing the bar up also asks the host for real moves at the points it dispatches", async () => {
+    const n = new FakeNetflix();
+    n.run(
+      "window.__wakes = []; window.webkit = { messageHandlers: { couch: { postMessage: (m) => window.__wakes.push(m) } } }",
+    );
+    await n.run(playback.playPause!());
+    const wakes = n.run("window.__wakes") as Array<{ type: string; x: number; y: number }>;
+    expect(wakes.length).toBeGreaterThan(0);
+    expect(wakes.every((w) => w.type === "wake-pointer" && w.x >= 640 && w.y >= 360)).toBe(true);
+  });
+
   test("play/pause with the button missing leaves the player alone", async () => {
     const n = new FakeNetflix();
     n.hasPlayPause = false;

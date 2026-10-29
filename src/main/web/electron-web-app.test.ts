@@ -103,6 +103,7 @@ import { netflixDescription } from "../apps/netflix/netflix-web.ts";
 import { youtubeDescription } from "../apps/youtube/youtube-web.ts";
 import { ElectronWebApp } from "./electron-web-app.ts";
 import { HIDE_SCROLLBARS_CSS } from "./hide-scrollbars.ts";
+import { KEY_CASES } from "./keyboard-policy.cases.ts";
 
 const win: any = {
   contentView: { addChildView() {}, removeChildView() {} },
@@ -353,5 +354,25 @@ describe("page input (the household using the page itself)", () => {
     web.playPause();
     web.sendKey("ok");
     expect(inputs()).toBe(0);
+  });
+});
+
+describe("the shared keyboard rules, through the Electron adapter", () => {
+  test.each(KEY_CASES)("$name", ({ input, state, events, page }) => {
+    const web = new ElectronWebApp(netflix, win);
+    const wc = fake.views.at(-1)!;
+    const out: unknown[] = [];
+    web.onEvent((e) => out.push(e));
+    web.captureText(state.capturing ?? false);
+    if (state.fieldFocused) wc.emit("console-message", { message: "couch:field-focused" });
+    if (state.gate)
+      web.setKeyGate((event) => {
+        event.preventDefault();
+        return true;
+      });
+    const event = { preventDefault: vi.fn() };
+    wc.emit("before-input-event", event, { ...input });
+    expect(out).toEqual(events);
+    expect(event.preventDefault.mock.calls.length === 0).toBe(page);
   });
 });

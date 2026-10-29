@@ -9,6 +9,16 @@ export const SHIELD_ID = "couch-shield";
  */
 export const WAKE_POINTER_SOURCE = `function (step) {
   var cx = innerWidth / 2, cy = innerHeight / 2;
+  var x = cx + (step % 12) * 7, y = cy + (step % 7) * 5;
+  // Under WebKit the same move also goes to the host, which makes it a real mouse-moved event in the view. This marks
+  // that move as Couch's own, so the page's D-pad shield does not take it for the household's mouse.
+  try {
+    var h = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.couch;
+    if (h) {
+      window.__couchWake = { x: x, y: y, at: Date.now() };
+      h.postMessage({ type: 'wake-pointer', x: x, y: y });
+    }
+  } catch (e) {}
   var t = null;
   if (typeof document.elementsFromPoint === 'function') {
     var all = document.elementsFromPoint(cx, cy);
@@ -17,7 +27,6 @@ export const WAKE_POINTER_SOURCE = `function (step) {
   t = t || document.body;
   if (!t || !t.dispatchEvent) return;
   var Pointer = typeof PointerEvent === 'function' ? PointerEvent : MouseEvent;
-  var x = cx + (step % 12) * 7, y = cy + (step % 7) * 5;
   ['pointerover', 'pointermove', 'mouseover', 'mousemove'].forEach(function (n) {
     var C = n.indexOf('pointer') === 0 ? Pointer : MouseEvent;
     t.dispatchEvent(new C(n, { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, screenX: x, screenY: y, movementX: 7, movementY: 5 }));

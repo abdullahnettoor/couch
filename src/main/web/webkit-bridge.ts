@@ -13,28 +13,38 @@ export type ScriptWorld = "couch" | "page";
 
 /**
  * A physical key the native side saw while the view was the window's first responder, as the NSEvent says it
- * (the host decides whether it is Couch's or the page's). `flags` is `NSEvent.modifierFlags`; `swallowed` says the
- * native side already kept it from the view (Command keys are left alone unless the host asked to capture them).
+ * (the host decides whether it is Couch's or the page's). `flags` is `NSEvent.modifierFlags`. `id` is above 0 when
+ * the native side is holding the key back: the host must answer it (`answerKey`) within a short deadline, or the
+ * key goes to the page; 0 means the key already reached the view.
  */
 export interface WebKitKey {
+  id: number;
   down: boolean;
   keyCode: number;
   characters: string;
   charactersIgnoringModifiers: string;
   flags: number;
   repeat: boolean;
-  swallowed: boolean;
 }
 
 /** Which real input the native side takes off Chromium's layer and gives to the view. */
 export interface WebKitInputRouting {
   /** Physical keys are reported (`key` events) instead of reaching the view directly. */
   keys: boolean;
-  /** Also take Command-key combinations (so ⌘V can be Couch's); off, they reach the menu and the page as usual. */
+  /**
+   * Couch takes every key (it captures typed text, or an overlay such as Picture off is up), Command combinations too
+   * (except ⌘Q, ⌘H, ⌘M, ⌘W). Off, only Couch's own keys are held back: Escape and ⌘F with a field focused in the
+   * page, and every key but Command combinations (plus ⌘F) otherwise.
+   */
   captureCommands: boolean;
+  /** A text field in the page has focus: typing goes straight to WebKit (so composition works). */
+  fieldFocused: boolean;
   /** Clicks, drags and the wheel over the view reach it, not the transparent layer above (hover goes to both). */
   pointer: boolean;
 }
+
+/** The key names `WebKitView.sendKey` knows (the native add-on's table); a description's `keyCodes` must stay within them. */
+export const WEBKIT_KEY_NAMES = ["Up", "Down", "Left", "Right", "Return", "Escape", "Space"];
 
 /** What a native `WKWebView` reports back. */
 export type WebKitEvent =
@@ -79,8 +89,13 @@ export interface WebKitView {
   setCookies(cookies: WebKitCookie[]): Promise<void>;
   /** Makes the view the window's first responder, so keys reach it. */
   focus(): void;
-  /** Replays a physical key the host judged to be the page's, as the same NSEvent it came in as. */
-  replayKey(key: Omit<WebKitKey, "swallowed">): void;
+  /** Answers a held key (`WebKitKey.id`): `true` gives it to the view as the same NSEvent it came in as, `false` consumes it. Once per id. */
+  answerKey(id: number, replay: boolean): void;
+  /**
+   * A real mouse-moved event at a point of the page (client coordinates), for Couch's own wake of a player's bar. The page's
+   * D-pad shield doesn't take it for the household's mouse (the script that asks marks it first).
+   */
+  wakePointer(x: number, y: number): void;
   /** What real input the view takes. Off by default; the host sets it while the view is on screen. */
   setInputRouting(routing: WebKitInputRouting): void;
   /** A native NSEvent keyDown or keyUp sent to the view (names as in a description's `keyCodes`: Up, Down, Left, Right, Return, Escape). */
