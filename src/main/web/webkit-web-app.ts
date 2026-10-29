@@ -14,7 +14,7 @@ import type {
   WebKitView,
 } from "./webkit-bridge.ts";
 import { parsePageMessage } from "./webkit-messages.ts";
-import { CONFIRM_MESSAGE } from "./web-hud.ts";
+import { CONFIRM_MESSAGE, noteScript } from "./web-hud.ts";
 import { POLL_MS, WebHostCore } from "./web-host-core.ts";
 import { soundScript } from "./web-sound.ts";
 
@@ -91,6 +91,9 @@ export class WebKitWebApp implements YouTube {
   #volume = 60;
   /** How many buttons the open confirmation has; 0 while none is open. Answers are taken only against this. */
   #confirmButtons = 0;
+  #loaded = false;
+  /** A note asked for while the page was still loading; it is drawn when the page has loaded. */
+  #pendingNote: string | undefined;
 
   constructor(
     desc: WebAppDescription,
@@ -169,16 +172,19 @@ export class WebKitWebApp implements YouTube {
 
   #load(): void {
     this.#failed = false;
+    this.#loaded = false;
     this.#view?.load(this.#desc.url);
   }
 
   #onEvent(event: WebKitEvent): void {
     switch (event.type) {
       case "loaded":
-        if (this.#failed || !event.url.startsWith("https:")) return;
+        if (this.#failed || !this.#isOwnPage(event.url)) return;
         this.#emit({ type: "loaded" });
+        this.#loaded = true;
         if (!this.#visible) this.#run(hiddenScript(true));
         this.#applySound();
+        this.#drawPendingNote();
         return;
       case "failed":
         this.#failed = true;
@@ -191,6 +197,18 @@ export class WebKitWebApp implements YouTube {
       case "message":
         if (event.name === MESSAGE_HANDLER) this.#onPageMessage(event.body, event.frame);
         return;
+    }
+  }
+
+  /** A finished load counts only over https at one of the App's own hosts (the dev test page's loopback origin is its own too). */
+  #isOwnPage(url: string): boolean {
+    try {
+      const u = new URL(url);
+      return (
+        (u.protocol === "https:" || u.hostname === "127.0.0.1") && this.#desc.isOwnOrigin(u.origin)
+      );
+    } catch {
+      return false;
     }
   }
 
@@ -231,7 +249,7 @@ export class WebKitWebApp implements YouTube {
     this.#view.setFrame(0, 0, width, height);
   }
 
-  show(_note?: string): void {
+  show(note?: string): void {
     this.#visible = true;
     if (!this.#view) this.start();
     const view = this.#view!;
@@ -242,11 +260,23 @@ export class WebKitWebApp implements YouTube {
     view.setVisible(true);
     this.#run(hiddenScript(false));
     this.#applySound();
+    if (note) {
+      this.#pendingNote = note;
+      if (this.#loaded) this.#drawPendingNote();
+    }
     void this.#win.reveal().then(() => view.focus());
+  }
+
+  /** The note is drawn in the page, over whatever Netflix shows, like the search bar; it removes itself. */
+  #drawPendingNote(): void {
+    const note = this.#pendingNote;
+    this.#pendingNote = undefined;
+    if (note && this.#visible) this.#run(noteScript(note));
   }
 
   hide(): void {
     this.#visible = false;
+    this.#pendingNote = undefined;
     this.#confirmButtons = 0;
     this.#core.hidden();
     this.#view?.setVisible(false);
@@ -264,6 +294,7 @@ export class WebKitWebApp implements YouTube {
     this.#view = undefined;
     this.#failed = false;
     this.#url = "";
+    this.#loaded = false;
     this.#confirmButtons = 0;
     this.#core.reset();
   }
@@ -354,10 +385,13 @@ export class WebKitWebApp implements YouTube {
     this.#core.showSearchBar(text);
   }
 
-  /** Couch's own screen draws the volume level over a native view (ticket 111 checks it). */
+  /** Couch's own screen draws the volume level: its page is transparent over a native view, so nothing is injected. */
   showVolume(_percent: number | undefined): void {}
 
-  /** Couch's screen draws the confirmation (ticket 111); the host only remembers that one is open, to judge answers. */
+  /**
+   * Couch's screen draws the question (its buttons answer clicks and keys through the core, like on Home), so nothing
+   * is injected; the host only remembers that one is open, to judge the answers a page might send.
+   */
   showConfirm(confirm: Confirmation | undefined): void {
     this.#confirmButtons = confirm ? confirm.buttons.length : 0;
   }

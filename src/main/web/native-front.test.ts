@@ -14,6 +14,10 @@ describe("the renderer is transparent while a native App view is in front", () =
     expect(nativeAppFront({ view: "app" }, native)).toBe(false);
   });
 
+  test("the App error screen is Couch's own opaque screen: not transparent, so a failed view never shows through", () => {
+    expect(nativeAppFront({ view: "appError", app: "netflix" }, native)).toBe(false);
+  });
+
   test("the renderer's stylesheet makes the page transparent for that class", () => {
     const css = readFileSync(
       join(import.meta.dirname, "../../renderer/player-overlay.css"),

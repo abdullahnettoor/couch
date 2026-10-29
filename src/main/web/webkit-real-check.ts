@@ -9,9 +9,13 @@ export const HOUSEHOLD_PORTS = [4747, 4748];
 export const CHECK_PORTS = { remote: 47747, app: 47748 };
 
 /** The environment the agent's WebKit real check runs Couch with. A temp userData and non-persistent stores, own ports, WebKit on. */
-export function webkitRealCheckEnv(base: Record<string, string | undefined> = {}) {
+export function webkitRealCheckEnv(
+  base: Record<string, string | undefined> = {},
+  options: { testPage?: boolean } = {},
+) {
   return {
     ...base,
+    COUCH_WEBKIT_TEST_PAGE: options.testPage ? "1" : undefined,
     COUCH_NETFLIX_ENGINE: "webkit",
     COUCH_WEBKIT_EPHEMERAL: "1",
     COUCH_PORT: String(CHECK_PORTS.remote),
@@ -62,8 +66,9 @@ export function assertSafeWebkitRealCheck(
 export function webkitRealCheckLaunch(
   userDataDir: string,
   base: Record<string, string | undefined>,
+  options: { testPage?: boolean } = {},
 ) {
-  const env = webkitRealCheckEnv(base);
+  const env = webkitRealCheckEnv(base, options);
   assertSafeWebkitRealCheck(env, userDataDir);
   return { args: ["scripts/dev-electron.mjs", `--user-data-dir=${userDataDir}`], env };
 }

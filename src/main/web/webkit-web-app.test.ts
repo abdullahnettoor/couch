@@ -19,6 +19,8 @@ import { IdleUnloader } from "./idle-unload.ts";
 import { hiddenScript } from "./hidden-audio.ts";
 import { fakeMediaPage } from "./fake-media-page.ts";
 import { soundScript } from "./web-sound.ts";
+import { noteScript, searchBarScript } from "./web-hud.ts";
+import { testPageDescription } from "./webkit-test-page.ts";
 import { webkitStoreId } from "./webkit-stores.ts";
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import { WebKitWebApp, type WebKitHostWindow } from "./webkit-web-app.ts";
@@ -813,5 +815,133 @@ describe("idle unload", () => {
     web.show();
     expect(views).toHaveLength(2);
     expect(views[1]!.loads).toEqual([netflix.url]);
+  });
+});
+
+describe("Couch's screen over the view (ticket 111)", () => {
+  const confirm: Confirmation = {
+    title: "Leave Netflix?",
+    buttons: ["Go to Home", "Stay"],
+    focus: 0,
+  };
+  /** Nothing Couch draws may hide, pause, resize or reload the page. */
+  const untouched = (view: FakeView, hiddenBefore: number, scriptsBefore: number) => {
+    expect(view.visible.at(-1)).toBe(true);
+    expect(view.visible.slice(hiddenBefore)).toEqual([]);
+    expect(view.evaluated.slice(scriptsBefore).some((s) => s.includes("pause()"))).toBe(false);
+    expect(view.loads).toHaveLength(1);
+    expect(view.destroyed).toBe(false);
+  };
+
+  test("the volume display and the question are drawn by Couch's own screen, not injected into the page", () => {
+    const { web, view } = make();
+    web.show();
+    const visible = view().visible.length;
+    const before = view().evaluated.length;
+    web.showVolume(40);
+    web.showConfirm(confirm);
+    web.showConfirm({ ...confirm, focus: 1 });
+    web.showConfirm(undefined);
+    web.showVolume(undefined);
+    expect(view().evaluated.length).toBe(before);
+    untouched(view(), visible, before);
+  });
+
+  test("the floating search bar is drawn in the page and removed again, and the page keeps playing", () => {
+    const { web, view } = make();
+    web.show();
+    const visible = view().visible.length;
+    const before = view().evaluated.length;
+    web.showSearchBar("");
+    web.showSearchBar("dark");
+    web.showSearchBar(undefined);
+    const bars = view().evaluated.filter((s) => s.includes("couch-search"));
+    expect(bars).toEqual([
+      searchBarScript("", netflix.search!.placeholder),
+      searchBarScript("dark", netflix.search!.placeholder),
+      searchBarScript(undefined, netflix.search!.placeholder),
+    ]);
+    expect(view().kinds.slice(-3)).toEqual(["expression", "expression", "expression"]);
+    untouched(view(), visible, before);
+  });
+
+  test("the first-show note is drawn in the page once it has loaded", () => {
+    const { web, view } = make();
+    web.show("Press Home on your phone to come back");
+    expect(view().evaluated.some((s) => s.includes("couch-note"))).toBe(false);
+    view().emit({ type: "loaded", url: "https://www.netflix.com/browse" });
+    expect(
+      view().evaluated.filter((s) => s === noteScript("Press Home on your phone to come back")),
+    ).toHaveLength(1);
+    view().emit({ type: "loaded", url: "https://www.netflix.com/browse" });
+    expect(view().evaluated.filter((s) => s.includes("couch-note"))).toHaveLength(1);
+  });
+
+  test("a note on a page that is already loaded is drawn at once", () => {
+    const { web, view } = make();
+    web.show();
+    view().emit({ type: "loaded", url: "https://www.netflix.com/browse" });
+    web.hide();
+    web.show("Press Home on your phone to come back");
+    expect(view().evaluated.some((s) => s.includes("couch-note"))).toBe(true);
+  });
+
+  test("the App error screen: a failed load is reported, and a restart loads the page again without a new view", () => {
+    const { web, view } = make();
+    web.show();
+    view().emit({ type: "failed", error: "offline" });
+    expect(events).toContainEqual({ type: "failed" });
+    web.hide();
+    expect(view().visible.at(-1)).toBe(false);
+    web.restart();
+    web.show();
+    expect(views).toHaveLength(1);
+    expect(view().loads).toEqual([netflix.url, netflix.url]);
+    expect(view().visible.at(-1)).toBe(true);
+    // The page that comes back is reported as loaded again, so the error screen clears.
+    view().emit({ type: "loaded", url: "https://www.netflix.com/browse" });
+    expect(events.at(-1)).toEqual({ type: "loaded" });
+  });
+
+  test("a failed load after the error is not turned into loaded by a stale finish", () => {
+    const { web, view } = make();
+    web.show();
+    view().emit({ type: "failed", error: "offline" });
+    events.length = 0;
+    view().emit({ type: "loaded", url: "https://www.netflix.com/browse" });
+    expect(events).toEqual([]);
+  });
+});
+
+describe("the dev test page (ticket 111)", () => {
+  const origin = "http://127.0.0.1:5555";
+  const page = testPageDescription(netflix, origin);
+  const makeTest = () => {
+    const web = new WebKitWebApp(page, bridge, win, { ephemeral: true });
+    events = [];
+    web.onEvent((e) => events.push(e));
+    return web;
+  };
+
+  test("it loads the test page, and its own origin's load counts as loaded", () => {
+    const web = makeTest();
+    web.show();
+    expect(views.at(-1)!.loads).toEqual([`${origin}/watch/1`]);
+    views.at(-1)!.emit({ type: "loaded", url: `${origin}/watch/1` });
+    expect(events).toContainEqual({ type: "loaded" });
+  });
+
+  test("a load of any other plain http address still does not count", () => {
+    const web = makeTest();
+    web.show();
+    views.at(-1)!.emit({ type: "loaded", url: "http://example.com/" });
+    expect(events).not.toContainEqual({ type: "loaded" });
+  });
+
+  test("Netflix's own host still refuses plain http", () => {
+    const { web, view } = make();
+    web.show();
+    view().emit({ type: "loaded", url: `${origin}/watch/1` });
+    expect(events).not.toContainEqual({ type: "loaded" });
   });
 });

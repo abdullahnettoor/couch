@@ -68,6 +68,24 @@ describe("Netflix App", () => {
     expect(calls("hide")).toHaveLength(1);
   });
 
+  // The WebKit host draws nothing for a question (Couch's own transparent screen does), so the core answers clicks and keys alone.
+  test("Leave Netflix? answers a mouse click on a button and a hover moves the highlight, with no help from the host", async () => {
+    await openNetflix();
+    navigate("https://www.netflix.com/browse");
+    const s = await phone.press("back");
+    expect(s.confirm?.focus).toBe(0);
+    h.app.screenCommand({ command: "focusAt", args: { r: 0, c: 1 } });
+    expect(h.screen.last.state.confirm?.focus).toBe(1);
+    h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
+    expect(h.screen.last.state.confirm).toBeUndefined();
+    expect(h.screen.last.state.view).toBe("home");
+    await openNetflix();
+    await phone.press("back");
+    h.app.screenCommand({ command: "confirmAt", args: { index: 0 } });
+    expect(h.screen.last.state.confirm).toBeUndefined();
+    expect(h.screen.last.state.view).toBe("app");
+  });
+
   test("Back where Netflix can't go back any further leaves instead of hanging", async () => {
     await openNetflix();
     navigate("https://www.netflix.com/title/80100172");

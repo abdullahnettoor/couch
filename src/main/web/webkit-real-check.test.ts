@@ -78,3 +78,25 @@ describe("the agent's WebKit real check", () => {
     });
   });
 });
+
+describe("the local test page option (ticket 111)", () => {
+  test("is off unless asked, and on only through the option", () => {
+    expect(webkitRealCheckEnv({ COUCH_WEBKIT_TEST_PAGE: "1" }).COUCH_WEBKIT_TEST_PAGE).toBe(
+      undefined,
+    );
+    expect(webkitRealCheckEnv({}, { testPage: true }).COUCH_WEBKIT_TEST_PAGE).toBe("1");
+  });
+
+  test("it still refuses unsafe settings with the option on", () => {
+    expect(() =>
+      webkitRealCheckLaunch(
+        join(homedir(), "Library/Application Support/couch"),
+        {},
+        { testPage: true },
+      ),
+    ).toThrow(/userData/);
+    expect(webkitRealCheckLaunch(temp(), {}, { testPage: true }).env.COUCH_WEBKIT_TEST_PAGE).toBe(
+      "1",
+    );
+  });
+});

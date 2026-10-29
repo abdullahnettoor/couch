@@ -14,6 +14,13 @@ import { ElectronWebApp } from "./web/electron-web-app.ts";
 import { resolveWebKitStore } from "./web/webkit-stores.ts";
 import { createSafariSignIn, safariCookiePaths } from "./web/safari-sign-in.ts";
 import { WebKitWebApp } from "./web/webkit-web-app.ts";
+import {
+  ensureTestClip,
+  serveTestPage,
+  testPageDescription,
+  testPageEnabled,
+  type TestPageServer,
+} from "./web/webkit-test-page.ts";
 import { NATIVE_APP_CLASS, nativeAppFront, netflixEngine } from "./web/native-front.ts";
 import { youtubeDescription } from "./apps/youtube/youtube-web.ts";
 import { netflixDescription } from "./apps/netflix/netflix-web.ts";
@@ -24,7 +31,7 @@ import { resolveHomeApps } from "./core/home-apps.ts";
 import { IdleUnloader } from "./web/idle-unload.ts";
 import { FileStore } from "./ports/store.ts";
 import { readChoices } from "./web/addon.ts";
-import { FfmpegThumbnails } from "./ports/thumbnails.ts";
+import { FfmpegThumbnails, findFfmpeg } from "./ports/thumbnails.ts";
 import { ElectronConverter } from "./ports/electron-pictures.ts";
 import { RealMacWallpapers } from "./ports/mac-wallpapers.ts";
 import { WallpaperFilesOnDisk } from "./ports/pictures.ts";
@@ -176,10 +183,13 @@ async function createScreen(): Promise<void> {
   if (process.env.COUCH_NETFLIX_ENGINE === "webkit" && engine !== "webkit")
     console.warn("[netflix] WebKit is not available here; using Chromium");
   const nativeApps = new Set<string>(engine === "webkit" ? ["netflix"] : []);
+  const testPage = engine === "webkit" ? await startTestPage() : undefined;
   const netflix =
     engine === "webkit"
       ? new WebKitWebApp(
-          netflixDescription(),
+          testPage
+            ? testPageDescription(netflixDescription(), testPage.origin)
+            : netflixDescription(),
           webkitBridge!,
           {
             getContentBounds: () => win!.getContentBounds(),
@@ -355,6 +365,19 @@ ipcMain.on(Channel.grid, (_event, report: GridReport) =>
 );
 
 ipcMain.on(Channel.glass, (_event, rects: GlassRect[]) => player?.setGlass(rects));
+
+/** Developer-only (COUCH_WEBKIT_TEST_PAGE=1, see webkit-test-page.ts): a local page that plays a synthetic clip in the WebKit host. */
+async function startTestPage(): Promise<TestPageServer | undefined> {
+  if (!testPageEnabled(process.env)) return undefined;
+  const clip = await ensureTestClip(join(app.getPath("userData"), "test-page"), findFfmpeg());
+  if (!clip) {
+    console.warn("[netflix] test page needs ffmpeg; using Netflix");
+    return undefined;
+  }
+  const server = await serveTestPage(clip);
+  app.on("will-quit", () => void server.close());
+  return server;
+}
 
 let quitting = false;
 app.on("before-quit", (event) => {

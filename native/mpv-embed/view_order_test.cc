@@ -335,6 +335,91 @@ int main() {
   wk.electronRaises("webkit");
   CHECK(wk.stack.back() == "webkit");
 
+
+  // ---- Ticket 111: Couch's screen over a WebKit App. The stack is video < glass < webkit < compositor < renderer < covers < drawer. ----
+  auto layered = [&](FakeWindow &win, const std::vector<std::string> &want) {
+    int prev = -1;
+    for (auto &v : want) { if (!win.has(v) || win.at(v) < prev) return false; prev = win.at(v); }
+    return true;
+  };
+  FakeWindow lay;
+  lay.compositorDraws = true;
+  lay.stack = {"compositor", "web:renderer", "web:youtube"};
+  vieworder::Keeper<std::string> lk2(lay, [&](std::function<void()> n) { lay.notify = n; });
+  lk2.addApp("webkit");
+  // A new WebContentsView (the Picture off cover, a later App) lands above everything and the WebKit view stays at the bottom.
+  lay.electronAdds("web:cover");
+  CHECK(lay.at("webkit") == 0 && lay.at("web:cover") == lay.stack.size() - 1);
+  // Picture off over a playing WebKit App: the cover comes and goes, is lifted back to the top, and never touches the WebKit view.
+  for (int i = 0; i < 3; i++) {
+    lay.erase("web:cover"); lay.changed();
+    CHECK(lay.at("webkit") == 0);
+    lay.electronAdds("web:cover");
+    lay.electronRaises("web:youtube");
+    lay.electronRaises("web:cover");
+    CHECK(lay.at("webkit") == 0 && lay.at("compositor") == 1);
+  }
+  // The drawer opens over the cover and the WebKit App: its view is the anchor; the glass is refused over the compositor,
+  // and the WebKit view is not moved by any of it.
+  lk2.beginDrawerRegistration();
+  lay.electronAdds("web:drawer");
+  CHECK(lk2.endDrawerRegistration());
+  CHECK(!lk2.setDrawer("dglass"));
+  CHECK(!lay.has("dglass") && lay.at("webkit") == 0);
+  // Resize: the host only changes frames, so there is no stack change; a spurious notify is harmless.
+  auto layBefore = lay.stack;
+  lay.changed();
+  CHECK(lay.stack == layBefore);
+  // Full screen: AppKit re-parents the window's views in its own order, with the WebKit view and compositor swapped around.
+  lay.stack = {"web:youtube", "compositor", "web:renderer", "webkit", "web:cover", "web:drawer"};
+  lay.changed();
+  CHECK(lay.at("webkit") == 0);
+  CHECK(layered(lay, {"webkit", "web:youtube", "compositor", "web:renderer", "web:cover", "web:drawer"}));
+  lay.stack = {"web:drawer", "web:cover", "web:renderer", "compositor", "web:youtube", "webkit"};
+  lay.changed();
+  CHECK(lay.at("webkit") == 0 && lay.stack.size() == 6);
+  lk2.clearDrawer();
+  // Leaving full screen again, with a second WebKit App view: both stay under the compositor, in the order they were added.
+  lk2.addApp("webkit2");
+  lay.electronRaises("webkit");
+  lay.electronRaises("webkit2");
+  CHECK(lay.at("webkit") == 0 && lay.at("webkit2") == 1 && lay.at("webkit2") < lay.at("compositor"));
+  lk2.removeApp("webkit2");
+  lay.erase("webkit2"); lay.changed();
+  CHECK(lay.at("webkit") == 0);
+
+  // The whole stack at once: a playing Library video with its glass, the WebKit view, the compositor, the cover and the drawer
+  // (with a host where the drawer's glass can sit, as the fake does by default).
+  FakeWindow all;
+  all.stack = {"compositor", "web:renderer"};
+  vieworder::Keeper<std::string> ak2(all, [&](std::function<void()> n) { all.notify = n; });
+  ak2.setVideo("video", true);
+  ak2.addGlass("glass0");
+  ak2.addApp("webkit");
+  all.electronAdds("web:cover");
+  ak2.beginDrawerRegistration();
+  all.electronAdds("web:drawer");
+  CHECK(ak2.endDrawerRegistration());
+  CHECK(ak2.setDrawer("dglass"));
+  CHECK(layered(all, {"video", "glass0", "webkit", "compositor", "web:renderer", "web:cover", "dglass", "web:drawer"}));
+  CHECK(all.at("dglass") == all.at("web:drawer") - 1);
+  // A WebContentsView added while everything is up, then the window re-orders: the same order comes back.
+  all.electronAdds("web:late");
+  all.electronRaises("video");
+  all.electronRaises("webkit");
+  all.electronRaises("web:cover");
+  CHECK(layered(all, {"video", "glass0", "webkit", "compositor", "web:renderer"}));
+  CHECK(all.at("dglass") == all.at("web:drawer") - 1);
+  // The WebKit App is unloaded (its view leaves) while the cover and drawer are up: nothing above it moves.
+  ak2.removeApp("webkit");
+  all.erase("webkit"); all.changed();
+  CHECK(layered(all, {"video", "glass0", "compositor", "web:renderer"}));
+  CHECK(all.at("dglass") == all.at("web:drawer") - 1);
+  // It is created again: the new view goes back under everything.
+  ak2.addApp("webkit");
+  all.electronAdds("webkit");
+  CHECK(layered(all, {"video", "glass0", "webkit", "compositor", "web:renderer"}));
+
   std::printf("ok\n");
   return 0;
 }
