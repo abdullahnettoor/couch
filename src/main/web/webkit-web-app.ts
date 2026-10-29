@@ -33,6 +33,8 @@ export interface WebKitHostWindow {
   onResize(callback: () => void): void;
   /** Brings the Screen window forward; resolves once it is in front. */
   reveal(): Promise<void>;
+  /** Gives Couch's own page the keyboard (a hidden WebKit view would otherwise keep first responder). */
+  focusScreen?(): void;
 }
 
 /** Each function runs on its own, so one that throws cannot stop the others. */
@@ -353,6 +355,7 @@ export class WebKitWebApp implements YouTube {
       pointer: false,
     });
     this.#view?.setVisible(false);
+    this.#win.focusScreen?.();
     this.#syncDocumentStart();
     this.#applySound();
     this.#run(hiddenScript(true));

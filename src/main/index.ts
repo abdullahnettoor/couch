@@ -28,6 +28,7 @@ import {
   ensureTestClip,
   serveTestPage,
   testPageDescription,
+  isPackagedBuild,
   testPageEnabled,
   type TestPageServer,
 } from "./web/webkit-test-page.ts";
@@ -205,6 +206,7 @@ async function createScreen(): Promise<void> {
             getContentBounds: () => win!.getContentBounds(),
             onResize: (callback) => win!.on("resize", callback),
             reveal: () => revealScreen(win!),
+            focusScreen: () => win?.webContents.focus(),
             readClipboard: () => clipboard.readText(),
           },
           resolveWebKitStore("netflix", { userDataDir: app.getPath("userData"), env: process.env }),
@@ -381,7 +383,8 @@ ipcMain.on(Channel.glass, (_event, rects: GlassRect[]) => player?.setGlass(rects
 
 /** Developer-only (COUCH_WEBKIT_TEST_PAGE=1, see webkit-test-page.ts): a local page that plays a synthetic clip in the WebKit host. */
 async function startTestPage(): Promise<TestPageServer | undefined> {
-  if (!testPageEnabled(process.env, { isPackaged: app.isPackaged })) return undefined;
+  if (!testPageEnabled(process.env, { isPackaged: isPackagedBuild(app, process) }))
+    return undefined;
   const clip = await ensureTestClip(join(app.getPath("userData"), "test-page"), findFfmpeg());
   if (!clip) {
     console.warn("[netflix] test page needs ffmpeg; using Netflix");

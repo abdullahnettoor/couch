@@ -137,7 +137,11 @@ const bridge: WebKitBridge = {
 const removed: Array<[string, boolean]> = [];
 
 let resize: () => void = () => {};
+let screenFocused = 0;
 const win: WebKitHostWindow = {
+  focusScreen: () => {
+    screenFocused++;
+  },
   getContentBounds: () => ({ width: 1280, height: 720 }),
   onResize: (cb) => {
     resize = cb;
@@ -198,6 +202,14 @@ describe("showing and hiding", () => {
     web.hide();
     expect(view().visible.at(-1)).toBe(false);
     expect(view().evaluated.at(-1)).toContain("pause()");
+  });
+
+  test("hide gives the keyboard back to Couch's own screen (the hidden view must not keep it)", () => {
+    const { web } = make();
+    web.show();
+    const before = screenFocused;
+    web.hide();
+    expect(screenFocused).toBe(before + 1);
   });
 
   test("shown again it reuses the view and the page", () => {

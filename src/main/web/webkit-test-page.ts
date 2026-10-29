@@ -19,6 +19,17 @@ import type { WebAppDescription } from "./web-app.ts";
  * playback probe still run on it (the address is a `/watch/` page), so Picture off, Quick settings, the volume
  * display, questions and the search bar can be checked while "something plays", with no account and no network.
  */
+/**
+ * Electron reports `isPackaged` true for any executable not named "electron", including the renamed dev copy
+ * (`Couch.app`) that `scripts/dev-electron.mjs` runs; that one is launched with an app path, so `defaultApp` is set.
+ */
+export function isPackagedBuild(
+  app: { isPackaged: boolean },
+  proc: { defaultApp?: boolean },
+): boolean {
+  return app.isPackaged && !proc.defaultApp;
+}
+
 export function testPageEnabled(
   env: Record<string, string | undefined>,
   build: { isPackaged: boolean },

@@ -9,6 +9,7 @@ import {
   parseRange,
   serveTestPage,
   testPageDescription,
+  isPackagedBuild,
   testPageEnabled,
   testPageHtml,
 } from "./webkit-test-page.ts";
@@ -39,6 +40,13 @@ describe("the dev-only test page that plays a synthetic video in the WebKit host
     expect(testPageEnabled({ ...on, NODE_ENV: "production" }, { isPackaged: true })).toBe(false);
     expect(testPageEnabled({ ...on, NODE_ENV: "production" }, { isPackaged: false })).toBe(false);
     expect(testPageEnabled({ ...on, NODE_ENV: "development" }, { isPackaged: false })).toBe(true);
+  });
+
+  test("a dev run through the renamed Couch.app (isPackaged lies, defaultApp is set) is not a packaged build", () => {
+    expect(isPackagedBuild({ isPackaged: true }, { defaultApp: true })).toBe(false);
+    expect(isPackagedBuild({ isPackaged: true }, {})).toBe(true);
+    expect(isPackagedBuild({ isPackaged: false }, {})).toBe(false);
+    expect(isPackagedBuild({ isPackaged: false }, { defaultApp: true })).toBe(false);
   });
 
   test("the page has one large muted, looping, autoplaying video of the served clip", () => {
