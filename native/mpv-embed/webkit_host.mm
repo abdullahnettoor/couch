@@ -273,7 +273,7 @@ static napi_value WebkitEvaluate(napi_env env, napi_callback_info info) {
 // webkitSetCookies(id, json, callback(error|null)): cookies into the view's WKHTTPCookieStore. Values are never logged.
 // All or nothing: if any cookie can't be built, none is set and the error is a fixed text that holds no values.
 // Optional "sameSite": "lax" or "strict" becomes NSHTTPCookieSameSitePolicy; "none" (or absent) sets no policy, and
-// anything else rejects the operation. Safari's cookie file has no SameSite field, so its cookies carry none.
+// anything else rejects the operation.
 static napi_value WebkitSetCookies(napi_env env, napi_callback_info info) {
   size_t argc = 3; napi_value argv[3];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);

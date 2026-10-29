@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 import type { AppEntry } from "./apps/index.ts";
 import type { AppSignIn, SignInResult } from "./apps/app.ts";
+import { AVAILABILITY_TIMEOUT_MS } from "./apps/availability.ts";
 import { createAppSignIn } from "./web/app-sign-in.ts";
 import type { WebKitCookie } from "./web/webkit-bridge.ts";
 import { FakeWebApp } from "./ports/fakes.ts";
@@ -170,7 +171,7 @@ describe("Settings → Apps → Copy sign-in from Couch", () => {
     expect(calls).toEqual(["copy"]);
     expect(h.screen.last.state.toast).toBe("Copied 3 Cinema cookies");
     expect(phone.last?.toast).toEqual({ text: "Copied 3 Cinema cookies", id: expect.any(Number) });
-    expect(phone.last?.signInNote).toBeUndefined();
+    expect(phone.last?.playbackNote).toBeUndefined();
   });
 
   test("one cookie is singular", async () => {
@@ -197,7 +198,7 @@ describe("Settings → Apps → Copy sign-in from Couch", () => {
       await pick(phone, "Copy sign-in from Couch");
       if (toast) expect(h.screen.last.state.toast).toBe(toast);
       else expect(h.screen.last.state.toast).not.toMatch(/Copied/);
-      expect(phone.last?.signInNote).toBeUndefined();
+      expect(phone.last?.playbackNote).toBeUndefined();
       await h.stop();
     }
   });
@@ -247,7 +248,7 @@ describe("the Settings path with the real copy", () => {
   // The first read is the menu asking whether a sign-in exists; the copy is the second.
   const afterMenuOpens = <T>(next: () => Promise<T[]>) => {
     let reads = 0;
-    return async () => (reads++ === 0 ? ([cookie("probe")] as T[]) : next());
+    return async () => (reads++ === 0 ? ([cookie("NetflixId")] as T[]) : next());
   };
 
   const cookie = (name: string, domain = ".netflix.com") => ({
@@ -279,7 +280,7 @@ describe("the Settings path with the real copy", () => {
     await focus(phone, "Copy sign-in from Couch");
     await phone.press("ok");
     await pick(phone, "Sign out");
-    release([cookie("a")]);
+    release([cookie("NetflixId")]);
     await h.settle();
     await phone.settle();
     expect(calls).toEqual(["signOut"]);
@@ -326,7 +327,7 @@ describe("the Settings path with the real copy", () => {
       let finish!: () => void;
       const calls: string[] = [];
       const signIn = createAppSignIn({
-        couch: { get: async () => [cookie("a")] },
+        couch: { get: async () => [cookie("NetflixId")] },
         target: {
           setCookies: () =>
             new Promise<void>((res, rej) => {
@@ -351,10 +352,10 @@ describe("the Settings path with the real copy", () => {
 
   test("partitioned cookies never reach the target", async () => {
     const r = await run({
-      get: async () => [cookie("plain"), { ...cookie("chips"), partitioned: true }],
+      get: async () => [cookie("NetflixId"), { ...cookie("chips"), partitioned: true }],
     });
     expect(r.toast).toBe("Copied 1 Cinema cookie");
-    expect(r.received[0]!.map((c) => c.name)).toEqual(["plain"]);
+    expect(r.received[0]!.map((c) => c.name)).toEqual(["NetflixId"]);
   });
 
   async function run(o: {
@@ -401,14 +402,14 @@ describe("the Settings path with the real copy", () => {
   test("success: only the target gets the value; only Netflix cookies; nothing else leaks", async () => {
     const r = await run({
       get: async () => [
-        cookie("a"),
+        cookie("NetflixId"),
         cookie("b", "evilnetflix.com"),
         cookie("c", "www.netflix.com"),
       ],
     });
     expect(r.toast).toBe("Copied 2 Cinema cookies");
     expect(r.received).toHaveLength(1);
-    expect(r.received[0]!.map((c) => c.name)).toEqual(["a", "c"]);
+    expect(r.received[0]!.map((c) => c.name)).toEqual(["NetflixId", "c"]);
     expect(JSON.stringify(r.received)).toContain(SECRET);
     expect(r.elsewhere).not.toContain(SECRET);
   });
@@ -426,7 +427,7 @@ describe("the Settings path with the real copy", () => {
 
   test("a native store that refuses with the value in its error", async () => {
     const r = await run({
-      get: async () => [cookie("a")],
+      get: async () => [cookie("NetflixId")],
       setCookies: async () => {
         throw new Error(`refused ${SECRET}`);
       },
@@ -436,9 +437,30 @@ describe("the Settings path with the real copy", () => {
   });
 
   test("only lookalike cookies: nothing is set", async () => {
-    const r = await run({ get: async () => [cookie("a", "evilnetflix.com")] });
+    const r = await run({ get: async () => [cookie("NetflixId", "evilnetflix.com")] });
     expect(r.toast).toBe("No Cinema sign-in found in Couch");
     expect(r.received).toEqual([]);
     expect(r.elsewhere).not.toContain(SECRET);
+  });
+});
+
+describe("a hanging availability check", () => {
+  test("the Settings menu still opens and shows no copy row", async () => {
+    const signIn: AppSignIn = {
+      copyFromCouch: {
+        available: () => new Promise<boolean>(() => {}),
+        copy: async () => ({ ok: true, count: 1 }),
+      },
+      signOut: async () => {},
+    };
+    const app = new FakeWebApp("weather", "Cinema", { signIn });
+    h = await startHarness(undefined, { apps: [{ entry, app }] });
+    const phone = await h.connectPhone();
+    await openMenu(phone, "Cinema");
+    expect(labels()).toContain("Sign out");
+    await new Promise((r) => setTimeout(r, AVAILABILITY_TIMEOUT_MS + 300));
+    await h.settle();
+    expect(labels()).not.toContain("Copy sign-in from Couch");
+    expect(labels()).toContain("Sign out");
   });
 });

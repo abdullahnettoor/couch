@@ -462,7 +462,7 @@ export interface RemoteSnapshot {
   continueCard?: RemoteContinueCard;
   typeAvailable: boolean;
   /** Settings → Apps: why the App's other playback engine isn't offered. */
-  signInNote?: RemoteNote;
+  playbackNote?: RemoteNote;
   /** The Screen's toast, mirrored: the phone shows each `id` once, calmly, whatever view it is in. */
   toast?: { text: string; id: number };
   /** A question is up on the Screen; the D-pad, OK and Back answer it. */

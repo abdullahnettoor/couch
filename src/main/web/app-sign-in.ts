@@ -1,5 +1,5 @@
 import type { AppSignIn, SignInResult } from "../apps/app.ts";
-import { couchNetflixCookies, type CouchCookieSource } from "./couch-cookies.ts";
+import { couchNetflixCookies, hasNetflixSignIn, type CouchCookieSource } from "./couch-cookies.ts";
 import type { WebKitCookie } from "./webkit-bridge.ts";
 
 export interface AppSignInOptions {
@@ -43,7 +43,7 @@ export function createAppSignIn(o: AppSignInOptions): AppSignIn {
   const copyFromCouch: AppSignIn["copyFromCouch"] = couch && {
     async available() {
       try {
-        return couchNetflixCookies(await couch.get()).length > 0;
+        return hasNetflixSignIn(await couch.get());
       } catch {
         return false;
       }
@@ -52,7 +52,8 @@ export function createAppSignIn(o: AppSignInOptions): AppSignIn {
       const mine = generation;
       let cookies: WebKitCookie[] | undefined;
       try {
-        cookies = couchNetflixCookies(await couch.get());
+        const all = await couch.get();
+        cookies = hasNetflixSignIn(all) ? couchNetflixCookies(all) : [];
       } catch {
         cookies = undefined;
       }

@@ -1,4 +1,5 @@
-import { describe, expect, test } from "vite-plus/test";
+import { describe, expect, test, vi } from "vite-plus/test";
+import { AVAILABILITY_TIMEOUT_MS } from "../apps/availability.ts";
 import { cdpCookieSource } from "./couch-cdp-source.ts";
 
 describe("the DevTools cookie source", () => {
@@ -27,5 +28,29 @@ describe("the DevTools cookie source", () => {
     }));
     await expect(src.get()).rejects.toThrow();
     expect(closed).toBe(1);
+  });
+});
+
+describe("a read that never answers", () => {
+  test("fails within the limit and closes the session once", async () => {
+    vi.useFakeTimers();
+    try {
+      let closed = 0;
+      const src = cdpCookieSource(() => ({
+        send: () => new Promise<unknown>(() => {}),
+        close: () => void closed++,
+      }));
+      const read = src.get().then(
+        () => "ok",
+        () => "failed",
+      );
+      await vi.advanceTimersByTimeAsync(AVAILABILITY_TIMEOUT_MS - 1);
+      expect(closed).toBe(0);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await read).toBe("failed");
+      expect(closed).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

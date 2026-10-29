@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, test } from "vite-plus/test";
 import type { AppEntry } from "./apps/index.ts";
 import type { AppWelcome, WelcomeQuestion } from "./apps/app.ts";
+import { AVAILABILITY_TIMEOUT_MS } from "./apps/availability.ts";
+import { MemoryStore } from "./ports/store.ts";
+import { createWebKitWelcome } from "./web/webkit-welcome.ts";
+import type { AppPlayback } from "./apps/app.ts";
 import { FakeWebApp } from "./ports/fakes.ts";
 import { startHarness, type FakePhone, type Harness } from "./testing/harness.ts";
 
@@ -238,5 +242,36 @@ describe("the welcome question before an App first loads", () => {
     await phone.press("ok");
     await settle(phone);
     expect(asked).toHaveLength(1);
+  });
+});
+
+describe("a hanging sign-in lookup", () => {
+  test("Netflix opens within the limit, a second open meanwhile is not lost, and the lookup is shared", async () => {
+    let lookups = 0;
+    const welcome = createWebKitWelcome({
+      store: new MemoryStore(),
+      appId: "cinema",
+      label: "Cinema",
+      engine: () => "webkit",
+      signIn: () => ({
+        copyFromCouch: {
+          available: () => (lookups++, new Promise<boolean>(() => {})),
+          copy: async () => ({ ok: true, count: 1 }),
+        },
+        signOut: async () => {},
+      }),
+      playback: { select: async () => {} } as unknown as AppPlayback,
+    });
+    const app = new FakeWebApp("cinema", "Cinema", { welcome });
+    const phone = await start(app);
+    const started = Date.now();
+    await phone.press("ok");
+    await h.settle();
+    expect(shows(app)).toBe(0);
+    await phone.press("ok");
+    await expect.poll(() => shows(app), { timeout: 4000 }).toBe(1);
+    expect(Date.now() - started).toBeLessThan(AVAILABILITY_TIMEOUT_MS + 1500);
+    expect(h.screen.last.state.confirm).toBeUndefined();
+    expect(lookups).toBe(1);
   });
 });

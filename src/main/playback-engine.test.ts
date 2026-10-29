@@ -167,7 +167,7 @@ describe("Settings → Apps → Playback", () => {
     expect(labels()).toContain(
       "Playback: Chromium (Widevine) · WebKit unavailable: FairPlay isn't available on this Mac",
     );
-    expect(phone.last?.signInNote).toEqual({
+    expect(phone.last?.playbackNote).toEqual({
       title: "Playback",
       steps: ["WebKit unavailable: FairPlay isn't available on this Mac"],
     });

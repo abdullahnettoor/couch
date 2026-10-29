@@ -1,6 +1,13 @@
 import type { WebKitCookie } from "./webkit-bridge.ts";
 
-export function isNetflixDomain(domain: string): boolean {
+/**
+ * Netflix's own authentication cookies. These names are Netflix's, not ours, and Netflix may rename or add to them;
+ * if signed-in users stop seeing the welcome or "Copy sign-in from Couch", check this list first. Judged by name only,
+ * never by value.
+ */
+export const NETFLIX_AUTH_COOKIE_NAMES: readonly string[] = ["NetflixId", "SecureNetflixId"];
+
+function isNetflixDomain(domain: string): boolean {
   const d = domain.toLowerCase();
   return d === "netflix.com" || d.endsWith(".netflix.com");
 }
@@ -73,4 +80,15 @@ export function couchNetflixCookies(cookies: ElectronCookie[]): WebKitCookie[] {
     out.push(cookie);
   }
   return out;
+}
+
+/** Whether the cookies hold a Netflix sign-in: an unpartitioned authentication cookie on netflix.com (by name only). */
+export function hasNetflixSignIn(cookies: ElectronCookie[]): boolean {
+  return cookies.some(
+    (c) =>
+      !c.partitioned &&
+      !!c.domain &&
+      isNetflixDomain(c.domain) &&
+      NETFLIX_AUTH_COOKIE_NAMES.includes(c.name),
+  );
 }

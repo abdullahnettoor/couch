@@ -27,6 +27,7 @@ import type { Clock } from "../ports/clock.ts";
 import type { Mac } from "../ports/mac.ts";
 import { pickTargetDisplay } from "../display.ts";
 import { APP_ENTRIES, OPEN_APP, type AppEntry } from "../apps/index.ts";
+import { availableWithin } from "../apps/availability.ts";
 import { copyFromCouchToast } from "../apps/sign-in-text.ts";
 import {
   PlaybackUnavailable,
@@ -196,7 +197,10 @@ export class Core {
   #confirmAnswers: Array<() => void> | undefined;
   /** What Back does for the open question, when it isn't "dismiss" (the welcome's Back is an answer). */
   #confirmBack: (() => void) | undefined;
-  /** Apps whose welcome question is being looked up or answered, so a second open waits. */
+  /** Apps whose welcome question is being looked up (the newest open owns it). */
+  #lookups = new Map<string, number>();
+  #lookupSeq = 0;
+  /** Apps whose welcome question is being looked up or answered. */
   #welcoming = new Set<string>();
   /** The question core asked on behalf of an App's Back ("Leave <label>?"). */
   #leaveConfirm: Confirmation | undefined;
@@ -1289,7 +1293,7 @@ export class Core {
       ...(s.confirm ? { confirm: s.confirm } : {}),
       ...(s.toast ? { toast: { text: s.toast, id: this.#toastId } } : {}),
       ...(s.view === "settingsApps" && this.#homeApps.menuId && this.#remoteNote()
-        ? { signInNote: this.#remoteNote() }
+        ? { playbackNote: this.#remoteNote() }
         : {}),
       typeAvailable: (s.view === "app" && !!front?.typing) || s.view === "details" || searchable,
       ...(this.#show.fixTarget() ? { fixAvailable: true } : {}),
@@ -2063,7 +2067,12 @@ export class Core {
   /** Asks the App's one-time question over the view we are on, and opens the App once it is answered. */
   async #welcomeThenOpen(app: App): Promise<void> {
     const welcome = app.welcome;
-    if (!welcome || this.#welcoming.has(app.id)) return;
+    if (!welcome) return;
+    const looking = this.#lookups.has(app.id);
+    // Answering: a second open waits. Still looking up: the newest open takes over (the lookup is shared).
+    if (this.#welcoming.has(app.id) && !looking) return;
+    const lookup = ++this.#lookupSeq;
+    this.#lookups.set(app.id, lookup);
     this.#welcoming.add(app.id);
     const view = this.#state.view;
     let released = false;
@@ -2072,6 +2081,8 @@ export class Core {
       released = true;
     };
     const question = await welcome.question().catch(() => undefined);
+    if (this.#lookups.get(app.id) !== lookup) return;
+    this.#lookups.delete(app.id);
     // Home, or another page, in the meantime: the household went elsewhere.
     if (this.#state.view !== view) return release();
     if (!question) {
@@ -2128,7 +2139,7 @@ export class Core {
     const copy = this.#apps.get(id)?.signIn?.copyFromCouch;
     if (!copy) return;
     const check = ++this.#couchCheck;
-    const has = await copy.available().catch(() => false);
+    const has = await availableWithin(() => copy.available());
     if (check !== this.#couchCheck) return;
     if (has === this.#couchCopy.has(id)) return;
     if (has) this.#couchCopy.add(id);

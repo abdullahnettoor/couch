@@ -1,4 +1,5 @@
 import type { AppPlayback, AppSignIn, AppWelcome, WelcomeQuestion } from "../apps/app.ts";
+import { availableWithin } from "../apps/availability.ts";
 import { copyFromCouchToast } from "../apps/sign-in-text.ts";
 import type { Store } from "../ports/store.ts";
 import type { Engine } from "./native-front.ts";
@@ -29,12 +30,15 @@ export function createWebKitWelcome(o: {
       [o.appId]: true,
     });
   };
+  let pending: Promise<boolean> | undefined;
   return {
     async question(): Promise<WelcomeQuestion | undefined> {
       if (o.engine() !== "webkit" || answered()) return undefined;
       const copy = o.signIn()?.copyFromCouch;
-      const hasCookies = copy ? await copy.available().catch(() => false) : false;
-      if (!hasCookies) return undefined;
+      if (!copy) return undefined;
+      // One lookup at a time: a second open while it is pending shares it. A slow or hung lookup counts as "no".
+      pending ??= availableWithin(() => copy.available()).finally(() => (pending = undefined));
+      if (!(await pending)) return undefined;
       return {
         title: `${o.label} now plays in sharper quality`,
         body: "It needs its own sign-in.",

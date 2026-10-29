@@ -38,7 +38,7 @@ describe("a sign out during a copy cancels it, whatever the outcome", () => {
         couch: {
           get: async () => [
             {
-              name: "a",
+              name: "NetflixId",
               value: SECRET,
               domain: ".netflix.com",
               path: "/",
@@ -90,7 +90,7 @@ describe("copying Couch's own Chromium sign-in", () => {
     return { signIn, set, order };
   }
   const all = async () => [
-    chromium(".netflix.com", "a"),
+    chromium(".netflix.com", "NetflixId"),
     chromium("evilnetflix.com", "b"),
     chromium("www.netflix.com", "c"),
   ];
@@ -101,7 +101,7 @@ describe("copying Couch's own Chromium sign-in", () => {
     expect(t.set[0]).toEqual([
       {
         domain: ".netflix.com",
-        name: "a",
+        name: "NetflixId",
         path: "/",
         value: SECRET,
         secure: true,
@@ -207,5 +207,53 @@ describe("copying Couch's own Chromium sign-in", () => {
     const t = makeCopy(async () => (calls.push("get"), all()));
     await t.signIn.copyFromCouch!.copy();
     expect(calls).toEqual(["get"]);
+  });
+});
+
+describe("only Netflix's authentication cookies are a sign-in", () => {
+  const cookie = (name: string, over: Record<string, unknown> = {}) => ({
+    name,
+    value: SECRET,
+    domain: ".netflix.com",
+    path: "/",
+    session: true,
+    sameSite: "lax" as const,
+    ...over,
+  });
+  const make = (cookies: ReturnType<typeof cookie>[]) => {
+    const set: WebKitCookie[][] = [];
+    const signIn = createAppSignIn({
+      couch: { get: async () => cookies },
+      target: { setCookies: async (c) => void set.push(c), signOut: async () => {} },
+    });
+    return { signIn: signIn.copyFromCouch!, set };
+  };
+
+  test("anonymous cookies alone: not available, and copy finds none", async () => {
+    const t = make([cookie("nfvdid"), cookie("OptanonConsent"), cookie("flwssn")]);
+    expect(await t.signIn.available()).toBe(false);
+    expect(await t.signIn.copy()).toEqual({ ok: false, reason: "none" });
+    expect(t.set).toEqual([]);
+  });
+
+  test("an auth cookie (either name) is available, and copy takes the whole filtered set", async () => {
+    for (const name of ["NetflixId", "SecureNetflixId"]) {
+      const t = make([cookie("nfvdid"), cookie(name)]);
+      expect(await t.signIn.available()).toBe(true);
+      expect(await t.signIn.copy()).toEqual({ ok: true, count: 2 });
+      expect(t.set[0]!.map((c) => c.name)).toEqual(["nfvdid", name]);
+    }
+  });
+
+  test("a partitioned or lookalike-domain auth cookie is not a sign-in", async () => {
+    expect(await make([cookie("NetflixId", { partitioned: true })]).signIn.available()).toBe(false);
+    expect(
+      await make([cookie("NetflixId", { domain: "evilnetflix.com" })]).signIn.available(),
+    ).toBe(false);
+  });
+
+  test("the value is never consulted", async () => {
+    expect(await make([cookie("nfvdid", { value: "NetflixId" })]).signIn.available()).toBe(false);
+    expect(await make([cookie("NetflixId", { value: "" })]).signIn.available()).toBe(true);
   });
 });

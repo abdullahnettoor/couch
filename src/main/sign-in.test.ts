@@ -1,9 +1,15 @@
-import { afterEach, describe, expect, test } from "vite-plus/test";
+import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, test, vi } from "vite-plus/test";
+import { createAppSignIn } from "./web/app-sign-in.ts";
+import { FileStore } from "./ports/store.ts";
 import type { AppEntry } from "./apps/index.ts";
 import type { AppSignIn } from "./apps/app.ts";
 import { FakeWebApp } from "./ports/fakes.ts";
 import { startHarness, type FakePhone, type Harness } from "./testing/harness.ts";
 
+const SECRET = "fake-secret-value-123";
 let h: Harness;
 afterEach(async () => {
   await h?.stop();
@@ -96,5 +102,42 @@ describe("Settings → Apps → sign-in rows", () => {
     await openMenu(phone, "Cinema");
     await pick(phone, "Sign out");
     expect(h.screen.last.state.toast).toBe("Couldn't sign out of Cinema");
+  });
+});
+
+describe("a failed sign out leaks nothing", () => {
+  test("the target's rejected error carries a secret: logs, Store files, payloads, snapshots and toasts stay clean", async () => {
+    const spies = (["log", "info", "warn", "error", "debug"] as const).map((m) =>
+      vi.spyOn(console, m).mockImplementation(() => {}),
+    );
+    const writes = ["stdout", "stderr"].map((k) =>
+      vi.spyOn(process[k as "stdout" | "stderr"], "write").mockImplementation(() => true),
+    );
+    const signIn = createAppSignIn({
+      target: {
+        setCookies: async () => {},
+        signOut: async () => {
+          throw new Error(`refused ${SECRET}`);
+        },
+      },
+    });
+    const app = new FakeWebApp("weather", "Cinema", { signIn });
+    const dir = mkdtempSync(join(tmpdir(), "couch-signout-"));
+    h = await startHarness(new FileStore(dir), { apps: [{ entry, app }] });
+    const phone = await h.connectPhone();
+    await openMenu(phone, "Cinema");
+    await pick(phone, "Sign out");
+    expect(h.screen.last.state.toast).toBe("Couldn't sign out of Cinema");
+    const stores = readdirSync(dir).map((f) => readFileSync(join(dir, f), "utf8"));
+    expect(stores.length).toBeGreaterThan(0);
+    const elsewhere = JSON.stringify([
+      stores,
+      h.screen.payloads,
+      phone.snapshots,
+      spies.map((s) => s.mock.calls),
+      writes.map((s) => s.mock.calls),
+    ]);
+    vi.restoreAllMocks();
+    expect(elsewhere).not.toContain(SECRET);
   });
 });

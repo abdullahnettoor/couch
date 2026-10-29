@@ -230,7 +230,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 <main id="controls">
   <div class="bar" id="ibar">__BAR_ID__<button id="qs" data-cmd="quickSettings" aria-label="Quick settings" data-i="sliders"></button><button id="gear" data-cmd="openSettings" aria-label="Settings" data-i="gear" hidden></button></div>
   <button class="cw" id="cw" data-cmd="resume" hidden><span class="pic" id="cw-pic"></span><span class="txt"><b id="cw-title"></b><span class="l" id="cw-left"></span></span><span class="go" data-i="play"></span></button>
-  <div class="note-card" id="signin-note" role="status" hidden><b id="signin-title"></b><ol id="signin-steps"></ol></div>
+  <div class="note-card" id="playback-note" role="status" hidden><b id="playback-title"></b><ol id="playback-steps"></ol></div>
   <button class="search" id="fixbtn" data-cmd="menu" hidden><span id="fix-label">Fix match</span></button>
   <button class="search" id="search" data-cmd="typeOpen" hidden><span data-i="search"></span><span id="search-label">Search</span></button>
   <div class="other" id="other" hidden>Typing on another phone</div>
@@ -449,12 +449,12 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
         return '<button type="button" class="k txt' + (i === q.focus ? " hero" : "") + '" data-cmd="confirmAnswer" data-args="' + esc(JSON.stringify({ index: i, text: q.title })) + '">' + esc(b) + "</button>";
       }).join("");
     }
-    $("signin-note").hidden = !s.signInNote;
-    if (s.signInNote) {
-      $("signin-title").textContent = s.signInNote.title;
-      var steps = $("signin-steps");
+    $("playback-note").hidden = !s.playbackNote;
+    if (s.playbackNote) {
+      $("playback-title").textContent = s.playbackNote.title;
+      var steps = $("playback-steps");
       steps.textContent = "";
-      s.signInNote.steps.forEach(function (t) { var li = document.createElement("li"); li.textContent = t; steps.appendChild(li); });
+      s.playbackNote.steps.forEach(function (t) { var li = document.createElement("li"); li.textContent = t; steps.appendChild(li); });
     }
     $("fixbtn").hidden = !s.fixAvailable || !!np;
     $("search").hidden = !(s.typeLabel && s.typeAvailable) || !!np || !!s.fixAvailable;
