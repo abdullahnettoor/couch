@@ -320,8 +320,8 @@ export interface SoundPayload {
   label: string;
   /** Present while the chosen device isn't connected. */
   hint?: string;
-  /** Present while an App plays to the Mac's output whatever is chosen: "Netflix follows the Mac's output". */
-  note?: string;
+  /** One line per App that plays to the Mac's output whatever is chosen, drawn as a row that can't take focus: "Netflix · Follows the Mac's output". */
+  notes?: string[];
 }
 
 /** One row (or button) of the Quick settings drawer. */
@@ -342,8 +342,8 @@ export interface QuickPayload {
   focusedId: string;
   volume: number;
   muted: boolean;
-  /** The Sound output note (see `SoundPayload.note`). */
-  note?: string;
+  /** The Sound output rows for Apps that follow the Mac (see `SoundPayload.notes`). */
+  notes?: string[];
 }
 
 /** Core → Screen renderer. */

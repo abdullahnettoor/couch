@@ -39,6 +39,11 @@ export interface WebKitView {
   evaluate(script: string, options: { kind: EvaluateKind }): Promise<unknown>;
   /** Runs at document start in every frame of every later navigation, in the given world. */
   addUserScript(source: string, world: ScriptWorld): void;
+  /**
+   * Like `addUserScript`, but under a name: a later call with the same slot replaces that script, so the next
+   * navigation's document-start script is the latest one (the host keeps state in it, with no race against a load).
+   */
+  setUserScript(slot: string, source: string, world: ScriptWorld): void;
   /** Makes `window.webkit.messageHandlers[name]` exist in the `couch` world only, in every frame of later navigations. */
   addMessageHandler(name: string): void;
   /** A rectangle in window content points, top-left origin. */

@@ -19,7 +19,7 @@ export function render(payload: ScreenPayload): void {
         chevron: false,
       }),
     ),
+    ...(sound?.notes ?? []).map((text) => el("div", "g-row g-row-note", text)),
     ...(sound?.hint ? [el("p", "details-hint", sound.hint)] : []),
-    ...(sound?.note ? [el("p", "details-hint", sound.note)] : []),
   ]);
 }

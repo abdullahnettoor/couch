@@ -116,13 +116,13 @@ export class QuickSettings {
     if (!this.#open) return undefined;
     const items = this.#items();
     const focusedId = items.some((i) => i.id === this.#focus) ? this.#focus : items[0]!.id;
-    const note = this.#h.sound.payload().note;
+    const notes = this.#h.sound.payload().notes;
     return {
       items,
       focusedId,
       volume: this.#h.sound.volume,
       muted: this.#h.sound.muted,
-      ...(note ? { note } : {}),
+      ...(notes ? { notes } : {}),
     };
   }
 

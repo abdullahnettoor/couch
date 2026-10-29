@@ -249,10 +249,10 @@ describe("Quick settings, an App that follows the Mac's output", () => {
     const phone = await h.connectPhone();
     await settle();
     await open(phone);
-    expect(quick()?.note).toBe("Film follows the Mac's output");
+    expect(quick()?.notes).toEqual(["Film · Follows the Mac's output"]);
     await h.stop();
     const { phone: p2 } = await start();
     await open(p2);
-    expect(quick()?.note).toBeUndefined();
+    expect(quick()?.notes).toBeUndefined();
   });
 });

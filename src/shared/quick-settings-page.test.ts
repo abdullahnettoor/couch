@@ -85,8 +85,10 @@ describe("the Quick settings page", () => {
 
   test("shows the note about an App that follows the Mac's output, escaped, and none without", () => {
     const { drawer, onQuick } = load();
-    onQuick({ ...payload, note: "Netflix follows the Mac's output" });
-    expect(drawer.innerHTML).toContain("Netflix follows the Mac&#39;s output");
+    onQuick({ ...payload, notes: ["Netflix · Follows the Mac's output"] });
+    expect(drawer.innerHTML).toContain("Netflix · Follows the Mac&#39;s output");
+    expect(drawer.innerHTML).not.toContain('data-id="Netflix');
+    expect(drawer.innerHTML).toContain('<div class="row note">');
     onQuick(payload);
     expect(drawer.innerHTML).not.toContain("follows the Mac");
   });

@@ -1268,3 +1268,6 @@ body:has(.ls-page) .toast:not(.notice) {
   font-size: calc(30 * var(--u));
   color: var(--t2);
 }
+.g-row-note {
+  color: var(--t3);
+}

@@ -34,7 +34,7 @@ html,body { margin:0; height:100%; background:transparent; overflow:hidden; font
 h2 { margin:calc(14*var(--u)) calc(10*var(--u)) calc(4*var(--u)); font-size:calc(24*var(--u)); font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--t3); }
 h1 { margin:0 calc(10*var(--u)) calc(8*var(--u)); font-size:calc(44*var(--u)); font-weight:700; }
 ${rowCss(".row", "var(--u)")}
-.note { margin:0 calc(10*var(--u)); font-size:calc(26*var(--u)); color:var(--t3); }
+.row.note { color:var(--t3); }
 .end { margin-top:auto; }
 .row .l { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
 .row svg { width:calc(34*var(--u)); height:calc(34*var(--u)); fill:currentColor; flex:none; }
@@ -77,7 +77,7 @@ export function quickSettingsPage({ glass = false }: { glass?: boolean } = {}): 
   function draw(q) {
     var html = "<h1>Quick settings</h1><h2>Sound output</h2>";
     q.items.forEach(function (i) { if (i.id.indexOf("out:") === 0) html += outputRow(q, i); });
-    if (q.note) html += '<p class="note">' + esc(q.note) + "</p>";
+    (q.notes || []).forEach(function (t) { html += '<div class="row note">' + esc(t) + "</div>"; });
     var vol = byId(q, "vol"), picture = byId(q, "picture"), settings = byId(q, "settings");
     if (vol) html += "<h2>Volume</h2>" + volumeRow(q, vol);
     if (picture) html += actionRow(q, picture, "monitorSlash");

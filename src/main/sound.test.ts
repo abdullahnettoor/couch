@@ -299,13 +299,13 @@ describe("an App that follows the Mac's output", () => {
     expect(h.screen.last.sound).toEqual({
       selected: MONITOR.uid,
       label: "L27h-4A",
-      note: "Film follows the Mac's output",
+      notes: ["Film · Follows the Mac's output"],
     });
   });
 
   test("with no such App there is no note", async () => {
     await start();
     await openSoundPage();
-    expect(h.screen.last.sound?.note).toBeUndefined();
+    expect(h.screen.last.sound?.notes).toBeUndefined();
   });
 });

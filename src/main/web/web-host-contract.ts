@@ -22,6 +22,8 @@ export interface HostRig {
   navigate(url: string): void;
   /** Every address the host asked the page to load. */
   loads(): string[];
+  /** The page finishes loading its home (the engine's load-completion event). */
+  loaded(): void;
   /** Back by history has somewhere to go. */
   allowHistoryBack(): void;
 }
@@ -134,18 +136,36 @@ export function describeWebHostContract(name: string, makeRig: () => HostRig): v
     });
 
     describe("sound", () => {
+      const lastSound = (rig: HostRig) =>
+        rig
+          .scripts()
+          .filter((s) => s.includes("__couchSound"))
+          .at(-1);
+
       test("Couch's volume reaches the page's media through the shared sound script", async () => {
         const rig = makeRig();
         await rig.show();
         rig.host.setVolume(40);
-        await vi.waitFor(() =>
-          expect(
-            rig
-              .scripts()
-              .filter((s) => s.includes("__couchSound"))
-              .at(-1),
-          ).toBe(soundScript(40, "", false)),
-        );
+        await vi.waitFor(() => expect(lastSound(rig)).toBe(soundScript(40, "", false)));
+      });
+
+      test("a mute (volume 0) and the volume back are both applied", async () => {
+        const rig = makeRig();
+        await rig.show();
+        rig.host.setVolume(0);
+        await vi.waitFor(() => expect(lastSound(rig)).toBe(soundScript(0, "", false)));
+        rig.host.setVolume(55);
+        await vi.waitFor(() => expect(lastSound(rig)).toBe(soundScript(55, "", false)));
+      });
+
+      test("a page that finishes loading gets the current volume", async () => {
+        const rig = makeRig();
+        await rig.show();
+        rig.host.setVolume(25);
+        await vi.waitFor(() => expect(lastSound(rig)).toBe(soundScript(25, "", false)));
+        rig.scripts().length = 0;
+        rig.loaded();
+        await vi.waitFor(() => expect(lastSound(rig)).toBe(soundScript(25, "", false)));
       });
     });
 

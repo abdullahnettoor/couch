@@ -597,6 +597,8 @@ static NSString *wkJson(id v) {
 @property(nonatomic) WKWebView *web;
 @property(nonatomic) napi_threadsafe_function events;
 @property(nonatomic) NSWindow *offscreen;
+// Every user script in registration order: {slot (or NSNull), src, page}. A slot's script can be replaced, which rebuilds the controller's list.
+@property(nonatomic) NSMutableArray<NSDictionary *> *scripts;
 - (void)post:(const char *)kind a:(NSString *)a b:(NSString *)b;
 @end
 @implementation CouchWebKit
@@ -838,16 +840,44 @@ static napi_value WebkitListCookies(napi_env env, napi_callback_info info) {
   return NULL;
 }
 
+static void rebuildUserScripts(CouchWebKit *wk) {
+  WKUserContentController *ucc = wk.web.configuration.userContentController;
+  [ucc removeAllUserScripts];
+  for (NSDictionary *s in wk.scripts) {
+    WKContentWorld *world = [s[@"page"] boolValue] ? WKContentWorld.pageWorld : couchWorld();
+    [ucc addUserScript:[[WKUserScript alloc] initWithSource:s[@"src"] injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO inContentWorld:world]];
+  }
+}
+
+// webkitAddUserScript(id, source, world), webkitSetUserScript(id, slot, source, world): the second replaces the
+// script registered under `slot` (or adds it), so a later navigation's document-start script sees the new source.
+static void putUserScript(CouchWebKit *wk, id slot, NSString *src, BOOL page) {
+  if (!wk.scripts) wk.scripts = [NSMutableArray array];
+  NSDictionary *entry = @{@"slot": slot, @"src": src, @"page": @(page)};
+  NSUInteger at = NSNotFound;
+  if (slot != NSNull.null) at = [wk.scripts indexOfObjectPassingTest:^BOOL(NSDictionary *d, NSUInteger i, BOOL *stop) { return [d[@"slot"] isEqual:slot]; }];
+  if (at == NSNotFound) [wk.scripts addObject:entry]; else wk.scripts[at] = entry;
+  rebuildUserScripts(wk);
+}
+
 static napi_value WebkitAddUserScript(napi_env env, napi_callback_info info) {
   size_t argc = 3; napi_value argv[3];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
   CouchWebKit *wk = wkFor(env, argv[0]);
   NSString *src = [NSString stringWithUTF8String:str(env, argv[1]).c_str()];
   BOOL page = str(env, argv[2]) == "page";
-  if (wk) onMain(^{
-    WKContentWorld *world = page ? WKContentWorld.pageWorld : couchWorld();
-    [wk.web.configuration.userContentController addUserScript:[[WKUserScript alloc] initWithSource:src injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO inContentWorld:world]];
-  });
+  if (wk) onMain(^{ putUserScript(wk, NSNull.null, src, page); });
+  return NULL;
+}
+
+static napi_value WebkitSetUserScript(napi_env env, napi_callback_info info) {
+  size_t argc = 4; napi_value argv[4];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  CouchWebKit *wk = wkFor(env, argv[0]);
+  NSString *slot = [NSString stringWithUTF8String:str(env, argv[1]).c_str()];
+  NSString *src = [NSString stringWithUTF8String:str(env, argv[2]).c_str()];
+  BOOL page = str(env, argv[3]) == "page";
+  if (wk) onMain(^{ putUserScript(wk, slot, src, page); });
   return NULL;
 }
 
@@ -1029,6 +1059,7 @@ static napi_value Init(napi_env env, napi_value exports) {
     {"webkitSetCookies", 0, WebkitSetCookies, 0, 0, 0, napi_default, 0},
     {"webkitListCookies", 0, WebkitListCookies, 0, 0, 0, napi_default, 0},
     {"webkitAddUserScript", 0, WebkitAddUserScript, 0, 0, 0, napi_default, 0},
+    {"webkitSetUserScript", 0, WebkitSetUserScript, 0, 0, 0, napi_default, 0},
     {"webkitAddMessageHandler", 0, WebkitAddMessageHandler, 0, 0, 0, napi_default, 0},
     {"webkitSetFrame", 0, WebkitSetFrame, 0, 0, 0, napi_default, 0},
     {"webkitSetVisible", 0, WebkitSetVisible, 0, 0, 0, napi_default, 0},

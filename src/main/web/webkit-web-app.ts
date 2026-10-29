@@ -144,8 +144,27 @@ export class WebKitWebApp implements YouTube {
       ]),
       "couch",
     );
+    this.#syncDocumentStart();
     view.setVisible(false);
     this.#load();
+  }
+
+  /**
+   * Couch's volume and the hidden-play guard, baked into a script every new document starts with, so autoplay
+   * before the load finishes is already silenced and paused (hidden), and the volume holds from the first frame.
+   * Each change of state replaces it, ahead of any later navigation; `evaluate` brings the current document along.
+   */
+  #syncDocumentStart(): void {
+    const source = userScriptSource([
+      `function () { ${soundScript(this.#soundLevel(), "", false)} }`,
+      `function () { ${hiddenScript(!this.#visible)} }`,
+    ]);
+    this.#view?.setUserScript("sound", source, "couch");
+  }
+
+  /** A hidden App is silent: its media is at volume 0 whatever Couch's volume is. */
+  #soundLevel(): number {
+    return this.#visible ? this.#volume : 0;
   }
 
   #load(): void {
@@ -213,10 +232,11 @@ export class WebKitWebApp implements YouTube {
   }
 
   show(_note?: string): void {
+    this.#visible = true;
     if (!this.#view) this.start();
     const view = this.#view!;
     this.#lifecycle?.shown();
-    this.#visible = true;
+    this.#syncDocumentStart();
     this.#core.shown();
     this.#fit();
     view.setVisible(true);
@@ -230,6 +250,7 @@ export class WebKitWebApp implements YouTube {
     this.#confirmButtons = 0;
     this.#core.hidden();
     this.#view?.setVisible(false);
+    this.#syncDocumentStart();
     this.#applySound();
     this.#run(hiddenScript(true));
     this.#lifecycle?.hidden();
@@ -343,12 +364,12 @@ export class WebKitWebApp implements YouTube {
 
   setVolume(percent: number): void {
     this.#volume = percent;
+    this.#syncDocumentStart();
     this.#applySound();
   }
 
-  /** A hidden App is silent: its media is at volume 0 (and paused) whatever Couch's volume is. */
   #applySound(): void {
-    this.#run(soundScript(this.#visible ? this.#volume : 0, "", false));
+    this.#run(soundScript(this.#soundLevel(), "", false));
   }
 
   /**

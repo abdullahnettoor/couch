@@ -72,6 +72,8 @@ export interface WebKitAddon {
   /** What the view's store holds, as `JSON.stringify([[{ domain, name, path, secure, httpOnly, expires, sameSite }]])` (never values). For self-tests. */
   webkitListCookies(id: number, callback: (error: string | null, json: string) => void): void;
   webkitAddUserScript(id: number, source: string, world: "couch" | "page"): void;
+  /** Adds the script under `slot`, or replaces the one already there; it runs at document start of later navigations. */
+  webkitSetUserScript(id: number, slot: string, source: string, world: "couch" | "page"): void;
   /** The handler exists in the "couch" world only. */
   webkitAddMessageHandler(id: number, name: string): void;
   webkitSetFrame(id: number, x: number, y: number, w: number, h: number): void;
@@ -273,6 +275,7 @@ export function createWebKitBridge(
             ),
           ),
         addUserScript: (source, world) => addon.webkitAddUserScript(id, source, world),
+        setUserScript: (slot, source, world) => addon.webkitSetUserScript(id, slot, source, world),
         addMessageHandler: (name) => addon.webkitAddMessageHandler(id, name),
         setFrame: (x, y, w, h) => addon.webkitSetFrame(id, x, y, w, h),
         setVisible: (visible) => addon.webkitSetVisible(id, visible),

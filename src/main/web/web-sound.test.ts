@@ -1,6 +1,8 @@
-import { expect, test } from "vite-plus/test";
+import { describe, expect, test } from "vite-plus/test";
 import { isYouTubeOrigin } from "../apps/youtube/youtube-route.ts";
-import { allowsPermission, pickOutputId } from "./web-sound.ts";
+import { FakeMedia, fakeMediaPage } from "./fake-media-page.ts";
+import { hiddenScript } from "./hidden-audio.ts";
+import { allowsPermission, pickOutputId, soundScript } from "./web-sound.ts";
 
 // What Chromium reported for this Mac's outputs (labels as the view sees them).
 const OUTPUTS = [
@@ -58,4 +60,89 @@ test("output names (media check) are readable only while Couch lists them, for t
 test("nothing else is granted", () => {
   for (const p of ["geolocation", "notifications", "background-sync"])
     expect(allowsPermission(p, "https://www.youtube.com/", true, own)).toBe(false);
+});
+
+describe("soundScript in a page", () => {
+  test("sets Couch's volume on the media that is there and on media added later", () => {
+    const page = fakeMediaPage();
+    const first = page.add();
+    page.run(soundScript(40, ""));
+    expect(first.volume).toBeCloseTo(0.4);
+    const later = page.add(new FakeMedia("AUDIO"));
+    page.fire("loadstart", later);
+    expect(later.volume).toBeCloseTo(0.4);
+  });
+
+  test("a mute is volume 0 and unmuting brings the volume back", () => {
+    const page = fakeMediaPage();
+    const media = page.add();
+    page.run(soundScript(60, ""));
+    page.run(soundScript(0, ""));
+    expect(media.volume).toBe(0);
+    page.run(soundScript(60, ""));
+    expect(media.volume).toBeCloseTo(0.6);
+  });
+
+  test("clamps the level to 0-100", () => {
+    const page = fakeMediaPage();
+    const media = page.add();
+    page.run(soundScript(250, ""));
+    expect(media.volume).toBe(1);
+    page.run(soundScript(-5, ""));
+    expect(media.volume).toBe(0);
+  });
+
+  test.each(["play", "loadedmetadata", "volumechange"])(
+    "puts Couch's volume back after the page changes it on %s",
+    (type) => {
+      const page = fakeMediaPage();
+      const media = page.add();
+      page.run(soundScript(30, ""));
+      media.volume = 1;
+      page.fire(type, media);
+      expect(media.volume).toBeCloseTo(0.3);
+    },
+  );
+
+  test("running it again does not stack listeners and a later level wins", () => {
+    const page = fakeMediaPage();
+    const media = page.add();
+    page.run(soundScript(30, ""));
+    page.run(soundScript(80, ""));
+    media.volume = 1;
+    page.fire("play", media);
+    expect(media.volume).toBeCloseTo(0.8);
+  });
+});
+
+describe("hiddenScript in a page", () => {
+  test("hidden, it pauses the media that is playing and any that starts later", () => {
+    const page = fakeMediaPage();
+    const playing = page.add();
+    page.run(hiddenScript(true));
+    expect(playing.paused).toBe(true);
+    const later = page.add();
+    page.fire("play", later);
+    expect(later.paused).toBe(true);
+  });
+
+  test("shown, a play is left alone, and an earlier guard is gone", () => {
+    const page = fakeMediaPage();
+    page.run(hiddenScript(true));
+    page.run(hiddenScript(false));
+    const media = page.add();
+    page.fire("play", media);
+    expect(media.paused).toBe(false);
+  });
+
+  test("the guard and the sound script together keep a hidden page silent and paused", () => {
+    const page = fakeMediaPage();
+    const media = page.add();
+    page.run(soundScript(0, ""));
+    page.run(hiddenScript(true));
+    media.volume = 1;
+    page.fire("play", media);
+    expect(media.volume).toBe(0);
+    expect(media.paused).toBe(true);
+  });
 });

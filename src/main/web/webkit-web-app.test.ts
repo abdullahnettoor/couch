@@ -17,6 +17,7 @@ import { FakeClock } from "../ports/fakes.ts";
 import { MemoryStore } from "../ports/store.ts";
 import { IdleUnloader } from "./idle-unload.ts";
 import { hiddenScript } from "./hidden-audio.ts";
+import { fakeMediaPage } from "./fake-media-page.ts";
 import { soundScript } from "./web-sound.ts";
 import { webkitStoreId } from "./webkit-stores.ts";
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
@@ -58,6 +59,12 @@ class FakeView implements WebKitView {
     this.log.push("script");
     this.scripts.push(source);
     this.worlds.push(world);
+  }
+  /** The latest script of each named slot (what the next document starts with), and its world. */
+  slots = new Map<string, { source: string; world: ScriptWorld }>();
+  setUserScript(slot: string, source: string, world: ScriptWorld) {
+    this.log.push("slot");
+    this.slots.set(slot, { source, world });
   }
   addMessageHandler(name: string) {
     this.handlers.push(name);
@@ -671,43 +678,36 @@ describe("sign-in", () => {
 });
 
 describe("sound", () => {
-  const lastSound = (v: FakeView) => v.evaluated.filter((s) => s.includes("__couchSound")).at(-1)!;
   const loaded = (v: FakeView) => v.emit({ type: "loaded", url: "https://www.netflix.com/browse" });
-
-  test("Couch's volume goes to the page's media through the shared sound script", () => {
-    const { web, view } = make();
-    web.show();
-    web.setVolume(40);
-    expect(lastSound(view())).toBe(soundScript(40, "", false));
-  });
-
-  test("a mute (volume 0) and the volume back are both applied", () => {
-    const { web, view } = make();
-    web.show();
-    web.setVolume(0);
-    expect(lastSound(view())).toBe(soundScript(0, "", false));
-    web.setVolume(55);
-    expect(lastSound(view())).toBe(soundScript(55, "", false));
-  });
-
-  test("a page that loads gets the current volume", () => {
-    const { web, view } = make();
-    web.show();
-    web.setVolume(25);
-    loaded(view());
-    expect(lastSound(view())).toBe(soundScript(25, "", false));
-  });
+  /** A new document: the page that the host's document-start sound script runs in. */
+  const newDocument = (v: FakeView) => {
+    const page = fakeMediaPage();
+    page.run(v.slots.get("sound")!.source);
+    return page;
+  };
 
   test("while hidden the page's media is at volume 0, and shown again it is back at Couch's", () => {
     const { web, view } = make();
     web.show();
     web.setVolume(40);
     web.hide();
-    expect(lastSound(view())).toBe(soundScript(0, "", false));
+    expect(
+      view()
+        .evaluated.filter((s) => s.includes("__couchSound"))
+        .at(-1),
+    ).toBe(soundScript(0, "", false));
     web.setVolume(70);
-    expect(lastSound(view())).toBe(soundScript(0, "", false));
+    expect(
+      view()
+        .evaluated.filter((s) => s.includes("__couchSound"))
+        .at(-1),
+    ).toBe(soundScript(0, "", false));
     web.show();
-    expect(lastSound(view())).toBe(soundScript(70, "", false));
+    expect(
+      view()
+        .evaluated.filter((s) => s.includes("__couchSound"))
+        .at(-1),
+    ).toBe(soundScript(70, "", false));
   });
 
   test("a page that finishes loading while hidden is paused and silent", () => {
@@ -715,9 +715,20 @@ describe("sound", () => {
     web.show();
     web.setVolume(40);
     web.hide();
+    view().evaluated.length = 0;
     loaded(view());
     expect(view().evaluated).toContain(hiddenScript(true));
-    expect(lastSound(view())).toBe(soundScript(0, "", false));
+    expect(view().evaluated).toContain(soundScript(0, "", false));
+  });
+
+  test("a page that finishes loading shown gets the current volume and no hidden guard", () => {
+    const { web, view } = make();
+    web.show();
+    web.setVolume(25);
+    view().evaluated.length = 0;
+    loaded(view());
+    expect(view().evaluated).toContain(soundScript(25, "", false));
+    expect(view().evaluated).not.toContain(hiddenScript(true));
   });
 
   test("the output follows the Mac: asking for a device is accepted quietly and says so", async () => {
@@ -726,6 +737,62 @@ describe("sound", () => {
     expect(await web.setOutputDevice("L27h-4A")).toBe(true);
     expect(await web.setOutputDevice(undefined)).toBe(true);
     expect(events.filter((e) => e.type === "output")).toEqual([]);
+  });
+
+  describe("at document start", () => {
+    test("the sound script is registered in Couch's world before the first load, hidden", () => {
+      const { web, view } = make();
+      web.start();
+      expect(view().log.indexOf("slot")).toBeGreaterThanOrEqual(0);
+      expect(view().log.indexOf("slot")).toBeLessThan(view().log.indexOf("load"));
+      expect(view().slots.get("sound")!.world).toBe("couch");
+    });
+
+    test("a play before the load event is paused and silent in a hidden App", () => {
+      const { web, view } = make();
+      web.start();
+      const page = newDocument(view());
+      const media = page.add();
+      page.fire("play", media);
+      expect(media.paused).toBe(true);
+      expect(media.volume).toBe(0);
+    });
+
+    test("a first show gives the new document Couch's volume from its first frame", () => {
+      const { web, view } = make();
+      web.setVolume(40);
+      web.show();
+      const page = newDocument(view());
+      const media = page.add();
+      page.fire("loadstart", media);
+      expect(media.volume).toBeCloseTo(0.4);
+      page.fire("play", media);
+      expect(media.paused).toBe(false);
+    });
+
+    test("every state change updates what the next document starts with", () => {
+      const { web, view } = make();
+      web.show();
+      web.setVolume(70);
+      let page = newDocument(view());
+      let media = page.add();
+      page.fire("play", media);
+      expect(media.volume).toBeCloseTo(0.7);
+      expect(media.paused).toBe(false);
+      web.hide();
+      page = newDocument(view());
+      media = page.add();
+      page.fire("play", media);
+      expect(media.volume).toBe(0);
+      expect(media.paused).toBe(true);
+      web.setVolume(10);
+      web.show();
+      page = newDocument(view());
+      media = page.add();
+      page.fire("play", media);
+      expect(media.volume).toBeCloseTo(0.1);
+      expect(media.paused).toBe(false);
+    });
   });
 });
 

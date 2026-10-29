@@ -126,6 +126,10 @@ function electronRig(): HostRig {
       contents.emit("did-navigate-in-page", {}, url);
     },
     loads: () => contents.loads,
+    loaded: () => {
+      contents.emit("dom-ready");
+      contents.emit("did-finish-load");
+    },
     allowHistoryBack: () => {
       contents.entries = [
         { url: "https://www.netflix.com/browse" },
@@ -154,6 +158,7 @@ class FakeWebKitView implements WebKitView {
     return undefined;
   }
   addUserScript() {}
+  setUserScript() {}
   addMessageHandler() {}
   setFrame() {}
   setVisible() {}
@@ -199,6 +204,10 @@ function webkitRig(): HostRig {
       for (const l of Array.from(view.listeners)) l({ type: "navigated", url });
     },
     loads: () => view.loads,
+    loaded: () => {
+      for (const l of Array.from(view.listeners))
+        l({ type: "loaded", url: "https://www.netflix.com/browse" });
+    },
     allowHistoryBack: () => {},
   };
 }

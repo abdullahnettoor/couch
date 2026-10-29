@@ -22,6 +22,7 @@ function fakeAddon() {
       else cb(null, JSON.stringify([script === "two" ? 2 : { a: 1 }]));
     },
     webkitAddUserScript: (id, source, world) => calls.push(["script", id, source, world]),
+    webkitSetUserScript: (id, slot, source, world) => calls.push(["slot", id, slot, source, world]),
     webkitRemoveStore: (storeId, cb) => {
       calls.push(["removeStore", storeId]);
       cb(storeId === "busy" ? "in use" : null);
@@ -104,6 +105,7 @@ describe("the WebKit bridge over the native add-on", () => {
     view.load("https://x.test/");
     view.addUserScript("js", "couch");
     view.addUserScript("page js", "page");
+    view.setUserScript("sound", "s js", "couch");
     view.addMessageHandler("couch");
     view.setFrame(0, 0, 10, 20);
     view.setVisible(true);
@@ -114,6 +116,7 @@ describe("the WebKit bridge over the native add-on", () => {
       ["load", 7, "https://x.test/"],
       ["script", 7, "js", "couch"],
       ["script", 7, "page js", "page"],
+      ["slot", 7, "sound", "s js", "couch"],
       ["handler", 7, "couch"],
       ["frame", 7, 0, 0, 10, 20],
       ["visible", 7, true],
