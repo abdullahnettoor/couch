@@ -14,10 +14,6 @@ export const WAKE_POINTER_SOURCE = `function (step) {
   // that move as Couch's own, so the page's D-pad shield does not take it for the household's mouse.
   try {
     var send = window.couchHost ? window.couchHost.send : null;
-    if (!send) {
-      var h = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.couch;
-      if (h) send = function (m) { h.postMessage(m); };
-    }
     if (send) {
       window.__couchWake = { x: x, y: y, at: Date.now() };
       send({ type: 'wake-pointer', x: x, y: y });

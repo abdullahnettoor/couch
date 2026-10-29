@@ -1,3 +1,4 @@
+import { REFIND_WAIT_MS } from "./page-focus.ts";
 import vm from "node:vm";
 
 export interface FocusEnv {
@@ -15,7 +16,7 @@ export interface FocusEnv {
 export function runFocusScript(script: string, env: FocusEnv) {
   const listeners: Record<string, Function[]> = {};
   const timers: Function[] = [];
-  // Timers a second or longer wait for the fake clock (`wait`); shorter ones run at the next `flush`.
+  // Timers a second or longer (and the re-find wait) wait for the fake clock (`wait`); shorter ones run at the next `flush`.
   const slow: Array<{ f: Function; due: number }> = [];
   let clock = 0;
   const observers: Function[] = [];
@@ -51,7 +52,7 @@ export function runFocusScript(script: string, env: FocusEnv) {
     getComputedStyle: env.getComputedStyle,
     requestAnimationFrame: (f: Function) => f(),
     setTimeout: (f: Function, ms = 0) => {
-      if (ms >= 1000) slow.push({ f, due: clock + ms });
+      if (ms >= 1000 || ms === REFIND_WAIT_MS) slow.push({ f, due: clock + ms });
       else timers.push(f);
     },
     MouseEvent: class {

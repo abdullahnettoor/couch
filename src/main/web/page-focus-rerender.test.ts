@@ -94,7 +94,9 @@ describe("the ring after the page replaces the held control", () => {
     p.list.children.splice(p.list.children.indexOf(gone), 1);
     p.mutate();
     expect(p.ring.style.display).toBe("none");
-    p.wait(1100);
+    p.wait(300);
+    expect(p.ring.style.display).toBe("none");
+    p.wait(200);
     expect(p.ring.style.display).toBe("block");
     expect(p.ok()).not.toBe("Get Help");
   });
@@ -116,9 +118,36 @@ describe("the ring after the page replaces the held control", () => {
     gone.connected = false;
     p.list.children.splice(p.list.children.indexOf(gone), 1);
     p.mutate();
-    p.wait(1100);
+    p.wait(500);
     p.hold("Continue");
     p.key("ArrowUp");
     expect(p.ok()).toBe("Top");
+  });
+
+  describe("input during the wait is never swallowed or delayed", () => {
+    const goneForGood = () => {
+      const p = rig(["A", "B", "C", "D", "E", "F"]);
+      for (let i = 0; i < 8 && p.ok() !== "F"; i++) p.key("ArrowDown");
+      expect(p.ok()).toBe("F");
+      const gone = p.named("F");
+      gone.connected = false;
+      p.list.children.splice(p.list.children.indexOf(gone), 1);
+      p.mutate();
+      expect(p.ring.style.display).toBe("none");
+      return p;
+    };
+
+    test("an arrow moves at once, from where the lost control was", () => {
+      const p = goneForGood();
+      p.key("ArrowUp");
+      expect(p.ring.style.display).toBe("block");
+      expect(p.ok()).toBe("E");
+    });
+
+    test("OK gets the ring back at once instead of waiting out the rest", () => {
+      const p = goneForGood();
+      p.key("Enter");
+      expect(p.ring.style.display).toBe("block");
+    });
   });
 });

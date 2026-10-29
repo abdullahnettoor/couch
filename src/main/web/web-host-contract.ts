@@ -32,6 +32,8 @@ export interface HostRig {
   hidesScrollbars(): boolean;
   /** The household presses the mouse on the page itself. */
   pageMouseDown(): void;
+  /** The page calls `couchHost.send(message)` (the engine's own bridge script, run for real), from a frame (default: the App's main frame). */
+  couchSend(message: unknown, frame?: { main: boolean; origin: string }): void;
 }
 
 export const contractDescription = netflixDescription("130.0.0.0");
@@ -219,11 +221,64 @@ export function describeWebHostContract(name: string, makeRig: () => HostRig): v
         expect(installed).toContain(JSON.stringify(netflix.focus!.layout));
       });
 
-      test("Couch's scripts get couchHost.send, and a page hook layer exists", async () => {
+      test("a page hook layer exists", async () => {
         const rig = makeRig();
         await rig.show();
-        expect(rig.installed()).toContain("couchHost");
         expect(rig.installed()).toContain("couchHooks");
+      });
+
+      describe("couchHost.send reaches the host", () => {
+        const url = "https://www.netflix.com/watch/80018499";
+        const route = { type: "route", url, page: { y: 0, modal: false } };
+        const routes = (rig: HostRig) => rig.events.filter((e) => e.type === "route");
+
+        test("a route message becomes the route event", async () => {
+          const rig = makeRig();
+          await rig.show();
+          rig.events.length = 0;
+          rig.couchSend(route);
+          expect(routes(rig)).toContainEqual(expect.objectContaining({ home: false }));
+        });
+
+        test("a confirmation answer reaches the host while a prompt is open", async () => {
+          const rig = makeRig();
+          await rig.show();
+          rig.host.showConfirm({ title: "Leave?", buttons: ["Leave", "Stay"], focus: 0 });
+          rig.events.length = 0;
+          rig.couchSend({ type: "console", message: "couch:confirm:1" });
+          expect(rig.events).toEqual([{ type: "confirm", index: 1, answer: true }]);
+        });
+
+        test("input and wake-pointer have native paths, so a message for them emits nothing here", async () => {
+          const rig = makeRig();
+          await rig.show();
+          rig.events.length = 0;
+          rig.couchSend({ type: "wake-pointer", x: 10, y: 10 });
+          expect(rig.events).toEqual([]);
+        });
+
+        test.each([
+          ["a sub-frame of the App", { main: false, origin: "https://www.netflix.com" }],
+          ["another origin's main frame", { main: true, origin: "https://evil.example" }],
+        ])("%s is dropped", async (_name, frame) => {
+          const rig = makeRig();
+          await rig.show();
+          rig.host.showConfirm({ title: "Leave?", buttons: ["Leave", "Stay"], focus: 0 });
+          rig.events.length = 0;
+          rig.couchSend(route, frame);
+          rig.couchSend({ type: "console", message: "couch:confirm:0" }, frame);
+          expect(rig.events).toEqual([]);
+        });
+
+        test("a malformed message is dropped", async () => {
+          const rig = makeRig();
+          await rig.show();
+          rig.events.length = 0;
+          rig.couchSend({ type: "route", url: "http://insecure.example/", page: null });
+          rig.couchSend({ type: "console", message: "hello" });
+          rig.couchSend({ type: "nope" });
+          expect(rig.events).toEqual([]);
+        });
       });
 
       test("hideScrollbars: the host hides the page's scrollbars", async () => {

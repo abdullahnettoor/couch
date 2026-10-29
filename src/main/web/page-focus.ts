@@ -146,6 +146,9 @@ export function typeIntoFieldScript(text: string): string {
 })(${JSON.stringify(text)})`;
 }
 
+/** How long the ring waits for the page to put a replaced control back before it falls back to the middle. */
+export const REFIND_WAIT_MS = 400;
+
 /**
  * Main-world page script (a `function () { ... }` source) that turns the Remote's arrow keys into a
  * visible focus ring moving between the page's controls, and Enter into a click. The ring is always
@@ -411,6 +414,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         var el = ensureRing();
         if (!el) return;
         if (!r) { el.style.display = 'none'; return; }
+        if (!barOn) lastRect = r;
         el.style.display = 'block';
         el.style.left = (r.left - 6) + 'px'; el.style.top = (r.top - 6) + 'px';
         el.style.width = (r.right - r.left + 12) + 'px'; el.style.height = (r.bottom - r.top + 12) + 'px';
@@ -433,7 +437,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     // The control to give the highlight back to once the page has redrawn it (a pop-up just closed and it is not there yet).
     var pending = null;
     // The control held when the page replaced it (its node left the page): looked for again, by the key it was held under, for a moment before the ring falls back to the middle.
-    var lost = null;
+    var lost = null, lastRect = null;
     // The pop-up's own first choice (layout.modalEntry): the first usable match of the first selector that has one.
     var entryControl = function (modal) {
       try {
@@ -494,9 +498,9 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         if (current && usable(current)) { draw(); return; }
         if (current && current.isConnected && !displaced) { displaced = current; displacedKey = heldKey; }
         if (current && !current.isConnected && !lost && heldKey && !layersChanged) {
-          var gone = { key: heldKey, expired: false };
+          var gone = { key: heldKey, rect: lastRect, expired: false };
           lost = gone;
-          setTimeout(function () { if (lost === gone) { gone.expired = true; ensure(); } }, 1000);
+          setTimeout(function () { if (lost === gone) { gone.expired = true; ensure(); } }, ${REFIND_WAIT_MS});
         }
         current = null;
         if (pending && pending.key.id) { draw(); return; }
@@ -647,7 +651,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     var paging = false;
     var move = function (dir, afterPaging) {
       var list = candidates();
-      var from = current && usable(current) ? rectOf(current) : null;
+      var from = current && usable(current) ? rectOf(current) : (lost && lost.rect ? lost.rect : null);
       // After paging, Netflix may have made the old card unfocusable: it still says which row we are in, and where.
       var held = current && current.isConnected ? current : null;
       var row = held ? rowOf(held) : null;
@@ -702,6 +706,12 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     };
     var act = function (key, dir) {
       if (dir) return move(dir);
+      if (!current && lost) {
+        // The held control was replaced a moment ago: OK looks for it now, and otherwise the wait is over.
+        var back = refind(lost.key, true);
+        if (back) { current = back; heldKey = keyOf(back); lost = null; draw(); }
+        else { lost.expired = true; ensure(); return; }
+      }
       if (!current || !usable(current)) { current = null; ensure(); return; }
       if (editable(current)) current.focus(); else current.click();
     };

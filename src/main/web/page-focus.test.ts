@@ -711,9 +711,7 @@ describe("D-pad mode (no hover from a resting mouse)", () => {
       NETFLIX_LAYOUT,
       "https://www.netflix.com/watch/81234",
     );
-    run(
-      "window.__wakes = []; window.webkit = { messageHandlers: { couch: { postMessage: (m) => window.__wakes.push(m) } } }",
-    );
+    run("window.__wakes = []; window.couchHost = { send: (m) => window.__wakes.push(m) }");
     key("ArrowDown");
     posted.push(...(run("window.__wakes") as any[]));
     expect(posted.length).toBeGreaterThan(0);

@@ -48,7 +48,7 @@ describe("pointer wake", () => {
           this.clientY = init.clientY;
         }
       },
-      webkit: { messageHandlers: { couch: { postMessage: (m: unknown) => posted.push(m) } } },
+      couchHost: { send: (m: unknown) => posted.push(m) },
     };
     sandbox.window = sandbox;
     vm.createContext(sandbox);
@@ -56,8 +56,30 @@ describe("pointer wake", () => {
     expect(posted).toEqual([{ type: "wake-pointer", x: 521, y: 415 }]);
     expect(events.every((e) => e.clientX === 521 && e.clientY === 415)).toBe(true);
     expect(sandbox.__couchWake).toMatchObject({ x: 521, y: 415 });
-    vm.runInContext(`delete window.webkit; (${WAKE_POINTER_SOURCE})(4)`, sandbox);
-    expect(posted).toHaveLength(1);
+  });
+
+  test("without couchHost it still dispatches synthetic pointer events, and never reaches for the raw message handler", () => {
+    const posted: unknown[] = [];
+    const events: any[] = [];
+    const real: any = { id: "player", dispatchEvent: (e: any) => events.push(e) };
+    const sandbox: any = {
+      innerWidth: 1000,
+      innerHeight: 800,
+      document: { body: real, elementFromPoint: () => real },
+      MouseEvent: class {
+        type: string;
+        constructor(type: string) {
+          this.type = type;
+        }
+      },
+      webkit: { messageHandlers: { couch: { postMessage: (m: unknown) => posted.push(m) } } },
+    };
+    sandbox.window = sandbox;
+    vm.createContext(sandbox);
+    vm.runInContext(`(${WAKE_POINTER_SOURCE})(3)`, sandbox);
+    expect(posted).toEqual([]);
+    expect(sandbox.__couchWake).toBeUndefined();
+    expect(events.map((e) => e.type)).toContain("mousemove");
   });
 
   test("through couchHost.send when the host provides it", () => {

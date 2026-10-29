@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import vm from "node:vm";
 import { tmpdir } from "node:os";
 import { beforeEach, expect, vi } from "vite-plus/test";
 
@@ -99,6 +100,7 @@ vi.mock("electron", () => {
 });
 
 import type { YouTubeEvent } from "../ports/youtube.ts";
+import { COUCH_HOST_CONSOLE, COUCH_HOST_WEBKIT } from "./couch-host.ts";
 import { ElectronWebApp } from "./electron-web-app.ts";
 import { contractDescription, describeWebHostContract, type HostRig } from "./web-host-contract.ts";
 import type { EvaluateKind, WebKitBridge, WebKitEvent, WebKitView } from "./webkit-bridge.ts";
@@ -147,6 +149,20 @@ function electronRig(): HostRig {
     installed: () => readFileSync(fake.preloadFiles.at(-1)!, "utf8"),
     hidesScrollbars: () => contents.css.some((c) => c.includes("scrollbar-width")),
     pageMouseDown: () => contents.emit("before-mouse-event", {}, { type: "mouseDown" }),
+    couchSend: (message, frame = { main: true, origin: "https://www.netflix.com" }) => {
+      const sandbox: any = {
+        console: {
+          debug: (line: string) =>
+            contents.emit("console-message", {
+              message: line,
+              frame: { parent: frame.main ? null : {}, origin: frame.origin },
+            }),
+        },
+      };
+      sandbox.window = sandbox;
+      vm.runInNewContext(`(${COUCH_HOST_CONSOLE})()`, sandbox);
+      sandbox.couchHost.send(message);
+    },
   };
 }
 
@@ -225,6 +241,28 @@ function webkitRig(): HostRig {
         l({ type: "loaded", url: "https://www.netflix.com/browse" });
     },
     allowHistoryBack: () => {},
+    couchSend: (message, frame = { main: true, origin: "https://www.netflix.com" }) => {
+      const sandbox: any = {
+        webkit: {
+          messageHandlers: {
+            couch: {
+              postMessage: (body: unknown) => {
+                for (const l of Array.from(view.listeners))
+                  l({
+                    type: "message",
+                    name: "couch",
+                    body,
+                    frame: { isMainFrame: frame.main, origin: frame.origin },
+                  });
+              },
+            },
+          },
+        },
+      };
+      sandbox.window = sandbox;
+      vm.runInNewContext(`(${COUCH_HOST_WEBKIT})()`, sandbox);
+      sandbox.couchHost.send(message);
+    },
     installed: () => view.userScripts.join("\n"),
     hidesScrollbars: () => view.userScripts.some((c) => c.includes("scrollbar-width")),
     pageMouseDown: () => {

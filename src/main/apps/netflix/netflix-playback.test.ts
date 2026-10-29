@@ -302,9 +302,7 @@ describe("Netflix playback adapter", () => {
 
   test("under WebKit, bringing the bar up also asks the host for real moves at the points it dispatches", async () => {
     const n = new FakeNetflix();
-    n.run(
-      "window.__wakes = []; window.webkit = { messageHandlers: { couch: { postMessage: (m) => window.__wakes.push(m) } } }",
-    );
+    n.run("window.__wakes = []; window.couchHost = { send: (m) => window.__wakes.push(m) }");
     await n.run(playback.playPause!());
     const wakes = n.run("window.__wakes") as Array<{ type: string; x: number; y: number }>;
     expect(wakes.length).toBeGreaterThan(0);

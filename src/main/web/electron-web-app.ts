@@ -8,7 +8,8 @@ import { HiddenAudio } from "./hidden-audio.ts";
 import { decideKey, type KeyGate } from "./keyboard-policy.ts";
 import { FIELD_BLURRED, FIELD_FOCUSED, pageFocusFunction } from "./page-focus.ts";
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
-import { COUCH_HOST_CONSOLE } from "./couch-host.ts";
+import { COUCH_HOST_CONSOLE, HOST_CONSOLE_PREFIX } from "./couch-host.ts";
+import { parsePageMessage } from "./webkit-messages.ts";
 import { requestHooksFor, type RequestHooks } from "./request-hooks.ts";
 import { blockLocalFiles } from "./local-files.ts";
 import { HIDE_SCROLLBARS_CSS } from "./hide-scrollbars.ts";
@@ -26,6 +27,12 @@ import {
   soundScript,
   type PageOutput,
 } from "./web-sound.ts";
+
+/** The part of Electron's `WebFrameMain` the host looks at. */
+interface ConsoleFrame {
+  parent: unknown;
+  origin: string;
+}
 
 /** The web-App host: one persistent, always-loaded view over the Screen window, described by `desc`. */
 export class ElectronWebApp implements YouTube {
@@ -102,6 +109,36 @@ export class ElectronWebApp implements YouTube {
     win.on("resize", () => this.#fit());
   }
 
+  #onConsole(message: string): void {
+    if (message === SOUND_RECHECK) void this.#resolveOutput();
+    if (message === FIELD_FOCUSED) this.#fieldFocused = true;
+    const pick = CONFIRM_MESSAGE.exec(message);
+    if (pick)
+      this.#emit({ type: "confirm", index: Number(pick[2]), answer: pick[1] === undefined });
+    if (message === FIELD_BLURRED) this.#fieldFocused = false;
+  }
+
+  /**
+   * `couchHost.send` on Chromium arrives as a prefixed console line. Only the App's own main frame is believed, and the body
+   * must pass the schema WebKit's messages pass. `input` and `wake-pointer` have native paths here (mouse events, the view), so they are ignored.
+   */
+  #onHostMessage(line: string, frame: ConsoleFrame | null | undefined): void {
+    if (!frame || frame.parent !== null || !this.#desc.isOwnOrigin(frame.origin)) return;
+    let body: unknown;
+    try {
+      body = JSON.parse(line.slice(HOST_CONSOLE_PREFIX.length));
+    } catch {
+      return;
+    }
+    const message = parsePageMessage(body);
+    if (message?.type === "route") {
+      this.#core.setPage(message.page);
+      this.#core.navigated(message.url);
+    } else if (message?.type === "console") {
+      this.#onConsole(message.message);
+    }
+  }
+
   /** A fresh view (and renderer) over the Screen window; its listeners are Couch's for the host. */
   #createView(): void {
     this.#view = new WebContentsView({
@@ -130,13 +167,10 @@ export class ElectronWebApp implements YouTube {
       void this.#resolveOutput();
     });
     wc.on("console-message", (event) => {
-      const message = (event as { message?: string }).message;
-      if (message === SOUND_RECHECK) void this.#resolveOutput();
-      if (message === FIELD_FOCUSED) this.#fieldFocused = true;
-      const pick = message === undefined ? undefined : CONFIRM_MESSAGE.exec(message);
-      if (pick)
-        this.#emit({ type: "confirm", index: Number(pick[2]), answer: pick[1] === undefined });
-      if (message === FIELD_BLURRED) this.#fieldFocused = false;
+      const { message, frame } = event as { message?: string; frame?: ConsoleFrame | null };
+      if (message === undefined) return;
+      if (message.startsWith(HOST_CONSOLE_PREFIX)) return this.#onHostMessage(message, frame);
+      this.#onConsole(message);
     });
     // A new document has none of Couch's volume or output yet.
     wc.on("dom-ready", () => {
