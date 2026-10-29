@@ -138,6 +138,7 @@ const removed: Array<[string, boolean]> = [];
 
 let resize: () => void = () => {};
 let screenFocused = 0;
+let resizeListeners = 0;
 const win: WebKitHostWindow = {
   focusScreen: () => {
     screenFocused++;
@@ -145,6 +146,11 @@ const win: WebKitHostWindow = {
   getContentBounds: () => ({ width: 1280, height: 720 }),
   onResize: (cb) => {
     resize = cb;
+    resizeListeners++;
+    return () => {
+      resizeListeners--;
+      resize = () => {};
+    };
   },
   reveal: async () => {},
 };
@@ -163,6 +169,7 @@ function make(store: WebKitStore = STORE): { web: WebKitWebApp; view: () => Fake
 }
 
 beforeEach(() => {
+  resizeListeners = 0;
   views.length = 0;
   removed.length = 0;
 });
@@ -239,6 +246,58 @@ describe("showing and hiding", () => {
     web.show();
     web.unload();
     expect(views[0]!.destroyed).toBe(false);
+  });
+});
+
+describe("dispose (an engine switch)", () => {
+  test("a shown host hides, destroys its view, stops listening to the window and reports home", () => {
+    const { web, view } = make();
+    web.show();
+    const v = view();
+    expect(resizeListeners).toBe(1);
+    web.dispose();
+    expect(v.visible.at(-1)).toBe(false);
+    expect(v.routing.at(-1)).toEqual({
+      keys: false,
+      captureCommands: false,
+      fieldFocused: false,
+      pointer: false,
+    });
+    expect(v.destroyed).toBe(true);
+    expect(v.listeners.size).toBe(0);
+    expect(resizeListeners).toBe(0);
+    expect(events.at(-1)).toEqual({ type: "route", home: true });
+  });
+
+  test("it works on a host that was never shown, and starts nothing afterwards", () => {
+    const { web } = make();
+    web.dispose();
+    web.show();
+    web.start();
+    expect(views).toEqual([]);
+    expect(resizeListeners).toBe(0);
+  });
+
+  test("its polling timer is gone", () => {
+    vi.useFakeTimers();
+    try {
+      const { web, view } = make();
+      web.show();
+      web.dispose();
+      const n = view().evaluated.length;
+      vi.advanceTimersByTime(10_000);
+      expect(view().evaluated.length).toBe(n);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("the data store is left alone", () => {
+    const { web } = make();
+    web.show();
+    web.dispose();
+    expect(removed).toEqual([]);
   });
 });
 

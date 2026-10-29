@@ -32,7 +32,7 @@ export interface WebKitHostWindow {
   /** The text on the clipboard, for ⌘V while Couch is capturing typed text. */
   readClipboard?(): string | Promise<string>;
   getContentBounds(): { width: number; height: number };
-  onResize(callback: () => void): void;
+  onResize(callback: () => void): (() => void) | void;
   /** Brings the Screen window forward; resolves once it is in front. */
   reveal(): Promise<void>;
   /** Gives Couch's own page the keyboard (a hidden WebKit view would otherwise keep first responder). */
@@ -109,6 +109,8 @@ export class WebKitWebApp implements YouTube {
   #fieldFocused = false;
   /** Something of Couch's own that takes the pointer and the keys is drawn over the page (Quick settings, a confirmation, Picture off). */
   #overlay = false;
+  #disposed = false;
+  #stopResize: (() => void) | void = undefined;
 
   constructor(
     desc: WebAppDescription,
@@ -150,12 +152,12 @@ export class WebKitWebApp implements YouTube {
       fieldFocused: () => this.#fieldFocused,
       readClipboard: () => win.readClipboard?.() ?? "",
     });
-    win.onResize(() => this.#fit());
+    this.#stopResize = win.onResize(() => this.#fit());
   }
 
   /** Creates the view, registers its scripts, then loads the App's home. */
   start(): void {
-    if (this.#view) return;
+    if (this.#view || this.#disposed) return;
     const view = this.#bridge.create({ store: this.#store, userAgent: this.#bridge.userAgent() });
     this.#view = view;
     this.#stopEvents = view.onEvent((event) => this.#onEvent(event));
@@ -329,6 +331,7 @@ export class WebKitWebApp implements YouTube {
   }
 
   show(note?: string): void {
+    if (this.#disposed) return;
     this.#visible = true;
     if (!this.#view) this.start();
     const view = this.#view!;
@@ -386,6 +389,21 @@ export class WebKitWebApp implements YouTube {
     this.#confirmButtons = 0;
     this.#fieldFocused = false;
     this.#core.reset();
+  }
+
+  /** The host is taken away for good (an engine switch): its view, window listener and timers go; the data store stays on disk. */
+  dispose(): void {
+    if (this.#disposed) return;
+    if (this.#visible) this.hide();
+    this.#disposed = true;
+    this.#stopResize?.();
+    this.#stopResize = undefined;
+    this.#stopEvents?.();
+    this.#view?.destroy();
+    this.#view = undefined;
+    this.#core.reset();
+    this.#core.dispose();
+    this.#listeners.clear();
   }
 
   /** Puts cookies in this App's store and loads its home again, so the page sees them. */

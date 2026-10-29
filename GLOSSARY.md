@@ -34,6 +34,9 @@ _Avoid_: extension (clashes with file extensions in the Library), plugin (in UI 
 **Netflix**:
 The App that shows Netflix's own website inside the Screen, driven from the Remote with a visible focus ring; sign-in and profile choice happen on the Screen.
 
+**Engine**:
+What a Web App's page runs on: WebKit (FairPlay) or Chromium (Widevine); the household chooses it per App in Settings → Apps → Playback.
+
 **YouTube**:
 The App that presents YouTube's TV experience inside the Screen, looking and behaving like the YouTube app on a smart TV.
 _Avoid_: YouTube TV (the paid live-TV product), Leanback

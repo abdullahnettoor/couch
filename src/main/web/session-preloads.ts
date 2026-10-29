@@ -44,6 +44,13 @@ export class SessionPreloads {
     this.#sync();
   }
 
+  /** Takes the App's preload off the session (the host is going for good). */
+  clear(): void {
+    this.#list = [];
+    if (this.#registered) this.#ses.unregisterPreloadScript(this.#registered);
+    this.#registered = undefined;
+  }
+
   #sync(): void {
     try {
       mkdirSync(this.#dir, { recursive: true });

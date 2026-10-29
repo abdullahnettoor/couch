@@ -350,6 +350,7 @@ export class Core {
         }
         this.#setView("home");
       },
+      playback: (id) => this.#apps.get(id)?.playback?.current().label,
       hasSignIn: (id) => !!this.#apps.get(id)?.signIn,
       hasCouchCopy: (id) => this.#couchCopy.has(id),
       changed: () => {
@@ -2105,6 +2106,29 @@ export class Core {
     this.#emit();
   }
 
+  /** Settings → Apps → Playback: the App swaps to its other engine; the rows and notes that depend on it are redrawn. */
+  async #switchPlayback(id: string): Promise<void> {
+    const app = this.#apps.get(id);
+    const playback = app?.playback;
+    if (!app || !playback) return;
+    const now = playback.current();
+    const next = playback.options.find((o) => o.id !== now.id);
+    if (!next) return;
+    this.#signInNote = undefined;
+    this.#couchCopy.delete(id);
+    const done = await playback.select(next.id).then(
+      () => true,
+      () => false,
+    );
+    this.#toast(
+      done
+        ? `${app.label} now plays with ${next.label}`
+        : `Couldn't switch ${app.label}'s playback`,
+    );
+    this.#emit();
+    void this.#refreshCouchCopy(id);
+  }
+
   async #signOut(id: string): Promise<void> {
     const app = this.#apps.get(id);
     if (!app?.signIn) return;
@@ -2258,11 +2282,21 @@ export class Core {
       importSignIn: (id) => void this.#importSignIn(id),
       copySignInFromCouch: (id) => void this.#copySignInFromCouch(id),
       signOut: (id) => void this.#signOut(id),
+      switchPlayback: (id) => void this.#switchPlayback(id),
       toast: (text) => this.#toast(text),
       forgetAllPhones: () => this.forgetAllPhones(),
       toggleListener: () => void this.#toggleListener(),
       quit: () => this.#askQuit(),
     };
+  }
+
+  /** Under the menu: the sign-in steps if any, and why the other engine isn't offered. */
+  #menuNote(id: string): { note?: string } {
+    const parts = [
+      this.#signInNote?.steps.join(" "),
+      this.#apps.get(id)?.playback?.unavailable,
+    ].filter((p): p is string => !!p);
+    return parts.length ? { note: parts.join(" ") } : {};
   }
 
   #appMenuPayload(): Pick<ScreenPayload, "appMenu"> {
@@ -2272,7 +2306,7 @@ export class Core {
           appMenu: {
             id: app.id,
             label: app.label,
-            ...(this.#signInNote?.steps.length ? { note: this.#signInNote.steps.join(" ") } : {}),
+            ...this.#menuNote(app.id),
           },
         }
       : {};

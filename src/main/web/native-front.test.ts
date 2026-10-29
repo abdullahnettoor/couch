@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vite-plus/test";
-import { NATIVE_APP_CLASS, nativeAppFront, netflixEngine } from "./native-front.ts";
+import { NATIVE_APP_CLASS, nativeAppFront, chooseEngine } from "./native-front.ts";
 
 describe("the renderer is transparent while a native App view is in front", () => {
   const native = new Set(["netflix"]);
@@ -29,11 +29,50 @@ describe("the renderer is transparent while a native App view is in front", () =
   });
 });
 
-describe("the Netflix engine", () => {
-  test("is Chromium unless COUCH_NETFLIX_ENGINE=webkit and WebKit is available", () => {
-    expect(netflixEngine({}, true)).toBe("chromium");
-    expect(netflixEngine({ COUCH_NETFLIX_ENGINE: "chromium" }, true)).toBe("chromium");
-    expect(netflixEngine({ COUCH_NETFLIX_ENGINE: "webkit" }, true)).toBe("webkit");
-    expect(netflixEngine({ COUCH_NETFLIX_ENGINE: "webkit" }, false)).toBe("chromium");
+describe("choosing the Netflix engine", () => {
+  const yes = { available: true } as const;
+  const no = { available: false, reason: "FairPlay isn't available on this Mac" } as const;
+
+  test("WebKit is the default where FairPlay is available", () => {
+    expect(chooseEngine({ stored: undefined, env: {}, webkit: yes })).toEqual({ engine: "webkit" });
+  });
+
+  test("Chromium is the fallback, with the reason, where it isn't", () => {
+    expect(chooseEngine({ stored: undefined, env: {}, webkit: no })).toEqual({
+      engine: "chromium",
+      reason: no.reason,
+    });
+  });
+
+  test("a stored WebKit choice is only as good as FairPlay: it falls back with the reason and comes back with it", () => {
+    expect(chooseEngine({ stored: "webkit", env: {}, webkit: no })).toEqual({
+      engine: "chromium",
+      reason: no.reason,
+    });
+    expect(chooseEngine({ stored: "webkit", env: {}, webkit: yes })).toEqual({ engine: "webkit" });
+  });
+
+  test("a stored Chromium choice is honoured even where WebKit is available, and needs no reason", () => {
+    expect(chooseEngine({ stored: "chromium", env: {}, webkit: yes })).toEqual({
+      engine: "chromium",
+    });
+  });
+
+  test("COUCH_NETFLIX_ENGINE is a developer override over the stored choice", () => {
+    expect(
+      chooseEngine({ stored: "chromium", env: { COUCH_NETFLIX_ENGINE: "webkit" }, webkit: yes }),
+    ).toEqual({ engine: "webkit" });
+    expect(
+      chooseEngine({ stored: "webkit", env: { COUCH_NETFLIX_ENGINE: "chromium" }, webkit: yes }),
+    ).toEqual({ engine: "chromium" });
+    expect(
+      chooseEngine({ stored: undefined, env: { COUCH_NETFLIX_ENGINE: "webkit" }, webkit: no }),
+    ).toEqual({ engine: "chromium", reason: no.reason });
+  });
+
+  test("any other value of the variable is ignored", () => {
+    expect(
+      chooseEngine({ stored: "chromium", env: { COUCH_NETFLIX_ENGINE: "other" }, webkit: yes }),
+    ).toEqual({ engine: "chromium" });
   });
 });

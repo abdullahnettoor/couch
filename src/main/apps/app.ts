@@ -95,11 +95,30 @@ export interface AppSignIn {
   signOut(): Promise<void>;
 }
 
+/** An engine an App can play with: the one Settings → Apps → Playback names. */
+export interface PlaybackOption {
+  id: string;
+  label: string;
+}
+
+/** An App that can run on more than one engine (Netflix: WebKit with FairPlay, or Chromium with Widevine). */
+export interface AppPlayback {
+  readonly options: readonly PlaybackOption[];
+  /** The engine in use now. */
+  current(): PlaybackOption;
+  /** Why the preferred engine can't be used here, in words for the menu; absent when it can. */
+  readonly unavailable?: string;
+  /** Stores the choice and swaps the App to that engine; rejects when it can't. */
+  select(id: string): Promise<void>;
+}
+
 /**
  * A web App: a full-screen web view core hands the Screen to. While it is the front App, core
  * sends it the D-pad, OK, Back, play/pause, seek and typing; everything App-specific lives behind this.
  */
 export interface App extends SoundSink {
+  /** Present when Settings → Apps → Playback offers a choice of engine for this App. */
+  readonly playback?: AppPlayback;
   /** Present when Settings → Apps offers "Import Safari sign-in" and "Sign out" for this App. */
   readonly signIn?: AppSignIn;
   /** Present when the App takes text; without it the Remote shows no Type button. */

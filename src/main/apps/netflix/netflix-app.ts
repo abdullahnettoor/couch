@@ -1,7 +1,7 @@
 import type { Confirmation, PromptId, TrackKind } from "../../../shared/protocol.ts";
 import type { Clock } from "../../ports/clock.ts";
 import type { YouTube } from "../../ports/youtube.ts";
-import type { App, AppEvent, AppKey, AppSignIn, AppTyping } from "../app.ts";
+import type { App, AppEvent, AppKey, AppPlayback, AppSignIn, AppTyping } from "../app.ts";
 
 /** A Back sent to Netflix that changed no route within this long, and that the page did not handle itself, counts as already at home. */
 const BACK_SETTLE_MS = 800;
@@ -16,7 +16,8 @@ export class NetflixApp implements App {
   readonly showVolume = true;
   readonly showSkip = true;
   readonly typing: AppTyping;
-  readonly signIn: AppSignIn | undefined;
+  readonly playback: AppPlayback | undefined;
+  #signIn: AppSignIn | (() => AppSignIn | undefined) | undefined;
   #port: YouTube;
   #clock: Clock;
   #home = true;
@@ -26,8 +27,15 @@ export class NetflixApp implements App {
   #backAt: number | undefined;
   #listeners = new Set<(event: AppEvent) => void>();
 
-  constructor(port: YouTube, clock: Clock, signIn?: AppSignIn) {
-    this.signIn = signIn;
+  /** `signIn` may be a function: the rows follow the engine, so it is asked each time. */
+  constructor(
+    port: YouTube,
+    clock: Clock,
+    signIn?: AppSignIn | (() => AppSignIn | undefined),
+    playback?: AppPlayback,
+  ) {
+    this.#signIn = signIn;
+    this.playback = playback;
     this.#port = port;
     this.#clock = clock;
     this.typing = {
@@ -50,6 +58,10 @@ export class NetflixApp implements App {
       this.#scrolled = event.scrolled === true;
       this.#backAt = undefined;
     });
+  }
+
+  get signIn(): AppSignIn | undefined {
+    return typeof this.#signIn === "function" ? this.#signIn() : this.#signIn;
   }
 
   #emit(event: AppEvent): void {

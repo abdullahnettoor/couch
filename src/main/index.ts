@@ -33,7 +33,10 @@ import {
   testPageEnabled,
   type TestPageServer,
 } from "./web/webkit-test-page.ts";
-import { NATIVE_APP_CLASS, nativeAppFront, netflixEngine } from "./web/native-front.ts";
+import { NATIVE_APP_CLASS, chooseEngine, nativeAppFront } from "./web/native-front.ts";
+import { checkFairPlay, FAIRPLAY_SCRIPT } from "./web/fairplay.ts";
+import { SwitchableWebApp } from "./web/switchable-web-app.ts";
+import { createPlayback, readStoredEngine } from "./web/playback-choice.ts";
 import { youtubeDescription } from "./apps/youtube/youtube-web.ts";
 import { NETFLIX_PARTITION, netflixDescription } from "./apps/netflix/netflix-web.ts";
 import { NetflixApp } from "./apps/netflix/netflix-app.ts";
@@ -58,6 +61,7 @@ import {
   disposeNativeWindow,
   setCursorHidden,
   watchMouseMoves,
+  webkitSelfTest,
 } from "./mpv/embed-addon.ts";
 import { CursorHider } from "./cursor-hider.ts";
 import { wireCursor, wireTeardown, type CursorHost } from "./cursor-lifecycle.ts";
@@ -188,63 +192,97 @@ async function createScreen(): Promise<void> {
     unloader.track("youtube", () => youtube.unload(), { loaded: true }),
   );
   const youtubeApp = new YouTubeApp(youtube, systemClock);
-  // Developer flag COUCH_NETFLIX_ENGINE=webkit: Netflix in a native WKWebView under the window's web contents (FairPlay).
-  const webkitBridge =
-    process.env.COUCH_NETFLIX_ENGINE === "webkit" ? createWebKitBridge(() => win) : undefined;
-  const engine = netflixEngine(process.env, webkitBridge !== undefined);
-  if (process.env.COUCH_NETFLIX_ENGINE === "webkit" && engine !== "webkit")
-    console.warn("[netflix] WebKit is not available here; using Chromium");
-  const nativeApps = new Set<string>(engine === "webkit" ? ["netflix"] : []);
-  const testPage = engine === "webkit" ? await startTestPage() : undefined;
-  const netflix =
-    engine === "webkit"
-      ? new WebKitWebApp(
-          testPage
-            ? testPageDescription(netflixDescription(), testPage.origin)
-            : netflixDescription(),
-          webkitBridge!,
-          {
-            getContentBounds: () => win!.getContentBounds(),
-            onResize: (callback) => win!.on("resize", callback),
-            reveal: () => revealScreen(win!),
-            focusScreen: () => win?.webContents.focus(),
-            readClipboard: () => clipboard.readText(),
+  // Netflix's engine: WebKit (FairPlay) where it is available, unless the household chose Chromium (Settings → Apps →
+  // Netflix → Playback). COUCH_NETFLIX_ENGINE=webkit|chromium is a developer override, never needed in normal use.
+  const webkitBridge = createWebKitBridge(() => win);
+  const webkitAvailability = await checkFairPlay({
+    store,
+    version: `${webkitBridge?.userAgent() ?? "none"}|${process.getSystemVersion()}`,
+    run: webkitBridge ? () => webkitSelfTest(FAIRPLAY_SCRIPT) : undefined,
+  });
+  const chosen = chooseEngine({
+    stored: readStoredEngine(store, "netflix"),
+    env: process.env,
+    webkit: webkitAvailability,
+  });
+  if (chosen.reason) console.warn(`[netflix] using Chromium: ${chosen.reason}`);
+  const nativeApps = new Set<string>(chosen.engine === "webkit" ? ["netflix"] : []);
+  const testPage = chosen.engine === "webkit" ? await startTestPage() : undefined;
+  const netflixIdle = unloader.track("netflix", () => netflix.unload());
+  const netflix: SwitchableWebApp = new SwitchableWebApp((engine) => {
+    if (engine === "webkit") {
+      if (!webkitBridge) throw new Error("WebKit is not available");
+      return new WebKitWebApp(
+        testPage
+          ? testPageDescription(netflixDescription(), testPage.origin)
+          : netflixDescription(),
+        webkitBridge,
+        {
+          getContentBounds: () => win!.getContentBounds(),
+          onResize: (callback) => {
+            win!.on("resize", callback);
+            return () => win?.off("resize", callback);
           },
-          resolveWebKitStore("netflix", { userDataDir: app.getPath("userData"), env: process.env }),
-          unloader.track("netflix", () => netflix.unload()),
-        )
-      : new ElectronWebApp(
-          netflixDescription(),
-          win,
-          unloader.track("netflix", () => netflix.unload()),
-        );
+          reveal: () => revealScreen(win!),
+          focusScreen: () => win?.webContents.focus(),
+          readClipboard: () => clipboard.readText(),
+        },
+        resolveWebKitStore("netflix", { userDataDir: app.getPath("userData"), env: process.env }),
+        netflixIdle,
+      );
+    }
+    return new ElectronWebApp(netflixDescription(), win!, netflixIdle);
+  }, chosen.engine);
+  const webkitHost = (): WebKitWebApp => {
+    const host = netflix.host("webkit");
+    if (!(host instanceof WebKitWebApp)) throw new Error("Netflix is not on WebKit");
+    return host;
+  };
+  const safariSignIn = createSafariSignIn({
+    paths: safariCookiePaths(app.getPath("home")),
+    read: (path) => readFile(path),
+    // Couch's own Chromium cookies, only read, and only when the menu or a copy asks.
+    couch: cdpCookieSource(() => {
+      // A page-less WebContents on the Netflix partition: never shown, never navigated.
+      const view = new WebContentsView({ webPreferences: { partition: NETFLIX_PARTITION } });
+      const dbg = view.webContents.debugger;
+      dbg.attach("1.3");
+      return {
+        send: (method) => dbg.sendCommand(method),
+        close: () => {
+          try {
+            dbg.detach();
+          } finally {
+            view.webContents.close();
+          }
+        },
+      };
+    }),
+    target: {
+      setCookies: (cookies) => webkitHost().setCookies(cookies),
+      signOut: () => webkitHost().signOut(),
+    },
+  });
   const netflixApp = new NetflixApp(
     netflix,
     systemClock,
-    netflix instanceof WebKitWebApp
-      ? createSafariSignIn({
-          paths: safariCookiePaths(app.getPath("home")),
-          read: (path) => readFile(path),
-          // Couch's own Chromium cookies, only read, and only when the menu or a copy asks.
-          couch: cdpCookieSource(() => {
-            // A page-less WebContents on the Netflix partition: never shown, never navigated.
-            const view = new WebContentsView({ webPreferences: { partition: NETFLIX_PARTITION } });
-            const dbg = view.webContents.debugger;
-            dbg.attach("1.3");
-            return {
-              send: (method) => dbg.sendCommand(method),
-              close: () => {
-                try {
-                  dbg.detach();
-                } finally {
-                  view.webContents.close();
-                }
-              },
-            };
-          }),
-          target: netflix,
-        })
-      : undefined,
+    // Sign-in rows belong to the WebKit engine only.
+    () => (netflix.engine === "webkit" ? safariSignIn : undefined),
+    createPlayback({
+      store,
+      appId: "netflix",
+      host: {
+        get engine() {
+          return netflix.engine;
+        },
+        switchTo: (engine) => {
+          netflix.switchTo(engine);
+          if (engine === "webkit") nativeApps.add("netflix");
+          else nativeApps.delete("netflix");
+        },
+      },
+      webkit: webkitAvailability,
+    }),
   );
   mac.keepAwake(true);
   const listener = await detectListener({
@@ -378,8 +416,7 @@ async function createScreen(): Promise<void> {
     }
     // Only over a web App: adding a view above the window would reorder the native video under the Library's cover.
     cover.set(payload.state.pictureOff && payload.state.view === "app");
-    if (netflix instanceof WebKitWebApp)
-      netflix.setOverlay(couchOverlayOpen(payload.state, payload.quick !== undefined));
+    netflix.setOverlay(couchOverlayOpen(payload.state, payload.quick !== undefined));
     front = { view: payload.state.view, app: payload.state.app };
     drawer.set(payload.quick);
     cover.showVolume(

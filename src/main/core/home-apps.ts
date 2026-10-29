@@ -5,6 +5,7 @@ import type { Store } from "../ports/store.ts";
 const KEY = "home.apps";
 export const HOME_APP = "home:";
 export const SIGN_IN_APP = "app:signin:";
+export const PLAYBACK_APP = "app:playback:";
 /** The menu's own focus, kept apart from the list behind it. */
 export const APPS_MENU_KEY = "settingsApps:menu";
 
@@ -68,6 +69,8 @@ export interface HomeAppsHost {
   /** An App was hidden: core leaves it first if it is open. */
   hidden(id: string): void;
   changed(): void;
+  /** The engine App `id` plays with now, when it offers a choice. */
+  playback(id: string): string | undefined;
   /** Whether App `id` offers Import Safari sign-in and Sign out. */
   hasSignIn(id: string): boolean;
   /** Whether App `id` can copy a sign-in from Couch's Chromium engine right now (it holds one). */
@@ -184,6 +187,15 @@ export class HomeApps {
       { id: "home-down", label: "Move down", action: `${HOME_APP}move:1:${id}` },
       ...(entry?.web
         ? [{ id: "restart", label: `Restart ${entry.label}`, action: `${RESTART_APP}${entry.id}` }]
+        : []),
+      ...(this.#h.playback(id)
+        ? [
+            {
+              id: "playback",
+              label: `Playback: ${this.#h.playback(id)}`,
+              action: `${PLAYBACK_APP}${id}`,
+            },
+          ]
         : []),
       ...(this.#h.hasSignIn(id)
         ? [

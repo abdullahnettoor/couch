@@ -69,7 +69,8 @@ const fake = vi.hoisted(() => {
     reload() {}
   }
   const views: FakeContents[] = [];
-  return { FakeContents, views };
+  const counts = { hooksAdded: 0, preloadsRegistered: 0, preloadsRemoved: 0 };
+  return { FakeContents, views, counts };
 });
 
 vi.mock("electron", () => {
@@ -86,8 +87,13 @@ vi.mock("electron", () => {
     setPermissionRequestHandler() {},
     setPermissionCheckHandler() {},
     webRequest: { onBeforeRequest() {}, onBeforeSendHeaders() {} },
-    registerPreloadScript: () => "id",
-    unregisterPreloadScript() {},
+    registerPreloadScript: () => {
+      fake.counts.preloadsRegistered++;
+      return "id";
+    },
+    unregisterPreloadScript() {
+      fake.counts.preloadsRemoved++;
+    },
   };
   return {
     app: { getPath: () => tmpdir(), focus() {} },
@@ -105,9 +111,19 @@ import { ElectronWebApp } from "./electron-web-app.ts";
 import { HIDE_SCROLLBARS_CSS } from "./hide-scrollbars.ts";
 import { KEY_CASES } from "./keyboard-policy.cases.ts";
 
+const winResize = { n: 0 };
+const children = new Set<unknown>();
 const win: any = {
-  contentView: { addChildView() {}, removeChildView() {} },
-  on() {},
+  contentView: {
+    addChildView: (v: unknown) => children.add(v),
+    removeChildView: (v: unknown) => children.delete(v),
+  },
+  on(event: string) {
+    if (event === "resize") winResize.n++;
+  },
+  off(event: string) {
+    if (event === "resize") winResize.n--;
+  },
   getContentBounds: () => ({ width: 1280, height: 720 }),
   isDestroyed: () => true,
   webContents: { focus() {} },
@@ -131,6 +147,55 @@ async function startedNetflix() {
 
 beforeEach(() => {
   fake.views.length = 0;
+  fake.counts.preloadsRegistered = fake.counts.preloadsRemoved = 0;
+  winResize.n = 0;
+  children.clear();
+});
+
+describe("dispose (an engine switch)", () => {
+  test("takes the view out of the window, closes it, stops listening to the window and reports home", async () => {
+    const web = new ElectronWebApp(netflix, win);
+    const events: unknown[] = [];
+    web.onEvent((e) => events.push(e));
+    web.show();
+    const wc = fake.views.at(-1)!;
+    const close = vi.spyOn(wc, "close");
+    expect(winResize.n).toBe(1);
+    web.dispose();
+    expect(children.size).toBe(0);
+    expect(close).toHaveBeenCalled();
+    expect(winResize.n).toBe(0);
+    expect(events.at(-1)).toEqual({ type: "route", home: true });
+  });
+
+  test("the preload it registered is removed, so a later host starts clean", () => {
+    const web = new ElectronWebApp(netflix, win);
+    web.dispose();
+    expect(fake.counts.preloadsRemoved).toBeGreaterThanOrEqual(1);
+  });
+
+  test("nothing starts afterwards: no new view, no load", async () => {
+    const web = new ElectronWebApp(netflix, win);
+    web.dispose();
+    const views = fake.views.length;
+    web.show();
+    web.start();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(fake.views.length).toBe(views);
+    expect(fake.views.every((v) => v.loads.length === 0)).toBe(true);
+  });
+
+  test("a disposed host leaves no timers", () => {
+    vi.useFakeTimers();
+    try {
+      const web = new ElectronWebApp(netflix, win);
+      web.show();
+      web.dispose();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("when a web App loads", () => {

@@ -66,6 +66,9 @@ export class ElectronWebApp implements YouTube {
   #hooks: RequestHooks;
   #preloads: SessionPreloads;
   #addonRequests: Array<() => void> = [];
+  #ownHooks: Array<() => void> = [];
+  #onResize = () => this.#fit();
+  #disposed = false;
 
   constructor(desc: WebAppDescription, win: BrowserWindow, lifecycle?: IdleLifecycle) {
     this.#lifecycle = lifecycle;
@@ -92,10 +95,12 @@ export class ElectronWebApp implements YouTube {
     ses.setUserAgent(desc.identity.userAgent);
     const hooks = requestHooksFor(ses);
     // The identity comes first so every later handler sees (and keeps) its headers.
-    hooks.onBeforeSendHeaders((details) =>
-      desc.identity.headersFor(new URL(details.url), details.requestHeaders),
+    this.#ownHooks.push(
+      hooks.onBeforeSendHeaders((details) =>
+        desc.identity.headersFor(new URL(details.url), details.requestHeaders),
+      ),
+      hooks.onBeforeRequest(blockLocalFiles),
     );
-    hooks.onBeforeRequest(blockLocalFiles);
     // The view may ask the Mac for nothing (no microphone, no camera). Its media permission *check*
     // is answered yes only for the App's own origin, and only for what choosing an output needs.
     ses.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
@@ -106,7 +111,7 @@ export class ElectronWebApp implements YouTube {
     this.#preloads = new SessionPreloads(ses, join(app.getPath("userData"), desc.id), desc.id);
     this.#applyAddons(desc.enabledAddons);
     this.#createView();
-    win.on("resize", () => this.#fit());
+    win.on("resize", this.#onResize);
   }
 
   #onConsole(message: string): void {
@@ -253,6 +258,7 @@ export class ElectronWebApp implements YouTube {
 
   /** Starts loading in the background so opening YouTube is instant. */
   start(): void {
+    if (this.#disposed) return;
     this.#started = true;
     const wc = this.#view.webContents;
     // DevTools commands only answer once the view has a renderer, so give it a blank page first.
@@ -292,7 +298,23 @@ export class ElectronWebApp implements YouTube {
     this.#core.reset();
   }
 
+  /** The host is taken away for good (an engine switch): its view, window listener, request hooks and preload go; the session's data stays. */
+  dispose(): void {
+    if (this.#disposed) return;
+    if (this.#visible) this.hide();
+    this.#disposed = true;
+    this.#win.off("resize", this.#onResize);
+    for (const off of [...this.#ownHooks.splice(0), ...this.#addonRequests.splice(0)]) off();
+    this.#preloads.clear();
+    this.#win.contentView.removeChildView(this.#view);
+    this.#view.webContents.close();
+    this.#core.reset();
+    this.#core.dispose();
+    this.#listeners.clear();
+  }
+
   #load(): void {
+    if (this.#disposed) return;
     this.#failed = false;
     this.#loadIssued = true;
     void this.#view.webContents
@@ -311,6 +333,7 @@ export class ElectronWebApp implements YouTube {
   }
 
   show(note?: string): void {
+    if (this.#disposed) return;
     if (!this.#started) this.start();
     else if (this.#loadIssued) void this.#guard.onShow();
     this.#lifecycle?.shown();

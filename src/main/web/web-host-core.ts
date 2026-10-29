@@ -51,6 +51,7 @@ export class WebHostCore {
   #timer: ReturnType<typeof setInterval> | undefined;
   #inSearch = false;
   #skipTimer: ReturnType<typeof setTimeout> | undefined;
+  #searchTimer: ReturnType<typeof setTimeout> | undefined;
   #lastSkipAt = 0;
 
   /** `pollsRoute`: ask the page for its state every tick (otherwise the engine pushes it with `setPage`). */
@@ -87,7 +88,10 @@ export class WebHostCore {
     const entering = searching && !this.#inSearch;
     this.#inSearch = searching;
     // Only arriving at search counts; Couch's own query updates also change the route.
-    if (entering) setTimeout(() => this.#emit({ type: "searchOpened" }), 400);
+    if (entering) {
+      clearTimeout(this.#searchTimer);
+      this.#searchTimer = setTimeout(() => this.#emit({ type: "searchOpened" }), 400);
+    }
   }
 
   /** The page is gone (an idle unload): back to a fresh, home-bound state. */
@@ -96,6 +100,15 @@ export class WebHostCore {
     this.#page = this.#desc.route.idle;
     this.#routes = this.#desc.route.tracker();
     this.#emit({ type: "route", home: true });
+  }
+
+  /** The host is going for good: no timer of the core's is left running. */
+  dispose(): void {
+    this.hidden();
+    clearTimeout(this.#skipTimer);
+    this.#skipTimer = undefined;
+    clearTimeout(this.#searchTimer);
+    this.#searchTimer = undefined;
   }
 
   shown(): void {

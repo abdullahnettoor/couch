@@ -1,5 +1,5 @@
 import { OPEN_APP, RESTART_APP } from "../apps/index.ts";
-import { SIGN_IN_APP } from "./home-apps.ts";
+import { PLAYBACK_APP, SIGN_IN_APP } from "./home-apps.ts";
 import { SETTINGS_APP } from "../../shared/settings-grid.ts";
 import type { View } from "../../shared/protocol.ts";
 
@@ -15,6 +15,7 @@ export interface ActionContext {
   importSignIn(id: string): void;
   copySignInFromCouch(id: string): void;
   signOut(id: string): void;
+  switchPlayback(id: string): void;
   toggleListener(): void;
   quit(): void;
 }
@@ -46,6 +47,8 @@ function appAction(action: string): ActionHandler | undefined {
     if (verb === "out") return (ctx) => ctx.signOut(id);
     return undefined;
   }
+  if (action.startsWith(PLAYBACK_APP))
+    return (ctx) => ctx.switchPlayback(action.slice(PLAYBACK_APP.length));
   if (action.startsWith(RESTART_APP))
     return (ctx) => ctx.restartApp(action.slice(RESTART_APP.length));
   return undefined;

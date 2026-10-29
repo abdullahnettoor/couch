@@ -65,7 +65,7 @@ void app.whenReady().then(async () => {
       bridge,
       {
         getContentBounds: () => win.getContentBounds(),
-        onResize: (cb) => win.on("resize", cb),
+        onResize: (cb) => void win.on("resize", cb),
         reveal: async () => {},
       },
       { ephemeral: true },
