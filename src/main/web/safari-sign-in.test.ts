@@ -197,6 +197,59 @@ describe("importing Safari's sign-in", () => {
   });
 });
 
+describe("a sign out during an import or a copy cancels it, whatever the outcome", () => {
+  test("a read that rejects after the sign out is cancelled, not failed", async () => {
+    let fail!: (e: Error) => void;
+    const signIn = createSafariSignIn({
+      paths: ["/p"],
+      read: () => new Promise((_, rej) => (fail = rej)),
+      couch: { get: () => new Promise((_, rej) => (fail = rej)) },
+      target: { setCookies: async () => {}, signOut: async () => {} },
+    });
+    for (const start of [() => signIn.importSignIn(), () => signIn.copyFromCouch!.copy()]) {
+      const running = start();
+      await signIn.signOut();
+      fail(new Error("boom"));
+      expect(await running).toEqual({ ok: false, reason: "cancelled" });
+    }
+  });
+
+  test("a write that finishes or fails after the sign out is cancelled", async () => {
+    for (const refuse of [false, true]) {
+      let finish!: () => void;
+      const signIn = createSafariSignIn({
+        paths: [],
+        read: async () => Buffer.alloc(0),
+        couch: {
+          get: async () => [
+            {
+              name: "a",
+              value: SECRET,
+              domain: ".netflix.com",
+              path: "/",
+              session: true,
+              sameSite: "lax" as const,
+            },
+          ],
+        },
+        target: {
+          setCookies: () =>
+            new Promise<void>(
+              (res, rej) => (finish = () => (refuse ? rej(new Error("x")) : res())),
+            ),
+          signOut: async () => {},
+        },
+      });
+      const copying = signIn.copyFromCouch!.copy();
+      await new Promise((r) => setTimeout(r, 0));
+      const out = signIn.signOut();
+      finish();
+      await out;
+      expect(await copying).toEqual({ ok: false, reason: "cancelled" });
+    }
+  });
+});
+
 describe("copying Couch's own Chromium sign-in", () => {
   const chromium = (domain: string, name: string) => ({
     name,
@@ -287,7 +340,6 @@ describe("copying Couch's own Chromium sign-in", () => {
   });
 
   test("the store refusing sets nothing and reports no count (all or nothing)", async () => {
-    const t = makeCopy(all);
     const set: WebKitCookie[][] = [];
     const sign = createSafariSignIn({
       paths: [],
@@ -302,7 +354,8 @@ describe("copying Couch's own Chromium sign-in", () => {
       },
     });
     expect(await sign.copyFromCouch!.copy()).toEqual({ ok: false, reason: "failed" });
-    expect(t.set).toEqual([]);
+    expect(set).toHaveLength(1);
+    expect(set[0]).toHaveLength(2);
   });
 
   test("sign out during a held-back read wins: nothing is written afterwards", async () => {

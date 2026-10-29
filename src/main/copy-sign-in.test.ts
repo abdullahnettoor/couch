@@ -93,6 +93,67 @@ describe("Settings → Apps → Copy sign-in from Couch", () => {
     expect(labels()).toContain("Import Safari sign-in");
   });
 
+  function setupAnswers() {
+    const pending: Array<(v: boolean) => void> = [];
+    const signIn: AppSignIn = {
+      copyFromCouch: {
+        available: () => new Promise<boolean>((res) => pending.push(res)),
+        copy: async () => ({ ok: true, count: 1 }),
+      },
+      importSignIn: async () => ({ ok: true, count: 1 }),
+      signOut: async () => {},
+    };
+    return { pending, app: new FakeWebApp("weather", "Cinema", { signIn }) };
+  }
+  const reopen = async (phone: FakePhone) => {
+    await focus(phone, "Cinema");
+    await phone.press("ok");
+    expect(h.screen.last.appMenu?.label).toBe("Cinema");
+  };
+  const answer = async (fn: () => void) => {
+    fn();
+    await h.settle();
+  };
+
+  test("reopening the menu after the cookies are gone hides the row at once and keeps it hidden", async () => {
+    const { app, pending } = setupAnswers();
+    h = await startHarness(undefined, { apps: [{ entry, app }] });
+    const phone = await h.connectPhone();
+    await openMenu(phone, "Cinema");
+    await answer(() => pending[0]!(true));
+    expect(labels()).toContain("Copy sign-in from Couch");
+    await phone.press("back");
+    await reopen(phone);
+    expect(labels()).not.toContain("Copy sign-in from Couch");
+    await answer(() => pending[1]!(false));
+    expect(labels()).not.toContain("Copy sign-in from Couch");
+  });
+
+  test("an older, slower answer cannot override the newest one", async () => {
+    const { app, pending } = setupAnswers();
+    h = await startHarness(undefined, { apps: [{ entry, app }] });
+    const phone = await h.connectPhone();
+    await openMenu(phone, "Cinema");
+    await phone.press("back");
+    await reopen(phone);
+    await answer(() => pending[1]!(false));
+    await answer(() => pending[0]!(true));
+    expect(labels()).not.toContain("Copy sign-in from Couch");
+  });
+
+  test("the newest answer wins when the older one arrives first", async () => {
+    const { app, pending } = setupAnswers();
+    h = await startHarness(undefined, { apps: [{ entry, app }] });
+    const phone = await h.connectPhone();
+    await openMenu(phone, "Cinema");
+    await phone.press("back");
+    await reopen(phone);
+    await answer(() => pending[0]!(true));
+    expect(labels()).not.toContain("Copy sign-in from Couch");
+    await answer(() => pending[1]!(true));
+    expect(labels()).toContain("Copy sign-in from Couch");
+  });
+
   test("not shown for an App with no Couch source", async () => {
     const { app } = setup({ ok: true, count: 1 });
     h = await startHarness(undefined, { apps: [{ entry, app }] });
@@ -111,7 +172,8 @@ describe("Settings → Apps → Copy sign-in from Couch", () => {
     await pick(phone, "Copy sign-in from Couch");
     expect(calls).toEqual(["copy"]);
     expect(h.screen.last.state.toast).toBe("Copied 3 Cinema cookies");
-    expect(phone.last?.signInNote).toEqual({ title: "Copied 3 Cinema cookies", steps: [] });
+    expect(phone.last?.toast).toEqual({ text: "Copied 3 Cinema cookies", id: expect.any(Number) });
+    expect(phone.last?.signInNote).toBeUndefined();
     expect(h.screen.last.appMenu?.note).toBeUndefined();
   });
 
@@ -144,16 +206,45 @@ describe("Settings → Apps → Copy sign-in from Couch", () => {
     }
   });
 
-  test("the phone's note goes when the menu closes", async () => {
+  test("leaving Settings during a delayed copy still tells the phone", async () => {
+    let finish!: () => void;
+    const signIn: AppSignIn = {
+      copyFromCouch: {
+        available: async () => true,
+        copy: () => new Promise((res) => (finish = () => res({ ok: true, count: 3 }))),
+      },
+      importSignIn: async () => ({ ok: true, count: 1 }),
+      signOut: async () => {},
+    };
+    const app = new FakeWebApp("weather", "Cinema", { signIn });
+    h = await startHarness(undefined, { apps: [{ entry, app }] });
+    const phone = await h.connectPhone();
+    await openMenu(phone, "Cinema");
+    await h.settle();
+    await focus(phone, "Copy sign-in from Couch");
+    await phone.press("ok");
+    await phone.press("back");
+    await phone.press("back");
+    await phone.press("back");
+    expect(h.screen.last.state.view).not.toBe("settingsApps");
+    finish();
+    await h.settle();
+    await phone.settle();
+    expect(phone.last?.toast?.text).toBe("Copied 3 Cinema cookies");
+    expect(h.screen.last.state.toast).toBe("Copied 3 Cinema cookies");
+  });
+
+  test("every Screen toast reaches the phone, with a new id each time", async () => {
     const { app } = setupCopy(true);
     h = await startHarness(undefined, { apps: [{ entry, app }] });
     const phone = await h.connectPhone();
     await openMenu(phone, "Cinema");
     await h.settle();
+    const first = phone.last?.toast;
+    expect(first?.text).toBe(h.screen.last.state.toast);
     await pick(phone, "Copy sign-in from Couch");
-    expect(phone.last?.signInNote).toBeDefined();
-    await phone.press("back");
-    expect(phone.last?.signInNote).toBeUndefined();
+    expect(phone.last?.toast?.text).toBe("Copied 3 Cinema cookies");
+    expect(phone.last?.toast?.id).not.toBe(first?.id);
   });
 });
 
@@ -200,6 +291,81 @@ describe("the Settings path with the real copy", () => {
     await phone.settle();
     expect(calls).toEqual(["signOut"]);
     expect(h.screen.last.state.toast).toBe("Signed out of Cinema");
+  });
+
+  const toasts = () =>
+    h.screen.payloads
+      .map((p) => p.state.toast)
+      .filter((t, i, all): t is string => !!t && t !== "Phone connected" && t !== all[i - 1]);
+
+  async function openCopy(signIn: AppSignIn) {
+    const app = new FakeWebApp("weather", "Cinema", { signIn });
+    h = await startHarness(undefined, { apps: [{ entry, app }] });
+    const phone = await h.connectPhone();
+    await openMenu(phone, "Cinema");
+    await h.settle();
+    await focus(phone, "Copy sign-in from Couch");
+    await phone.press("ok");
+    return phone;
+  }
+
+  test("sign out pressed while the read is failing: no error toast, only the sign out", async () => {
+    let fail!: (e: Error) => void;
+    const calls: string[] = [];
+    const signIn = createSafariSignIn({
+      paths: [],
+      read: async () => Buffer.alloc(0),
+      couch: { get: afterMenuOpens(() => new Promise((_, rej) => (fail = rej))) },
+      target: {
+        setCookies: async () => void calls.push("set"),
+        signOut: async () => void calls.push("signOut"),
+      },
+    });
+    const phone = await openCopy(signIn);
+    await pick(phone, "Sign out");
+    fail(new Error("boom"));
+    await h.settle();
+    await phone.settle();
+    expect(calls).toEqual(["signOut"]);
+    expect(toasts()).toEqual(["Signed out of Cinema"]);
+  });
+
+  test("sign out pressed while the cookies are being written: no Copied toast, no error", async () => {
+    for (const refuse of [false, true]) {
+      let finish!: () => void;
+      const calls: string[] = [];
+      const signIn = createSafariSignIn({
+        paths: [],
+        read: async () => Buffer.alloc(0),
+        couch: { get: async () => [cookie("a")] },
+        target: {
+          setCookies: () =>
+            new Promise<void>((res, rej) => {
+              calls.push("set");
+              finish = () => (refuse ? rej(new Error("refused")) : res());
+            }),
+          signOut: async () => void calls.push("signOut"),
+        },
+      });
+      const phone = await openCopy(signIn);
+      await h.settle();
+      await focus(phone, "Sign out");
+      await phone.press("ok");
+      finish();
+      await h.settle();
+      await phone.settle();
+      expect(calls).toEqual(["set", "signOut"]);
+      expect(toasts()).toEqual(["Signed out of Cinema"]);
+      await h.stop();
+    }
+  });
+
+  test("partitioned cookies never reach the target", async () => {
+    const r = await run({
+      get: async () => [cookie("plain"), { ...cookie("chips"), partitioned: true }],
+    });
+    expect(r.toast).toBe("Copied 1 Cinema cookie");
+    expect(r.received[0]!.map((c) => c.name)).toEqual(["plain"]);
   });
 
   async function run(o: {

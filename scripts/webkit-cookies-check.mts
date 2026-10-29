@@ -123,6 +123,17 @@ void app.whenReady().then(async () => {
       "a rejected set changes nothing",
     );
 
+    const fresh = { domain: ".netflix.com", name: "FRESH", path: "/", value: FAKE };
+    check(
+      (await set(id, [fresh, { ...fresh, name: "" }])) === "a cookie was rejected",
+      "a fresh valid cookie followed by an invalid one rejects the set",
+    );
+    const afterFresh = await list(id);
+    check(
+      !find(afterFresh, "FRESH") && afterFresh.length === after.length,
+      "neither the fresh valid cookie nor the invalid one was added",
+    );
+
     addon.webkitDestroy(id);
     win.destroy();
     clearTimeout(timeout);

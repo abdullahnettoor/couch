@@ -170,6 +170,7 @@ export class Core {
   #remotes = new Set<RemoteId>();
   #listeners = new Set<() => void>();
   #cancelToast: (() => void) | undefined;
+  #toastId = 0;
   #cancelMinute: (() => void) | undefined;
   #key: string;
   #port = 0;
@@ -222,6 +223,7 @@ export class Core {
   #signInNote: RemoteNote | undefined;
   /** Apps whose Couch-Chromium sign-in exists, asked each time their menu opens. */
   #couchCopy = new Set<string>();
+  #couchCheck = 0;
   #sound: SoundOutput;
   #quick: QuickSettings;
   #search: LibrarySearchView;
@@ -1278,6 +1280,7 @@ export class Core {
           }
         : {}),
       ...(s.confirm ? { confirm: s.confirm } : {}),
+      ...(s.toast ? { toast: { text: s.toast, id: this.#toastId } } : {}),
       ...(this.#signInNote && s.view === "settingsApps" && this.#homeApps.menuId
         ? { signInNote: this.#signInNote }
         : {}),
@@ -2070,7 +2073,9 @@ export class Core {
   async #refreshCouchCopy(id: string): Promise<void> {
     const copy = this.#apps.get(id)?.signIn?.copyFromCouch;
     if (!copy) return;
+    const check = ++this.#couchCheck;
     const has = await copy.available().catch(() => false);
+    if (check !== this.#couchCheck) return;
     if (has === this.#couchCopy.has(id)) return;
     if (has) this.#couchCopy.add(id);
     else this.#couchCopy.delete(id);
@@ -2085,9 +2090,9 @@ export class Core {
     this.#signInNote = undefined;
     const result = await copy.copy().catch(() => ({ ok: false, reason: "failed" }) as const);
     if (result.ok) {
-      const text = `Copied ${result.count} ${app.label} ${result.count === 1 ? "cookie" : "cookies"}`;
-      this.#toast(text);
-      this.#signInNote = { title: text, steps: [] };
+      this.#toast(
+        `Copied ${result.count} ${app.label} ${result.count === 1 ? "cookie" : "cookies"}`,
+      );
     } else if (result.reason === "cancelled") {
       // A sign out came first and has its own toast.
     } else {
@@ -2242,6 +2247,8 @@ export class Core {
     return {
       open: (view) => this.#setView(view),
       openAppMenu: (id) => {
+        // The row waits for a fresh answer: an old one may be stale (the cookies can be gone).
+        this.#couchCopy.delete(id);
         this.#homeApps.openMenu(id);
         void this.#refreshCouchCopy(id);
       },
@@ -2299,6 +2306,7 @@ export class Core {
 
   #toast(text: string): void {
     this.#cancelToast?.();
+    this.#toastId++;
     this.#state.toast = text;
     this.#cancelToast = this.#ports.clock.setTimeout(() => {
       this.#state.toast = undefined;

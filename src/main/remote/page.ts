@@ -99,6 +99,8 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .art[data-app="library"] .face { color:#1c1c1e; }
   .art.has { background-size:cover; }
   .toast { position:absolute; top:12px; left:50%; transform:translateX(-50%) scale(.9); padding:8px 16px; border-radius:18px; background:rgba(0,0,0,.62); color:#fff; font-size:14px; font-weight:600; opacity:0; pointer-events:none; transition:opacity .15s, transform .15s; white-space:nowrap; }
+  .ptoast { position:fixed; top:calc(env(safe-area-inset-top,0px) + 12px); left:50%; transform:translate(-50%,-6px); max-width:88vw; padding:9px 18px; border-radius:18px; background:rgba(0,0,0,.72); color:#fff; font-size:14px; font-weight:600; text-align:center; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:50; }
+  .ptoast.show { opacity:1; transform:translate(-50%,0); }
   .toast.show { opacity:1; transform:translateX(-50%) scale(1); }
   .prompt { position:absolute; left:12px; right:12px; bottom:12px; height:48px; border-radius:24px; background:#fff; color:#000; font-size:16px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 8px 24px rgba(0,0,0,.4); }
   .prompt:active { transform:scale(.97); }
@@ -143,7 +145,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .sheet .rows button { height:52px; border-radius:16px; background:var(--card-2); text-align:left; padding:0 16px; font-size:17px; display:flex; align-items:center; justify-content:space-between; }
   .sheet .rows button.cur { background:#fff; color:#000; font-weight:700; }
   @keyframes rise { from { transform:translateY(40px); opacity:0; } to { transform:none; opacity:1; } }
-  @media (prefers-reduced-motion:reduce) { .sheet .rows { animation:none; } .toast { transition:none; } }
+  @media (prefers-reduced-motion:reduce) { .sheet .rows { animation:none; } .toast, .ptoast { transition:none; } }
   .pbtn { width:40px; height:40px; border-radius:20px; display:grid; place-items:center; font-size:20px; color:var(--t2); background:var(--glass); box-shadow:var(--glass-edge); margin-left:12px; }
   .pbtn:active { background:rgba(255,255,255,.14); }
   .topr { display:flex; align-items:center; }
@@ -178,6 +180,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     <div class="btns"><button type="button" class="k txt" id="confirm-cancel">Cancel</button><button type="button" class="k hero txt" id="confirm-off" data-cmd="power">Turn off</button></div>
   </div>
 </div>
+<div class="ptoast" id="phone-toast" role="status" aria-live="polite"></div>
 <div class="banner" id="banner" hidden>Can't reach Couch. Is the Mac awake and Couch open?</div>
 <div class="note" id="hint" hidden>Still nothing? Scan the QR code on the Screen again to pair this phone.</div>
 <section class="nowp" id="nowp" hidden>
@@ -323,6 +326,18 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     toastTimer = setTimeout(function () { t.classList.remove("show"); }, 900);
   }
 
+  var phoneToastTimer = null;
+  var lastToastId = 0;
+  function phoneToast(t) {
+    if (!t || t.id === lastToastId) return;
+    lastToastId = t.id;
+    var el = $("phone-toast");
+    el.textContent = t.text;
+    el.classList.add("show");
+    clearTimeout(phoneToastTimer);
+    phoneToastTimer = setTimeout(function () { el.classList.remove("show"); }, 3000);
+  }
+
   var padOpen = false;
   function setMute(on) {
     var els = document.querySelectorAll(".mutebtn");
@@ -384,6 +399,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   }
 
   function render(s) {
+    phoneToast(s.toast);
     last = s;
     var L = s.layout || "other";
     $("where").textContent = s.where;

@@ -30,6 +30,7 @@ export function safariCookiePaths(home: string): string[] {
 export function createSafariSignIn(o: SafariSignInOptions): AppSignIn {
   // Sign out bumps `generation` before anything else, so an import whose read was in flight can no longer write.
   // Writes and sign outs run one at a time, so a sign out never overlaps cookies still going into the store.
+  const CANCELLED: SignInResult = { ok: false, reason: "cancelled" };
   let generation = 0;
   let tail: Promise<unknown> = Promise.resolve();
   const inTurn = <T>(work: () => Promise<T>): Promise<T> => {
@@ -39,32 +40,36 @@ export function createSafariSignIn(o: SafariSignInOptions): AppSignIn {
   };
   const write = (mine: number, cookies: WebKitCookie[]) =>
     inTurn(async (): Promise<SignInResult> => {
-      if (generation !== mine) return { ok: false, reason: "cancelled" };
+      if (generation !== mine) return CANCELLED;
+      let failed = false;
       try {
         await o.target.setCookies(cookies);
       } catch {
-        return { ok: false, reason: "failed" };
+        failed = true;
       }
-      return { ok: true, count: cookies.length };
+      // A sign out that came during the write is queued behind it and clears afterwards: the copy is cancelled either way.
+      if (generation !== mine) return CANCELLED;
+      return failed ? { ok: false, reason: "failed" } : { ok: true, count: cookies.length };
     });
   const couch = o.couch;
   const copyFromCouch: AppSignIn["copyFromCouch"] = couch && {
     async available() {
       try {
-        return couchNetflixCookies(await couch.get({})).length > 0;
+        return couchNetflixCookies(await couch.get()).length > 0;
       } catch {
         return false;
       }
     },
     async copy() {
       const mine = generation;
-      let cookies: WebKitCookie[];
+      let cookies: WebKitCookie[] | undefined;
       try {
-        cookies = couchNetflixCookies(await couch.get({}));
+        cookies = couchNetflixCookies(await couch.get());
       } catch {
-        return { ok: false, reason: "failed" };
+        cookies = undefined;
       }
-      if (generation !== mine) return { ok: false, reason: "cancelled" };
+      if (generation !== mine) return CANCELLED;
+      if (!cookies) return { ok: false, reason: "failed" };
       if (cookies.length === 0) return { ok: false, reason: "none" };
       return write(mine, cookies);
     },
@@ -75,6 +80,7 @@ export function createSafariSignIn(o: SafariSignInOptions): AppSignIn {
       const mine = generation;
       let data: Buffer | undefined;
       let blocked = false;
+      let broken = false;
       for (const path of o.paths) {
         try {
           data = await o.read(path);
@@ -82,10 +88,15 @@ export function createSafariSignIn(o: SafariSignInOptions): AppSignIn {
         } catch (e) {
           const code = (e as { code?: unknown }).code;
           if (code === "EPERM" || code === "EACCES") blocked = true;
-          else if (code !== "ENOENT") return { ok: false, reason: "failed" };
+          else if (code !== "ENOENT") {
+            broken = true;
+            break;
+          }
         }
+        if (generation !== mine) return CANCELLED;
       }
-      if (generation !== mine) return { ok: false, reason: "cancelled" };
+      if (generation !== mine) return CANCELLED;
+      if (broken) return { ok: false, reason: "failed" };
       if (!data) return { ok: false, reason: blocked ? "permission" : "none" };
       let cookies: WebKitCookie[];
       try {

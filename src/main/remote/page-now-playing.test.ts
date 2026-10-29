@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 import { ICON_PATHS } from "../../shared/icons.ts";
 import { REMOTE_PAGE } from "./page.ts";
 import { PAGE_HTML, runPage } from "./page-runner.ts";
@@ -559,5 +559,42 @@ describe("Closing Quick settings from the phone's D-pad", () => {
     page.tap("chip-pad");
     page.tap("npad-back");
     expect(commands().filter((c) => c.command === "quickSettings")).toEqual([]);
+  });
+});
+
+describe("the phone's general toast", () => {
+  const toast = () => page.els.get("phone-toast")!;
+  const home = (extra: Record<string, unknown>) =>
+    page.send({ ...page.base, layout: "home", where: "Home", ...extra });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    page = loadPage();
+    page.open();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  test("a snapshot's toast shows as a calm status message and dismisses by itself", () => {
+    expect(PAGE_HTML).toMatch(/id="phone-toast"[^>]*role="status"[^>]*aria-live="polite"/);
+    home({ toast: { text: "Copied 3 Netflix cookies", id: 1 } });
+    expect(toast().textContent).toBe("Copied 3 Netflix cookies");
+    expect(toast().classes.has("show")).toBe(true);
+    vi.advanceTimersByTime(4000);
+    expect(toast().classes.has("show")).toBe(false);
+  });
+
+  test("the same id is not shown twice; a new id is", () => {
+    home({ toast: { text: "A", id: 1 } });
+    vi.advanceTimersByTime(4000);
+    home({ toast: { text: "A", id: 1 } });
+    expect(toast().classes.has("show")).toBe(false);
+    home({ toast: { text: "B", id: 2 } });
+    expect(toast().textContent).toBe("B");
+    expect(toast().classes.has("show")).toBe(true);
+  });
+
+  test("it shows in any view, also while Now Playing is up", () => {
+    page.playing({}, { toast: { text: "Phone connected", id: 5 } });
+    expect(toast().textContent).toBe("Phone connected");
+    expect(toast().classes.has("show")).toBe(true);
   });
 });

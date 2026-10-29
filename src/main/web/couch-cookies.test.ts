@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vite-plus/test";
-import { couchNetflixCookies, type ElectronCookie } from "./couch-cookies.ts";
+import { cdpCookies, couchNetflixCookies, type ElectronCookie } from "./couch-cookies.ts";
 
 const SECRET = "fake-secret-value-123";
 const base: ElectronCookie = {
@@ -66,7 +66,7 @@ describe("mapping Couch's Chromium cookies to the bridge's shape", () => {
     expect("expires" in b!).toBe(false);
   });
 
-  test("SameSite: lax and strict carry over; unspecified and no_restriction set none", () => {
+  test("SameSite: lax and strict carry over; unspecified is lax (Chromium's default); only no_restriction is none", () => {
     const out = couchNetflixCookies(
       (["lax", "strict", "unspecified", "no_restriction"] as const).map((sameSite, i) => ({
         ...base,
@@ -74,11 +74,70 @@ describe("mapping Couch's Chromium cookies to the bridge's shape", () => {
         sameSite,
       })),
     );
-    expect(out.map((c) => c.sameSite)).toEqual(["lax", "strict", "none", "none"]);
+    expect(out.map((c) => c.sameSite)).toEqual(["lax", "strict", "lax", "none"]);
   });
 
-  test("a cookie without a SameSite value at all is none", () => {
+  test("a cookie without a SameSite value at all is lax", () => {
     const { sameSite: _unused, ...bare } = base;
-    expect(couchNetflixCookies([bare])[0]?.sameSite).toBe("none");
+    expect(couchNetflixCookies([bare])[0]?.sameSite).toBe("lax");
+  });
+
+  test("partitioned (CHIPS) cookies are never copied", () => {
+    const out = couchNetflixCookies([
+      { ...base, name: "plain" },
+      { ...base, name: "chips", partitioned: true },
+    ]);
+    expect(out.map((c) => c.name)).toEqual(["plain"]);
+  });
+});
+
+describe("reading the DevTools Network.getAllCookies answer", () => {
+  const raw = (o: Record<string, unknown>) => ({
+    name: "n",
+    value: SECRET,
+    domain: ".netflix.com",
+    path: "/",
+    expires: -1,
+    secure: true,
+    httpOnly: true,
+    session: true,
+    ...o,
+  });
+
+  test("maps flags, expiry (seconds) and SameSite; a missing SameSite is lax", () => {
+    const out = couchNetflixCookies(
+      cdpCookies({
+        cookies: [
+          raw({ name: "a", sameSite: "Strict", session: false, expires: 1_900_000_000 }),
+          raw({ name: "b", sameSite: "None" }),
+          raw({ name: "c" }),
+          raw({ name: "d", sameSite: "Lax" }),
+        ],
+      }),
+    );
+    expect(out.map((c) => c.sameSite)).toEqual(["strict", "none", "lax", "lax"]);
+    expect(out[0]).toMatchObject({ secure: true, httpOnly: true, expires: 1_900_000_000_000 });
+    expect("expires" in out[1]!).toBe(false);
+  });
+
+  test("a cookie with a partitionKey (object or string) is marked partitioned and dropped", () => {
+    const out = couchNetflixCookies(
+      cdpCookies({
+        cookies: [
+          raw({ name: "plain" }),
+          raw({
+            name: "o",
+            partitionKey: { topLevelSite: "https://x.com", hasCrossSiteAncestor: false },
+          }),
+          raw({ name: "s", partitionKey: "https://x.com" }),
+        ],
+      }),
+    );
+    expect(out.map((c) => c.name)).toEqual(["plain"]);
+  });
+
+  test("an answer of an unexpected shape throws (the copy fails closed)", () => {
+    expect(() => cdpCookies({})).toThrow();
+    expect(() => cdpCookies(null)).toThrow();
   });
 });

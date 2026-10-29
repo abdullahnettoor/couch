@@ -6,7 +6,6 @@ import {
   ipcMain,
   Menu,
   screen,
-  session,
   WebContentsView,
 } from "electron";
 import { readFile } from "node:fs/promises";
@@ -24,6 +23,7 @@ import { ElectronWebApp } from "./web/electron-web-app.ts";
 import { resolveWebKitStore } from "./web/webkit-stores.ts";
 import { createSafariSignIn, safariCookiePaths } from "./web/safari-sign-in.ts";
 import { couchOverlayOpen } from "./web/webkit-input.ts";
+import { cdpCookieSource } from "./web/couch-cdp-source.ts";
 import { WebKitWebApp } from "./web/webkit-web-app.ts";
 import {
   ensureTestClip,
@@ -226,7 +226,22 @@ async function createScreen(): Promise<void> {
           paths: safariCookiePaths(app.getPath("home")),
           read: (path) => readFile(path),
           // Couch's own Chromium cookies, only read, and only when the menu or a copy asks.
-          couch: { get: (filter) => session.fromPartition(NETFLIX_PARTITION).cookies.get(filter) },
+          couch: cdpCookieSource(() => {
+            // A page-less WebContents on the Netflix partition: never shown, never navigated.
+            const view = new WebContentsView({ webPreferences: { partition: NETFLIX_PARTITION } });
+            const dbg = view.webContents.debugger;
+            dbg.attach("1.3");
+            return {
+              send: (method) => dbg.sendCommand(method),
+              close: () => {
+                try {
+                  dbg.detach();
+                } finally {
+                  view.webContents.close();
+                }
+              },
+            };
+          }),
           target: netflix,
         })
       : undefined,
