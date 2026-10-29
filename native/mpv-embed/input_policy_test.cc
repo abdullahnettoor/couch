@@ -174,10 +174,10 @@ static void pointer_ownership() {
   // After the release, with the overlay still up, the pointer is Chromium's.
   CHECK(p.route(Kind::Down, 0, true, false) == Route::Chromium);
   CHECK(p.route(Kind::Up, 0, true, false) == Route::Chromium);
-  // A press that began on Chromium (an overlay's) is never the view's, even over the view.
-  CHECK(p.route(Kind::Drag, 0, true, true) == Route::Chromium);
+  // A press that began on Chromium (an overlay's) is never the view's, even over the view: its drag is only a move to the page.
+  CHECK(p.route(Kind::Drag, 0, true, true) == Route::ViewAndChromium);
   CHECK(p.route(Kind::Up, 0, true, true) == Route::Chromium);
-  CHECK(h.log == (std::vector<std::string>{"down0", "drag0", "drag0", "up0"}));
+  CHECK(h.log == (std::vector<std::string>{"down0", "drag0", "drag0", "up0", "move0"}));
 }
 
 static void pointer_buttons_are_separate() {
@@ -200,6 +200,22 @@ static void pointer_move_and_wheel() {
   CHECK(p.route(Kind::Wheel, 0, true, false) == Route::Chromium);
 }
 
+// A move with a button held that the view does not own (the press began on Chromium, e.g. a drag out of a drawer) still moves
+// the pointer over the view: the page tracks hover from it as a plain move, and Chromium keeps the drag.
+static void pointer_drags_the_view_does_not_own_are_moves() {
+  FakePointer h; PointerOwner p(h);
+  CHECK(p.route(Kind::Drag, 0, true, true) == Route::ViewAndChromium);
+  CHECK(h.log == (std::vector<std::string>{"move0"}));
+  CHECK(p.route(Kind::Drag, 0, false, true) == Route::Chromium);  // off the view
+  CHECK(p.route(Kind::Drag, 0, true, false) == Route::Chromium);  // an overlay has the pointer
+  CHECK(h.log.size() == 1);
+  // A press the view owns is still the view's alone.
+  p.route(Kind::Down, 0, true, true);
+  h.log.clear();
+  CHECK(p.route(Kind::Drag, 0, true, true) == Route::View);
+  CHECK(h.log == (std::vector<std::string>{"drag0"}));
+}
+
 static void pointer_cancel_on_hide_destroy_or_routing_change() {
   FakePointer h; PointerOwner p(h);
   p.route(Kind::Down, 0, true, true); p.route(Kind::Down, 2, true, true);
@@ -213,7 +229,7 @@ static void pointer_cancel_on_hide_destroy_or_routing_change() {
   // Each view keeps its own state.
   FakePointer h2; PointerOwner other(h2);
   p.route(Kind::Down, 0, true, true);
-  CHECK(!other.anyPressed() && other.route(Kind::Drag, 0, true, true) == Route::Chromium);
+  CHECK(!other.anyPressed() && other.route(Kind::Drag, 0, true, true) != Route::View);
 }
 
 int main() {
@@ -227,6 +243,7 @@ int main() {
   pointer_ownership();
   pointer_buttons_are_separate();
   pointer_move_and_wheel();
+  pointer_drags_the_view_does_not_own_are_moves();
   pointer_cancel_on_hide_destroy_or_routing_change();
   std::printf("ok\n");
 }

@@ -205,6 +205,20 @@ export function describeWebHostContract(name: string, makeRig: () => HostRig): v
     });
 
     describe("route", () => {
+      test("Netflix's Help Centre is a page to go back from, not home, so Back goes back in history", async () => {
+        const rig = makeRig();
+        await rig.show();
+        rig.navigate("https://www.netflix.com/");
+        expect(rig.events.at(-1)).toEqual(expect.objectContaining({ type: "route", home: true }));
+        rig.navigate("https://help.netflix.com/en/");
+        expect(rig.events.at(-1)).toEqual(expect.objectContaining({ type: "route", home: false }));
+        rig.navigate("https://help.netflix.com/en/node/412");
+        expect(rig.events.at(-1)).toEqual(expect.objectContaining({ type: "route", home: false }));
+        rig.allowHistoryBack();
+        rig.host.sendKey("back");
+        await vi.waitFor(() => expect(rig.scripts().at(-1)).toBe("history.back()"));
+      });
+
       test("the browse page is home, a title's player is not", async () => {
         const rig = makeRig();
         await rig.show();

@@ -13,6 +13,19 @@ export const SELF_TEST_KEYS = [
   "pointer:200:200",
 ];
 
+/** Events the page must have recorded for the keys above: a move reaching WebKit as a trusted `mousemove` (ticket 112). */
+export const SELF_TEST_EXPECTED_EVENTS = [
+  "keydown:z",
+  "keydown:A",
+  "mousemove:trusted",
+  "mousedown:trusted",
+  "click:trusted",
+  "wheel:trusted",
+];
+
+/** The move at window point (200, 200) of a 720 px high window lands at this client point (top-left origin). */
+export const SELF_TEST_EXPECTED_MOVE = [200, 520];
+
 /**
  * An async expression run in a detached WKWebView on a secure origin: which key systems it grants
  * (FairPlay is `com.apple.fps.3_0`), whether `HTMLMediaElement.prototype.setSinkId` exists, what
@@ -47,6 +60,7 @@ export const SELF_TEST_SCRIPT = `(async function () {
     }
   } catch (e) { out.sinkCalls = { error: String(e && e.name) }; }
   out.keys = (window.__keys || []).slice();
+  out.moves = (window.__moves || []).slice();
   return out;
 })()`;
 
@@ -58,6 +72,8 @@ export interface SelfTestSummary {
   /** `enumerateDevices()` lists at least one `audiooutput`. */
   audioOutputListed: boolean;
   keys: string[];
+  /** `[clientX, clientY]` of each `mousemove` the page got. */
+  moves: number[][];
   userAgent: string;
 }
 
@@ -67,6 +83,7 @@ export function summarizeSelfTest(raw: unknown): SelfTestSummary {
     setSinkId?: string;
     devices?: Array<{ kind?: string }>;
     keys?: string[];
+    moves?: number[][];
     ua?: string;
   };
   return {
@@ -74,6 +91,7 @@ export function summarizeSelfTest(raw: unknown): SelfTestSummary {
     setSinkId: r.setSinkId === "function",
     audioOutputListed: (r.devices ?? []).some((d) => d.kind === "audiooutput"),
     keys: r.keys ?? [],
+    moves: r.moves ?? [],
     userAgent: r.ua ?? "",
   };
 }

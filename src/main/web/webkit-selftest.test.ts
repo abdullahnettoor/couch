@@ -1,6 +1,12 @@
 import vm from "node:vm";
 import { describe, expect, test } from "vite-plus/test";
-import { SELF_TEST_KEYS, SELF_TEST_SCRIPT, summarizeSelfTest } from "./webkit-selftest.ts";
+import {
+  SELF_TEST_EXPECTED_EVENTS,
+  SELF_TEST_EXPECTED_MOVE,
+  SELF_TEST_KEYS,
+  SELF_TEST_SCRIPT,
+  summarizeSelfTest,
+} from "./webkit-selftest.ts";
 
 describe("summarizing the WebKit self-test", () => {
   const raw = {
@@ -45,7 +51,14 @@ describe("summarizing the WebKit self-test", () => {
       setSinkId: false,
       audioOutputListed: false,
       keys: [],
+      moves: [],
     });
+  });
+
+  test("lists where the page saw each mousemove (client coordinates), which the selftest checks", () => {
+    expect(summarizeSelfTest({ ...raw, moves: [[200, 520]] }).moves).toEqual([[200, 520]]);
+    expect(SELF_TEST_EXPECTED_EVENTS).toContain("mousemove:trusted");
+    expect(SELF_TEST_EXPECTED_MOVE).toEqual([200, 520]);
   });
 });
 

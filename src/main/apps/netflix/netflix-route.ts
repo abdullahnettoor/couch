@@ -20,9 +20,12 @@ export function isNetflixOrigin(origin: string): boolean {
  * Whether Netflix is at its home: the signed-in browse page with no title modal open (a modal puts
  * `?jbv=` in the address), the profile picker, or the signed-out landing and login pages (a signed-out
  * `/browse` is sent to login, so nothing Netflix-side comes before it). Everything else (the player,
- * search, a title page, genres) is somewhere Back should go back from.
+ * search, a title page, genres) is somewhere Back should go back from. Only the site itself has a home:
+ * other Netflix hosts (the Help Centre at help.netflix.com, where `/en/` is a language, not a country)
+ * are pages reached from it, so Back goes back to where they came from.
  */
 export function isNetflixHome(url: URL): boolean {
+  if (url.hostname !== "www.netflix.com" && url.hostname !== "netflix.com") return false;
   // Pages under a country (`/in/`) or country-language (`/in-hi/`) prefix have the same shape.
   const path = url.pathname.replace(/^\/[a-z]{2}(-[a-z]{2,4})?(?=\/|$)/i, "").replace(/\/+$/, "");
   if (path === "") return true;

@@ -1,5 +1,6 @@
 // Renders libmpv into an NSView added on top of an Electron window's content view.
 // libmpv is dlopen'ed so the add-on loads (and Couch runs) without it installed.
+#import <objc/message.h>
 #import <Cocoa/Cocoa.h>
 #import <OpenGL/gl3.h>
 #import <QuartzCore/QuartzCore.h>
@@ -1045,6 +1046,15 @@ bool WkKeyHost::post(int id, const inputpolicy::Key &k) {
 }
 void WkKeyHost::deliver(const inputpolicy::Key &k) { deliverKeyEvent(wk.web, k); }
 
+// WKWebView does not implement mouseMoved:/mouseEntered: (WebKit changeset 290743 moved them to the owner of its own tracking
+// area), so calling them does nothing and the page never sees a mousemove. _simulateMouseMove: is the entry WebKit's own
+// tests use: it takes the move the same way a tracking-area move arrives, as a trusted event at the event's location.
+static void sendMouseMoved(WKWebView *web, NSEvent *e) {
+  SEL sim = NSSelectorFromString(@"_simulateMouseMove:");
+  if ([web respondsToSelector:sim]) ((void (*)(id, SEL, NSEvent *))objc_msgSend)(web, sim, e);
+  else [web mouseMoved:e];
+}
+
 void WkPointerHost::deliver(inputpolicy::Kind kind, int button) {
   using inputpolicy::Kind;
   WKWebView *web = wk.web;
@@ -1052,7 +1062,7 @@ void WkPointerHost::deliver(inputpolicy::Kind kind, int button) {
   if (!e) return;
   last = e.locationInWindow;
   switch (kind) {
-    case Kind::Move: [web mouseMoved:e]; break;
+    case Kind::Move: sendMouseMoved(web, e); break;
     case Kind::Wheel: [web scrollWheel:e]; break;
     case Kind::Down:
       [web.window makeFirstResponder:web];
@@ -1198,7 +1208,7 @@ static napi_value WebkitWakePointer(napi_env env, napi_callback_info info) {
     NSPoint p = [web convertPoint:NSMakePoint(x, y) toView:nil];
     NSEvent *e = [NSEvent mouseEventWithType:NSEventTypeMouseMoved location:p modifierFlags:0 timestamp:uptime()
                                 windowNumber:web.window.windowNumber context:nil eventNumber:0 clickCount:0 pressure:0];
-    [web mouseMoved:e];
+    sendMouseMoved(web, e);
   });
   return NULL;
 }
@@ -1255,6 +1265,15 @@ static napi_value WebkitRemoveStore(napi_env env, napi_callback_info info) {
 // webkitSelfTest(script, keys, callback(error|null, json)): a detached WKWebView in a window that is never shown, on a
 // secure origin (https://example.com, no network), with a recorder for key events. Sends `keys` through the same NSEvent
 // path as webkitSendKey, then runs `script` (an expression, a promise is awaited). Nothing visible, nothing persistent.
+// Selftest only: a detached window that reports itself as the key window.
+@interface CouchKeyableWindow : NSWindow
+@end
+@implementation CouchKeyableWindow
+// WebKit only dispatches a hover move (a trusted mousemove) to an active window; a window that is never shown is not key, so say it is.
+- (BOOL)isKeyWindow { return YES; }
+- (BOOL)canBecomeKeyWindow { return YES; }
+@end
+
 static napi_value WebkitSelfTest(napi_env env, napi_callback_info info) {
   size_t argc = 3; napi_value argv[3];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
@@ -1271,13 +1290,13 @@ static napi_value WebkitSelfTest(napi_env env, napi_callback_info info) {
   onMain(^{
     if (@available(macOS 14.0, *)) {
       CouchWebKit *wk = newWebKit(nil, safariUserAgent().c_str() ? [NSString stringWithUTF8String:safariUserAgent().c_str()] : nil);
-      NSWindow *w = [[NSWindow alloc] initWithContentRect:NSMakeRect(-20000, -20000, 1280, 720) styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:NO];
+      NSWindow *w = [[CouchKeyableWindow alloc] initWithContentRect:NSMakeRect(-20000, -20000, 1280, 720) styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:NO];
       w.releasedWhenClosed = NO;
       [w.contentView addSubview:wk.web];
       static NSMutableArray *keepAlive = [NSMutableArray new];
       [keepAlive addObject:wk]; [keepAlive addObject:w];
       wk.offscreen = w;
-      NSString *html = @"<!doctype html><title>t</title><script>window.__keys=[];addEventListener('keydown',function(e){window.__keys.push(e.type+':'+e.key)});addEventListener('keyup',function(e){window.__keys.push(e.type+':'+e.key)});['mousemove','mousedown','mouseup','click','wheel'].forEach(function(n){addEventListener(n,function(e){window.__keys.push(n+':'+(e.isTrusted?'trusted':'untrusted'))},true)});</script><body>x</body>";
+      NSString *html = @"<!doctype html><title>t</title><script>window.__keys=[];addEventListener('keydown',function(e){window.__keys.push(e.type+':'+e.key)});addEventListener('keyup',function(e){window.__keys.push(e.type+':'+e.key)});['mousemove','mousedown','mouseup','click','wheel'].forEach(function(n){addEventListener(n,function(e){window.__keys.push(n+':'+(e.isTrusted?'trusted':'untrusted'));if(n=='mousemove')(window.__moves=window.__moves||[]).push([e.clientX,e.clientY])},true)});</script><body>x</body>";
       wk.events = NULL;
       __block NSString *scriptCopy = script;
       __weak CouchWebKit *weak = wk;
@@ -1285,6 +1304,7 @@ static napi_value WebkitSelfTest(napi_env env, napi_callback_info info) {
       dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         CouchWebKit *wk2 = weak;
         if (!wk2) return reply(@"gone", @"[null]");
+        [[NSNotificationCenter defaultCenter] postNotificationName:NSWindowDidBecomeKeyNotification object:wk2.offscreen];
         [wk2.offscreen makeFirstResponder:wk2.web];
         for (auto &k : keys) {
           // "replay:<keyCode>:<characters>:<flags>" goes through the same path as a Mac key the host hands to the page.
@@ -1304,10 +1324,14 @@ static napi_value WebkitSelfTest(napi_env env, napi_callback_info info) {
             wk2.offscreen.acceptsMouseMovedEvents = YES;
             NSInteger num = wk2.offscreen.windowNumber;
             auto mouse = ^NSEvent *(NSEventType t) { return [NSEvent mouseEventWithType:t location:at modifierFlags:0 timestamp:[NSProcessInfo processInfo].systemUptime windowNumber:num context:nil eventNumber:0 clickCount:1 pressure:1]; };
-            [wk2.web mouseMoved:mouse(NSEventTypeMouseMoved)];
+            sendMouseMoved(wk2.web, mouse(NSEventTypeMouseMoved));
             at.x += 5; at.y += 5;
-            [wk2.web mouseMoved:mouse(NSEventTypeMouseMoved)];
+            sendMouseMoved(wk2.web, mouse(NSEventTypeMouseMoved));
             at.x -= 5; at.y -= 5;
+            for (int i = 1; i <= 5; i++) dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.05 * i * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+              NSPoint q = NSMakePoint(at.x + 20 * i, at.y + 20 * i);
+              sendMouseMoved(wk2.web, [NSEvent mouseEventWithType:NSEventTypeMouseMoved location:q modifierFlags:0 timestamp:[NSProcessInfo processInfo].systemUptime windowNumber:num context:nil eventNumber:0 clickCount:0 pressure:0]);
+            });
             [wk2.web mouseDown:mouse(NSEventTypeLeftMouseDown)];
             [wk2.web mouseUp:mouse(NSEventTypeLeftMouseUp)];
             CGEventRef cg = CGEventCreateScrollWheelEvent(NULL, kCGScrollEventUnitLine, 1, -3);
@@ -1319,7 +1343,7 @@ static napi_value WebkitSelfTest(napi_env env, napi_callback_info info) {
           }
           sendKeyEvent(wk2.web, k, true); sendKeyEvent(wk2.web, k, false);
         }
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
           [wk2 evaluate:scriptCopy isBody:NO world:WKContentWorld.pageWorld done:reply];
         });
       });

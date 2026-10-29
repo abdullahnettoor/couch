@@ -5,6 +5,8 @@ import { app } from "electron";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import {
+  SELF_TEST_EXPECTED_EVENTS,
+  SELF_TEST_EXPECTED_MOVE,
   SELF_TEST_KEYS,
   SELF_TEST_SCRIPT,
   summarizeSelfTest,
@@ -21,9 +23,19 @@ void app.whenReady().then(async () => {
   try {
     const raw = await webkitSelfTest(SELF_TEST_SCRIPT, SELF_TEST_KEYS, () => addon);
     console.log(`SELFTEST raw=${JSON.stringify(raw)}`);
-    console.log(`SELFTEST summary=${JSON.stringify(summarizeSelfTest(raw))}`);
+    const summary = summarizeSelfTest(raw);
+    console.log(`SELFTEST summary=${JSON.stringify(summary)}`);
+    const missing: string[] = SELF_TEST_EXPECTED_EVENTS.filter((e) => !summary.keys.includes(e));
+    if (
+      !summary.moves.some(
+        (m) => m[0] === SELF_TEST_EXPECTED_MOVE[0] && m[1] === SELF_TEST_EXPECTED_MOVE[1],
+      )
+    ) {
+      missing.push(`mousemove at ${SELF_TEST_EXPECTED_MOVE.join(",")}`);
+    }
+    if (missing.length > 0) console.log(`SELFTEST missing ${missing.join(", ")}`);
     clearTimeout(timeout);
-    app.exit(0);
+    app.exit(missing.length > 0 ? 1 : 0);
   } catch (error) {
     console.log(`SELFTEST error ${String(error)}`);
     app.exit(1);

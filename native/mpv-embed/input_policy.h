@@ -177,7 +177,11 @@ class PointerOwner {
         host_.deliver(kind, button);
         return Route::View;
       case Kind::Drag:
-        if (!(pressed_ & bit)) return Route::Chromium;
+        if (!(pressed_ & bit)) {
+          if (!(routing && inside)) return Route::Chromium;
+          host_.deliver(Kind::Move, button);
+          return Route::ViewAndChromium;
+        }
         host_.deliver(kind, button);
         return Route::View;
       case Kind::Up:

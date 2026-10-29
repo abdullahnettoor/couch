@@ -33,6 +33,8 @@ describe("Netflix home", () => {
     ["account page", "https://www.netflix.com/youraccount"],
     ["title page", "https://www.netflix.com/title/80100172"],
     ["my list", "https://www.netflix.com/browse/my-list"],
+    ["Help Centre, whose /en/ is a language, not a country", "https://help.netflix.com/en/"],
+    ["a Help Centre article", "https://help.netflix.com/en/node/412"],
     ["new and popular", "https://www.netflix.com/latest"],
   ])("%s is not home", (_n, url) => expect(home(url)).toBe(false));
 });
