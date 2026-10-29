@@ -37,6 +37,9 @@ The App that shows Netflix's own website inside the Screen, driven from the Remo
 **Engine**:
 What a Web App's page runs on: WebKit (FairPlay) or Chromium (Widevine); the household chooses it per App in Settings → Apps → Playback.
 
+**Welcome**:
+The one question Couch asks the first time Netflix opens on WebKit, before its page loads: copy the sign-in from Couch, sign in on Netflix, or keep using Chromium; Back means sign in on Netflix, and it is never asked again.
+
 **YouTube**:
 The App that presents YouTube's TV experience inside the Screen, looking and behaving like the YouTube app on a smart TV.
 _Avoid_: YouTube TV (the paid live-TV product), Leanback
