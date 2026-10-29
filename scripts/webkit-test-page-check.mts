@@ -104,6 +104,24 @@ void app.whenReady().then(async () => {
         `(function(){var e=document.getElementById(${JSON.stringify(id)});return e?e.textContent:null})()`,
         { kind: "expression" },
       );
+    const eval_ = (code: string) => view!.evaluate(code, { kind: "expression" });
+    check(
+      (await eval_(`getComputedStyle(document.documentElement).scrollbarWidth`)) === "none",
+      "hideScrollbars: the page's scrollbars are hidden",
+    );
+    check(
+      (await eval_(`typeof window.couchHost`)) === "object" &&
+        (await eval_(`document.documentElement.dataset.pageSawHost`)) === "undefined",
+      "couchHost exists for Couch's scripts and not for the page's own",
+    );
+    check(
+      playbacks().some((p) => p.title === "Test Pattern"),
+      "the page's MediaSession title is read by Couch's probe from the couch world",
+    );
+    check(
+      (await eval_(`new KeyboardEvent("keydown", { key: "Escape", keyCode: 27 }).keyCode`)) === 27,
+      "a keyCode given to a synthetic KeyboardEvent is kept (Netflix's menus close that way)",
+    );
     check((await dom("couch-note")) !== null, "the first-show note is drawn in the page");
     host.showSearchBar("hello");
     await sleep(300);
@@ -134,6 +152,22 @@ void app.whenReady().then(async () => {
       position() > p1 && last?.paused === false,
       "the clip is still playing after every overlay came and went",
     );
+    const clicks = async () => Number(await eval_(`document.documentElement.dataset.clicks`));
+    host.sendKey("ok");
+    await sleep(400);
+    check((await clicks()) === 1, "OK clicks the control Couch's focus ring is on");
+    check(
+      (await eval_(`sessionStorage.getItem("couchNfArt") !== null`)) === true,
+      "the box-art recorder (page world) ran on that click and its storage is readable from Couch's world",
+    );
+    await eval_(`document.documentElement.dataset.takeEnter = "1"`);
+    host.sendKey("ok");
+    await sleep(400);
+    check(
+      (await clicks()) === 1,
+      "a key the page handles itself (preventDefault in its own handler) is not also taken by Couch's ring",
+    );
+    await eval_(`delete document.documentElement.dataset.takeEnter`);
     host.hide();
     await sleep(500);
     const paused = await view!.evaluate(

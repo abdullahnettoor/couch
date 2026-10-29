@@ -59,4 +59,21 @@ describe("pointer wake", () => {
     vm.runInContext(`delete window.webkit; (${WAKE_POINTER_SOURCE})(4)`, sandbox);
     expect(posted).toHaveLength(1);
   });
+
+  test("through couchHost.send when the host provides it", () => {
+    const posted: unknown[] = [];
+    const real: any = { id: "player", dispatchEvent: () => true };
+    const sandbox: any = {
+      innerWidth: 1000,
+      innerHeight: 800,
+      document: { body: real, elementFromPoint: () => real },
+      MouseEvent: class {},
+      couchHost: { send: (m: unknown) => posted.push(m) },
+    };
+    sandbox.window = sandbox;
+    vm.createContext(sandbox);
+    vm.runInContext(`(${WAKE_POINTER_SOURCE})(3)`, sandbox);
+    expect(posted).toEqual([{ type: "wake-pointer", x: 521, y: 415 }]);
+    expect(sandbox.__couchWake).toMatchObject({ x: 521, y: 415 });
+  });
 });

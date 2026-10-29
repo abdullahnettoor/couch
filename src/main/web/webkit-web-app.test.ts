@@ -24,7 +24,7 @@ import { soundScript } from "./web-sound.ts";
 import { noteScript, searchBarScript } from "./web-hud.ts";
 import { testPageDescription } from "./webkit-test-page.ts";
 import { webkitStoreId } from "./webkit-stores.ts";
-import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
+import { KEY_CLAIM_ATTRIBUTE, KEY_CLAIM_FUNCTION, PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import { WebKitWebApp, type WebKitHostWindow } from "./webkit-web-app.ts";
 import { WEBKIT_KEY_NAMES } from "./webkit-bridge.ts";
 import { CursorHider } from "../cursor-hider.ts";
@@ -1460,5 +1460,86 @@ describe("input", () => {
       web.setOverlay(false);
       expect(view().focused).toBe(before);
     });
+  });
+});
+
+describe("page parity with the Chromium host (ticket 113)", () => {
+  const post = (view: FakeView, body: unknown, frame: WebKitFrame = MAIN) =>
+    view.emit({ type: "message", name: "couch", body, frame });
+  const couchScripts = (view: FakeView) =>
+    view.scripts.filter((_s, i) => view.worlds[i] === "couch").join("\n");
+
+  test("a real mouse press on the page counts as the household's input (so a speed they pick sticks)", () => {
+    const { web, view } = make();
+    web.show();
+    events.length = 0;
+    post(view(), { type: "input" });
+    expect(events).toEqual([{ type: "input" }]);
+  });
+
+  test("a mouse press is not input while Couch captures typed text, nor when hidden, nor from another frame or origin", () => {
+    const { web, view } = make();
+    web.show();
+    events.length = 0;
+    web.captureText(true);
+    post(view(), { type: "input" });
+    web.captureText(false);
+    post(view(), { type: "input" }, { isMainFrame: false, origin: MAIN.origin });
+    post(view(), { type: "input" }, { isMainFrame: true, origin: "https://evil.example" });
+    post(view(), { type: "input", extra: 1 });
+    web.hide();
+    events.length = 0;
+    post(view(), { type: "input" });
+    expect(events.filter((e) => e.type === "input")).toEqual([]);
+  });
+
+  test("Couch's scripts reach the host through one host-neutral couchHost.send, in the couch world only", () => {
+    const { web, view } = make();
+    web.show();
+    expect(couchScripts(view())).toContain("couchHost");
+    const page = view()
+      .scripts.filter((_s, i) => view().worlds[i] === "page")
+      .join("\n");
+    expect(page).not.toContain("couchHost");
+  });
+
+  test("the page world carries the small note of keys the page takes, which Couch's focus reads; Couch's world does not", () => {
+    const { web, view } = make();
+    web.show();
+    const page = view()
+      .scripts.filter((_s, i) => view().worlds[i] === "page")
+      .join("\n");
+    expect(page).toContain(KEY_CLAIM_FUNCTION);
+    expect(couchScripts(view())).not.toContain(KEY_CLAIM_FUNCTION);
+    expect(couchScripts(view())).toContain(KEY_CLAIM_ATTRIBUTE);
+  });
+
+  test("the page's mouse presses are reported only when real (trusted)", () => {
+    const { web, view } = make();
+    web.show();
+    expect(couchScripts(view())).toMatch(/mousedown[\s\S]*isTrusted/);
+  });
+
+  test("hideScrollbars: the App's scrollbars are hidden by a script that runs at document start", () => {
+    const { web, view } = make();
+    web.show();
+    expect(netflix.hideScrollbars).toBe(true);
+    expect(couchScripts(view())).toContain("scrollbar-width");
+  });
+
+  test("an App that does not ask for hidden scrollbars gets none", () => {
+    views.length = 0;
+    const web = new WebKitWebApp(
+      { ...netflix, hideScrollbars: false },
+      bridge,
+      {
+        getContentBounds: () => ({ width: 1280, height: 720 }),
+        onResize() {},
+        reveal: async () => {},
+      },
+      STORE,
+    );
+    web.show();
+    expect(couchScripts(views.at(-1)!)).not.toContain("scrollbar-width");
   });
 });

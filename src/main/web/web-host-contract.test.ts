@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { beforeEach, expect, vi } from "vite-plus/test";
 
@@ -53,7 +54,9 @@ const fake = vi.hoisted(() => {
     }
     setUserAgent() {}
     setAudioMuted() {}
-    async insertCSS() {
+    css: string[] = [];
+    async insertCSS(css: string) {
+      this.css.push(css);
       return "key";
     }
     focus() {}
@@ -61,7 +64,8 @@ const fake = vi.hoisted(() => {
     reload() {}
   }
   const views: FakeContents[] = [];
-  return { FakeContents, views };
+  const preloadFiles: string[] = [];
+  return { FakeContents, views, preloadFiles };
 });
 
 vi.mock("electron", () => {
@@ -78,7 +82,10 @@ vi.mock("electron", () => {
     setPermissionRequestHandler() {},
     setPermissionCheckHandler() {},
     webRequest: { onBeforeRequest() {}, onBeforeSendHeaders() {} },
-    registerPreloadScript: () => "id",
+    registerPreloadScript: (script: { filePath: string }) => {
+      fake.preloadFiles.push(script.filePath);
+      return "id";
+    },
     unregisterPreloadScript() {},
   };
   return {
@@ -137,6 +144,9 @@ function electronRig(): HostRig {
       ];
       contents.active = 1;
     },
+    installed: () => readFileSync(fake.preloadFiles.at(-1)!, "utf8"),
+    hidesScrollbars: () => contents.css.some((c) => c.includes("scrollbar-width")),
+    pageMouseDown: () => contents.emit("before-mouse-event", {}, { type: "mouseDown" }),
   };
 }
 
@@ -157,7 +167,10 @@ class FakeWebKitView implements WebKitView {
     for (const [part, answer] of this.answers) if (script.includes(part)) return answer;
     return undefined;
   }
-  addUserScript() {}
+  userScripts: string[] = [];
+  addUserScript(source: string) {
+    this.userScripts.push(source);
+  }
   setUserScript() {}
   addMessageHandler() {}
   setFrame() {}
@@ -212,6 +225,17 @@ function webkitRig(): HostRig {
         l({ type: "loaded", url: "https://www.netflix.com/browse" });
     },
     allowHistoryBack: () => {},
+    installed: () => view.userScripts.join("\n"),
+    hidesScrollbars: () => view.userScripts.some((c) => c.includes("scrollbar-width")),
+    pageMouseDown: () => {
+      for (const l of Array.from(view.listeners))
+        l({
+          type: "message",
+          name: "couch",
+          body: { type: "input" },
+          frame: { isMainFrame: true, origin: "https://www.netflix.com" },
+        });
+    },
   };
 }
 

@@ -5,7 +5,7 @@ import { hiddenScript } from "./hidden-audio.ts";
 import { pageFocusFunction } from "./page-focus.ts";
 import type { KeyGate } from "./keyboard-policy.ts";
 import { WebKitKeyboard } from "./webkit-keyboard.ts";
-import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
+import { KEY_CLAIM_FUNCTION, PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import type { IdleLifecycle } from "./idle-unload.ts";
 import type { WebAppDescription } from "./web-app.ts";
 import type {
@@ -17,13 +17,15 @@ import type {
   WebKitStore,
   WebKitView,
 } from "./webkit-bridge.ts";
-import { parsePageMessage } from "./webkit-messages.ts";
+import { MESSAGE_HANDLER_NAME, parsePageMessage } from "./webkit-messages.ts";
+import { COUCH_HOST_WEBKIT, MOUSE_INPUT_REPORTER } from "./couch-host.ts";
+import { HIDE_SCROLLBARS_SCRIPT } from "./hide-scrollbars.ts";
 import { CONFIRM_MESSAGE, noteScript } from "./web-hud.ts";
 import { POLL_MS, WebHostCore } from "./web-host-core.ts";
 import { soundScript } from "./web-sound.ts";
 
 /** The one script message handler Couch's own scripts (in the `couch` content world) talk to the host through. */
-export const MESSAGE_HANDLER = "couch";
+export const MESSAGE_HANDLER = MESSAGE_HANDLER_NAME;
 
 /** What the host needs of Couch's Screen window. */
 export interface WebKitHostWindow {
@@ -43,17 +45,16 @@ export function userScriptSource(funcs: string[]): string {
 }
 
 /**
- * WebKit has no console-message event: Couch's own `console.debug("couch:...")` signals (the
- * confirmation's buttons) are forwarded to the message handler instead. It runs in the `couch` world,
- * where Couch's scripts are, so Netflix's own scripts can neither call nor spoof it.
+ * WebKit has no console-message event: Couch's own `console.debug("couch:...")` signals (the confirmation's buttons,
+ * a field taking focus) are forwarded through `couchHost.send`. It runs in the `couch` world, where Couch's scripts are,
+ * so Netflix's own scripts can neither call nor spoof it.
  */
 const CONSOLE_FORWARD = `function () {
-  var h = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.${MESSAGE_HANDLER};
-  if (!h || console.__couchForward) return;
+  if (!window.couchHost || console.__couchForward) return;
   console.__couchForward = true;
   var debug = console.debug;
   console.debug = function (m) {
-    try { if (typeof m === "string" && m.indexOf("couch:") === 0) h.postMessage({ type: "console", message: m }); } catch (e) {}
+    try { if (typeof m === "string" && m.indexOf("couch:") === 0) window.couchHost.send({ type: "console", message: m }); } catch (e) {}
     return debug.apply(console, arguments);
   };
 }`;
@@ -62,12 +63,11 @@ const CONSOLE_FORWARD = `function () {
 function routeReporter(routeScript: string): string {
   return `function () {
   if (window.top !== window) return;
-  var h = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.${MESSAGE_HANDLER};
-  if (!h) return;
+  if (!window.couchHost) return;
   function report() {
     var page = null;
     try { page = (${routeScript}); } catch (e) {}
-    try { h.postMessage({ type: "route", url: location.href, page: page }); } catch (e) {}
+    try { window.couchHost.send({ type: "route", url: location.href, page: page }); } catch (e) {}
   }
   setInterval(report, ${POLL_MS});
   addEventListener("popstate", report);
@@ -162,12 +162,19 @@ export class WebKitWebApp implements YouTube {
     view.addMessageHandler(MESSAGE_HANDLER);
     const desc = this.#desc;
     view.addUserScript(
-      userScriptSource([PAGE_HOOKS_FUNCTION, ...desc.preloads.map((p) => p.func)]),
+      userScriptSource([
+        PAGE_HOOKS_FUNCTION,
+        KEY_CLAIM_FUNCTION,
+        ...desc.preloads.map((p) => p.func),
+      ]),
       "page",
     );
     view.addUserScript(
       userScriptSource([
+        COUCH_HOST_WEBKIT,
         CONSOLE_FORWARD,
+        MOUSE_INPUT_REPORTER,
+        ...(desc.hideScrollbars ? [HIDE_SCROLLBARS_SCRIPT] : []),
         ...(desc.focus ? [pageFocusFunction(desc.focus.selectors, desc.focus.layout)] : []),
         routeReporter(desc.route.script),
       ]),
@@ -206,6 +213,9 @@ export class WebKitWebApp implements YouTube {
     switch (event.type) {
       case "loaded":
         if (this.#failed || !this.#isOwnPage(event.url)) return;
+        // Where the page is comes first, so a "loaded" screen never shows over a stale route.
+        this.#url = event.url;
+        this.#core.syncRoute(event.url);
         this.#emit({ type: "loaded" });
         this.#loaded = true;
         if (!this.#visible) this.#run(hiddenScript(true));
@@ -252,6 +262,8 @@ export class WebKitWebApp implements YouTube {
       this.#core.navigated(message.url);
     } else if (message?.type === "console") {
       this.#onConsole(message.message);
+    } else if (message?.type === "input") {
+      if (this.#visible && !this.#capturing) this.#emit({ type: "input" });
     } else if (message?.type === "wake-pointer" && this.#visible) {
       this.#view?.wakePointer(message.x, message.y);
     }

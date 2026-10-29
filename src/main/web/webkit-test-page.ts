@@ -48,7 +48,19 @@ const WATCH = "/watch/1";
 export function testPageHtml(): string {
   return `<!doctype html><meta charset="utf-8"><title>Couch test page</title>
 <style>html,body{margin:0;height:100%;background:#102a43;overflow:hidden}video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover}</style>
-<video src="${CLIP}" autoplay muted loop playsinline></video>`;
+<video src="${CLIP}" autoplay muted loop playsinline></video>
+<button id="b1" style="position:fixed;left:40px;top:40px;width:200px;height:60px">One</button>
+<script>
+var root = document.documentElement;
+root.dataset.pageSawHost = typeof window.couchHost;
+root.dataset.clicks = "0";
+try { navigator.mediaSession.metadata = new MediaMetadata({ title: "Test Pattern" }); } catch (e) {}
+document.getElementById("b1").addEventListener("click", function () { root.dataset.clicks = String(+root.dataset.clicks + 1); });
+// A page handler registered after Couch's own: when told to (through the DOM), it takes Enter for itself, as a site's own key handling would.
+addEventListener("DOMContentLoaded", function () {
+  addEventListener("keydown", function (e) { if (root.dataset.takeEnter && e.key === "Enter") e.preventDefault(); });
+});
+</script>`;
 }
 
 /** One `bytes=a-b`, `bytes=a-` or `bytes=-n` range, clamped to the file; undefined when it can't be served. */

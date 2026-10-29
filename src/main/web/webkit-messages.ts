@@ -1,12 +1,17 @@
 import { FIELD_BLURRED, FIELD_FOCUSED } from "./page-focus.ts";
 import { CONFIRM_MESSAGE } from "./web-hud.ts";
 
+/** The name of the script message handler Couch's scripts post to (`window.webkit.messageHandlers[name]`). */
+export const MESSAGE_HANDLER_NAME = "couch";
+
 /** The only messages Couch's own scripts post through the `couch` message handler. */
 export type PageMessage =
   | { type: "route"; url: string; page: Record<string, string | number | boolean | null> | null }
   | { type: "console"; message: string }
   /** Couch's own wake of a player's bar: a real mouse-moved event at this point (client coordinates). */
-  | { type: "wake-pointer"; x: number; y: number };
+  | { type: "wake-pointer"; x: number; y: number }
+  /** A real mouse press on the page: the household used the App's own controls. */
+  | { type: "input" };
 
 const MAX_URL = 4096;
 const MAX_CONSOLE = 64;
@@ -50,6 +55,9 @@ export function parsePageMessage(body: unknown): PageMessage | undefined {
     )
       return undefined;
     return { type: "console", message: m.message };
+  }
+  if (m.type === "input") {
+    return hasOnly(m, ["type"]) ? { type: "input" } : undefined;
   }
   if (m.type === "wake-pointer") {
     if (!hasOnly(m, ["type", "x", "y"])) return undefined;

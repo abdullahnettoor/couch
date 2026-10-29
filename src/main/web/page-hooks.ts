@@ -160,3 +160,34 @@ export const PAGE_HOOKS_FUNCTION = `function () {
     });
   } catch (e) {}
 }`;
+
+/** The attribute (on the root element) the key claim below leaves; the DOM is the one thing both content worlds share. */
+export const KEY_CLAIM_ATTRIBUTE = "data-couch-claim";
+
+/**
+ * A page-world function for a native view whose Couch scripts live in an isolated world. Couch's focus must know
+ * whether the page took a key for itself (called `preventDefault` on a keydown), but an isolated world has its own
+ * wrapper of every event, so it cannot see the page's call. This notes the claim on the root element, as the
+ * event's `timeStamp`, where Couch's world can read it. It does nothing else, and keeps `preventDefault`'s name and look.
+ */
+export const KEY_CLAIM_FUNCTION = `function () {
+  try {
+    var proto = Event.prototype;
+    var original = proto.preventDefault;
+    if (typeof original !== 'function' || original.__couchClaim) return;
+    var wrapper = function preventDefault() {
+      try {
+        if (this && this.type === 'keydown' && document.documentElement) {
+          document.documentElement.setAttribute(${JSON.stringify(KEY_CLAIM_ATTRIBUTE)}, String(this.timeStamp));
+        }
+      } catch (e) {}
+      return original.apply(this, arguments);
+    };
+    try { Object.defineProperty(wrapper, 'length', { value: original.length, configurable: true }); } catch (e) {}
+    var nativeToString = Function.prototype.toString;
+    var spoof = function toString() { return this === wrapper ? nativeToString.call(original) : nativeToString.call(this); };
+    try { Object.defineProperty(Function.prototype, 'toString', { value: spoof, configurable: true, writable: true }); } catch (e) {}
+    wrapper.__couchClaim = true;
+    Object.defineProperty(proto, 'preventDefault', { value: wrapper, configurable: true, writable: true });
+  } catch (e) {}
+}`;

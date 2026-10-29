@@ -26,6 +26,12 @@ export interface HostRig {
   loaded(): void;
   /** Back by history has somewhere to go. */
   allowHistoryBack(): void;
+  /** Everything the host has the engine run before the page's own scripts, in every world (preloads, user scripts). */
+  installed(): string;
+  /** Whether the host hides the page's scrollbars (a user style, or a script that adds one). */
+  hidesScrollbars(): boolean;
+  /** The household presses the mouse on the page itself. */
+  pageMouseDown(): void;
 }
 
 export const contractDescription = netflixDescription("130.0.0.0");
@@ -135,6 +141,112 @@ export function describeWebHostContract(name: string, makeRig: () => HostRig): v
       });
     });
 
+    describe("Now Playing: prompts, tracks, speed, artwork", () => {
+      const report = {
+        position: 30,
+        duration: 3000,
+        paused: false,
+        title: "Test Pattern",
+        speed: 1.5,
+        prompt: { id: "skipIntro", label: "Skip Intro" },
+        tracks: {
+          subtitles: [{ id: "s1", label: "English", on: true }],
+          audio: [{ id: "a1", label: "English", on: true }],
+          speed: 1.5,
+          speeds: [0.5, 1, 1.5, 2],
+          canSeek: true,
+        },
+        artwork: "https://occ-0-1.nflximg.net/box.jpg",
+      };
+      const reported = async (answer: unknown) => {
+        vi.useFakeTimers();
+        try {
+          const rig = makeRig();
+          await rig.show();
+          rig.answer('querySelectorAll("video")', answer);
+          await vi.advanceTimersByTimeAsync(500);
+          return rig.events.flatMap((e) =>
+            e.type === "playback" && e.playback ? [e.playback] : [],
+          );
+        } finally {
+          vi.useRealTimers();
+        }
+      };
+
+      test("a prompt the page shows (Skip Intro) is reported with its label", async () => {
+        expect((await reported(report)).at(-1)?.prompt).toEqual({
+          id: "skipIntro",
+          label: "Skip Intro",
+        });
+      });
+
+      test("subtitle and audio tracks, the speeds on offer and the speed in use are reported, and seeking is allowed", async () => {
+        const last = (await reported(report)).at(-1)!;
+        expect(last.tracks).toEqual({
+          subtitles: report.tracks.subtitles,
+          audio: report.tracks.audio,
+        });
+        expect(last.speeds).toEqual([0.5, 1, 1.5, 2]);
+        expect(last.speed).toBe(1.5);
+        expect(last.canSeek).toBe(true);
+      });
+
+      test("artwork from the App's own hosts is reported; from anywhere else it is dropped", async () => {
+        expect((await reported(report)).at(-1)?.artwork).toBe(report.artwork);
+        const other = { ...report, artwork: "https://evil.example/pixel.jpg" };
+        expect((await reported(other)).at(-1)?.artwork).toBeUndefined();
+        const plain = { ...report, artwork: "http://occ-0-1.nflximg.net/box.jpg" };
+        expect((await reported(plain)).at(-1)?.artwork).toBeUndefined();
+      });
+
+      test("a page that is not playing (a home preview) reports nothing", async () => {
+        expect(await reported(undefined)).toEqual([]);
+      });
+    });
+
+    describe("page scripts and the host bridge", () => {
+      test("the App's own preload (Netflix's box-art recorder) runs before the page's scripts", async () => {
+        const rig = makeRig();
+        await rig.show();
+        for (const p of netflix.preloads) expect(rig.installed()).toContain(p.func);
+      });
+
+      test("Couch's focus runs in the page with the App's layout (rows, Play-first pop-up, the player bar)", async () => {
+        const rig = makeRig();
+        await rig.show();
+        const installed = rig.installed();
+        expect(installed).toContain("__couchFocus");
+        expect(installed).toContain(JSON.stringify(netflix.focus!.layout));
+      });
+
+      test("Couch's scripts get couchHost.send, and a page hook layer exists", async () => {
+        const rig = makeRig();
+        await rig.show();
+        expect(rig.installed()).toContain("couchHost");
+        expect(rig.installed()).toContain("couchHooks");
+      });
+
+      test("hideScrollbars: the host hides the page's scrollbars", async () => {
+        const rig = makeRig();
+        await rig.show();
+        rig.loaded();
+        expect(netflix.hideScrollbars).toBe(true);
+        expect(rig.hidesScrollbars()).toBe(true);
+      });
+
+      test("a mouse press on the page is the household's input; one while Couch captures typing is not", async () => {
+        const rig = makeRig();
+        await rig.show();
+        rig.events.length = 0;
+        rig.pageMouseDown();
+        expect(rig.events).toEqual([{ type: "input" }]);
+        rig.host.captureText(true);
+        rig.events.length = 0;
+        rig.pageMouseDown();
+        expect(rig.events).toEqual([]);
+      });
+    });
+
     describe("sound", () => {
       const lastSound = (rig: HostRig) =>
         rig
@@ -217,6 +329,14 @@ export function describeWebHostContract(name: string, makeRig: () => HostRig): v
         rig.allowHistoryBack();
         rig.host.sendKey("back");
         await vi.waitFor(() => expect(rig.scripts().at(-1)).toBe("history.back()"));
+      });
+
+      test("a finished load reports where the page is, even before any navigation event", async () => {
+        const rig = makeRig();
+        await rig.show();
+        rig.loaded();
+        expect(rig.events).toContainEqual(expect.objectContaining({ type: "route", home: true }));
+        expect(rig.events).toContainEqual({ type: "loaded" });
       });
 
       test("the browse page is home, a title's player is not", async () => {

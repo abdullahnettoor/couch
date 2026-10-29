@@ -1,3 +1,4 @@
+import { KEY_CLAIM_ATTRIBUTE } from "./page-hooks.ts";
 import { SHIELD_ID, WAKE_POINTER_SOURCE } from "./pointer-wake.ts";
 
 export interface Box {
@@ -431,6 +432,8 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     var layers = [], displaced = null, displacedKey = null, heldKey = null;
     // The control to give the highlight back to once the page has redrawn it (a pop-up just closed and it is not there yet).
     var pending = null;
+    // The control held when the page replaced it (its node left the page): looked for again, by the key it was held under, for a moment before the ring falls back to the middle.
+    var lost = null;
     // The pop-up's own first choice (layout.modalEntry): the first usable match of the first selector that has one.
     var entryControl = function (modal) {
       try {
@@ -445,10 +448,13 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     var ensure = function () {
       try {
         if (barOn) { barTick(); if (barOn) return; }
-        if (noRing()) { current = null; draw(); return; }
+        if (noRing()) { current = null; lost = null; draw(); return; }
         var modal = scopeEl();
         var top = layers.length ? layers[layers.length - 1].modal : null;
+        var layersChanged = false;
         if (modal !== top || layers.some(function (l) { return !shown(l.modal); })) {
+          layersChanged = true;
+          lost = null;
           // Modals closed: go back to what was held when the lowest of them opened, if it is still there.
           var restore = null, kept = [];
           for (var n = 0; n < layers.length; n++) {
@@ -487,8 +493,19 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         }
         if (current && usable(current)) { draw(); return; }
         if (current && current.isConnected && !displaced) { displaced = current; displacedKey = heldKey; }
+        if (current && !current.isConnected && !lost && heldKey && !layersChanged) {
+          var gone = { key: heldKey, expired: false };
+          lost = gone;
+          setTimeout(function () { if (lost === gone) { gone.expired = true; ensure(); } }, 1000);
+        }
         current = null;
         if (pending && pending.key.id) { draw(); return; }
+        if (lost) {
+          var again = refind(lost.key, lost.expired || !lost.key.id);
+          if (again) { current = again; heldKey = keyOf(again); lost = null; draw(); return; }
+          if (!lost.expired) { draw(); return; }
+          lost = null;
+        }
         var list = candidates();
         if (list.length) {
           var i = pick(null, list.map(function (c) { return c.rect; }), 'down', view());
@@ -676,6 +693,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       if (editable(active) && active.blur) active.blur();
       current = list[i].el;
       heldKey = keyOf(current);
+      lost = null;
       displaced = null;
       pending = null;
       if (layers.length) layers[layers.length - 1].entering = false;
@@ -686,6 +704,10 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       if (dir) return move(dir);
       if (!current || !usable(current)) { current = null; ensure(); return; }
       if (editable(current)) current.focus(); else current.click();
+    };
+    // Under a native view this script lives in an isolated world and cannot see the page's own preventDefault; the page world leaves the event's time on the root element instead.
+    var claimed = function (e) {
+      try { return document.documentElement.getAttribute(${JSON.stringify(KEY_CLAIM_ATTRIBUTE)}) === String(e.timeStamp); } catch (err) { return false; }
     };
     var onKey = function (e) {
       try {
@@ -702,7 +724,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         e.preventDefault = function () { pagePrevented = true; return original.apply(this, arguments); };
         original.call(e);
         setTimeout(function () {
-          try { if (!pagePrevented) act(e.key, dir); } catch (err) {}
+          try { if (!pagePrevented && !claimed(e)) act(e.key, dir); } catch (err) {}
         }, 0);
       } catch (err) {}
     };
@@ -712,7 +734,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
           // A modal opening or closing changes only the query (/browse to /browse?jbv=): the page is the same. Another path is a new page.
           var moved = pathOf(href()) !== pathOf(lastHref);
           lastHref = href();
-          if (moved) { current = null; layers = []; displaced = null; }
+          if (moved) { current = null; layers = []; displaced = null; lost = null; }
         }
         ensure();
       } catch (e) {}

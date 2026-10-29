@@ -120,8 +120,13 @@ function setup(
       appendChild(n: any) {
         this.children.push(n);
       },
-      setAttribute(n: string) {
+      values: new Map<string, string>(),
+      setAttribute(n: string, v = "") {
         this.attrs.add(n);
+        this.values.set(n, v);
+      },
+      getAttribute(n: string) {
+        return this.values.get(n) ?? null;
       },
       removeAttribute(n: string) {
         this.attrs.delete(n);
@@ -221,11 +226,23 @@ describe("page focus script", () => {
     key("Enter");
     expect(b.clicks).toBe(1);
   });
-  test("an element removed from the page: a replacement is picked at once", () => {
+  test("from an isolated world: a key the page took is known by the claim its world left on the root element", () => {
     const [a, b, c] = mk();
-    const { key, ring, mutate } = setup([a, b, c]);
+    const { key } = setup([a, b, c]);
+    // The page's own preventDefault is invisible here; its world notes the keydown's time instead.
+    const claim = (e: any) =>
+      doc.documentElement.setAttribute("data-couch-claim", String(e.timeStamp));
+    key("Enter", { timeStamp: 41, later: claim });
+    expect(a.clicks + b.clicks + c.clicks).toBe(0);
+    key("Enter", { timeStamp: 42 });
+    expect(b.clicks).toBe(1);
+  });
+  test("an element removed from the page with nothing to take its place: the ring waits a moment, then picks another", () => {
+    const [a, b, c] = mk();
+    const { key, ring, mutate, wait } = setup([a, b, c]);
     b.connected = false;
     mutate();
+    wait(1100);
     expect(ring.style.display).toBe("block");
     key("Enter");
     expect(b.clicks).toBe(0);
