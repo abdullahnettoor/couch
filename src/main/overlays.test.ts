@@ -187,6 +187,9 @@ class FakeWebKitView implements WebKitView {
   }
   focus() {}
   sendKey() {}
+  answerKey() {}
+  wakePointer() {}
+  setInputRouting() {}
   onEvent(l: (e: WebKitEvent) => void) {
     this.listeners.add(l);
     return () => void this.listeners.delete(l);
