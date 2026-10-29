@@ -11,8 +11,34 @@ export type EvaluateKind = "expression" | "body";
 /** A content world: Couch's own scripts run in `couch` (the page can't see them); `page` is Netflix's own world. */
 export type ScriptWorld = "couch" | "page";
 
+/**
+ * A physical key the native side saw while the view was the window's first responder, as the NSEvent says it
+ * (the host decides whether it is Couch's or the page's). `flags` is `NSEvent.modifierFlags`; `swallowed` says the
+ * native side already kept it from the view (Command keys are left alone unless the host asked to capture them).
+ */
+export interface WebKitKey {
+  down: boolean;
+  keyCode: number;
+  characters: string;
+  charactersIgnoringModifiers: string;
+  flags: number;
+  repeat: boolean;
+  swallowed: boolean;
+}
+
+/** Which real input the native side takes off Chromium's layer and gives to the view. */
+export interface WebKitInputRouting {
+  /** Physical keys are reported (`key` events) instead of reaching the view directly. */
+  keys: boolean;
+  /** Also take Command-key combinations (so ⌘V can be Couch's); off, they reach the menu and the page as usual. */
+  captureCommands: boolean;
+  /** Clicks, drags and the wheel over the view reach it, not the transparent layer above (hover goes to both). */
+  pointer: boolean;
+}
+
 /** What a native `WKWebView` reports back. */
 export type WebKitEvent =
+  | { type: "key"; key: WebKitKey }
   /** A `window.webkit.messageHandlers[name].postMessage(body)` from the page (body as JSON-compatible data). */
   | { type: "message"; name: string; body: unknown; frame: WebKitFrame }
   /** A main-frame load finished at this address. */
@@ -53,6 +79,10 @@ export interface WebKitView {
   setCookies(cookies: WebKitCookie[]): Promise<void>;
   /** Makes the view the window's first responder, so keys reach it. */
   focus(): void;
+  /** Replays a physical key the host judged to be the page's, as the same NSEvent it came in as. */
+  replayKey(key: Omit<WebKitKey, "swallowed">): void;
+  /** What real input the view takes. Off by default; the host sets it while the view is on screen. */
+  setInputRouting(routing: WebKitInputRouting): void;
   /** A native NSEvent keyDown or keyUp sent to the view (names as in a description's `keyCodes`: Up, Down, Left, Right, Return, Escape). */
   sendKey(key: string, down: boolean): void;
   onEvent(listener: (event: WebKitEvent) => void): () => void;

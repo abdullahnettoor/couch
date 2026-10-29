@@ -1,7 +1,10 @@
 import type { Confirmation, PromptId, TrackKind } from "../../shared/protocol.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
+import { FIELD_BLURRED, FIELD_FOCUSED } from "./page-focus.ts";
 import { hiddenScript } from "./hidden-audio.ts";
 import { pageFocusFunction } from "./page-focus.ts";
+import type { KeyGate } from "./electron-web-app.ts";
+import { WebKitKeyboard } from "./webkit-keyboard.ts";
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import type { IdleLifecycle } from "./idle-unload.ts";
 import type { WebAppDescription } from "./web-app.ts";
@@ -10,6 +13,7 @@ import type {
   WebKitEvent,
   WebKitCookie,
   WebKitFrame,
+  WebKitKey,
   WebKitStore,
   WebKitView,
 } from "./webkit-bridge.ts";
@@ -23,6 +27,8 @@ export const MESSAGE_HANDLER = "couch";
 
 /** What the host needs of Couch's Screen window. */
 export interface WebKitHostWindow {
+  /** The text on the clipboard, for ⌘V while Couch is capturing typed text. */
+  readClipboard?(): string | Promise<string>;
   getContentBounds(): { width: number; height: number };
   onResize(callback: () => void): void;
   /** Brings the Screen window forward; resolves once it is in front. */
@@ -94,6 +100,13 @@ export class WebKitWebApp implements YouTube {
   #loaded = false;
   /** A note asked for while the page was still loading; it is drawn when the page has loaded. */
   #pendingNote: string | undefined;
+  #keyGate: KeyGate | undefined;
+  #keyboard: WebKitKeyboard;
+  #capturing = false;
+  /** A text field in the page has focus: the Mac keyboard is its, not Couch's. */
+  #fieldFocused = false;
+  /** Something of Couch's own that takes the pointer and the keys is drawn over the page (Quick settings, a confirmation, Picture off). */
+  #overlay = false;
 
   constructor(
     desc: WebAppDescription,
@@ -107,6 +120,7 @@ export class WebKitWebApp implements YouTube {
     this.#win = win;
     this.#store = store;
     this.#lifecycle = lifecycle;
+    const gateOf = () => this.#keyGate;
     this.#core = new WebHostCore(
       desc,
       {
@@ -124,6 +138,16 @@ export class WebKitWebApp implements YouTube {
       (event) => this.#emit(event),
       { pollsRoute: false },
     );
+    this.#keyboard = new WebKitKeyboard({
+      emit: (event) => this.#emit(event),
+      replay: (key) => this.#view?.replayKey(key),
+      get gate() {
+        return gateOf();
+      },
+      capturing: () => this.#capturing,
+      fieldFocused: () => this.#fieldFocused,
+      readClipboard: () => win.readClipboard?.() ?? "",
+    });
     win.onResize(() => this.#fit());
   }
 
@@ -190,7 +214,11 @@ export class WebKitWebApp implements YouTube {
         this.#failed = true;
         this.#emit({ type: "failed" });
         return;
+      case "key":
+        this.#onKey(event.key);
+        return;
       case "navigated":
+        this.#fieldFocused = false;
         this.#url = event.url;
         this.#core.navigated(event.url);
         return;
@@ -226,6 +254,8 @@ export class WebKitWebApp implements YouTube {
   }
 
   #onConsole(text: string): void {
+    if (text === FIELD_FOCUSED) this.#fieldFocused = true;
+    else if (text === FIELD_BLURRED) this.#fieldFocused = false;
     const pick = CONFIRM_MESSAGE.exec(text);
     if (!pick) return;
     const index = Number(pick[2]);
@@ -233,6 +263,32 @@ export class WebKitWebApp implements YouTube {
     if (!Number.isInteger(index) || String(index) !== pick[2] || index >= this.#confirmButtons)
       return;
     this.#emit({ type: "confirm", index, answer: pick[1] === undefined });
+  }
+
+  /** A physical key the view was the first responder for; only while the App is on screen. */
+  #onKey(key: WebKitKey): void {
+    if (this.#visible) this.#keyboard.handle(key);
+  }
+
+  /** What the native side takes off Chromium's layer for the view: nothing while hidden, no pointer under an overlay. */
+  #route(): void {
+    const on = this.#visible;
+    this.#view?.setInputRouting({
+      keys: on,
+      captureCommands: on && (this.#capturing || this.#overlay),
+      pointer: on && !this.#overlay,
+    });
+  }
+
+  /**
+   * Couch's own screen has something interactive over the page (Quick settings, a confirmation, Picture off):
+   * it takes the pointer and every key, and the page gets the first responder back when it closes.
+   */
+  setOverlay(on: boolean): void {
+    if (on === this.#overlay) return;
+    this.#overlay = on;
+    this.#route();
+    if (!on && this.#visible) this.#view?.focus();
   }
 
   #emit(event: YouTubeEvent): void {
@@ -258,6 +314,7 @@ export class WebKitWebApp implements YouTube {
     this.#core.shown();
     this.#fit();
     view.setVisible(true);
+    this.#route();
     this.#run(hiddenScript(false));
     this.#applySound();
     if (note) {
@@ -278,7 +335,9 @@ export class WebKitWebApp implements YouTube {
     this.#visible = false;
     this.#pendingNote = undefined;
     this.#confirmButtons = 0;
+    this.#fieldFocused = false;
     this.#core.hidden();
+    this.#view?.setInputRouting({ keys: false, captureCommands: false, pointer: false });
     this.#view?.setVisible(false);
     this.#syncDocumentStart();
     this.#applySound();
@@ -296,6 +355,7 @@ export class WebKitWebApp implements YouTube {
     this.#url = "";
     this.#loaded = false;
     this.#confirmButtons = 0;
+    this.#fieldFocused = false;
     this.#core.reset();
   }
 
@@ -332,8 +392,10 @@ export class WebKitWebApp implements YouTube {
     this.#view?.focus();
   }
 
-  /** Part of the host seam: WebKit keys are not seen by Electron's input events yet (ticket 112). */
-  setKeyGate(_gate: unknown): void {}
+  /** Asked first about every physical key (Quick settings and Picture off take keys here); true means it was handled. */
+  setKeyGate(gate: KeyGate): void {
+    this.#keyGate = gate;
+  }
 
   seekTo(seconds: number): void {
     this.#core.seekTo(seconds);
@@ -374,8 +436,10 @@ export class WebKitWebApp implements YouTube {
     this.#core.seekBy(seconds);
   }
 
-  /** The Mac keyboard doesn't reach a WebKit view through Electron's events yet (ticket 112). */
-  captureText(_on: boolean): void {}
+  captureText(on: boolean): void {
+    this.#capturing = on;
+    this.#route();
+  }
 
   submitSearch(text: string): void {
     this.#core.submitSearch(text);

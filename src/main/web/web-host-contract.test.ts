@@ -163,6 +163,8 @@ class FakeWebKitView implements WebKitView {
   setFrame() {}
   setVisible() {}
   focus() {}
+  replayKey() {}
+  setInputRouting() {}
   sendKey(key: string, down: boolean) {
     this.keys.push([key, down]);
   }

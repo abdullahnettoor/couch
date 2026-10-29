@@ -37,6 +37,8 @@ function fakeAddon() {
     webkitSetVisible: (id, v) => calls.push(["visible", id, v]),
     webkitFocus: (id) => calls.push(["focus", id]),
     webkitSendKey: (id, key, down) => calls.push(["key", id, key, down]),
+    webkitReplayKey: (id, json) => calls.push(["replay", id, json]),
+    webkitSetInput: (id, k, c, p) => calls.push(["input", id, k, c, p]),
     webkitDestroy: (id) => calls.push(["destroy", id]),
   };
   return { addon, calls, fire: (k: string, a = "", b = "") => callback(k, a, b) };
@@ -199,5 +201,69 @@ describe("the WebKit bridge over the native add-on", () => {
     await view.setCookies([cookie]);
     expect(f.calls.at(-1)).toEqual(["cookies", 7, JSON.stringify([cookie])]);
     await expect(view.setCookies([{ ...cookie, name: "refuse" }])).rejects.toThrow("refused");
+  });
+
+  test("input routing and replayed keys reach the add-on", () => {
+    const f = fakeAddon();
+    const view = createWebKitBridge(
+      () => window as any,
+      () => f.addon,
+    )!.create({ store: { ephemeral: true }, userAgent: "UA" });
+    view.setInputRouting({ keys: true, captureCommands: false, pointer: true });
+    view.replayKey({
+      down: true,
+      keyCode: 8,
+      characters: "c",
+      charactersIgnoringModifiers: "c",
+      flags: 0,
+      repeat: false,
+    });
+    expect(f.calls.slice(1)).toEqual([
+      ["input", 7, true, false, true],
+      [
+        "replay",
+        7,
+        '{"down":true,"keyCode":8,"characters":"c","charactersIgnoringModifiers":"c","flags":0,"repeat":false}',
+      ],
+    ]);
+  });
+
+  test("a native key becomes a key event, with only the fields it knows", () => {
+    const f = fakeAddon();
+    const view = createWebKitBridge(
+      () => window as any,
+      () => f.addon,
+    )!.create({ store: { ephemeral: true }, userAgent: "UA" });
+    const seen: WebKitEvent[] = [];
+    view.onEvent((e) => seen.push(e));
+    f.fire(
+      "key",
+      "",
+      JSON.stringify({
+        down: true,
+        keyCode: 126,
+        characters: "\uF700",
+        charactersIgnoringModifiers: "\uF700",
+        flags: 10485760,
+        repeat: false,
+        swallowed: true,
+        extra: 1,
+      }),
+    );
+    f.fire("key", "", "not json");
+    expect(seen).toEqual([
+      {
+        type: "key",
+        key: {
+          down: true,
+          keyCode: 126,
+          characters: "\uF700",
+          charactersIgnoringModifiers: "\uF700",
+          flags: 10485760,
+          repeat: false,
+          swallowed: true,
+        },
+      },
+    ]);
   });
 });

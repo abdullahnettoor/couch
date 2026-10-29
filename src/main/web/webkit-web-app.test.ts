@@ -8,6 +8,8 @@ import {
   type WebKitBridge,
   type WebKitCookie,
   type WebKitEvent,
+  type WebKitInputRouting,
+  type WebKitKey,
   type WebKitFrame,
   type WebKitView,
   type WebKitStore,
@@ -86,6 +88,14 @@ class FakeView implements WebKitView {
   }
   sendKey(key: string, down: boolean) {
     this.keys.push([key, down]);
+  }
+  replayed: Array<Omit<WebKitKey, "swallowed">> = [];
+  replayKey(key: Omit<WebKitKey, "swallowed">) {
+    this.replayed.push(key);
+  }
+  routing: WebKitInputRouting[] = [];
+  setInputRouting(routing: WebKitInputRouting) {
+    this.routing.push(routing);
   }
   onEvent(l: (e: WebKitEvent) => void) {
     this.listeners.add(l);
@@ -943,5 +953,222 @@ describe("the dev test page (ticket 111)", () => {
     web.show();
     view().emit({ type: "loaded", url: `${origin}/watch/1` });
     expect(events).not.toContainEqual({ type: "loaded" });
+  });
+});
+
+describe("input", () => {
+  const OFF = { keys: false, captureCommands: false, pointer: false };
+  const ON = { keys: true, captureCommands: false, pointer: true };
+  const key = (over: Partial<WebKitKey>): WebKitKey => ({
+    down: true,
+    keyCode: 0,
+    characters: "a",
+    charactersIgnoringModifiers: "a",
+    flags: 0,
+    repeat: false,
+    swallowed: true,
+    ...over,
+  });
+  const press = (view: FakeView, k: WebKitKey) => view.emit({ type: "key", key: k });
+  const field = (view: FakeView, message: string, frame: WebKitFrame = MAIN) =>
+    view.emit({ type: "message", name: "couch", body: { type: "console", message }, frame });
+  const ARROW_UP = { keyCode: 126, characters: "\uF700", flags: (1 << 21) | (1 << 23) };
+
+  test("on screen, the view takes the keys and the pointer; hidden, nothing", () => {
+    const { web, view } = make();
+    web.show();
+    expect(view().routing.at(-1)).toEqual(ON);
+    web.hide();
+    expect(view().routing.at(-1)).toEqual(OFF);
+  });
+
+  test("a view started hidden takes no input", () => {
+    const { web, view } = make();
+    web.start();
+    expect(view().routing.at(-1) ?? OFF).toEqual(OFF);
+  });
+
+  describe("the Mac keyboard", () => {
+    test("Couch's keys go to the core and don't reach the page", () => {
+      const { web, view } = make();
+      web.show();
+      press(view(), key(ARROW_UP));
+      press(view(), key({ keyCode: 36, characters: "\r" }));
+      expect(events.filter((e) => e.type === "key")).toEqual([
+        { type: "key", command: "up" },
+        { type: "key", command: "ok" },
+      ]);
+      expect(view().replayed).toEqual([]);
+    });
+
+    test("other keys go to the page as the native key they were", () => {
+      const { web, view } = make();
+      web.show();
+      press(view(), key({ keyCode: 6, characters: "z", charactersIgnoringModifiers: "z" }));
+      expect(view().replayed).toHaveLength(1);
+      expect(view().replayed[0]).toMatchObject({ keyCode: 6, characters: "z", down: true });
+      expect(events).toContainEqual({ type: "input" });
+    });
+
+    test("typing in a field of the page: every key is the page's, until the field blurs", () => {
+      const { web, view } = make();
+      web.show();
+      field(view(), "couch:field-focused");
+      press(view(), key({ keyCode: 4, characters: "h" }));
+      press(view(), key({ keyCode: 49, characters: " " }));
+      expect(view().replayed).toHaveLength(2);
+      expect(events.filter((e) => e.type === "key")).toEqual([]);
+      field(view(), "couch:field-blurred");
+      press(view(), key({ keyCode: 4, characters: "h" }));
+      expect(events).toContainEqual({ type: "key", command: "home" });
+    });
+
+    test("a field focus from a sub-frame or a foreign origin does not claim the keyboard", () => {
+      const { web, view } = make();
+      web.show();
+      field(view(), "couch:field-focused", {
+        isMainFrame: false,
+        origin: "https://www.netflix.com",
+      });
+      field(view(), "couch:field-focused", { isMainFrame: true, origin: "https://evil.example" });
+      press(view(), key({ keyCode: 4, characters: "h" }));
+      expect(events).toContainEqual({ type: "key", command: "home" });
+    });
+
+    test("a new page forgets the field's focus", () => {
+      const { web, view } = make();
+      web.show();
+      field(view(), "couch:field-focused");
+      view().emit({ type: "navigated", url: "https://www.netflix.com/browse" });
+      press(view(), key({ keyCode: 4, characters: "h" }));
+      expect(events).toContainEqual({ type: "key", command: "home" });
+    });
+
+    test("while Couch captures typed text, the page gets nothing and Command keys are taken too", () => {
+      const { web, view } = make();
+      web.show();
+      web.captureText(true);
+      expect(view().routing.at(-1)).toEqual({ ...ON, captureCommands: true });
+      press(view(), key({ keyCode: 12, characters: "q", charactersIgnoringModifiers: "q" }));
+      expect(events).toContainEqual({ type: "edit", edit: { insert: "q" } });
+      expect(view().replayed).toEqual([]);
+      web.captureText(false);
+      expect(view().routing.at(-1)).toEqual(ON);
+    });
+
+    test("the key gate goes first (Picture off swallows every key)", () => {
+      const { web, view } = make();
+      const seen: string[] = [];
+      web.setKeyGate((_e, input) => {
+        seen.push(`${input.type}:${input.key}`);
+        return true;
+      });
+      web.show();
+      events.length = 0;
+      press(view(), key(ARROW_UP));
+      press(view(), key({ keyCode: 6, characters: "z" }));
+      expect(seen).toEqual(["keyDown:ArrowUp", "keyDown:z"]);
+      expect(events).toEqual([]);
+      expect(view().replayed).toEqual([]);
+    });
+
+    test("keys that arrive after hide are ignored", () => {
+      const { web, view } = make();
+      web.show();
+      web.hide();
+      events.length = 0;
+      press(view(), key({ keyCode: 6, characters: "z" }));
+      press(view(), key(ARROW_UP));
+      expect(view().replayed).toEqual([]);
+      expect(events).toEqual([]);
+    });
+  });
+
+  describe("Remote keys", () => {
+    test("every key is a native press, down then up, with no Mac keyboard rules in the way", () => {
+      const { web, view } = make();
+      web.setKeyGate(() => true);
+      web.show();
+      for (const k of ["up", "down", "left", "right", "ok"] as const) web.sendKey(k);
+      expect(view().keys.map(([name]) => name)).toEqual(
+        ["Up", "Down", "Left", "Right", "Return"].flatMap((n) => [n, n]),
+      );
+      expect(view().replayed).toEqual([]);
+    });
+  });
+
+  describe("the mouse", () => {
+    test("a Couch overlay (Quick settings, a confirmation, Picture off) takes the pointer and every key", () => {
+      const { web, view } = make();
+      web.show();
+      web.setOverlay(true);
+      expect(view().routing.at(-1)).toEqual({ keys: true, captureCommands: true, pointer: false });
+      web.setOverlay(false);
+      expect(view().routing.at(-1)).toEqual(ON);
+    });
+
+    test("an overlay set while hidden applies once the view is shown", () => {
+      const { web, view } = make();
+      web.show();
+      web.hide();
+      web.setOverlay(true);
+      expect(view().routing.at(-1)).toEqual(OFF);
+      web.show();
+      expect(view().routing.at(-1)).toEqual({ keys: true, captureCommands: true, pointer: false });
+    });
+
+    test("a new view after unload is routed again once shown", () => {
+      const { web } = make();
+      web.show();
+      web.hide();
+      web.unload();
+      web.show();
+      expect(views.at(-1)!.routing.at(-1)).toEqual(ON);
+    });
+
+    test("D-pad mode and the hidden cursor are the page script's: it runs in the page, and only trusted moves end the shield", () => {
+      const { web, view } = make();
+      web.show();
+      const couch = view()
+        .scripts.filter((_s, i) => view().worlds[i] === "couch")
+        .join("\n");
+      expect(couch).toContain("couch-shield");
+      expect(couch).toContain("cursor = 'none'");
+      expect(couch).toContain("e.isTrusted");
+    });
+  });
+
+  describe("focus", () => {
+    test("the view is the first responder again when an overlay closes", async () => {
+      const { web, view } = make();
+      web.show();
+      await vi.waitFor(() => expect(view().focused).toBeGreaterThan(0));
+      const before = view().focused;
+      web.setOverlay(true);
+      expect(view().focused).toBe(before);
+      web.setOverlay(false);
+      expect(view().focused).toBe(before + 1);
+    });
+
+    test("a repeated overlay state does not steal the focus again", async () => {
+      const { web, view } = make();
+      web.show();
+      await vi.waitFor(() => expect(view().focused).toBeGreaterThan(0));
+      web.setOverlay(false);
+      web.setOverlay(false);
+      const before = view().focused;
+      web.setOverlay(false);
+      expect(view().focused).toBe(before);
+    });
+
+    test("nothing is focused while hidden", () => {
+      const { web, view } = make();
+      web.show();
+      web.hide();
+      const before = view().focused;
+      web.setOverlay(true);
+      web.setOverlay(false);
+      expect(view().focused).toBe(before);
+    });
   });
 });

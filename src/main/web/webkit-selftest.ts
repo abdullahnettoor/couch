@@ -1,5 +1,17 @@
-/** Keys the self-test sends through the native NSEvent path to a detached, never-shown WKWebView. */
-export const SELF_TEST_KEYS = ["Up", "Down", "Left", "Right", "Return", "Escape"];
+/** Keys the self-test sends through the native NSEvent paths to a detached, never-shown WKWebView. */
+export const SELF_TEST_KEYS = [
+  "Up",
+  "Down",
+  "Left",
+  "Right",
+  "Return",
+  "Escape",
+  // A Mac keyboard key handed to the page (ticket 112): `replay:<keyCode>:<characters>:<NSEvent flags>`; a z, then a Shift-A.
+  "replay:6:z:0",
+  "replay:0:A:131072",
+  // A move, a click and a wheel tick at (200, 200), handed to the view as Couch's input monitor hands real ones (ticket 112).
+  "pointer:200:200",
+];
 
 /**
  * An async expression run in a detached WKWebView on a secure origin: which key systems it grants

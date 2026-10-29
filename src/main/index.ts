@@ -1,4 +1,13 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, screen, WebContentsView } from "electron";
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  ipcMain,
+  Menu,
+  screen,
+  WebContentsView,
+} from "electron";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { screenPointer } from "./pointer-position.ts";
@@ -13,6 +22,7 @@ import { createElectronMac } from "./ports/electron-mac.ts";
 import { ElectronWebApp } from "./web/electron-web-app.ts";
 import { resolveWebKitStore } from "./web/webkit-stores.ts";
 import { createSafariSignIn, safariCookiePaths } from "./web/safari-sign-in.ts";
+import { couchOverlayOpen } from "./web/webkit-input.ts";
 import { WebKitWebApp } from "./web/webkit-web-app.ts";
 import {
   ensureTestClip,
@@ -195,6 +205,7 @@ async function createScreen(): Promise<void> {
             getContentBounds: () => win!.getContentBounds(),
             onResize: (callback) => win!.on("resize", callback),
             reveal: () => revealScreen(win!),
+            readClipboard: () => clipboard.readText(),
           },
           resolveWebKitStore("netflix", { userDataDir: app.getPath("userData"), env: process.env }),
           unloader.track("netflix", () => netflix.unload()),
@@ -347,6 +358,8 @@ async function createScreen(): Promise<void> {
     }
     // Only over a web App: adding a view above the window would reorder the native video under the Library's cover.
     cover.set(payload.state.pictureOff && payload.state.view === "app");
+    if (netflix instanceof WebKitWebApp)
+      netflix.setOverlay(couchOverlayOpen(payload.state, payload.quick !== undefined));
     front = { view: payload.state.view, app: payload.state.app };
     drawer.set(payload.quick);
     cover.showVolume(

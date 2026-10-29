@@ -77,6 +77,14 @@ describe("the self-test script", () => {
   });
 
   test("sends the arrows, OK and Back", () => {
-    expect(SELF_TEST_KEYS).toEqual(["Up", "Down", "Left", "Right", "Return", "Escape"]);
+    expect(SELF_TEST_KEYS.slice(0, 6)).toEqual(["Up", "Down", "Left", "Right", "Return", "Escape"]);
+  });
+
+  test("also replays Mac keys and a pointer click and wheel tick through the input paths", () => {
+    expect(SELF_TEST_KEYS.slice(6)).toEqual([
+      "replay:6:z:0",
+      "replay:0:A:131072",
+      "pointer:200:200",
+    ]);
   });
 });

@@ -1,3 +1,4 @@
+import { FIELD_BLURRED, FIELD_FOCUSED } from "./page-focus.ts";
 import { CONFIRM_MESSAGE } from "./web-hud.ts";
 
 /** The only messages Couch's own scripts post through the `couch` message handler. */
@@ -39,7 +40,12 @@ export function parsePageMessage(body: unknown): PageMessage | undefined {
   if (m.type === "console") {
     if (!hasOnly(m, ["type", "message"])) return undefined;
     if (typeof m.message !== "string" || m.message.length > MAX_CONSOLE) return undefined;
-    if (!CONFIRM_MESSAGE.test(m.message)) return undefined;
+    if (
+      !CONFIRM_MESSAGE.test(m.message) &&
+      m.message !== FIELD_FOCUSED &&
+      m.message !== FIELD_BLURRED
+    )
+      return undefined;
     return { type: "console", message: m.message };
   }
   return undefined;

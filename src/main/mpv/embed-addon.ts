@@ -2,7 +2,7 @@ import type { BrowserWindow } from "electron";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import type { DrawerGlass } from "../web/quick-drawer.ts";
-import type { WebKitBridge, WebKitEvent, WebKitView } from "../web/webkit-bridge.ts";
+import type { WebKitBridge, WebKitEvent, WebKitKey, WebKitView } from "../web/webkit-bridge.ts";
 import type { EmbedFactory } from "./mpv-player.ts";
 
 type DrawerGlassRect = Parameters<DrawerGlass["open"]>[0];
@@ -80,6 +80,14 @@ export interface WebKitAddon {
   webkitSetVisible(id: number, visible: boolean): void;
   webkitFocus(id: number): void;
   webkitSendKey(id: number, key: string, down: boolean): void;
+  /** Replays a physical key (the JSON of a key event's fields, minus `swallowed`) to the view as the same NSEvent. */
+  webkitReplayKey(id: number, keyJson: string): void;
+  /**
+   * What real input the view takes off Chromium's transparent layer: `keys` reports physical keys (kind "key", b = JSON
+   * of the key) while the view is the first responder and keeps them from it; `captureCommands` also takes Command
+   * combinations (except ⌘Q, ⌘H, ⌘M, ⌘W); `pointer` hands clicks, drags and the wheel over the view to it.
+   */
+  webkitSetInput(id: number, keys: boolean, captureCommands: boolean, pointer: boolean): void;
   webkitDestroy(id: number): void;
   /** Deletes a persistent data store; calls back with an error message, or null. */
   webkitRemoveStore(storeId: string, callback: (error: string | null) => void): void;
@@ -251,6 +259,28 @@ export function createWebKitBridge(
                 origin: typeof frame?.origin === "string" ? frame.origin : "",
               },
             });
+          } else if (kind === "key") {
+            let key: Partial<WebKitKey>;
+            try {
+              key = JSON.parse(b);
+            } catch {
+              return;
+            }
+            emit({
+              type: "key",
+              key: {
+                down: key.down === true,
+                keyCode: Number(key.keyCode) || 0,
+                characters: typeof key.characters === "string" ? key.characters : "",
+                charactersIgnoringModifiers:
+                  typeof key.charactersIgnoringModifiers === "string"
+                    ? key.charactersIgnoringModifiers
+                    : "",
+                flags: Number(key.flags) || 0,
+                repeat: key.repeat === true,
+                swallowed: key.swallowed === true,
+              },
+            });
           } else if (kind === "loaded" || kind === "navigated") emit({ type: kind, url: a });
           else if (kind === "failed") emit({ type: "failed", error: a });
         },
@@ -281,6 +311,8 @@ export function createWebKitBridge(
         setVisible: (visible) => addon.webkitSetVisible(id, visible),
         focus: () => addon.webkitFocus(id),
         sendKey: (key, down) => addon.webkitSendKey(id, key, down),
+        replayKey: (key) => addon.webkitReplayKey(id, JSON.stringify(key)),
+        setInputRouting: (r) => addon.webkitSetInput(id, r.keys, r.captureCommands, r.pointer),
         onEvent: (listener) => {
           listeners.add(listener);
           return () => void listeners.delete(listener);
