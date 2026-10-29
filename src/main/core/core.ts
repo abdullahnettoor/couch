@@ -27,6 +27,7 @@ import type { Clock } from "../ports/clock.ts";
 import type { Mac } from "../ports/mac.ts";
 import { pickTargetDisplay } from "../display.ts";
 import { APP_ENTRIES, OPEN_APP, type AppEntry } from "../apps/index.ts";
+import { copyFromCouchToast } from "../apps/sign-in-text.ts";
 import {
   PlaybackUnavailable,
   type App,
@@ -199,7 +200,11 @@ export class Core {
   /** Each web App's wanted speed for the video it is playing (keyed by its title and length). */
   #appSpeed = new AppSpeed(() => this.#ports.clock.now());
   #shown = new Map<string, { volume?: number; confirm?: Confirmation; bar?: string }>();
-  #confirmAnswers: [() => void, () => void] | undefined;
+  #confirmAnswers: Array<() => void> | undefined;
+  /** What Back does for the open question, when it isn't "dismiss" (the welcome's Back is an answer). */
+  #confirmBack: (() => void) | undefined;
+  /** Apps whose welcome question is being looked up or answered, so a second open waits. */
+  #welcoming = new Set<string>();
   /** The question core asked on behalf of an App's Back ("Leave <label>?"). */
   #leaveConfirm: Confirmation | undefined;
   #appsOff: Array<() => void> = [];
@@ -1736,14 +1741,27 @@ export class Core {
     this.#emit();
   }
 
-  #ask(title: string, buttons: [string, string], answers: [() => void, () => void]): void {
-    this.#state.confirm = { title, buttons, focus: 0 };
+  #ask(
+    title: string,
+    buttons: string[],
+    answers: Array<() => void>,
+    more: { body?: string; back?: () => void; phone?: true } = {},
+  ): void {
+    this.#state.confirm = {
+      title,
+      ...(more.body ? { body: more.body } : {}),
+      buttons,
+      focus: 0,
+      ...(more.phone ? { phone: true as const } : {}),
+    };
     this.#confirmAnswers = answers;
+    this.#confirmBack = more.back;
   }
 
   #dismissConfirm(): void {
     this.#state.confirm = undefined;
     this.#confirmAnswers = undefined;
+    this.#confirmBack = undefined;
   }
 
   /** D-pad, OK and Back answer the question; other commands (Home, volume...) carry on. */
@@ -1753,30 +1771,41 @@ export class Core {
     switch (command.command) {
       case "focusAt": {
         const i = command.args?.c;
-        if (i === 0 || i === 1) c.focus = i;
+        if (i !== undefined && Number.isInteger(i) && i >= 0 && i < c.buttons.length) c.focus = i;
         break;
       }
       case "confirmAt": {
         const i = command.args?.index;
-        if (i !== 0 && i !== 1) return true;
+        if (i === undefined || !Number.isInteger(i) || i < 0 || i >= c.buttons.length) return true;
+        this.#answerConfirm(i);
+        break;
+      }
+      case "confirmAnswer": {
+        // A phone's own buttons: only for a question that offers them, and only for the one it is showing.
+        const i = command.args?.index;
+        if (!c.phone || command.args?.text !== c.title) return true;
+        if (i === undefined || !Number.isInteger(i) || i < 0 || i >= c.buttons.length) return true;
         this.#answerConfirm(i);
         break;
       }
       case "left":
       case "up":
-        c.focus = 0;
+        c.focus = Math.max(0, c.focus - 1);
         break;
       case "right":
       case "down":
-        c.focus = 1;
+        c.focus = Math.min(c.buttons.length - 1, c.focus + 1);
         break;
       case "ok": {
         this.#answerConfirm(c.focus);
         break;
       }
-      case "back":
+      case "back": {
+        const back = this.#confirmBack;
         this.#dismissConfirm();
+        back?.();
         break;
+      }
       case "home":
       case "power":
         this.#dismissConfirm();
@@ -2034,6 +2063,58 @@ export class Core {
   #openApp(id: string): void {
     const app = this.#apps.get(id);
     if (!app || !this.#homeApps.isShown(id)) return;
+    if (app.welcome && !this.#appsFailed.has(id)) {
+      void this.#welcomeThenOpen(app);
+      return;
+    }
+    this.#enterApp(id);
+  }
+
+  /** Asks the App's one-time question over the view we are on, and opens the App once it is answered. */
+  async #welcomeThenOpen(app: App): Promise<void> {
+    const welcome = app.welcome;
+    if (!welcome || this.#welcoming.has(app.id)) return;
+    this.#welcoming.add(app.id);
+    const view = this.#state.view;
+    let released = false;
+    const release = () => {
+      if (!released) this.#welcoming.delete(app.id);
+      released = true;
+    };
+    const question = await welcome.question().catch(() => undefined);
+    // Home, or another page, in the meantime: the household went elsewhere.
+    if (this.#state.view !== view) return release();
+    if (!question) {
+      release();
+      this.#enterApp(app.id);
+      this.#emit();
+      return;
+    }
+    const answer = async (id: string) => {
+      this.#welcoming.add(app.id);
+      const toast = await welcome.answer(id).then(
+        (text) => text,
+        () => `Couldn't finish that. ${app.label} is opening.`,
+      );
+      this.#welcoming.delete(app.id);
+      if (this.#state.view !== view) return;
+      this.#enterApp(app.id);
+      if (toast) this.#toast(toast);
+      this.#emit();
+    };
+    release();
+    this.#ask(
+      question.title,
+      question.choices.map((c) => c.label),
+      question.choices.map((c) => () => void answer(c.id)),
+      { body: question.body, phone: true, back: () => void answer(question.back) },
+    );
+    this.#emit();
+  }
+
+  #enterApp(id: string): void {
+    const app = this.#apps.get(id);
+    if (!app) return;
     this.#state.app = id;
     if (this.#appsFailed.has(id)) {
       this.#state.appNote = this.#appsFailed.get(id);
@@ -2099,19 +2180,8 @@ export class Core {
     if (!app || !copy) return;
     this.#signInNote = undefined;
     const result = await copy.copy().catch(() => ({ ok: false, reason: "failed" }) as const);
-    if (result.ok) {
-      this.#toast(
-        `Copied ${result.count} ${app.label} ${result.count === 1 ? "cookie" : "cookies"}`,
-      );
-    } else if (result.reason === "cancelled") {
-      // A sign out came first and has its own toast.
-    } else {
-      this.#toast(
-        result.reason === "none"
-          ? `No ${app.label} sign-in found in Couch`
-          : "Couldn't copy the sign-in from Couch",
-      );
-    }
+    const toast = copyFromCouchToast(app.label, result);
+    if (toast) this.#toast(toast);
     this.#emit();
   }
 

@@ -19,7 +19,7 @@ import type { Clock } from "./clock.ts";
 import type { DisplayInfo, Mac, OutputDevice } from "./mac.ts";
 import { RouteTracker, type PageState } from "../apps/youtube/youtube-route.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "./youtube.ts";
-import type { App, AppEvent, AppKey, AppSignIn, AppTyping } from "../apps/app.ts";
+import type { App, AppEvent, AppKey, AppSignIn, AppTyping, AppWelcome } from "../apps/app.ts";
 import type { Confirmation, PromptId, RemoteLayout, TrackKind } from "../../shared/protocol.ts";
 
 function emitter<E>() {
@@ -222,6 +222,8 @@ export interface FakeWebAppOptions {
   adapter?: boolean;
   /** The App offers Import Safari sign-in and Sign out in Settings. */
   signIn?: AppSignIn;
+  /** The App asks a one-time question before it opens. */
+  welcome?: AppWelcome;
 }
 
 /** A second web App that is not YouTube: records what core tells it. `atHome` is what its Back answers. */
@@ -239,6 +241,7 @@ export class FakeWebApp implements App {
   readonly typing: AppTyping | undefined;
   readonly layout: RemoteLayout | undefined;
   readonly signIn: AppSignIn | undefined;
+  readonly welcome: AppWelcome | undefined;
   readonly playPause: (() => void) | undefined;
   readonly seekBy: ((seconds: number) => void) | undefined;
   readonly seekTo: ((seconds: number) => void) | undefined;
@@ -251,6 +254,7 @@ export class FakeWebApp implements App {
     this.options = options;
     this.layout = options.layout;
     this.signIn = options.signIn;
+    this.welcome = options.welcome;
     if (options.typing !== false)
       this.typing = {
         label: options.typeLabel ?? `Search ${label}`,

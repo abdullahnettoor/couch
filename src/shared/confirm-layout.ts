@@ -5,6 +5,7 @@ import type { Command, Confirmation } from "./protocol.ts";
 export const CONFIRM_LAYOUT = {
   scrim: "rgba(0, 0, 0, 0.45)",
   box: { gap: 40, padY: 56, padX: 72, radius: 48, fontSize: 44, fontWeight: "700" },
+  body: { fontSize: 30, fontWeight: "400", color: COLORS.t2 },
   row: { gap: 24 },
   button: {
     height: 84,
@@ -60,8 +61,15 @@ export function describeConfirm(confirm: Confirmation, px: (n: number) => string
     };
   });
   const box = CONFIRM_LAYOUT.box;
+  const body = CONFIRM_LAYOUT.body;
   return {
     title: confirm.title,
+    body: confirm.body,
+    bodyStyle: {
+      "font-size": px(body.fontSize),
+      "font-weight": body.fontWeight,
+      color: body.color,
+    } as Record<string, string>,
     boxStyle: {
       display: "flex",
       "flex-direction": "column",

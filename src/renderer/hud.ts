@@ -25,7 +25,7 @@ let confirmKey = "";
 /** The question (Leave YouTube?, Quit Couch?) over every view; YouTube draws its own over the web view. */
 export function renderConfirm(payload: ScreenPayload): void {
   const c = payload.state.confirm;
-  const key = c ? `${c.title}|${c.buttons.join("|")}|${c.focus}` : "";
+  const key = c ? `${c.title}|${c.body ?? ""}|${c.buttons.join("|")}|${c.focus}` : "";
   if (key === confirmKey) return;
   confirmKey = key;
   confirm.classList.toggle("show", Boolean(c));
@@ -56,6 +56,11 @@ export function renderConfirm(payload: ScreenPayload): void {
     });
     row.append(b);
   }
-  box.append(title, row);
+  if (d.body) {
+    const body = document.createElement("span");
+    body.textContent = d.body;
+    style(body, d.bodyStyle);
+    box.append(title, body, row);
+  } else box.append(title, row);
   confirm.append(box);
 }

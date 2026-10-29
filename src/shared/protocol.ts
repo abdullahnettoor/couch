@@ -60,6 +60,7 @@ export const COMMAND_NAMES = [
   "openSettings",
   "setPictureOff",
   "quickSettings",
+  "confirmAnswer",
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
@@ -104,7 +105,7 @@ export interface CommandArgs {
   speed?: number;
   /** pressPrompt: which prompt (nowPlaying.prompt.id) */
   id?: PromptId;
-  /** playUpNext: position in the Up next list; confirmAt (Screen only): the confirmation button clicked */
+  /** playUpNext: position in the Up next list; confirmAt (Screen only) and confirmAnswer (phones): the confirmation button clicked */
   index?: number;
   /** toggleAddon: the add-on's id (YouTube's add-ons) */
   addon?: string;
@@ -112,7 +113,7 @@ export interface CommandArgs {
   on?: boolean;
   /** quickPick (Screen only): the id of the drawer row clicked */
   item?: string;
-  /** typeText: the whole current text; typeOpen and screenKey (Screen only): the first character */
+  /** typeText: the whole current text; confirmAnswer: the question's title the phone is answering; typeOpen and screenKey (Screen only): the first character */
   text?: string;
 }
 
@@ -141,8 +142,13 @@ export interface GridItem {
 /** A two-button question drawn over whatever the Screen shows; `focus` is the highlighted button. */
 export interface Confirmation {
   title: string;
-  buttons: [string, string];
-  focus: 0 | 1;
+  /** A calm line under the title (the welcome's "It needs its own sign-in."). */
+  body?: string;
+  /** Two or three answers; the first is where focus starts unless `focus` says otherwise. */
+  buttons: string[];
+  focus: number;
+  /** The phone shows the same answers as buttons (the Remote's `confirmAnswer`); otherwise it answers with its pad. */
+  phone?: true;
 }
 
 export interface ScreenState {

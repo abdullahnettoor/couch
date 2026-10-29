@@ -163,6 +163,9 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .sheet .btns { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .sheet .btns .k { background:var(--card-2); border-radius:16px; height:56px; font-size:17px; }
   .sheet .btns .k.hero { background:#fff; }
+  .sheet .stack { display:grid; gap:10px; }
+  .sheet .stack .k { background:var(--card-2); border-radius:16px; min-height:56px; font-size:17px; padding:0 16px; }
+  .sheet .stack .k.hero { background:#fff; color:#000; }
 </style>
 </head>
 <body>
@@ -178,6 +181,13 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   <div class="form" role="dialog" aria-label="Turn Couch off?">
     <b style="font-size:19px">Turn Couch off?</b>
     <div class="btns"><button type="button" class="k txt" id="confirm-cancel">Cancel</button><button type="button" class="k hero txt" id="confirm-off" data-cmd="power">Turn off</button></div>
+  </div>
+</div>
+<div class="sheet" id="ask" hidden>
+  <div class="form" role="dialog" aria-labelledby="ask-title">
+    <b id="ask-title" style="font-size:19px"></b>
+    <span id="ask-body" style="color:var(--t3);font-size:15px"></span>
+    <div class="stack" id="ask-btns"></div>
   </div>
 </div>
 <div class="ptoast" id="phone-toast" role="status" aria-live="polite"></div>
@@ -429,6 +439,15 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       $("cw-title").textContent = s.continueCard.title;
       $("cw-left").textContent = s.continueCard.left;
       $("cw-pic").style.backgroundImage = s.continueCard.thumbKey ? thumb(s.continueCard.thumbKey) : "none";
+    }
+    var q = s.confirm && s.confirm.phone ? s.confirm : null;
+    $("ask").hidden = !q;
+    if (q) {
+      $("ask-title").textContent = q.title;
+      $("ask-body").textContent = q.body || "";
+      $("ask-btns").innerHTML = q.buttons.map(function (b, i) {
+        return '<button type="button" class="k txt' + (i === q.focus ? " hero" : "") + '" data-cmd="confirmAnswer" data-args="' + esc(JSON.stringify({ index: i, text: q.title })) + '">' + esc(b) + "</button>";
+      }).join("");
     }
     $("signin-note").hidden = !s.signInNote;
     if (s.signInNote) {

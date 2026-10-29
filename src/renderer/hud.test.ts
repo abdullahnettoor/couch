@@ -69,4 +69,37 @@ describe("the Screen's confirmation", () => {
     buttons()[1]!.fire("click");
     expect(sent.at(-1)).toEqual({ command: "confirmAt", args: { index: 1 } });
   });
+
+  test("a welcome question draws its body between the title and three answers", () => {
+    sent.length = 0;
+    renderConfirm({
+      state: {
+        confirm: {
+          title: "Netflix now plays in sharper quality",
+          body: "It needs its own sign-in.",
+          buttons: ["Copy sign-in from Couch", "Sign in on Netflix", "Keep using Chromium"],
+          focus: 0,
+          phone: true,
+        },
+      },
+    } as unknown as ScreenPayload);
+    const box = confirmEl.children[0]!;
+    expect(box.children.map((c) => c.textContent)).toEqual([
+      "Netflix now plays in sharper quality",
+      "It needs its own sign-in.",
+      "",
+    ]);
+    const row = box.children[2]!.children;
+    expect(row.map((b) => b.textContent)).toEqual([
+      "Copy sign-in from Couch",
+      "Sign in on Netflix",
+      "Keep using Chromium",
+    ]);
+    row[2]!.fire("mouseenter");
+    row[2]!.fire("click");
+    expect(sent).toEqual([
+      { command: "focusAt", args: { r: 0, c: 2 } },
+      { command: "confirmAt", args: { index: 2 } },
+    ]);
+  });
 });

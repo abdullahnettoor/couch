@@ -17,6 +17,12 @@ describe("parseCommand limits", () => {
       track: "en",
     });
     expect(parseCommand(raw("typeText", { text: "dune" }))?.args).toEqual({ text: "dune" });
+    expect(parseCommand(raw("confirmAnswer", { index: 2, text: "Q?" }))?.args).toEqual({
+      index: 2,
+      text: "Q?",
+    });
+    expect(parseCommand(raw("confirmAnswer", { index: "2" }))).toBeUndefined();
+    expect(parseCommand(raw("confirmAt", { index: 1 }))).toBeUndefined();
     expect(parseCommand(raw("ok"))).toEqual({ command: "ok" });
     expect(parseCommand(raw("ok", {}))).toEqual({ command: "ok", args: {} });
   });

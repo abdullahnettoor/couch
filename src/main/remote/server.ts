@@ -47,6 +47,7 @@ const ARGS: Partial<Record<CommandName, Record<string, Field>>> = {
   toggleAddon: { addon: text() },
   pressPrompt: { id: { kind: "enum", values: ["skipIntro", "skipRecap", "nextEpisode"] } },
   setPictureOff: { on: { kind: "boolean" } },
+  confirmAnswer: { index: { kind: "integer" }, text: text() },
 };
 
 function valid(field: Field, value: unknown): boolean {

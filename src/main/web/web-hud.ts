@@ -80,7 +80,7 @@ tx.textContent=ph?${JSON.stringify(placeholder)}:${JSON.stringify(text)};tx.styl
 })()`;
 }
 
-/** Script that draws the question (title and two buttons, one focused) over the page, or removes it when undefined. */
+/** Script that draws the question (title, an optional line and two or three buttons, one focused) over the page, or removes it when undefined. */
 export function confirmScript(confirm: Confirmation | undefined): string {
   if (confirm === undefined) {
     return `(function(){var e=document.getElementById('couch-confirm');if(e)e.remove()})()`;
@@ -94,9 +94,10 @@ css(w,{'--couch-u':U+'px',position:'fixed',inset:'0','z-index':'2147483647','poi
 var d=document.createElement('div');glass(d);
 css(d,{position:'static'});css(d,${obj(d.boxStyle)});
 var t=document.createElement('span');t.textContent=${JSON.stringify(d.title)};
+var bd=${d.body ? `document.createElement('span');bd.textContent=${JSON.stringify(d.body)};css(bd,${obj(d.bodyStyle)})` : "null"};
 var r=document.createElement('div');css(r,${obj(d.rowStyle)});
 [${d.buttons.map((b) => `[${JSON.stringify(b.label)},${obj(b.style)}]`).join(",")}].forEach(function(x,i){var b=document.createElement('span');b.textContent=x[0];css(b,x[1]);css(b,{'pointer-events':'auto'});
 b.addEventListener('mouseenter',function(){console.debug('couch:confirm-hover:'+i)});
 b.addEventListener('click',function(e){e.stopPropagation();console.debug('couch:confirm:'+i)});r.appendChild(b)});
-d.appendChild(t);d.appendChild(r);w.appendChild(d);document.body.appendChild(w)})()`;
+d.appendChild(t);if(bd)d.appendChild(bd);d.appendChild(r);w.appendChild(d);document.body.appendChild(w)})()`;
 }

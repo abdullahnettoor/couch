@@ -43,6 +43,7 @@ import {
 import { startFairPlay, FAIRPLAY_SCRIPT } from "./web/fairplay.ts";
 import { SwitchableWebApp } from "./web/switchable-web-app.ts";
 import { createPlayback, readStoredEngine } from "./web/playback-choice.ts";
+import { createWebKitWelcome } from "./web/webkit-welcome.ts";
 import { youtubeDescription } from "./apps/youtube/youtube-web.ts";
 import { NETFLIX_PARTITION, netflixDescription } from "./apps/netflix/netflix-web.ts";
 import { NetflixApp } from "./apps/netflix/netflix-app.ts";
@@ -291,21 +292,32 @@ async function createScreen(): Promise<void> {
       signOut: () => webkitHost().signOut(),
     },
   });
+  const netflixPlayback = createPlayback({
+    store,
+    appId: "netflix",
+    host: {
+      get engine() {
+        return netflix.engine;
+      },
+      switchTo: (engine) => netflix.switchTo(engine),
+    },
+    webkit: () => fairplay.current(),
+  });
+  // Sign-in rows belong to the WebKit engine only.
+  const netflixSignIn = () => (netflix.engine === "webkit" ? safariSignIn : undefined);
   const netflixApp = new NetflixApp(
     netflix,
     systemClock,
-    // Sign-in rows belong to the WebKit engine only.
-    () => (netflix.engine === "webkit" ? safariSignIn : undefined),
-    createPlayback({
+    netflixSignIn,
+    netflixPlayback,
+    // The first time Netflix opens on WebKit, before its page loads: where the sign-in comes from.
+    createWebKitWelcome({
       store,
       appId: "netflix",
-      host: {
-        get engine() {
-          return netflix.engine;
-        },
-        switchTo: (engine) => netflix.switchTo(engine),
-      },
-      webkit: () => fairplay.current(),
+      label: "Netflix",
+      engine: () => netflix.engine,
+      signIn: netflixSignIn,
+      playback: netflixPlayback,
     }),
   );
   netflix.onSwitch((engine) => {

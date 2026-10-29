@@ -115,6 +115,23 @@ export interface AppPlayback {
   select(id: string): Promise<void>;
 }
 
+/** A calm question an App asks once, before its page first loads. `choices` are the answers in order; the first has focus. */
+export interface WelcomeQuestion {
+  title: string;
+  body: string;
+  choices: Array<{ id: string; label: string }>;
+  /** The choice Back stands for. */
+  back: string;
+}
+
+/** An App that asks something the first time it opens (Netflix on WebKit: where its sign-in comes from). */
+export interface AppWelcome {
+  /** The question to ask now, or undefined when it was answered already or doesn't apply. Never asks twice. */
+  question(): Promise<WelcomeQuestion | undefined>;
+  /** Records the answer for good, then does what it says. Resolves to a short line for a toast, if any. */
+  answer(id: string): Promise<string | undefined>;
+}
+
 /**
  * A web App: a full-screen web view core hands the Screen to. While it is the front App, core
  * sends it the D-pad, OK, Back, play/pause, seek and typing; everything App-specific lives behind this.
@@ -122,6 +139,8 @@ export interface AppPlayback {
 export interface App extends SoundSink {
   /** Present when Settings → Apps → Playback offers a choice of engine for this App. */
   readonly playback?: AppPlayback;
+  /** Present when the App asks a one-time question before it first loads. */
+  readonly welcome?: AppWelcome;
   /** Present when Settings → Apps offers "Import Safari sign-in" and "Sign out" for this App. */
   readonly signIn?: AppSignIn;
   /** Present when the App takes text; without it the Remote shows no Type button. */

@@ -598,3 +598,47 @@ describe("the phone's general toast", () => {
     expect(toast().classes.has("show")).toBe(true);
   });
 });
+
+describe("a question with answers on the phone", () => {
+  const question = {
+    title: "Netflix now plays in sharper quality",
+    body: "It needs its own sign-in.",
+    buttons: ["Copy sign-in from Couch", "Sign in on Netflix", "Keep using Chromium"],
+    focus: 0,
+    phone: true,
+  };
+  const ask = (confirm: unknown) =>
+    page.send({ ...page.base, layout: "home", where: "Home", typeAvailable: false, confirm });
+
+  test("shows the title, the line and every answer, the first one focused", () => {
+    ask(question);
+    expect(hidden("ask")).toBe(false);
+    const el = page.els.get("ask-title")!;
+    expect(el.textContent).toBe(question.title);
+    expect(page.els.get("ask-body")!.textContent).toBe(question.body);
+    const html = page.els.get("ask-btns")!.innerHTML;
+    expect(html.match(/<button/g)).toHaveLength(3);
+    expect(html).toContain("Copy sign-in from Couch");
+    expect(html).toContain("Keep using Chromium");
+    expect(html.match(/hero/g)).toHaveLength(1);
+    expect(html.indexOf("hero")).toBeLessThan(html.indexOf("Sign in on Netflix"));
+  });
+
+  test("an answer is sent by its place, with the question it answers", () => {
+    ask(question);
+    const html = page.els.get("ask-btns")!.innerHTML;
+    expect(html).toContain('data-cmd="confirmAnswer"');
+    const args = [...html.matchAll(/data-args="([^"]*)"/g)].map((m) =>
+      JSON.parse(m[1]!.replace(/&quot;/g, '"').replace(/&amp;/g, "&")),
+    );
+    expect(args).toEqual([0, 1, 2].map((index) => ({ index, text: question.title })));
+  });
+
+  test("goes when the question does, and other questions get no buttons", () => {
+    ask(question);
+    ask(undefined);
+    expect(hidden("ask")).toBe(true);
+    ask({ title: "Quit Couch?", buttons: ["Cancel", "Quit"], focus: 0 });
+    expect(hidden("ask")).toBe(true);
+  });
+});
