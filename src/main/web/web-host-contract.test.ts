@@ -1,7 +1,8 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import vm from "node:vm";
 import { tmpdir } from "node:os";
-import { beforeEach, expect, vi } from "vite-plus/test";
+import { afterEach, beforeEach, expect, vi } from "vite-plus/test";
 
 const fake = vi.hoisted(() => {
   class FakeContents {
@@ -66,7 +67,9 @@ const fake = vi.hoisted(() => {
   }
   const views: FakeContents[] = [];
   const preloadFiles: string[] = [];
-  return { FakeContents, views, preloadFiles };
+  /** The userData folder of the test running now: preload files are written under it, so no two tests share one. */
+  const state = { userData: "" };
+  return { FakeContents, views, preloadFiles, state };
 });
 
 vi.mock("electron", () => {
@@ -90,7 +93,7 @@ vi.mock("electron", () => {
     unregisterPreloadScript() {},
   };
   return {
-    app: { getPath: () => tmpdir(), focus() {} },
+    app: { getPath: () => fake.state.userData, focus() {} },
     BrowserWindow: class {},
     WebContentsView,
     clipboard: { readText: () => "" },
@@ -102,20 +105,23 @@ vi.mock("electron", () => {
 import type { YouTubeEvent } from "../ports/youtube.ts";
 import { COUCH_HOST_CONSOLE, COUCH_HOST_WEBKIT } from "./couch-host.ts";
 import { ElectronWebApp } from "./electron-web-app.ts";
-import { contractDescription, describeWebHostContract, type HostRig } from "./web-host-contract.ts";
+import { describeWebHostContract, type HostRig } from "./web-host-contract.ts";
+import { MEDIA_TOGGLE_SCRIPT } from "./media-toggle.ts";
+import type { WebAppDescription } from "./web-app.ts";
 import type { EvaluateKind, WebKitBridge, WebKitEvent, WebKitView } from "./webkit-bridge.ts";
 import { WebKitWebApp } from "./webkit-web-app.ts";
 
 const electronWindow: any = {
   contentView: { addChildView() {}, removeChildView() {} },
   on() {},
+  off() {},
   getContentBounds: () => ({ width: 1280, height: 720 }),
   isDestroyed: () => true,
   webContents: { focus() {} },
 };
 
-function electronRig(): HostRig {
-  const host = new ElectronWebApp(contractDescription, electronWindow);
+function electronRig(description: WebAppDescription): HostRig {
+  const host = new ElectronWebApp(description, electronWindow);
   const contents = fake.views.at(-1)!;
   const events: YouTubeEvent[] = [];
   host.onEvent((e) => events.push(e));
@@ -124,8 +130,10 @@ function electronRig(): HostRig {
     events,
     show: async () => {
       host.show();
-      await vi.waitFor(() => expect(contents.loads).toContain(contractDescription.url));
+      await vi.waitFor(() => expect(contents.loads).toContain(description.url));
     },
+    dispose: () => host.dispose(),
+    playPauseDelivered: () => contents.inputs.some((i) => i.keyCode === "MediaPlayPause"),
     answer: (part, value) => void contents.answers.push([part, value]),
     failScripts: () => void (contents.failing = true),
     scripts: () => contents.scripts,
@@ -205,7 +213,7 @@ class FakeWebKitView implements WebKitView {
   destroy() {}
 }
 
-function webkitRig(): HostRig {
+function webkitRig(description: WebAppDescription): HostRig {
   const view = new FakeWebKitView();
   const bridge: WebKitBridge = {
     userAgent: () => "Safari UA",
@@ -213,7 +221,7 @@ function webkitRig(): HostRig {
     removeStore: async () => {},
   };
   const host = new WebKitWebApp(
-    contractDescription,
+    description,
     bridge,
     {
       getContentBounds: () => ({ width: 1280, height: 720 }),
@@ -228,6 +236,8 @@ function webkitRig(): HostRig {
     host,
     events,
     show: async () => host.show(),
+    dispose: () => host.dispose(),
+    playPauseDelivered: () => view.scripts.includes(MEDIA_TOGGLE_SCRIPT),
     answer: (part, value) => void view.answers.push([part, value]),
     failScripts: () => void (view.failing = true),
     scripts: () => view.scripts,
@@ -279,6 +289,12 @@ function webkitRig(): HostRig {
 
 beforeEach(() => {
   fake.views.length = 0;
+  fake.preloadFiles.length = 0;
+  fake.state.userData = mkdtempSync(join(tmpdir(), "couch-contract-"));
+});
+
+afterEach(() => {
+  rmSync(fake.state.userData, { recursive: true, force: true });
 });
 
 describeWebHostContract("ElectronWebApp on fake WebContents", electronRig);

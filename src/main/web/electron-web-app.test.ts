@@ -1,5 +1,7 @@
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { beforeEach, describe, expect, test, vi } from "vite-plus/test";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
 const fake = vi.hoisted(() => {
   class FakeContents {
@@ -72,7 +74,9 @@ const fake = vi.hoisted(() => {
   const counts = { hooksAdded: 0, preloadsRegistered: 0, preloadsRemoved: 0 };
   /** What the fake Session holds: every session-level listener a host may leave behind. */
   const held: Record<string, unknown> = {};
-  return { FakeContents, views, counts, held };
+  /** The userData folder of the test running now, so no two tests (or runs) share a preload folder. */
+  const state = { userData: "" };
+  return { FakeContents, views, counts, held, state };
 });
 
 vi.mock("electron", () => {
@@ -109,7 +113,7 @@ vi.mock("electron", () => {
     },
   };
   return {
-    app: { getPath: () => tmpdir(), focus() {} },
+    app: { getPath: () => fake.state.userData, focus() {} },
     BrowserWindow: class {},
     WebContentsView,
     clipboard: { readText: () => "" },
@@ -164,6 +168,11 @@ beforeEach(() => {
   winResize.n = 0;
   children.clear();
   for (const k of Object.keys(fake.held)) delete fake.held[k];
+  fake.state.userData = mkdtempSync(join(tmpdir(), "couch-electron-web-"));
+});
+
+afterEach(() => {
+  rmSync(fake.state.userData, { recursive: true, force: true });
 });
 
 describe("dispose (an engine switch)", () => {

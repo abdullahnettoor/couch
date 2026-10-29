@@ -1,3 +1,4 @@
+import { MEDIA_TOGGLE_SCRIPT } from "./media-toggle.ts";
 import type { Confirmation, PromptId, TrackKind } from "../../shared/protocol.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
 import { FIELD_BLURRED, FIELD_FOCUSED } from "./page-focus.ts";
@@ -467,6 +468,8 @@ export class WebKitWebApp implements YouTube {
   #press(keyCode: string): void {
     const view = this.#view;
     if (!view) return;
+    // A WKWebView takes no media key, so play/pause for a page with no adapter is run in the page instead.
+    if (keyCode === "MediaPlayPause") return this.#run(MEDIA_TOGGLE_SCRIPT);
     view.sendKey(keyCode, true);
     view.sendKey(keyCode, false);
   }

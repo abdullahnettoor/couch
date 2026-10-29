@@ -5,11 +5,16 @@ export class FakeMedia {
   tagName: string;
   volume = 1;
   paused = false;
+  ended = false;
   constructor(tagName: "VIDEO" | "AUDIO" = "VIDEO") {
     this.tagName = tagName;
   }
   pause() {
     this.paused = true;
+  }
+  play(): Promise<void> {
+    this.paused = false;
+    return Promise.resolve();
   }
 }
 

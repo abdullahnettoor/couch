@@ -1,7 +1,8 @@
-import { describe, expect, test, vi } from "vite-plus/test";
+import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 import { netflixDescription } from "../apps/netflix/netflix-web.ts";
 import type { YouTube, YouTubeEvent } from "../ports/youtube.ts";
-import type { PlaybackAdapter } from "./web-app.ts";
+import type { PlaybackAdapter, WebAppDescription } from "./web-app.ts";
+import { urlRoute } from "./url-route.ts";
 import { soundScript } from "./web-sound.ts";
 
 /** What the shared host contract needs of an engine's test rig (fake `WebContents`, or the fake WebKit bridge). */
@@ -14,6 +15,10 @@ export interface HostRig {
   answer(part: string, value: unknown): void;
   /** Every script from now on throws in the page. */
   failScripts(): void;
+  /** Disposes the host (its view, listeners and timers). Safe to call twice. */
+  dispose(): void;
+  /** Something reached the page that plays or pauses its media: a native media key, or the media element's play/pause run in the page. */
+  playPauseDelivered(): boolean;
   /** Every script the host ran in the page. */
   scripts(): string[];
   /** The key codes pressed natively, in order (key down only). */
@@ -37,12 +42,45 @@ export interface HostRig {
 }
 
 export const contractDescription = netflixDescription("130.0.0.0");
+
+const DEMOFLIX = "https://www.demoflix.example";
+/** A neutral site with no playback adapter, search or preloads: the host's own fallbacks are all it has. */
+export const demoflixDescription: WebAppDescription = {
+  id: "demoflix",
+  url: `${DEMOFLIX}/`,
+  partition: "persist:demoflix",
+  identity: contractDescription.identity,
+  keyCodes: contractDescription.keyCodes,
+  isOwnOrigin: (origin) => origin === DEMOFLIX,
+  route: urlRoute((url) => url.pathname === "/"),
+  preloads: [],
+  addons: [],
+  enabledAddons: [],
+};
 const netflix = contractDescription;
 const playing = { position: 12, duration: 3000, paused: false, title: "Test Pattern" };
 
 /** The behaviour every web-App host shares, whatever engine draws the page. Run against each adapter. */
-export function describeWebHostContract(name: string, makeRig: () => HostRig): void {
+export function describeWebHostContract(
+  name: string,
+  make: (description: WebAppDescription) => HostRig,
+): void {
   describe(`web host contract: ${name}`, () => {
+    // Every rig is disposed after its test, and before fake timers are restored (a timer the host armed must not outlive its clock).
+    const rigs: HostRig[] = [];
+    const makeRig = (description: WebAppDescription = contractDescription): HostRig => {
+      const rig = make(description);
+      rigs.push(rig);
+      return rig;
+    };
+    const disposeRigs = () => {
+      for (const rig of rigs.splice(0)) rig.dispose();
+    };
+    afterEach(() => {
+      disposeRigs();
+      vi.useRealTimers();
+    });
+
     describe("playback", () => {
       test("reports what the page's probe finds while shown", async () => {
         vi.useFakeTimers();
@@ -60,6 +98,7 @@ export function describeWebHostContract(name: string, makeRig: () => HostRig): v
             }),
           });
         } finally {
+          disposeRigs();
           vi.useRealTimers();
         }
       });
@@ -82,6 +121,7 @@ export function describeWebHostContract(name: string, makeRig: () => HostRig): v
               .some((s) => s.includes('querySelectorAll("video")')),
           ).toBe(false);
         } finally {
+          disposeRigs();
           vi.useRealTimers();
         }
       });
@@ -97,6 +137,7 @@ export function describeWebHostContract(name: string, makeRig: () => HostRig): v
           await vi.advanceTimersByTimeAsync(500);
           expect(rig.events.at(-1)).toEqual({ type: "playback", playback: undefined });
         } finally {
+          disposeRigs();
           vi.useRealTimers();
         }
       });
@@ -113,6 +154,7 @@ export function describeWebHostContract(name: string, makeRig: () => HostRig): v
             (netflix.playback as Required<PlaybackAdapter>).seek(22),
           );
         } finally {
+          disposeRigs();
           vi.useRealTimers();
         }
       });
@@ -171,6 +213,7 @@ export function describeWebHostContract(name: string, makeRig: () => HostRig): v
             e.type === "playback" && e.playback ? [e.playback] : [],
           );
         } finally {
+          disposeRigs();
           vi.useRealTimers();
         }
       };
@@ -203,6 +246,25 @@ export function describeWebHostContract(name: string, makeRig: () => HostRig): v
 
       test("a page that is not playing (a home preview) reports nothing", async () => {
         expect(await reported(undefined)).toEqual([]);
+      });
+    });
+
+    describe("play/pause", () => {
+      test("a page with no playback adapter gets play/pause delivered all the same", async () => {
+        const rig = makeRig(demoflixDescription);
+        await rig.show();
+        rig.host.playPause();
+        expect(rig.playPauseDelivered()).toBe(true);
+      });
+
+      test("the App's adapter does it in its own way, and nothing else is sent", async () => {
+        const rig = makeRig();
+        await rig.show();
+        rig.host.playPause();
+        expect(rig.scripts().at(-1)).toBe(
+          (netflix.playback as Required<PlaybackAdapter>).playPause(),
+        );
+        expect(rig.playPauseDelivered()).toBe(false);
       });
     });
 
@@ -418,6 +480,7 @@ export function describeWebHostContract(name: string, makeRig: () => HostRig): v
           await vi.advanceTimersByTimeAsync(500);
           expect(rig.events.filter((e) => e.type === "searchOpened")).toHaveLength(2);
         } finally {
+          disposeRigs();
           vi.useRealTimers();
         }
       });
