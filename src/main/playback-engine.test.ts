@@ -28,7 +28,6 @@ class SwitchingFake extends FakeWebApp {
   unavailableError = false;
   readonly playback: AppPlayback;
   readonly #signIn: AppSignIn = {
-    importSignIn: async () => ({ ok: true, count: 1 }),
     signOut: async () => {},
   };
   constructor(unavailable?: string) {
@@ -122,13 +121,11 @@ describe("Settings → Apps → Playback", () => {
 
   test("the sign-in rows are there for WebKit only, and follow a switch", async () => {
     const phone = await start(app());
-    expect(labels()).toContain("Import Safari sign-in");
     expect(labels()).toContain("Sign out");
     await pick(phone, "Playback: WebKit (FairPlay)");
-    expect(labels()).not.toContain("Import Safari sign-in");
     expect(labels()).not.toContain("Sign out");
     await pick(phone, "Playback: Chromium (Widevine)");
-    expect(labels()).toContain("Import Safari sign-in");
+    expect(labels()).toContain("Sign out");
   });
 
   test("the sound note shows for WebKit only, and a switch updates it", async () => {
@@ -170,7 +167,6 @@ describe("Settings → Apps → Playback", () => {
     expect(labels()).toContain(
       "Playback: Chromium (Widevine) · WebKit unavailable: FairPlay isn't available on this Mac",
     );
-    expect(h.screen.last.appMenu?.note).toBeUndefined();
     expect(phone.last?.signInNote).toEqual({
       title: "Playback",
       steps: ["WebKit unavailable: FairPlay isn't available on this Mac"],
@@ -198,7 +194,6 @@ describe("Settings → Apps → Playback", () => {
 
   test("with both engines available there is no reason shown", async () => {
     await start(app());
-    expect(h.screen.last.appMenu?.note).toBeUndefined();
   });
 });
 
@@ -207,7 +202,6 @@ describe("NetflixApp over a switchable host", () => {
     const { NetflixApp } = await import("./apps/netflix/netflix-app.ts");
     const { FakeYouTube, FakeClock } = await import("./ports/fakes.ts");
     let signIn: AppSignIn | undefined = {
-      importSignIn: async () => ({ ok: true, count: 1 }),
       signOut: async () => {},
     };
     const playback: AppPlayback = {

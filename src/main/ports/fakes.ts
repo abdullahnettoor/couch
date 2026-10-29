@@ -220,7 +220,7 @@ export interface FakeWebAppOptions {
   layout?: RemoteLayout;
   /** true: the App's adapter can seek to a point and choose tracks. */
   adapter?: boolean;
-  /** The App offers Import Safari sign-in and Sign out in Settings. */
+  /** The App offers Sign out in Settings. */
   signIn?: AppSignIn;
   /** The App asks a one-time question before it opens. */
   welcome?: AppWelcome;

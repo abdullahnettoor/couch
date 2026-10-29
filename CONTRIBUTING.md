@@ -120,7 +120,7 @@ Some DRM needs FairPlay, which only a Mac's own WebKit (a `WKWebView`) gets, wit
 ## Rules
 
 - No network calls beyond the App's own site and, for an add-on, its one documented service. Say in the add-on's description if it needs one.
-- Never read or send account data (tokens, watch history, profile info), and never read cookies, with one narrow exception: importing or copying a sign-in (Settings → Apps → Netflix → Import Safari sign-in, Copy sign-in from Couch, or the one-time welcome's copy) happens only on the household's request, in the app. Agents and tests never read real cookies (tests use synthetic files and fake sources), and a cookie's value is never logged, shown or saved anywhere outside the App's own WebKit store.
+- Never read or send account data (tokens, watch history, profile info), and never read cookies, with one narrow exception: copying a sign-in from Couch's own Chromium (Settings → Apps → Netflix → Copy sign-in from Couch, or the one-time welcome's copy; Couch never reads Safari or asks for any extra permission) happens only on the household's request, in the app. Agents and tests never read real cookies (tests use fake sources), and a cookie's value is never logged, shown or saved anywhere outside the App's own WebKit store.
 - An add-on or hook must not throw into the page: guard with checks and return `undefined` when unsure. (A throwing modifier is skipped and warned about once, but don't rely on that.)
 - UI words follow `GLOSSARY.md`. Settings strings are short, plain and in the household's words.
 - Keep changes small and in the surrounding style; `vp check` must show 0 errors and `vp test run` must pass.

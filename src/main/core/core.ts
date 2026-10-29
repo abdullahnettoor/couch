@@ -150,13 +150,6 @@ const MPV_MISSING = "Couch needs mpv to play videos. Install it with: brew insta
 const VOLUME_STEP = 5;
 const LIBRARY_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const videoKey = (report: PlaybackReport) => `${report.title ?? ""}|${report.duration}`;
-const FULL_DISK_ACCESS_NOTE: RemoteNote = {
-  title: "Couch needs Full Disk Access",
-  steps: [
-    "Open System Settings → Privacy & Security → Full Disk Access and turn on Couch.",
-    "Restart Couch, then try Import Safari sign-in again.",
-  ],
-};
 const APP_NOTE = "Press Home on your phone to come back";
 
 /** The single source of truth: holds the Screen state and turns commands into new state. */
@@ -231,7 +224,6 @@ export class Core {
   #addonsPage: AddonsPage;
   #homePage: HomePage;
   #homeApps: HomeApps;
-  #signInNote: RemoteNote | undefined;
   /** Apps whose Couch-Chromium sign-in exists, asked each time their menu opens. */
   #couchCopy = new Set<string>();
   #couchCheck = 0;
@@ -1979,7 +1971,6 @@ export class Core {
     }
     if (this.#state.view === "settingsApps" && this.#homeApps.menuId) {
       delete this.#state.focus[APPS_MENU_KEY];
-      this.#signInNote = undefined;
       return this.#homeApps.closeMenu();
     }
     if (this.#state.view === "librarySearch") return this.#setView("library");
@@ -2007,7 +1998,6 @@ export class Core {
     if (from === view) return;
     if (view !== "settingsApps" && view !== "addons") {
       this.#homeApps.resetMenu();
-      this.#signInNote = undefined;
       delete this.#state.focus[APPS_MENU_KEY];
     }
     if (from === "app") {
@@ -2134,33 +2124,6 @@ export class Core {
     this.#openApp(id);
   }
 
-  /** Settings → Apps → Import Safari sign-in. The App reads Safari and fills its own store; core only hears how it went. */
-  async #importSignIn(id: string): Promise<void> {
-    const app = this.#apps.get(id);
-    if (!app?.signIn) return;
-    this.#signInNote = undefined;
-    const result = await app.signIn
-      .importSignIn()
-      .catch(() => ({ ok: false, reason: "failed" }) as const);
-    if (result.ok) {
-      this.#toast(
-        `Imported ${result.count} ${app.label} ${result.count === 1 ? "cookie" : "cookies"}`,
-      );
-    } else if (result.reason === "cancelled") {
-      // A sign out came first and has its own toast.
-    } else if (result.reason === "permission") {
-      this.#signInNote = FULL_DISK_ACCESS_NOTE;
-      this.#toast("Couch needs Full Disk Access to read Safari");
-    } else {
-      this.#toast(
-        result.reason === "none"
-          ? `No ${app.label} sign-in found in Safari`
-          : "Couldn't import the Safari sign-in",
-      );
-    }
-    this.#emit();
-  }
-
   async #refreshCouchCopy(id: string): Promise<void> {
     const copy = this.#apps.get(id)?.signIn?.copyFromCouch;
     if (!copy) return;
@@ -2178,7 +2141,6 @@ export class Core {
     const app = this.#apps.get(id);
     const copy = app?.signIn?.copyFromCouch;
     if (!app || !copy) return;
-    this.#signInNote = undefined;
     const result = await copy.copy().catch(() => ({ ok: false, reason: "failed" }) as const);
     const toast = copyFromCouchToast(app.label, result);
     if (toast) this.#toast(toast);
@@ -2193,7 +2155,6 @@ export class Core {
     const now = playback.current();
     const next = playback.options.find((o) => o.id !== now.id);
     if (!next) return;
-    this.#signInNote = undefined;
     this.#couchCopy.delete(id);
     const failure = await playback.select(next.id).then(
       () => undefined,
@@ -2213,7 +2174,6 @@ export class Core {
   async #signOut(id: string): Promise<void> {
     const app = this.#apps.get(id);
     if (!app?.signIn) return;
-    this.#signInNote = undefined;
     const done = await app.signIn.signOut().then(
       () => true,
       () => false,
@@ -2360,7 +2320,6 @@ export class Core {
       openApp: (id) => this.#openApp(id),
       retryApp: () => this.#retryApp(),
       restartApp: (id) => this.#restartApp(id),
-      importSignIn: (id) => void this.#importSignIn(id),
       copySignInFromCouch: (id) => void this.#copySignInFromCouch(id),
       signOut: (id) => void this.#signOut(id),
       switchPlayback: (id) => void this.#switchPlayback(id),
@@ -2371,14 +2330,8 @@ export class Core {
     };
   }
 
-  /** Under the menu: the sign-in steps, if any (why the other engine isn't offered is on the Playback row). */
-  #menuNote(): { note?: string } {
-    return this.#signInNote ? { note: this.#signInNote.steps.join(" ") } : {};
-  }
-
-  /** The card the Remote shows under an App's menu: the sign-in steps, else why the other playback engine isn't offered. */
+  /** The card the Remote shows under an App's menu: why the other playback engine isn't offered. */
   #remoteNote(): RemoteNote | undefined {
-    if (this.#signInNote) return this.#signInNote;
     const id = this.#homeApps.menuId;
     const reason = id ? this.#apps.get(id)?.playback?.unavailable : undefined;
     return reason ? { title: "Playback", steps: [reason] } : undefined;
@@ -2391,7 +2344,6 @@ export class Core {
           appMenu: {
             id: app.id,
             label: app.label,
-            ...this.#menuNote(),
           },
         }
       : {};

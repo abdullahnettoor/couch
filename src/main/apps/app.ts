@@ -79,10 +79,10 @@ export interface AppTyping {
   captureText(on: boolean): void;
 }
 
-/** What an import from Safari came to. `permission`: Couch has no Full Disk Access (Safari only); `none`: no Netflix cookies found; `cancelled`: a sign out came first. */
+/** What a copy from Couch's Chromium came to. `none`: no Netflix cookies found; `cancelled`: a sign out came first. */
 export type SignInResult =
   | { ok: true; count: number }
-  | { ok: false; reason: "permission" | "none" | "failed" | "cancelled" };
+  | { ok: false; reason: "none" | "failed" | "cancelled" };
 
 /** An App whose sign-in Settings can fill from Safari or clear. */
 export interface AppSignIn {
@@ -91,7 +91,6 @@ export interface AppSignIn {
     available(): Promise<boolean>;
     copy(): Promise<SignInResult>;
   };
-  importSignIn(): Promise<SignInResult>;
   signOut(): Promise<void>;
 }
 
@@ -141,7 +140,7 @@ export interface App extends SoundSink {
   readonly playback?: AppPlayback;
   /** Present when the App asks a one-time question before it first loads. */
   readonly welcome?: AppWelcome;
-  /** Present when Settings → Apps offers "Import Safari sign-in" and "Sign out" for this App. */
+  /** Present when Settings → Apps offers "Copy sign-in from Couch" and "Sign out" for this App. */
   readonly signIn?: AppSignIn;
   /** Present when the App takes text; without it the Remote shows no Type button. */
   readonly typing?: AppTyping;

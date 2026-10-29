@@ -382,7 +382,7 @@ export interface ScreenPayload {
   /** Settings and its "Show and film details" page: the TMDB key label, On/Off and any hint. */
   details?: { keyLabel: string; hasOwnKey: boolean; enabled: boolean; hint?: string };
   /** Settings → Apps with the menu open: the App it is for (its row stays marked). */
-  appMenu?: { id: string; label: string; note?: string };
+  appMenu?: { id: string; label: string };
   /** What Home draws behind everything; on the Home settings page, shown with the tile in focus as `preview`. */
   home?: HomePayload;
   /** Settings and the Sound output page. */
@@ -461,7 +461,7 @@ export interface RemoteSnapshot {
   /** Home only, when a video is in progress. */
   continueCard?: RemoteContinueCard;
   typeAvailable: boolean;
-  /** Settings → Apps: why a sign-in import couldn't read Safari, and what to do (the Screen shows the same steps). */
+  /** Settings → Apps: why the App's other playback engine isn't offered. */
   signInNote?: RemoteNote;
   /** The Screen's toast, mirrored: the phone shows each `id` once, calmly, whatever view it is in. */
   toast?: { text: string; id: number };

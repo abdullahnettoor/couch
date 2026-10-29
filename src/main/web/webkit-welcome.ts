@@ -6,8 +6,9 @@ import type { Engine } from "./native-front.ts";
 const DOC = "apps-welcome";
 
 /**
- * The welcome for an App that has just come to WebKit, which has its own sign-in: asked once, before the page first
- * loads there. Nothing is copied or switched until an answer says so; any answer (Back included) ends the asking for good.
+ * The welcome for an App that has come to WebKit, which has its own sign-in: asked once, and only of someone who
+ * already has a sign-in in Couch's Chromium. A new user gets none and lands on the App's own sign-in page. Nothing is
+ * copied or switched until an answer says so; any answer (Back included) ends the asking for good.
  */
 export function createWebKitWelcome(o: {
   store: Store;
@@ -33,11 +34,12 @@ export function createWebKitWelcome(o: {
       if (o.engine() !== "webkit" || answered()) return undefined;
       const copy = o.signIn()?.copyFromCouch;
       const hasCookies = copy ? await copy.available().catch(() => false) : false;
+      if (!hasCookies) return undefined;
       return {
         title: `${o.label} now plays in sharper quality`,
         body: "It needs its own sign-in.",
         choices: [
-          ...(hasCookies ? [{ id: "copy", label: "Copy sign-in from Couch" }] : []),
+          { id: "copy", label: "Copy sign-in from Couch" },
           { id: "signin", label: `Sign in on ${o.label}` },
           { id: "chromium", label: "Keep using Chromium" },
         ],

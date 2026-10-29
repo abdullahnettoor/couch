@@ -72,7 +72,7 @@ export interface HomeAppsHost {
   /** The engine App `id` plays with now, when it offers a choice. */
   /** The engine in use, and why the other can't be used when it can't. */
   playback(id: string): { label: string; unavailable?: string } | undefined;
-  /** Whether App `id` offers Import Safari sign-in and Sign out. */
+  /** Whether App `id` offers Sign out (and Copy sign-in from Couch). */
   hasSignIn(id: string): boolean;
   /** Whether App `id` can copy a sign-in from Couch's Chromium engine right now (it holds one). */
   hasCouchCopy(id: string): boolean;
@@ -210,11 +210,6 @@ export class HomeApps {
                   },
                 ]
               : []),
-            {
-              id: "sign-in-import",
-              label: "Import Safari sign-in",
-              action: `${SIGN_IN_APP}import:${id}`,
-            },
             { id: "sign-in-out", label: "Sign out", action: `${SIGN_IN_APP}out:${id}` },
           ]
         : []),

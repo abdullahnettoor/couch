@@ -1,5 +1,9 @@
-import { isNetflixDomain } from "./binary-cookies.ts";
 import type { WebKitCookie } from "./webkit-bridge.ts";
+
+export function isNetflixDomain(domain: string): boolean {
+  const d = domain.toLowerCase();
+  return d === "netflix.com" || d.endsWith(".netflix.com");
+}
 
 /** The part of an Electron `Cookie` that Couch reads. `expirationDate` is Unix seconds and absent for a session cookie. */
 export interface ElectronCookie {

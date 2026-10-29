@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 import type { AppEntry } from "./apps/index.ts";
 import type { AppSignIn, SignInResult } from "./apps/app.ts";
-import { createSafariSignIn } from "./web/safari-sign-in.ts";
+import { createAppSignIn } from "./web/app-sign-in.ts";
 import type { WebKitCookie } from "./web/webkit-bridge.ts";
 import { FakeWebApp } from "./ports/fakes.ts";
 import { FileStore } from "./ports/store.ts";
@@ -24,10 +24,9 @@ const entry: AppEntry = {
   web: true,
 };
 
-function setup(result: SignInResult) {
+function setup() {
   const calls: string[] = [];
   const signIn: AppSignIn = {
-    importSignIn: async () => (calls.push("import"), result),
     signOut: async () => void calls.push("signOut"),
   };
   return { calls, app: new FakeWebApp("weather", "Cinema", { signIn }) };
@@ -65,14 +64,13 @@ function setupCopy(available: boolean, result: SignInResult = { ok: true, count:
       available: async () => available,
       copy: async () => (calls.push("copy"), result),
     },
-    importSignIn: async () => (calls.push("import"), { ok: true, count: 1 }),
     signOut: async () => void calls.push("signOut"),
   };
   return { calls, app: new FakeWebApp("weather", "Cinema", { signIn }) };
 }
 
 describe("Settings → Apps → Copy sign-in from Couch", () => {
-  test("shown first, above Import Safari sign-in, when Couch's Chromium holds a sign-in", async () => {
+  test("shown, between Restart and Sign out, when Couch's Chromium holds a sign-in", async () => {
     const { app } = setupCopy(true);
     h = await startHarness(undefined, { apps: [{ entry, app }] });
     const phone = await h.connectPhone();
@@ -80,7 +78,7 @@ describe("Settings → Apps → Copy sign-in from Couch", () => {
     await h.settle();
     const rows = labels();
     expect(rows.indexOf("Copy sign-in from Couch")).toBeGreaterThan(rows.indexOf("Restart Cinema"));
-    expect(rows.indexOf("Copy sign-in from Couch")).toBe(rows.indexOf("Import Safari sign-in") - 1);
+    expect(rows.indexOf("Copy sign-in from Couch")).toBe(rows.indexOf("Sign out") - 1);
   });
 
   test("not shown when Chromium holds no sign-in", async () => {
@@ -90,7 +88,7 @@ describe("Settings → Apps → Copy sign-in from Couch", () => {
     await openMenu(phone, "Cinema");
     await h.settle();
     expect(labels()).not.toContain("Copy sign-in from Couch");
-    expect(labels()).toContain("Import Safari sign-in");
+    expect(labels()).toContain("Sign out");
   });
 
   function setupAnswers() {
@@ -100,7 +98,6 @@ describe("Settings → Apps → Copy sign-in from Couch", () => {
         available: () => new Promise<boolean>((res) => pending.push(res)),
         copy: async () => ({ ok: true, count: 1 }),
       },
-      importSignIn: async () => ({ ok: true, count: 1 }),
       signOut: async () => {},
     };
     return { pending, app: new FakeWebApp("weather", "Cinema", { signIn }) };
@@ -155,7 +152,7 @@ describe("Settings → Apps → Copy sign-in from Couch", () => {
   });
 
   test("not shown for an App with no Couch source", async () => {
-    const { app } = setup({ ok: true, count: 1 });
+    const { app } = setup();
     h = await startHarness(undefined, { apps: [{ entry, app }] });
     const phone = await h.connectPhone();
     await openMenu(phone, "Cinema");
@@ -174,7 +171,6 @@ describe("Settings → Apps → Copy sign-in from Couch", () => {
     expect(h.screen.last.state.toast).toBe("Copied 3 Cinema cookies");
     expect(phone.last?.toast).toEqual({ text: "Copied 3 Cinema cookies", id: expect.any(Number) });
     expect(phone.last?.signInNote).toBeUndefined();
-    expect(h.screen.last.appMenu?.note).toBeUndefined();
   });
 
   test("one cookie is singular", async () => {
@@ -213,7 +209,6 @@ describe("Settings → Apps → Copy sign-in from Couch", () => {
         available: async () => true,
         copy: () => new Promise((res) => (finish = () => res({ ok: true, count: 3 }))),
       },
-      importSignIn: async () => ({ ok: true, count: 1 }),
       signOut: async () => {},
     };
     const app = new FakeWebApp("weather", "Cinema", { signIn });
@@ -269,9 +264,7 @@ describe("the Settings path with the real copy", () => {
   test("sign out pressed while Chromium's cookies are still being read wins", async () => {
     let release!: (c: ReturnType<typeof cookie>[]) => void;
     const calls: string[] = [];
-    const signIn = createSafariSignIn({
-      paths: [],
-      read: async () => Buffer.alloc(0),
+    const signIn = createAppSignIn({
       couch: { get: afterMenuOpens(() => new Promise((r) => (release = r))) },
       target: {
         setCookies: async () => void calls.push("set"),
@@ -312,9 +305,7 @@ describe("the Settings path with the real copy", () => {
   test("sign out pressed while the read is failing: no error toast, only the sign out", async () => {
     let fail!: (e: Error) => void;
     const calls: string[] = [];
-    const signIn = createSafariSignIn({
-      paths: [],
-      read: async () => Buffer.alloc(0),
+    const signIn = createAppSignIn({
       couch: { get: afterMenuOpens(() => new Promise((_, rej) => (fail = rej))) },
       target: {
         setCookies: async () => void calls.push("set"),
@@ -334,9 +325,7 @@ describe("the Settings path with the real copy", () => {
     for (const refuse of [false, true]) {
       let finish!: () => void;
       const calls: string[] = [];
-      const signIn = createSafariSignIn({
-        paths: [],
-        read: async () => Buffer.alloc(0),
+      const signIn = createAppSignIn({
         couch: { get: async () => [cookie("a")] },
         target: {
           setCookies: () =>
@@ -379,9 +368,7 @@ describe("the Settings path with the real copy", () => {
       vi.spyOn(process[k as "stdout" | "stderr"], "write").mockImplementation(() => true),
     );
     const received: WebKitCookie[][] = [];
-    const signIn = createSafariSignIn({
-      paths: [],
-      read: async () => Buffer.alloc(0),
+    const signIn = createAppSignIn({
       couch: { get: afterMenuOpens(o.get) },
       target: {
         setCookies: async (c) => {

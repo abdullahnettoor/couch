@@ -25,7 +25,6 @@ function rig(
       },
       copy: async () => (calls.push("copy"), o.copy ?? { ok: true, count: 3 }),
     },
-    importSignIn: async () => (calls.push("import"), { ok: true, count: 1 }),
     signOut: async () => void calls.push("signOut"),
   };
   const playback = {
@@ -60,16 +59,30 @@ describe("the welcome when Netflix first opens on WebKit", () => {
     ]);
   });
 
-  test("leaves Copy out when the Chromium partition has no Netflix cookies, or can't be read", async () => {
+  test("a new user, with no Chromium cookies or none readable, gets no welcome", async () => {
     for (const cookies of [false, "throws"] as const) {
-      const q = await rig({ cookies }).welcome.question();
-      expect(q?.choices.map((c) => c.id)).toEqual(["signin", "chromium"]);
+      const r = rig({ cookies });
+      expect(await r.welcome.question()).toBeUndefined();
+      expect(r.calls).toEqual(["available"]);
+      expect(r.engine()).toBe("webkit");
     }
   });
 
   test("Back stands for Sign in on Netflix", async () => {
     expect((await rig().welcome.question())?.back).toBe("signin");
-    expect((await rig({ cookies: false }).welcome.question())?.back).toBe("signin");
+  });
+
+  test("an App with no Chromium sign-in source gets no welcome", async () => {
+    const r = rig();
+    const welcome = createWebKitWelcome({
+      store: r.store,
+      appId: "netflix",
+      label: "Netflix",
+      engine: () => "webkit",
+      signIn: () => undefined,
+      playback: {} as AppPlayback,
+    });
+    expect(await welcome.question()).toBeUndefined();
   });
 
   test("never asks on Chromium", async () => {

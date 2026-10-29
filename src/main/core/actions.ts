@@ -12,7 +12,6 @@ export interface ActionContext {
   openApp(id: string): void;
   retryApp(): void;
   restartApp(id: string): void;
-  importSignIn(id: string): void;
   copySignInFromCouch(id: string): void;
   signOut(id: string): void;
   switchPlayback(id: string): void;
@@ -42,7 +41,6 @@ function appAction(action: string): ActionHandler | undefined {
     return (ctx) => ctx.openAppMenu(action.slice(SETTINGS_APP.length));
   if (action.startsWith(SIGN_IN_APP)) {
     const [verb, id = ""] = action.slice(SIGN_IN_APP.length).split(":");
-    if (verb === "import") return (ctx) => ctx.importSignIn(id);
     if (verb === "couch") return (ctx) => ctx.copySignInFromCouch(id);
     if (verb === "out") return (ctx) => ctx.signOut(id);
     return undefined;

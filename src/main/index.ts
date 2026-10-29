@@ -8,7 +8,6 @@ import {
   screen,
   WebContentsView,
 } from "electron";
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { screenPointer } from "./pointer-position.ts";
 import { Channel, type GlassRect, type GridReport } from "../shared/ipc.ts";
@@ -21,7 +20,7 @@ import { systemClock } from "./ports/clock.ts";
 import { createElectronMac } from "./ports/electron-mac.ts";
 import { ElectronWebApp } from "./web/electron-web-app.ts";
 import { resolveWebKitStore } from "./web/webkit-stores.ts";
-import { createSafariSignIn, safariCookiePaths } from "./web/safari-sign-in.ts";
+import { createAppSignIn } from "./web/app-sign-in.ts";
 import { couchOverlayOpen } from "./web/webkit-input.ts";
 import { cdpCookieSource } from "./web/couch-cdp-source.ts";
 import { WebKitWebApp } from "./web/webkit-web-app.ts";
@@ -267,9 +266,7 @@ async function createScreen(): Promise<void> {
     if (!(host instanceof WebKitWebApp)) throw new Error("Netflix is not on WebKit");
     return host;
   };
-  const safariSignIn = createSafariSignIn({
-    paths: safariCookiePaths(app.getPath("home")),
-    read: (path) => readFile(path),
+  const appSignIn = createAppSignIn({
     // Couch's own Chromium cookies, only read, and only when the menu or a copy asks.
     couch: cdpCookieSource(() => {
       // A page-less WebContents on the Netflix partition: never shown, never navigated.
@@ -304,7 +301,7 @@ async function createScreen(): Promise<void> {
     webkit: () => fairplay.current(),
   });
   // Sign-in rows belong to the WebKit engine only.
-  const netflixSignIn = () => (netflix.engine === "webkit" ? safariSignIn : undefined);
+  const netflixSignIn = () => (netflix.engine === "webkit" ? appSignIn : undefined);
   const netflixApp = new NetflixApp(
     netflix,
     systemClock,
