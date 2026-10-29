@@ -7,14 +7,7 @@ import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
 import { BlankGuard, backIsSafe } from "./blank-guard.ts";
 import { HiddenAudio } from "./hidden-audio.ts";
 import { keyBelongsToField } from "./field-keys.ts";
-import {
-  BACK_QUERY,
-  FIELD_BLURRED,
-  FIELD_FOCUSED,
-  backAction,
-  pageFocusFunction,
-  typeIntoFieldScript,
-} from "./page-focus.ts";
+import { FIELD_BLURRED, FIELD_FOCUSED, pageFocusFunction } from "./page-focus.ts";
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import { requestHooksFor, type RequestHooks } from "./request-hooks.ts";
 import { blockLocalFiles } from "./local-files.ts";
@@ -22,23 +15,9 @@ import { HIDE_SCROLLBARS_CSS } from "./hide-scrollbars.ts";
 import { SessionPreloads } from "./session-preloads.ts";
 import type { IdleLifecycle } from "./idle-unload.ts";
 import { drmGate } from "./drm-gate.ts";
-import {
-  composeReport,
-  playbackProbe,
-  skipTarget,
-  sameReport,
-  type PlaybackReport,
-  type TrackReport,
-} from "./playback.ts";
-import { seekPlan } from "./seek-plan.ts";
+import { WebHostCore } from "./web-host-core.ts";
 import type { WebAppDescription, WebIdentity } from "./web-app.ts";
-import {
-  CONFIRM_MESSAGE,
-  confirmScript,
-  noteScript,
-  searchBarScript,
-  volumeScript,
-} from "./web-hud.ts";
+import { CONFIRM_MESSAGE, confirmScript, noteScript, volumeScript } from "./web-hud.ts";
 import {
   allowsPermission,
   LIST_OUTPUTS_SCRIPT,
@@ -47,8 +26,6 @@ import {
   soundScript,
   type PageOutput,
 } from "./web-sound.ts";
-
-const TRACKS_EVERY_MS = 2000;
 
 /** Asked first about every physical key on the page; true means it was handled. */
 export type KeyGate = (
@@ -61,6 +38,7 @@ export class ElectronWebApp implements YouTube {
   #desc: WebAppDescription;
   #win: BrowserWindow;
   #view!: WebContentsView;
+  #core: WebHostCore;
   #listeners = new Set<(event: YouTubeEvent) => void>();
   #visible = false;
   #failed = false;
@@ -73,16 +51,6 @@ export class ElectronWebApp implements YouTube {
   #capturing = false;
   /** A text field in the page has focus: keys on the Mac keyboard are its, not Couch commands. */
   #fieldFocused = false;
-  #inSearch = false;
-  #skipTimer: ReturnType<typeof setTimeout> | undefined;
-  #lastSkipAt = 0;
-  #page: unknown;
-  #routes: ReturnType<WebAppDescription["route"]["tracker"]>;
-  #report: PlaybackReport | undefined;
-  #probing = false;
-  #tracks: TrackReport | undefined;
-  #tracksAt = 0;
-  #routeTimer: ReturnType<typeof setInterval> | undefined;
   #volume = 60;
   #keyGate?: KeyGate;
   #sinkId = "";
@@ -102,8 +70,23 @@ export class ElectronWebApp implements YouTube {
     this.#lifecycle = lifecycle;
     this.#desc = desc;
     this.#win = win;
-    this.#page = desc.route.idle;
-    this.#routes = desc.route.tracker();
+    this.#core = new WebHostCore(
+      desc,
+      {
+        run: (script) => this.#view.webContents.executeJavaScript(script),
+        press: (keyCode) => this.#press(keyCode),
+        goBack: () => this.#goBack(),
+        url: () => this.#view.webContents.getURL(),
+        load: (url) =>
+          void this.#view.webContents
+            .loadURL(url, { userAgent: desc.identity.userAgent })
+            .catch(() => {}),
+        focus: () => this.#view.webContents.focus(),
+        visible: () => this.#visible,
+      },
+      (event) => this.#emit(event),
+      { pollsRoute: true },
+    );
     const ses = session.fromPartition(desc.partition);
     ses.setUserAgent(desc.identity.userAgent);
     const hooks = requestHooksFor(ses);
@@ -148,7 +131,7 @@ export class ElectronWebApp implements YouTube {
       if (this.#failed || !wc.getURL().startsWith("https:")) return;
       this.#guard.loaded();
       this.#emit({ type: "loaded" });
-      this.#syncRoute();
+      this.#core.syncRoute(wc.getURL());
       this.#ready = true;
       void this.#resolveOutput();
     });
@@ -229,93 +212,25 @@ export class ElectronWebApp implements YouTube {
       event.preventDefault();
       if (input.type === "keyDown") this.#emit({ type: "key", command });
     });
-    const route = (_e: unknown, url: string) => {
-      if (!url.startsWith("https:")) return;
-      this.#syncRoute();
-      const searching = this.#desc.search?.isSearchUrl(url) ?? false;
-      const entering = searching && !this.#inSearch;
-      this.#inSearch = searching;
-      // Only arriving at search counts; Couch's own query updates also change the route.
-      if (entering) setTimeout(() => this.#emit({ type: "searchOpened" }), 400);
-    };
+    const route = (_e: unknown, url: string) => this.#core.navigated(url);
     wc.on("did-navigate", route);
     wc.on("did-navigate-in-page", route);
   }
 
-  /** Tells the core whether YouTube is on its home screen (a Short keeps Home's URL, so the page is asked too). */
-  #syncRoute(): void {
-    const route = this.#routes.update(this.#view.webContents.getURL(), this.#page);
-    if (route) this.#emit({ type: "route", ...route });
-  }
-
-  #pollPage(): void {
-    this.#pollPlayback();
-    void this.#view.webContents
-      .executeJavaScript(this.#desc.route.script)
-      .then((page: unknown) => {
-        this.#page = page;
-        this.#syncRoute();
-      })
-      .catch(() => {});
-  }
-
-  /** Reads the page's playing video; tracks come from the adapter, asked at most every 2 s. */
-  #pollPlayback(): void {
-    if (this.#probing || !this.#visible) return;
-    const adapter = this.#desc.playback;
-    const now = Date.now();
-    const askTracks = !!adapter?.tracks && now - this.#tracksAt >= TRACKS_EVERY_MS;
-    this.#probing = true;
-    void this.#view.webContents
-      .executeJavaScript(
-        playbackProbe({
-          tracks: askTracks ? adapter!.tracks!() : undefined,
-          active: adapter?.active?.(),
-          speeds: adapter?.speeds,
-          artwork: adapter?.artwork?.(),
-          prompt: adapter?.prompt?.(),
-        }),
-      )
-      .then((found: PlaybackReport | undefined) => {
-        if (!this.#visible) return;
-        if (askTracks) {
-          this.#tracksAt = now;
-          this.#tracks = found?.tracks as TrackReport | undefined;
-        }
-        this.#reportPlayback(
-          composeReport(found, this.#tracks, !!adapter?.seek, this.#desc.artworkHosts),
-        );
-      })
-      .catch(() => this.#reportPlayback(undefined))
-      .finally(() => {
-        this.#probing = false;
-      });
-  }
-
-  #reportPlayback(next: PlaybackReport | undefined): void {
-    if (sameReport(this.#report, next)) return;
-    this.#report = next;
-    this.#emit({ type: "playback", playback: next });
-  }
-
   seekTo(seconds: number): void {
-    const script = this.#desc.playback?.seek?.(seconds);
-    if (script) void this.#view.webContents.executeJavaScript(script).catch(() => {});
+    this.#core.seekTo(seconds);
   }
 
   pressPrompt(id: PromptId): void {
-    const script = this.#desc.playback?.pressPrompt?.(id);
-    if (script) void this.#view.webContents.executeJavaScript(script).catch(() => {});
+    this.#core.pressPrompt(id);
   }
 
   setSpeed(speed: number): void {
-    const script = this.#desc.playback?.setSpeed?.(speed);
-    if (script) void this.#view.webContents.executeJavaScript(script).catch(() => {});
+    this.#core.setSpeed(speed);
   }
 
   setTrack(kind: TrackKind, id: string): void {
-    const script = this.#desc.playback?.setTrack?.(kind, id);
-    if (script) void this.#view.webContents.executeJavaScript(script).catch(() => {});
+    this.#core.setTrack(kind, id);
   }
 
   /** Starts loading in the background so opening YouTube is instant. */
@@ -351,15 +266,12 @@ export class ElectronWebApp implements YouTube {
     this.#failed = false;
     this.#ready = false;
     this.#fieldFocused = false;
-    this.#inSearch = false;
-    this.#page = this.#desc.route.idle;
-    this.#routes = this.#desc.route.tracker();
     // A blank page keeps its renderer, so the whole view goes; the next one starts without a process.
     const old = this.#view;
     this.#win.contentView.removeChildView(old);
     old.webContents.close();
     this.#createView();
-    this.#emit({ type: "route", home: true });
+    this.#core.reset();
   }
 
   #load(): void {
@@ -385,7 +297,7 @@ export class ElectronWebApp implements YouTube {
     else if (this.#loadIssued) void this.#guard.onShow();
     this.#lifecycle?.shown();
     this.#visible = true;
-    this.#routeTimer ??= setInterval(() => this.#pollPage(), 400);
+    this.#core.shown();
     this.#fit();
     this.#view.setVisible(true);
     this.#silence.show();
@@ -395,11 +307,7 @@ export class ElectronWebApp implements YouTube {
 
   hide(): void {
     this.#visible = false;
-    this.#tracks = undefined;
-    this.#tracksAt = 0;
-    this.#reportPlayback(undefined);
-    clearInterval(this.#routeTimer);
-    this.#routeTimer = undefined;
+    this.#core.hidden();
     this.#silence.hide();
     this.#view.setVisible(false);
     this.#win.webContents.focus();
@@ -501,22 +409,7 @@ export class ElectronWebApp implements YouTube {
   }
 
   sendKey(key: YouTubeKey): void {
-    const keyCode = this.#desc.keyCodes[key];
-    const wc = this.#view.webContents;
-    if (key === "back" && this.#desc.backByHistory) {
-      // The player's bar and a pop-up close the site's own way (its Escape, or the page hiding the bar); history back is for the player and pages Couch doesn't know.
-      void wc
-        .executeJavaScript(BACK_QUERY)
-        .catch(() => "")
-        .then((answer) => {
-          const todo = backAction(answer);
-          if (todo === "history") return this.#goBack();
-          if (todo === "press") this.#press(keyCode);
-          this.#emit({ type: "backHandled" });
-        });
-      return;
-    }
-    this.#press(keyCode);
+    this.#core.sendKey(key);
   }
 
   #goBack(): void {
@@ -539,51 +432,15 @@ export class ElectronWebApp implements YouTube {
   }
 
   scrollToTop(): void {
-    void this.#view.webContents
-      .executeJavaScript("window.scrollTo({ top: 0, behavior: 'smooth' })")
-      .catch(() => {});
+    this.#core.scrollToTop();
   }
 
   playPause(): void {
-    const wc = this.#view.webContents;
-    const own = this.#desc.playback?.playPause;
-    if (own) {
-      void wc.executeJavaScript(own()).catch(() => {});
-      return;
-    }
-    this.#press("MediaPlayPause");
+    this.#core.playPause();
   }
 
-  /**
-   * Skips by driving YouTube's own scrubber with keys (Left/Right, then OK after the last press).
-   * j/l, media fast-forward keys and bare arrows do not seek in the TV player.
-   */
   seekBy(seconds: number): void {
-    const target = this.#desc.playback?.seek ? skipTarget(this.#report, seconds) : undefined;
-    if (target !== undefined) return this.seekTo(target);
-    // Keys for the player, not for Couch's focus layer (which would move its highlight over the bar).
-    if (this.#desc.focus) {
-      void this.#view.webContents
-        .executeJavaScript(
-          `window.__couchRawKeys && window.__couchRawKeys(${(this.#desc.skip?.commitMs ?? 0) + 1500})`,
-        )
-        .catch(() => {});
-    }
-    const now = Date.now();
-    const skip = this.#desc.skip;
-    const plan = seekPlan(
-      this.#desc,
-      seconds,
-      now - this.#lastSkipAt < (skip?.controlsHideMs ?? 0),
-    );
-    for (const key of plan.keys) this.sendKey(key);
-    if (!skip || !plan.commit) return;
-    this.#lastSkipAt = now;
-    clearTimeout(this.#skipTimer);
-    this.#skipTimer = setTimeout(() => {
-      this.sendKey("ok");
-      this.#lastSkipAt = 0;
-    }, skip.commitMs);
+    this.#core.seekBy(seconds);
   }
 
   captureText(on: boolean): void {
@@ -591,37 +448,11 @@ export class ElectronWebApp implements YouTube {
   }
 
   submitSearch(text: string): void {
-    if (!this.#desc.search) return;
-    // A field in the page that has focus (a sign-in form) is what the household is typing into.
-    void this.#view.webContents
-      .executeJavaScript(typeIntoFieldScript(text))
-      .catch(() => false)
-      .then((typed) => {
-        if (typed === true) return this.#view.webContents.focus();
-        this.#searchInstead(text);
-      });
-  }
-
-  #searchInstead(text: string): void {
-    // Going to search is Couch's own doing, not the household opening YouTube's search screen.
-    this.#inSearch = true;
-    this.#goToSearch(text);
-    this.#view.webContents.focus();
+    this.#core.submitSearch(text);
   }
 
   showSearchBar(text: string | undefined): void {
-    const search = this.#desc.search;
-    if (!search) return;
-    void this.#view.webContents
-      .executeJavaScript(searchBarScript(text, search.placeholder))
-      .catch(() => {});
-  }
-
-  #goToSearch(text: string): void {
-    const wc = this.#view.webContents;
-    const url = this.#desc.search!.urlFor(text);
-    if (wc.getURL() === url) return;
-    void wc.loadURL(url, { userAgent: this.#desc.identity.userAgent }).catch(() => {});
+    this.#core.showSearchBar(text);
   }
 
   restart(): void {

@@ -605,8 +605,14 @@ static NSString *wkJson(id v) {
   napi_call_threadsafe_function(self.events, new WkEvent{kind, toStd(a), toStd(b)}, napi_tsfn_nonblocking);
 }
 - (void)userContentController:(WKUserContentController *)c didReceiveScriptMessage:(WKScriptMessage *)m {
-  NSString *wrapped = wkJson(m.body);  // "[value]": the message carries the bare JSON value
-  [self post:"message" a:m.name b:[wrapped substringWithRange:NSMakeRange(1, wrapped.length - 2)]];
+  // The frame is WebKit's own report of where the message came from; the host drops anything that isn't the App's main frame.
+  WKSecurityOrigin *o = m.frameInfo.securityOrigin;
+  NSString *origin = o.host.length ? [NSString stringWithFormat:@"%@://%@%@", o.protocol, o.host, o.port ? [NSString stringWithFormat:@":%ld", (long)o.port] : @""] : @"";
+  id body = m.body;
+  if (!body || ![NSJSONSerialization isValidJSONObject:@[body]]) body = [NSNull null];
+  NSDictionary *envelope = @{@"body": body, @"frame": @{@"isMainFrame": @(m.frameInfo.isMainFrame), @"origin": origin}};
+  NSData *d = [NSJSONSerialization dataWithJSONObject:envelope options:0 error:nil];
+  [self post:"message" a:m.name b:d ? [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding] : @"{}"];
 }
 - (void)webView:(WKWebView *)w didFinishNavigation:(WKNavigation *)n { [self post:"loaded" a:w.URL.absoluteString b:nil]; }
 - (void)webView:(WKWebView *)w didFailNavigation:(WKNavigation *)n withError:(NSError *)e {
@@ -626,21 +632,19 @@ static NSString *wkJson(id v) {
 - (void)observeValueForKeyPath:(NSString *)k ofObject:(id)o change:(NSDictionary *)c context:(void *)x {
   if ([k isEqualToString:@"URL"] && self.web.URL) [self post:"navigated" a:self.web.URL.absoluteString b:nil];
 }
-- (void)evaluate:(NSString *)script done:(void (^)(NSString *error, NSString *json))done {
-  // An expression (a promise is awaited); a statement list isn't one, so a syntax error retries as a plain script.
-  NSString *body = [NSString stringWithFormat:@"return await (%@\n);", script];
-  WKWebView *w = self.web;
-  [w callAsyncJavaScript:body arguments:@{} inFrame:nil inContentWorld:WKContentWorld.pageWorld completionHandler:^(id r, NSError *e) {
+// Runs once, in `world`. "expression": `(script)` is awaited; "body": the script is a function body. The mode is the caller's
+// decision: a script that throws is never run again as something else.
+- (void)evaluate:(NSString *)script isBody:(BOOL)isBody world:(WKContentWorld *)world done:(void (^)(NSString *error, NSString *json))done {
+  NSString *body = isBody ? script : [NSString stringWithFormat:@"return await (%@\n);", script];
+  [self.web callAsyncJavaScript:body arguments:@{} inFrame:nil inContentWorld:world completionHandler:^(id r, NSError *e) {
     if (!e) return done(nil, wkJson(r));
-    NSString *msg = e.userInfo[@"WKJavaScriptExceptionMessage"] ?: e.localizedDescription;
-    if (![msg containsString:@"SyntaxError"]) return done(msg, @"[null]");
-    [w evaluateJavaScript:script completionHandler:^(id r2, NSError *e2) {
-      if (e2) done(e2.userInfo[@"WKJavaScriptExceptionMessage"] ?: e2.localizedDescription, @"[null]"); else done(nil, wkJson(r2));
-    }];
+    done(e.userInfo[@"WKJavaScriptExceptionMessage"] ?: e.localizedDescription, @"[null]");
   }];
 }
 @end
 
+// Couch's own scripts and its message handler live in this world; the page (Netflix's world) can't see them.
+static WKContentWorld *couchWorld() { return [WKContentWorld worldWithName:@"couch"]; }
 static std::map<int, CouchWebKit *> webkits;
 static int nextWebkit = 1;
 
@@ -683,7 +687,7 @@ static void destroyWebKit(CouchWebKit *wk) {
   [wk.web removeObserver:wk forKeyPath:@"URL"];
   wk.web.navigationDelegate = nil;
   wk.web.UIDelegate = nil;
-  [wk.web.configuration.userContentController removeAllScriptMessageHandlers];
+  [wk.web.configuration.userContentController removeAllScriptMessageHandlersFromContentWorld:couchWorld()];
   [wk.web stopLoading];
   [wk.web removeFromSuperview];
 }
@@ -742,29 +746,32 @@ static napi_value WebkitLoad(napi_env env, napi_callback_info info) {
   return NULL;
 }
 
-// webkitEvaluate(id, script, callback(error|null, json))
+// webkitEvaluate(id, script, kind "expression"|"body", callback(error|null, json)): in the "couch" world, once.
 static napi_value WebkitEvaluate(napi_env env, napi_callback_info info) {
-  size_t argc = 3; napi_value argv[3];
+  size_t argc = 4; napi_value argv[4];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
   CouchWebKit *wk = wkFor(env, argv[0]);
   NSString *script = [NSString stringWithUTF8String:str(env, argv[1]).c_str()];
-  napi_threadsafe_function fn = makeTsfn(env, argv[2], "couch-webkit-result", CallWkResult);
+  BOOL isBody = str(env, argv[2]) == "body";
+  napi_threadsafe_function fn = makeTsfn(env, argv[3], "couch-webkit-result", CallWkResult);
   auto reply = ^(NSString *error, NSString *json) {
     napi_call_threadsafe_function(fn, new WkEvent{toStd(error), toStd(json), ""}, napi_tsfn_nonblocking);
     napi_release_threadsafe_function(fn, napi_tsfn_release);
   };
   if (!wk) { reply(@"no such view", @"[null]"); return NULL; }
-  onMain(^{ [wk evaluate:script done:reply]; });
+  onMain(^{ [wk evaluate:script isBody:isBody world:couchWorld() done:reply]; });
   return NULL;
 }
 
 static napi_value WebkitAddUserScript(napi_env env, napi_callback_info info) {
-  size_t argc = 2; napi_value argv[2];
+  size_t argc = 3; napi_value argv[3];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
   CouchWebKit *wk = wkFor(env, argv[0]);
   NSString *src = [NSString stringWithUTF8String:str(env, argv[1]).c_str()];
+  BOOL page = str(env, argv[2]) == "page";
   if (wk) onMain(^{
-    [wk.web.configuration.userContentController addUserScript:[[WKUserScript alloc] initWithSource:src injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO]];
+    WKContentWorld *world = page ? WKContentWorld.pageWorld : couchWorld();
+    [wk.web.configuration.userContentController addUserScript:[[WKUserScript alloc] initWithSource:src injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO inContentWorld:world]];
   });
   return NULL;
 }
@@ -775,8 +782,8 @@ static napi_value WebkitAddMessageHandler(napi_env env, napi_callback_info info)
   CouchWebKit *wk = wkFor(env, argv[0]);
   NSString *name = [NSString stringWithUTF8String:str(env, argv[1]).c_str()];
   if (wk) onMain(^{
-    [wk.web.configuration.userContentController removeScriptMessageHandlerForName:name];
-    [wk.web.configuration.userContentController addScriptMessageHandler:wk name:name];
+    [wk.web.configuration.userContentController removeScriptMessageHandlerForName:name contentWorld:couchWorld()];
+    [wk.web.configuration.userContentController addScriptMessageHandler:wk contentWorld:couchWorld() name:name];
   });
   return NULL;
 }
@@ -859,6 +866,26 @@ static napi_value WebkitDestroy(napi_env env, napi_callback_info info) {
   return NULL;
 }
 
+// webkitRemoveStore(storeId, callback(error|null)): deletes a persistent data store (not allowed while a view uses it).
+static napi_value WebkitRemoveStore(napi_env env, napi_callback_info info) {
+  size_t argc = 2; napi_value argv[2];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  if (!webkitAvailable()) return fail(env, "WebKit views need macOS 14");
+  NSUUID *uuid = [[NSUUID alloc] initWithUUIDString:[NSString stringWithUTF8String:str(env, argv[0]).c_str()]];
+  napi_threadsafe_function fn = makeTsfn(env, argv[1], "couch-webkit-remove", CallWkResult);
+  auto reply = ^(NSString *error) {
+    napi_call_threadsafe_function(fn, new WkEvent{toStd(error), "[null]", ""}, napi_tsfn_nonblocking);
+    napi_release_threadsafe_function(fn, napi_tsfn_release);
+  };
+  if (!uuid) { reply(@"bad store identifier"); return NULL; }
+  onMain(^{
+    if (@available(macOS 14.0, *)) {
+      [WKWebsiteDataStore removeDataStoreForIdentifier:uuid completionHandler:^(NSError *e) { reply(e ? e.localizedDescription : nil); }];
+    }
+  });
+  return NULL;
+}
+
 // webkitSelfTest(script, keys, callback(error|null, json)): a detached WKWebView in a window that is never shown, on a
 // secure origin (https://example.com, no network), with a recorder for key events. Sends `keys` through the same NSEvent
 // path as webkitSendKey, then runs `script` (an expression, a promise is awaited). Nothing visible, nothing persistent.
@@ -895,7 +922,7 @@ static napi_value WebkitSelfTest(napi_env env, napi_callback_info info) {
         [wk2.offscreen makeFirstResponder:wk2.web];
         for (auto &k : keys) { sendKeyEvent(wk2.web, k, true); sendKeyEvent(wk2.web, k, false); }
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-          [wk2 evaluate:scriptCopy done:reply];
+          [wk2 evaluate:scriptCopy isBody:NO world:WKContentWorld.pageWorld done:reply];
         });
       });
     }
@@ -931,6 +958,7 @@ static napi_value Init(napi_env env, napi_value exports) {
     {"webkitFocus", 0, WebkitFocus, 0, 0, 0, napi_default, 0},
     {"webkitSendKey", 0, WebkitSendKey, 0, 0, 0, napi_default, 0},
     {"webkitDestroy", 0, WebkitDestroy, 0, 0, 0, napi_default, 0},
+    {"webkitRemoveStore", 0, WebkitRemoveStore, 0, 0, 0, napi_default, 0},
     {"webkitSelfTest", 0, WebkitSelfTest, 0, 0, 0, napi_default, 0},
     {"destroy", 0, Destroy, 0, 0, 0, napi_default, 0}};
   napi_define_properties(env, exports, sizeof(d) / sizeof(d[0]), d);

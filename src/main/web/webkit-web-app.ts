@@ -1,31 +1,23 @@
 import type { Confirmation, PromptId, TrackKind } from "../../shared/protocol.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
 import { hiddenScript } from "./hidden-audio.ts";
-import { BACK_QUERY, backAction, pageFocusFunction, typeIntoFieldScript } from "./page-focus.ts";
+import { pageFocusFunction } from "./page-focus.ts";
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
-import {
-  composeReport,
-  playbackProbe,
-  sameReport,
-  skipTarget,
-  type PlaybackReport,
-  type TrackReport,
-} from "./playback.ts";
-import { seekPlan } from "./seek-plan.ts";
 import type { IdleLifecycle } from "./idle-unload.ts";
 import type { WebAppDescription } from "./web-app.ts";
-import {
-  webkitStoreId,
-  type WebKitBridge,
-  type WebKitEvent,
-  type WebKitView,
+import type {
+  WebKitBridge,
+  WebKitEvent,
+  WebKitFrame,
+  WebKitStore,
+  WebKitView,
 } from "./webkit-bridge.ts";
-import { CONFIRM_MESSAGE, searchBarScript } from "./web-hud.ts";
+import { parsePageMessage } from "./webkit-messages.ts";
+import { CONFIRM_MESSAGE } from "./web-hud.ts";
+import { POLL_MS, WebHostCore } from "./web-host-core.ts";
 import { soundScript } from "./web-sound.ts";
 
-const TRACKS_EVERY_MS = 2000;
-const POLL_MS = 400;
-/** The one script message handler the page talks to Couch through. */
+/** The one script message handler Couch's own scripts (in the `couch` content world) talk to the host through. */
 export const MESSAGE_HANDLER = "couch";
 
 /** What the host needs of Couch's Screen window. */
@@ -42,8 +34,9 @@ export function userScriptSource(funcs: string[]): string {
 }
 
 /**
- * WebKit has no console-message event: the page's `console.debug("couch:...")` signals (field focus,
- * the confirmation's buttons, the sound re-check) are forwarded to the message handler instead.
+ * WebKit has no console-message event: Couch's own `console.debug("couch:...")` signals (the
+ * confirmation's buttons) are forwarded to the message handler instead. It runs in the `couch` world,
+ * where Couch's scripts are, so Netflix's own scripts can neither call nor spoof it.
  */
 const CONSOLE_FORWARD = `function () {
   var h = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.${MESSAGE_HANDLER};
@@ -77,71 +70,81 @@ function routeReporter(routeScript: string): string {
 
 /**
  * The web-App host on a native `WKWebView` (FairPlay): the same App port as `ElectronWebApp`, the same
- * description. The page's preloads and route reporting are user scripts that talk back through one
- * script message handler; keys are native NSEvents; everything else is `evaluate`.
+ * description, the same shared logic (`WebHostCore`). Couch's scripts and its one message handler live
+ * in the `couch` content world; only the page hooks and the App's own preloads run in the page's. Keys are
+ * native NSEvents; everything else is `evaluate`.
  */
 export class WebKitWebApp implements YouTube {
   #desc: WebAppDescription;
   #bridge: WebKitBridge;
   #win: WebKitHostWindow;
+  #store: WebKitStore;
   #lifecycle: IdleLifecycle | undefined;
+  #core: WebHostCore;
   #view: WebKitView | undefined;
   #stopEvents: (() => void) | undefined;
   #listeners = new Set<(event: YouTubeEvent) => void>();
   #visible = false;
   #failed = false;
-  #page: unknown;
   #url = "";
-  #routes: ReturnType<WebAppDescription["route"]["tracker"]>;
-  #report: PlaybackReport | undefined;
-  #probing = false;
-  #tracks: TrackReport | undefined;
-  #tracksAt = 0;
-  #timer: ReturnType<typeof setInterval> | undefined;
   #volume = 60;
-  #lastSkipAt = 0;
-  #skipTimer: ReturnType<typeof setTimeout> | undefined;
-  #inSearch = false;
+  /** How many buttons the open confirmation has; 0 while none is open. Answers are taken only against this. */
+  #confirmButtons = 0;
 
   constructor(
     desc: WebAppDescription,
     bridge: WebKitBridge,
     win: WebKitHostWindow,
+    store: WebKitStore,
     lifecycle?: IdleLifecycle,
   ) {
     this.#desc = desc;
     this.#bridge = bridge;
     this.#win = win;
+    this.#store = store;
     this.#lifecycle = lifecycle;
-    this.#page = desc.route.idle;
-    this.#routes = desc.route.tracker();
+    this.#core = new WebHostCore(
+      desc,
+      {
+        run: (script) =>
+          this.#view
+            ? this.#view.evaluate(script, { kind: "expression" })
+            : Promise.reject(new Error("no view")),
+        press: (keyCode) => this.#press(keyCode),
+        goBack: () => this.#run("history.back()"),
+        url: () => this.#url,
+        load: (url) => this.#view?.load(url),
+        focus: () => this.#view?.focus(),
+        visible: () => this.#visible,
+      },
+      (event) => this.#emit(event),
+      { pollsRoute: false },
+    );
     win.onResize(() => this.#fit());
   }
 
   /** Creates the view, registers its scripts, then loads the App's home. */
   start(): void {
     if (this.#view) return;
-    const view = this.#bridge.create({
-      storeId: webkitStoreId(this.#desc.id),
-      userAgent: this.#bridge.userAgent(),
-    });
+    const view = this.#bridge.create({ store: this.#store, userAgent: this.#bridge.userAgent() });
     this.#view = view;
     this.#stopEvents = view.onEvent((event) => this.#onEvent(event));
     view.addMessageHandler(MESSAGE_HANDLER);
-    view.addUserScript(userScriptSource(this.#preloads()));
+    const desc = this.#desc;
+    view.addUserScript(
+      userScriptSource([PAGE_HOOKS_FUNCTION, ...desc.preloads.map((p) => p.func)]),
+      "page",
+    );
+    view.addUserScript(
+      userScriptSource([
+        CONSOLE_FORWARD,
+        ...(desc.focus ? [pageFocusFunction(desc.focus.selectors, desc.focus.layout)] : []),
+        routeReporter(desc.route.script),
+      ]),
+      "couch",
+    );
     view.setVisible(false);
     this.#load();
-  }
-
-  #preloads(): string[] {
-    const desc = this.#desc;
-    return [
-      PAGE_HOOKS_FUNCTION,
-      CONSOLE_FORWARD,
-      ...desc.preloads.map((p) => p.func),
-      ...(desc.focus ? [pageFocusFunction(desc.focus.selectors, desc.focus.layout)] : []),
-      routeReporter(desc.route.script),
-    ];
   }
 
   #load(): void {
@@ -162,39 +165,35 @@ export class WebKitWebApp implements YouTube {
         return;
       case "navigated":
         this.#url = event.url;
-        this.#syncRoute();
+        this.#core.navigated(event.url);
         return;
       case "message":
-        if (event.name === MESSAGE_HANDLER) this.#onPageMessage(event.body);
+        if (event.name === MESSAGE_HANDLER) this.#onPageMessage(event.body, event.frame);
         return;
     }
   }
 
-  #onPageMessage(body: unknown): void {
-    const message = body as { type?: string; url?: string; page?: unknown; message?: string };
-    if (message?.type === "route" && typeof message.url === "string") {
+  /** Only the App's own main frame is listened to, and only for messages of a known shape. */
+  #onPageMessage(body: unknown, frame: WebKitFrame): void {
+    if (!frame.isMainFrame || !this.#desc.isOwnOrigin(frame.origin)) return;
+    const message = parsePageMessage(body);
+    if (message?.type === "route") {
       this.#url = message.url;
-      this.#page = message.page ?? this.#desc.route.idle;
-      this.#syncRoute();
-    } else if (message?.type === "console" && typeof message.message === "string") {
+      this.#core.setPage(message.page);
+      this.#core.navigated(message.url);
+    } else if (message?.type === "console") {
       this.#onConsole(message.message);
     }
   }
 
   #onConsole(text: string): void {
     const pick = CONFIRM_MESSAGE.exec(text);
-    if (pick)
-      this.#emit({ type: "confirm", index: Number(pick[2]), answer: pick[1] === undefined });
-  }
-
-  #syncRoute(): void {
-    if (!this.#url.startsWith("https:")) return;
-    const route = this.#routes.update(this.#url, this.#page);
-    if (route) this.#emit({ type: "route", ...route });
-    const searching = this.#desc.search?.isSearchUrl(this.#url) ?? false;
-    const entering = searching && !this.#inSearch;
-    this.#inSearch = searching;
-    if (entering) setTimeout(() => this.#emit({ type: "searchOpened" }), 400);
+    if (!pick) return;
+    const index = Number(pick[2]);
+    // Answers count only while a confirmation is open, and only for one of its buttons.
+    if (!Number.isInteger(index) || String(index) !== pick[2] || index >= this.#confirmButtons)
+      return;
+    this.#emit({ type: "confirm", index, answer: pick[1] === undefined });
   }
 
   #emit(event: YouTubeEvent): void {
@@ -202,7 +201,7 @@ export class WebKitWebApp implements YouTube {
   }
 
   #run(script: string): void {
-    void this.#view?.evaluate(script).catch(() => {});
+    void this.#view?.evaluate(script, { kind: "expression" }).catch(() => {});
   }
 
   #fit(): void {
@@ -216,7 +215,7 @@ export class WebKitWebApp implements YouTube {
     const view = this.#view!;
     this.#lifecycle?.shown();
     this.#visible = true;
-    this.#timer ??= setInterval(() => this.#pollPlayback(), POLL_MS);
+    this.#core.shown();
     this.#fit();
     view.setVisible(true);
     this.#run(hiddenScript(false));
@@ -225,11 +224,8 @@ export class WebKitWebApp implements YouTube {
 
   hide(): void {
     this.#visible = false;
-    this.#tracks = undefined;
-    this.#tracksAt = 0;
-    this.#reportPlayback(undefined);
-    clearInterval(this.#timer);
-    this.#timer = undefined;
+    this.#confirmButtons = 0;
+    this.#core.hidden();
     this.#view?.setVisible(false);
     this.#run(hiddenScript(true));
     this.#lifecycle?.hidden();
@@ -242,11 +238,9 @@ export class WebKitWebApp implements YouTube {
     this.#view.destroy();
     this.#view = undefined;
     this.#failed = false;
-    this.#inSearch = false;
     this.#url = "";
-    this.#page = this.#desc.route.idle;
-    this.#routes = this.#desc.route.tracker();
-    this.#emit({ type: "route", home: true });
+    this.#confirmButtons = 0;
+    this.#core.reset();
   }
 
   restart(): void {
@@ -261,83 +255,24 @@ export class WebKitWebApp implements YouTube {
   /** Part of the host seam: WebKit keys are not seen by Electron's input events yet (ticket 112). */
   setKeyGate(_gate: unknown): void {}
 
-  #pollPlayback(): void {
-    const view = this.#view;
-    if (!view || this.#probing || !this.#visible) return;
-    const adapter = this.#desc.playback;
-    const now = Date.now();
-    const askTracks = !!adapter?.tracks && now - this.#tracksAt >= TRACKS_EVERY_MS;
-    this.#probing = true;
-    view
-      .evaluate(
-        playbackProbe({
-          tracks: askTracks ? adapter!.tracks!() : undefined,
-          active: adapter?.active?.(),
-          speeds: adapter?.speeds,
-          artwork: adapter?.artwork?.(),
-          prompt: adapter?.prompt?.(),
-        }),
-      )
-      .then((found) => {
-        if (!this.#visible) return;
-        const report = (found ?? undefined) as PlaybackReport | undefined;
-        if (askTracks) {
-          this.#tracksAt = now;
-          this.#tracks = report?.tracks as TrackReport | undefined;
-        }
-        this.#reportPlayback(
-          composeReport(report, this.#tracks, !!adapter?.seek, this.#desc.artworkHosts),
-        );
-      })
-      .catch(() => {})
-      .finally(() => {
-        this.#probing = false;
-      });
-  }
-
-  #reportPlayback(next: PlaybackReport | undefined): void {
-    if (sameReport(this.#report, next)) return;
-    this.#report = next;
-    this.#emit({ type: "playback", playback: next });
-  }
-
   seekTo(seconds: number): void {
-    const script = this.#desc.playback?.seek?.(seconds);
-    if (script) this.#run(script);
+    this.#core.seekTo(seconds);
   }
 
   pressPrompt(id: PromptId): void {
-    const script = this.#desc.playback?.pressPrompt?.(id);
-    if (script) this.#run(script);
+    this.#core.pressPrompt(id);
   }
 
   setSpeed(speed: number): void {
-    const script = this.#desc.playback?.setSpeed?.(speed);
-    if (script) this.#run(script);
+    this.#core.setSpeed(speed);
   }
 
   setTrack(kind: TrackKind, id: string): void {
-    const script = this.#desc.playback?.setTrack?.(kind, id);
-    if (script) this.#run(script);
+    this.#core.setTrack(kind, id);
   }
 
   sendKey(key: YouTubeKey): void {
-    const keyCode = this.#desc.keyCodes[key];
-    const view = this.#view;
-    if (!view) return;
-    if (key === "back" && this.#desc.backByHistory) {
-      void view
-        .evaluate(BACK_QUERY)
-        .catch(() => "")
-        .then((answer) => {
-          const todo = backAction(answer);
-          if (todo === "history") return this.#run("history.back()");
-          if (todo === "press") this.#press(keyCode);
-          this.#emit({ type: "backHandled" });
-        });
-      return;
-    }
-    this.#press(keyCode);
+    this.#core.sendKey(key);
   }
 
   #press(keyCode: string): void {
@@ -348,66 +283,35 @@ export class WebKitWebApp implements YouTube {
   }
 
   scrollToTop(): void {
-    this.#run("window.scrollTo({ top: 0, behavior: 'smooth' })");
+    this.#core.scrollToTop();
   }
 
   playPause(): void {
-    const script = this.#desc.playback?.playPause?.();
-    if (script) this.#run(script);
+    this.#core.playPause();
   }
 
   seekBy(seconds: number): void {
-    const target = this.#desc.playback?.seek ? skipTarget(this.#report, seconds) : undefined;
-    if (target !== undefined) return this.seekTo(target);
-    if (this.#desc.focus) {
-      this.#run(
-        `window.__couchRawKeys && window.__couchRawKeys(${(this.#desc.skip?.commitMs ?? 0) + 1500})`,
-      );
-    }
-    const now = Date.now();
-    const skip = this.#desc.skip;
-    const plan = seekPlan(
-      this.#desc,
-      seconds,
-      now - this.#lastSkipAt < (skip?.controlsHideMs ?? 0),
-    );
-    for (const key of plan.keys) this.sendKey(key);
-    if (!skip || !plan.commit) return;
-    this.#lastSkipAt = now;
-    clearTimeout(this.#skipTimer);
-    this.#skipTimer = setTimeout(() => {
-      this.sendKey("ok");
-      this.#lastSkipAt = 0;
-    }, skip.commitMs);
+    this.#core.seekBy(seconds);
   }
 
   /** The Mac keyboard doesn't reach a WebKit view through Electron's events yet (ticket 112). */
   captureText(_on: boolean): void {}
 
   submitSearch(text: string): void {
-    const view = this.#view;
-    if (!view || !this.#desc.search) return;
-    void view
-      .evaluate(typeIntoFieldScript(text))
-      .catch(() => false)
-      .then((typed) => {
-        if (typed === true) return view.focus();
-        this.#inSearch = true;
-        const url = this.#desc.search!.urlFor(text);
-        if (this.#url !== url) view.load(url);
-        view.focus();
-      });
+    this.#core.submitSearch(text);
   }
 
   showSearchBar(text: string | undefined): void {
-    const search = this.#desc.search;
-    if (search) this.#run(searchBarScript(text, search.placeholder));
+    this.#core.showSearchBar(text);
   }
 
-  /** Couch's own screen draws the volume level and confirmations over a native view (ticket 111 checks them). */
+  /** Couch's own screen draws the volume level over a native view (ticket 111 checks it). */
   showVolume(_percent: number | undefined): void {}
 
-  showConfirm(_confirm: Confirmation | undefined): void {}
+  /** Couch's screen draws the confirmation (ticket 111); the host only remembers that one is open, to judge answers. */
+  showConfirm(confirm: Confirmation | undefined): void {
+    this.#confirmButtons = confirm ? confirm.buttons.length : 0;
+  }
 
   setVolume(percent: number): void {
     this.#volume = percent;

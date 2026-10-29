@@ -1,13 +1,18 @@
 import { beforeEach, describe, expect, test, vi } from "vite-plus/test";
 import { netflixDescription } from "../apps/netflix/netflix-web.ts";
+import type { Confirmation } from "../../shared/protocol.ts";
 import type { YouTubeEvent } from "../ports/youtube.ts";
 import {
-  webkitStoreId,
+  type EvaluateKind,
+  type ScriptWorld,
   type WebKitBridge,
   type WebKitEvent,
+  type WebKitFrame,
   type WebKitView,
+  type WebKitStore,
   type WebKitViewOptions,
 } from "./webkit-bridge.ts";
+import { webkitStoreId } from "./webkit-stores.ts";
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import { WebKitWebApp, type WebKitHostWindow } from "./webkit-web-app.ts";
 
@@ -15,6 +20,8 @@ class FakeView implements WebKitView {
   options: WebKitViewOptions;
   loads: string[] = [];
   scripts: string[] = [];
+  worlds: ScriptWorld[] = [];
+  kinds: EvaluateKind[] = [];
   handlers: string[] = [];
   frames: Array<[number, number, number, number]> = [];
   visible: boolean[] = [];
@@ -34,14 +41,16 @@ class FakeView implements WebKitView {
     this.log.push("load");
     this.loads.push(url);
   }
-  async evaluate(script: string) {
+  async evaluate(script: string, options: { kind: EvaluateKind }) {
     this.evaluated.push(script);
+    this.kinds.push(options.kind);
     for (const [part, answer] of this.answers) if (script.includes(part)) return answer;
     return undefined;
   }
-  addUserScript(source: string) {
+  addUserScript(source: string, world: ScriptWorld) {
     this.log.push("script");
     this.scripts.push(source);
+    this.worlds.push(world);
   }
   addMessageHandler(name: string) {
     this.handlers.push(name);
@@ -78,6 +87,7 @@ const bridge: WebKitBridge = {
     views.push(v);
     return v;
   },
+  async removeStore() {},
 };
 
 let resize: () => void = () => {};
@@ -92,8 +102,11 @@ const win: WebKitHostWindow = {
 const netflix = netflixDescription("130.0.0.0");
 let events: YouTubeEvent[];
 
-function make(): { web: WebKitWebApp; view: () => FakeView } {
-  const web = new WebKitWebApp(netflix, bridge, win);
+const STORE = { ephemeral: false, id: webkitStoreId("test-namespace", "netflix") } as const;
+const MAIN = { isMainFrame: true, origin: "https://www.netflix.com" };
+
+function make(store: WebKitStore = STORE): { web: WebKitWebApp; view: () => FakeView } {
+  const web = new WebKitWebApp(netflix, bridge, win, store);
   events = [];
   web.onEvent((e) => events.push(e));
   return { web, view: () => views.at(-1)! };
@@ -112,13 +125,16 @@ describe("showing and hiding", () => {
   test("shows a view with Safari's identity and the App's own store, filling the window", async () => {
     const { web, view } = make();
     web.show();
-    expect(view().options).toEqual({
-      storeId: webkitStoreId("netflix"),
-      userAgent: "Mozilla/5.0 Safari-UA",
-    });
+    expect(view().options).toEqual({ store: STORE, userAgent: "Mozilla/5.0 Safari-UA" });
     expect(view().frames.at(-1)).toEqual([0, 0, 1280, 720]);
     expect(view().visible.at(-1)).toBe(true);
     await vi.waitFor(() => expect(view().focused).toBeGreaterThan(0));
+  });
+
+  test("under COUCH_WEBKIT_EPHEMERAL the view gets the non-persistent store", () => {
+    const { web, view } = make({ ephemeral: true });
+    web.show();
+    expect(view().options.store).toEqual({ ephemeral: true });
   });
 
   test("follows the window's size while shown", () => {
@@ -221,6 +237,7 @@ describe("route", () => {
     view().emit({
       type: "message",
       name: "couch",
+      frame: MAIN,
       body: {
         type: "route",
         url: "https://www.netflix.com/watch/80018499",
@@ -251,7 +268,12 @@ describe("route", () => {
     const { web, view } = make();
     web.show();
     events.length = 0;
-    view().emit({ type: "message", name: "other", body: { type: "route", url: "x", page: {} } });
+    view().emit({
+      type: "message",
+      name: "other",
+      frame: MAIN,
+      body: { type: "route", url: "https://www.netflix.com/watch/1", page: {} },
+    });
     expect(events).toEqual([]);
   });
 });
@@ -378,5 +400,163 @@ describe("playback", () => {
     web.show();
     web.seekTo(90);
     expect(view().evaluated.at(-1)).toContain("timeline");
+  });
+});
+
+describe("worlds and evaluation modes", () => {
+  test("the page hooks and the App's own preloads run in the page world; Couch's own scripts in the couch world", () => {
+    const { web, view } = make();
+    web.show();
+    const inWorld = (world: ScriptWorld) =>
+      view()
+        .scripts.filter((_, i) => view().worlds[i] === world)
+        .join("\n");
+    expect(inWorld("page")).toContain(PAGE_HOOKS_FUNCTION);
+    for (const p of netflix.preloads) expect(inWorld("page")).toContain(p.func);
+    expect(inWorld("page")).not.toContain("messageHandlers");
+    expect(inWorld("page")).not.toContain("__couchRawKeys");
+    expect(inWorld("couch")).toContain("__couchRawKeys");
+    expect(inWorld("couch")).toContain("messageHandlers.couch");
+    expect(inWorld("couch")).not.toContain(PAGE_HOOKS_FUNCTION);
+  });
+
+  test("every script the host evaluates is an expression, and says so", async () => {
+    vi.useFakeTimers();
+    try {
+      const { web, view } = make();
+      web.show();
+      web.hide();
+      web.show();
+      web.setVolume(40);
+      web.playPause();
+      web.seekTo(30);
+      web.setSpeed(1.5);
+      web.setTrack("audio", "a");
+      web.pressPrompt("skipIntro");
+      web.scrollToTop();
+      web.showSearchBar("abc");
+      web.showSearchBar(undefined);
+      web.sendKey("back");
+      web.submitSearch("x");
+      web.seekBy(10);
+      await vi.advanceTimersByTimeAsync(3000);
+      const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
+      expect(view().evaluated.length).toBeGreaterThan(8);
+      for (const script of view().evaluated)
+        expect(() => new AsyncFunction(`return await (${script}\n);`), script).not.toThrow();
+      expect(new Set(view().kinds)).toEqual(new Set(["expression"]));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("messages from the page are untrusted", () => {
+  const route = {
+    type: "route",
+    url: "https://www.netflix.com/watch/80018499",
+    page: { y: 0, modal: false },
+  };
+  const send = (view: FakeView, body: unknown, frame: WebKitFrame = MAIN, name = "couch") =>
+    view.emit({ type: "message", name, body, frame });
+
+  test("a message from the main frame at Netflix's origin is accepted", () => {
+    const { web, view } = make();
+    web.show();
+    events.length = 0;
+    send(view(), route);
+    expect(events).toContainEqual(expect.objectContaining({ type: "route", home: false }));
+  });
+
+  test.each([
+    ["a sub-frame of Netflix", { isMainFrame: false, origin: "https://www.netflix.com" }],
+    ["a cross-origin iframe", { isMainFrame: false, origin: "https://ads.evil.example" }],
+    ["another origin's main frame", { isMainFrame: true, origin: "https://evil.example" }],
+    ["a look-alike host", { isMainFrame: true, origin: "https://www.netflix.com.evil.example" }],
+    ["an insecure origin", { isMainFrame: true, origin: "http://www.netflix.com" }],
+    ["an unknown origin", { isMainFrame: true, origin: "" }],
+  ])("%s is dropped", (_name, frame) => {
+    const { web, view } = make();
+    web.show();
+    events.length = 0;
+    send(view(), route, frame);
+    web.showConfirm({ title: "Leave?", buttons: ["Leave", "Stay"], focus: 0 });
+    send(view(), { type: "console", message: "couch:confirm:0" }, frame);
+    expect(events).toEqual([]);
+  });
+
+  test.each([
+    ["not an object", "route"],
+    ["null", null],
+    ["an unknown type", { type: "eval", url: route.url }],
+    ["a route without an address", { type: "route", page: {} }],
+    ["a route whose address is not a string", { type: "route", url: 5, page: {} }],
+    ["a route to a non-https address", { type: "route", url: "javascript:alert(1)", page: {} }],
+    ["a route with a huge address", { type: "route", url: `https://x/${"a".repeat(9000)}` }],
+    ["a route with a nested page", { type: "route", url: route.url, page: { a: { b: 1 } } }],
+    ["a route with an array page", { type: "route", url: route.url, page: [1] }],
+    ["a route with extra fields", { ...route, extra: true }],
+    ["a console message that is not Couch's", { type: "console", message: "hello" }],
+    ["a console message that is not a string", { type: "console", message: 1 }],
+  ])("a malformed message (%s) is dropped", (_name, body) => {
+    const { web, view } = make();
+    web.show();
+    web.showConfirm({ title: "Leave?", buttons: ["Leave", "Stay"], focus: 0 });
+    events.length = 0;
+    send(view(), body);
+    expect(events).toEqual([]);
+  });
+
+  describe("confirmation answers", () => {
+    const confirm: Confirmation = { title: "Leave?", buttons: ["Leave", "Stay"], focus: 0 };
+    const click = (n: unknown) => ({ type: "console", message: `couch:confirm:${String(n)}` });
+
+    test("are ignored while no prompt is open", () => {
+      const { web, view } = make();
+      web.show();
+      events.length = 0;
+      send(view(), click(0));
+      send(view(), click(1));
+      expect(events).toEqual([]);
+    });
+
+    test("an in-range answer is accepted while a prompt is open", () => {
+      const { web, view } = make();
+      web.show();
+      web.showConfirm(confirm);
+      send(view(), click(1));
+      send(view(), { type: "console", message: "couch:confirm-hover:0" });
+      expect(events).toEqual([
+        { type: "confirm", index: 1, answer: true },
+        { type: "confirm", index: 0, answer: false },
+      ]);
+    });
+
+    test.each([2, 7, -1, 1.5, "NaN", "01x"])("an answer with index %s is rejected", (n) => {
+      const { web, view } = make();
+      web.show();
+      web.showConfirm(confirm);
+      send(view(), click(n));
+      send(view(), { type: "console", message: `couch:confirm-hover:${n}` });
+      expect(events).toEqual([]);
+    });
+
+    test("are ignored again once the prompt is closed", () => {
+      const { web, view } = make();
+      web.show();
+      web.showConfirm(confirm);
+      web.showConfirm(undefined);
+      send(view(), click(0));
+      expect(events).toEqual([]);
+    });
+
+    test("a prompt left open when the App hides does not stay open", () => {
+      const { web, view } = make();
+      web.show();
+      web.showConfirm(confirm);
+      web.hide();
+      send(view(), click(0));
+      expect(events.filter((e) => e.type === "confirm")).toEqual([]);
+    });
   });
 });

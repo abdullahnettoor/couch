@@ -1,9 +1,20 @@
-import { createHash } from "node:crypto";
+/** The frame a script message came from, as WebKit reports it (not as the page says). */
+export interface WebKitFrame {
+  isMainFrame: boolean;
+  /** The frame's security origin: `https://host[:port]`. */
+  origin: string;
+}
+
+/** `expression`: one JS expression (a promise is awaited). `body`: a statement list, run as a function body (use `return` for a value). Never guessed from the text. */
+export type EvaluateKind = "expression" | "body";
+
+/** A content world: Couch's own scripts run in `couch` (the page can't see them); `page` is Netflix's own world. */
+export type ScriptWorld = "couch" | "page";
 
 /** What a native `WKWebView` reports back. */
 export type WebKitEvent =
   /** A `window.webkit.messageHandlers[name].postMessage(body)` from the page (body as JSON-compatible data). */
-  | { type: "message"; name: string; body: unknown }
+  | { type: "message"; name: string; body: unknown; frame: WebKitFrame }
   /** A main-frame load finished at this address. */
   | { type: "loaded"; url: string }
   | { type: "failed"; error: string }
@@ -13,11 +24,11 @@ export type WebKitEvent =
 /** One native `WKWebView` in the Screen window, under Chromium's compositor (native/mpv-embed). */
 export interface WebKitView {
   load(url: string): void;
-  /** Runs a script in the page and resolves to its value (a promise is awaited); rejects when the script throws. */
-  evaluate(script: string): Promise<unknown>;
-  /** Runs at document start in every frame of every later navigation. */
-  addUserScript(source: string): void;
-  /** Makes `window.webkit.messageHandlers[name]` exist in every frame of later navigations. */
+  /** Runs a script in the `couch` world and resolves to its value; rejects when it throws. It runs once, whatever the error. */
+  evaluate(script: string, options: { kind: EvaluateKind }): Promise<unknown>;
+  /** Runs at document start in every frame of every later navigation, in the given world. */
+  addUserScript(source: string, world: ScriptWorld): void;
+  /** Makes `window.webkit.messageHandlers[name]` exist in the `couch` world only, in every frame of later navigations. */
   addMessageHandler(name: string): void;
   /** A rectangle in window content points, top-left origin. */
   setFrame(x: number, y: number, width: number, height: number): void;
@@ -30,9 +41,11 @@ export interface WebKitView {
   destroy(): void;
 }
 
+/** The persistent `WKWebsiteDataStore(forIdentifier:)` of one App in one userData root, or the non-persistent store. */
+export type WebKitStore = { ephemeral: true } | { ephemeral: false; id: string };
+
 export interface WebKitViewOptions {
-  /** The persistent `WKWebsiteDataStore(forIdentifier:)`, one per App. */
-  storeId: string;
+  store: WebKitStore;
   userAgent: string;
 }
 
@@ -41,13 +54,6 @@ export interface WebKitBridge {
   /** Safari's user agent, built from the installed Safari. */
   userAgent(): string;
   create(options: WebKitViewOptions): WebKitView;
-}
-
-/** A stable UUID for an App's WebKit data store, so its sign-in persists across launches and stays apart from every other store. */
-export function webkitStoreId(appId: string): string {
-  const h = createHash("sha1").update(`couch.webkit.${appId}`).digest();
-  h[6] = (h[6]! & 0x0f) | 0x50;
-  h[8] = (h[8]! & 0x3f) | 0x80;
-  const hex = h.subarray(0, 16).toString("hex");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+  /** Deletes a persistent store and everything in it. Rejects when a view still uses it. */
+  removeStore(id: string): Promise<void>;
 }

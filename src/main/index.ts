@@ -10,6 +10,7 @@ import { revealScreen } from "./reveal.ts";
 import { systemClock } from "./ports/clock.ts";
 import { createElectronMac } from "./ports/electron-mac.ts";
 import { ElectronWebApp } from "./web/electron-web-app.ts";
+import { resolveWebKitStore } from "./web/webkit-stores.ts";
 import { WebKitWebApp } from "./web/webkit-web-app.ts";
 import { NATIVE_APP_CLASS, nativeAppFront, netflixEngine } from "./web/native-front.ts";
 import { youtubeDescription } from "./apps/youtube/youtube-web.ts";
@@ -183,6 +184,7 @@ async function createScreen(): Promise<void> {
             onResize: (callback) => win!.on("resize", callback),
             reveal: () => revealScreen(win!),
           },
+          resolveWebKitStore("netflix", { userDataDir: app.getPath("userData"), env: process.env }),
           unloader.track("netflix", () => netflix.unload()),
         )
       : new ElectronWebApp(

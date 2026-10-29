@@ -42,7 +42,11 @@ interface Addon {
   unwatchMouseMoves(): void;
 }
 
-/** The native WKWebView API (native/mpv-embed). Events arrive as `(kind, a, b)`: message(name, json), loaded(url), navigated(url), failed(error). */
+/**
+ * The native WKWebView API (native/mpv-embed). Events arrive as `(kind, a, b)`: message(name, json of
+ * `{ body, frame: { isMainFrame, origin } }`, the frame being WebKit's own report), loaded(url),
+ * navigated(url), failed(error). An empty `storeId` is the non-persistent data store.
+ */
 export interface WebKitAddon {
   webkitSupported(): boolean;
   webkitUserAgent(): string;
@@ -53,19 +57,26 @@ export interface WebKitAddon {
     callback: (kind: string, a: string, b: string) => void,
   ): number;
   webkitLoad(id: number, url: string): void;
-  /** Calls back with an error message, or null and the result as `JSON.stringify([value])`. */
+  /**
+   * Runs in the "couch" content world, once. `kind` "expression" awaits `(script)`; "body" runs it as a function
+   * body. Calls back with an error message, or null and the result as `JSON.stringify([value])`.
+   */
   webkitEvaluate(
     id: number,
     script: string,
+    kind: "expression" | "body",
     callback: (error: string | null, json: string) => void,
   ): void;
-  webkitAddUserScript(id: number, source: string): void;
+  webkitAddUserScript(id: number, source: string, world: "couch" | "page"): void;
+  /** The handler exists in the "couch" world only. */
   webkitAddMessageHandler(id: number, name: string): void;
   webkitSetFrame(id: number, x: number, y: number, w: number, h: number): void;
   webkitSetVisible(id: number, visible: boolean): void;
   webkitFocus(id: number): void;
   webkitSendKey(id: number, key: string, down: boolean): void;
   webkitDestroy(id: number): void;
+  /** Deletes a persistent data store; calls back with an error message, or null. */
+  webkitRemoveStore(storeId: string, callback: (error: string | null) => void): void;
 }
 
 /** Sends `keys` as NSEvents to a detached WKWebView in a never-shown window on a secure origin, then runs the script; calls back with the JSON it returned. For self-tests only. */
@@ -214,26 +225,35 @@ export function createWebKitBridge(
       };
       const id = addon.webkitCreate(
         window.getNativeWindowHandle(),
-        options.storeId,
+        options.store.ephemeral ? "" : options.store.id,
         options.userAgent,
         (kind, a, b) => {
           if (kind === "message") {
-            let body: unknown;
+            let envelope: { body?: unknown; frame?: { isMainFrame?: unknown; origin?: unknown } };
             try {
-              body = JSON.parse(b);
+              envelope = JSON.parse(b);
             } catch {
               return;
             }
-            emit({ type: "message", name: a, body });
+            const frame = envelope?.frame;
+            emit({
+              type: "message",
+              name: a,
+              body: envelope?.body,
+              frame: {
+                isMainFrame: frame?.isMainFrame === true,
+                origin: typeof frame?.origin === "string" ? frame.origin : "",
+              },
+            });
           } else if (kind === "loaded" || kind === "navigated") emit({ type: kind, url: a });
           else if (kind === "failed") emit({ type: "failed", error: a });
         },
       );
       return {
         load: (url) => addon.webkitLoad(id, url),
-        evaluate: (script) =>
+        evaluate: (script, { kind }) =>
           new Promise((resolve, reject) =>
-            addon.webkitEvaluate(id, script, (error, json) => {
+            addon.webkitEvaluate(id, script, kind, (error, json) => {
               if (error !== null) return reject(new Error(error));
               try {
                 resolve((JSON.parse(json) as unknown[])[0]);
@@ -242,7 +262,7 @@ export function createWebKitBridge(
               }
             }),
           ),
-        addUserScript: (source) => addon.webkitAddUserScript(id, source),
+        addUserScript: (source, world) => addon.webkitAddUserScript(id, source, world),
         addMessageHandler: (name) => addon.webkitAddMessageHandler(id, name),
         setFrame: (x, y, w, h) => addon.webkitSetFrame(id, x, y, w, h),
         setVisible: (visible) => addon.webkitSetVisible(id, visible),
@@ -255,6 +275,12 @@ export function createWebKitBridge(
         destroy: () => addon.webkitDestroy(id),
       };
     },
+    removeStore: (storeId) =>
+      new Promise((resolve, reject) =>
+        addon.webkitRemoveStore(storeId, (error) =>
+          error === null ? resolve() : reject(new Error(error)),
+        ),
+      ),
   };
 }
 

@@ -1,6 +1,5 @@
 import { describe, expect, test } from "vite-plus/test";
 import type { WebKitEvent } from "../web/webkit-bridge.ts";
-import { webkitStoreId } from "../web/webkit-bridge.ts";
 import { createWebKitBridge, type WebKitAddon } from "./embed-addon.ts";
 
 type Callback = (kind: string, a: string, b: string) => void;
@@ -17,12 +16,16 @@ function fakeAddon() {
       return 7;
     },
     webkitLoad: (id, url) => calls.push(["load", id, url]),
-    webkitEvaluate: (id, script, cb) => {
-      calls.push(["evaluate", id, script]);
+    webkitEvaluate: (id, script, kind, cb) => {
+      calls.push(["evaluate", id, script, kind]);
       if (script === "boom") cb("SyntaxError", "");
       else cb(null, JSON.stringify([script === "two" ? 2 : { a: 1 }]));
     },
-    webkitAddUserScript: (id, source) => calls.push(["script", id, source]),
+    webkitAddUserScript: (id, source, world) => calls.push(["script", id, source, world]),
+    webkitRemoveStore: (storeId, cb) => {
+      calls.push(["removeStore", storeId]);
+      cb(storeId === "busy" ? "in use" : null);
+    },
     webkitAddMessageHandler: (id, name) => calls.push(["handler", id, name]),
     webkitSetFrame: (id, x, y, w, h) => calls.push(["frame", id, x, y, w, h]),
     webkitSetVisible: (id, v) => calls.push(["visible", id, v]),
@@ -60,12 +63,30 @@ describe("the WebKit bridge over the native add-on", () => {
       () => f.addon,
     )!;
     expect(bridge.userAgent()).toBe("Safari UA");
-    bridge.create({ storeId: webkitStoreId("netflix"), userAgent: "UA" });
-    expect(f.calls[0]).toEqual([
-      "create",
-      window.getNativeWindowHandle(),
-      webkitStoreId("netflix"),
-      "UA",
+    bridge.create({ store: { ephemeral: false, id: "store-1" }, userAgent: "UA" });
+    expect(f.calls[0]).toEqual(["create", window.getNativeWindowHandle(), "store-1", "UA"]);
+  });
+
+  test("an ephemeral store reaches the add-on as no identifier (the non-persistent store)", () => {
+    const f = fakeAddon();
+    createWebKitBridge(
+      () => window as any,
+      () => f.addon,
+    )!.create({ store: { ephemeral: true }, userAgent: "UA" });
+    expect(f.calls[0]).toEqual(["create", window.getNativeWindowHandle(), "", "UA"]);
+  });
+
+  test("a store is removed by its identifier, and a refusal rejects", async () => {
+    const f = fakeAddon();
+    const bridge = createWebKitBridge(
+      () => window as any,
+      () => f.addon,
+    )!;
+    await expect(bridge.removeStore("store-1")).resolves.toBeUndefined();
+    await expect(bridge.removeStore("busy")).rejects.toThrow("in use");
+    expect(f.calls).toEqual([
+      ["removeStore", "store-1"],
+      ["removeStore", "busy"],
     ]);
   });
 
@@ -74,9 +95,10 @@ describe("the WebKit bridge over the native add-on", () => {
     const view = createWebKitBridge(
       () => window as any,
       () => f.addon,
-    )!.create({ storeId: "s", userAgent: "u" });
+    )!.create({ store: { ephemeral: true }, userAgent: "u" });
     view.load("https://x.test/");
-    view.addUserScript("js");
+    view.addUserScript("js", "couch");
+    view.addUserScript("page js", "page");
     view.addMessageHandler("couch");
     view.setFrame(0, 0, 10, 20);
     view.setVisible(true);
@@ -85,7 +107,8 @@ describe("the WebKit bridge over the native add-on", () => {
     view.destroy();
     expect(f.calls.slice(1)).toEqual([
       ["load", 7, "https://x.test/"],
-      ["script", 7, "js"],
+      ["script", 7, "js", "couch"],
+      ["script", 7, "page js", "page"],
       ["handler", 7, "couch"],
       ["frame", 7, 0, 0, 10, 20],
       ["visible", 7, true],
@@ -100,41 +123,53 @@ describe("the WebKit bridge over the native add-on", () => {
     const view = createWebKitBridge(
       () => window as any,
       () => f.addon,
-    )!.create({ storeId: "s", userAgent: "u" });
-    await expect(view.evaluate("two")).resolves.toBe(2);
-    await expect(view.evaluate("x")).resolves.toEqual({ a: 1 });
-    await expect(view.evaluate("boom")).rejects.toThrow("SyntaxError");
+    )!.create({ store: { ephemeral: true }, userAgent: "u" });
+    await expect(view.evaluate("two", { kind: "expression" })).resolves.toBe(2);
+    await expect(view.evaluate("x", { kind: "body" })).resolves.toEqual({ a: 1 });
+    await expect(view.evaluate("boom", { kind: "expression" })).rejects.toThrow("SyntaxError");
   });
 
-  test("native events become WebKit events", () => {
+  test("the mode is passed to the add-on as given, and a throw runs the script once", async () => {
     const f = fakeAddon();
     const view = createWebKitBridge(
       () => window as any,
       () => f.addon,
-    )!.create({ storeId: "s", userAgent: "u" });
+    )!.create({ store: { ephemeral: true }, userAgent: "u" });
+    await expect(view.evaluate("boom", { kind: "expression" })).rejects.toThrow();
+    await view.evaluate("var a = 1; return a", { kind: "body" });
+    expect(f.calls.filter((c) => c[0] === "evaluate")).toEqual([
+      ["evaluate", 7, "boom", "expression"],
+      ["evaluate", 7, "var a = 1; return a", "body"],
+    ]);
+  });
+
+  test("native events become WebKit events, with the frame WebKit reports", () => {
+    const f = fakeAddon();
+    const view = createWebKitBridge(
+      () => window as any,
+      () => f.addon,
+    )!.create({ store: { ephemeral: true }, userAgent: "u" });
     const seen: WebKitEvent[] = [];
     const stop = view.onEvent((e) => seen.push(e));
-    f.fire("message", "couch", JSON.stringify({ type: "route" }));
+    const frame = { isMainFrame: true, origin: "https://www.netflix.com" };
+    f.fire("message", "couch", JSON.stringify({ body: { type: "route" }, frame }));
+    f.fire("message", "couch", JSON.stringify({ body: { type: "x" } }));
     f.fire("loaded", "https://a/");
     f.fire("navigated", "https://b/");
     f.fire("failed", "offline");
     stop();
     f.fire("loaded", "https://c/");
     expect(seen).toEqual([
-      { type: "message", name: "couch", body: { type: "route" } },
+      { type: "message", name: "couch", body: { type: "route" }, frame },
+      {
+        type: "message",
+        name: "couch",
+        body: { type: "x" },
+        frame: { isMainFrame: false, origin: "" },
+      },
       { type: "loaded", url: "https://a/" },
       { type: "navigated", url: "https://b/" },
       { type: "failed", error: "offline" },
     ]);
-  });
-});
-
-describe("webkitStoreId", () => {
-  test("is a stable UUID per App and differs between Apps", () => {
-    expect(webkitStoreId("netflix")).toBe(webkitStoreId("netflix"));
-    expect(webkitStoreId("netflix")).not.toBe(webkitStoreId("youtube"));
-    expect(webkitStoreId("netflix")).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-    );
   });
 });
