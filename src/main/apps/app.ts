@@ -79,13 +79,18 @@ export interface AppTyping {
   captureText(on: boolean): void;
 }
 
-/** What an import from Safari came to. `permission`: Couch has no Full Disk Access; `none`: no Netflix cookies found; `cancelled`: a sign out came first. */
+/** What an import from Safari came to. `permission`: Couch has no Full Disk Access (Safari only); `none`: no Netflix cookies found; `cancelled`: a sign out came first. */
 export type SignInResult =
   | { ok: true; count: number }
   | { ok: false; reason: "permission" | "none" | "failed" | "cancelled" };
 
 /** An App whose sign-in Settings can fill from Safari or clear. */
 export interface AppSignIn {
+  /** Copies the sign-in from Couch's own Chromium engine; absent when the App has no such source. `available` is whether it holds a sign-in to copy. */
+  readonly copyFromCouch?: {
+    available(): Promise<boolean>;
+    copy(): Promise<SignInResult>;
+  };
   importSignIn(): Promise<SignInResult>;
   signOut(): Promise<void>;
 }

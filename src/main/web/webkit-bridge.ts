@@ -66,6 +66,8 @@ export interface WebKitCookie {
   secure: boolean;
   httpOnly: boolean;
   expires?: number;
+  /** Absent or "none": no policy is set (WebKit's default). */
+  sameSite?: "none" | "lax" | "strict";
 }
 
 /** One native `WKWebView` in the Screen window, under Chromium's compositor (native/mpv-embed). */

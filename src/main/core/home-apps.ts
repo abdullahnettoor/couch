@@ -70,6 +70,8 @@ export interface HomeAppsHost {
   changed(): void;
   /** Whether App `id` offers Import Safari sign-in and Sign out. */
   hasSignIn(id: string): boolean;
+  /** Whether App `id` can copy a sign-in from Couch's Chromium engine right now (it holds one). */
+  hasCouchCopy(id: string): boolean;
 }
 
 /** Which Apps Home shows and in what order; Settings → Apps edits it, through a menu over the list. */
@@ -185,6 +187,15 @@ export class HomeApps {
         : []),
       ...(this.#h.hasSignIn(id)
         ? [
+            ...(this.#h.hasCouchCopy(id)
+              ? [
+                  {
+                    id: "sign-in-couch",
+                    label: "Copy sign-in from Couch",
+                    action: `${SIGN_IN_APP}couch:${id}`,
+                  },
+                ]
+              : []),
             {
               id: "sign-in-import",
               label: "Import Safari sign-in",

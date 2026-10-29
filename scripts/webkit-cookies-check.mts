@@ -85,6 +85,22 @@ void app.whenReady().then(async () => {
       all.every((x) => x.sameSite === "none"),
       "no SameSite policy is set: WebKit stores the default, no restriction",
     );
+
+    const sites = [
+      { domain: ".netflix.com", name: "L", path: "/", value: FAKE, sameSite: "lax" },
+      { domain: ".netflix.com", name: "S", path: "/", value: FAKE, sameSite: "strict" },
+      { domain: ".netflix.com", name: "N", path: "/", value: FAKE, sameSite: "none" },
+    ];
+    check((await set(id, sites)) === null, "cookies with SameSite are accepted");
+    const withSites = await list(id);
+    check(find(withSites, "L")?.sameSite === "lax", "SameSite=Lax survives");
+    check(find(withSites, "S")?.sameSite === "strict", "SameSite=Strict survives");
+    check(find(withSites, "N")?.sameSite === "none", "SameSite none sets no policy");
+    check(
+      (await set(id, [{ ...sites[0], name: "Z", sameSite: "bogus" }])) === "a cookie was rejected",
+      "an unknown SameSite rejects the whole operation",
+    );
+    check(!find(await list(id), "Z"), "a rejected SameSite set nothing");
     check(!JSON.stringify(all).includes(FAKE), "listing carries no values");
 
     const bad: Array<[string, unknown[]]> = [
@@ -103,7 +119,7 @@ void app.whenReady().then(async () => {
     }
     const after = await list(id);
     check(
-      after.length === 3 && !find(after, "X") && !find(after, "Y"),
+      after.length === 6 && !find(after, "X") && !find(after, "Y"),
       "a rejected set changes nothing",
     );
 

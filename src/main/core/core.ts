@@ -220,6 +220,8 @@ export class Core {
   #homePage: HomePage;
   #homeApps: HomeApps;
   #signInNote: RemoteNote | undefined;
+  /** Apps whose Couch-Chromium sign-in exists, asked each time their menu opens. */
+  #couchCopy = new Set<string>();
   #sound: SoundOutput;
   #quick: QuickSettings;
   #search: LibrarySearchView;
@@ -347,6 +349,7 @@ export class Core {
         this.#setView("home");
       },
       hasSignIn: (id) => !!this.#apps.get(id)?.signIn,
+      hasCouchCopy: (id) => this.#couchCopy.has(id),
       changed: () => {
         const at = this.#homeApps.menuRow();
         if (at >= 0) this.#state.focus.settingsApps = { r: at, c: 0 };
@@ -2064,6 +2067,39 @@ export class Core {
     this.#emit();
   }
 
+  async #refreshCouchCopy(id: string): Promise<void> {
+    const copy = this.#apps.get(id)?.signIn?.copyFromCouch;
+    if (!copy) return;
+    const has = await copy.available().catch(() => false);
+    if (has === this.#couchCopy.has(id)) return;
+    if (has) this.#couchCopy.add(id);
+    else this.#couchCopy.delete(id);
+    this.#emit();
+  }
+
+  /** Settings → Apps → Copy sign-in from Couch. The App reads Couch's Chromium engine; core only hears how it went. */
+  async #copySignInFromCouch(id: string): Promise<void> {
+    const app = this.#apps.get(id);
+    const copy = app?.signIn?.copyFromCouch;
+    if (!app || !copy) return;
+    this.#signInNote = undefined;
+    const result = await copy.copy().catch(() => ({ ok: false, reason: "failed" }) as const);
+    if (result.ok) {
+      const text = `Copied ${result.count} ${app.label} ${result.count === 1 ? "cookie" : "cookies"}`;
+      this.#toast(text);
+      this.#signInNote = { title: text, steps: [] };
+    } else if (result.reason === "cancelled") {
+      // A sign out came first and has its own toast.
+    } else {
+      this.#toast(
+        result.reason === "none"
+          ? `No ${app.label} sign-in found in Couch`
+          : "Couldn't copy the sign-in from Couch",
+      );
+    }
+    this.#emit();
+  }
+
   async #signOut(id: string): Promise<void> {
     const app = this.#apps.get(id);
     if (!app?.signIn) return;
@@ -2205,11 +2241,15 @@ export class Core {
   #actionContext(): ActionContext {
     return {
       open: (view) => this.#setView(view),
-      openAppMenu: (id) => this.#homeApps.openMenu(id),
+      openAppMenu: (id) => {
+        this.#homeApps.openMenu(id);
+        void this.#refreshCouchCopy(id);
+      },
       openApp: (id) => this.#openApp(id),
       retryApp: () => this.#retryApp(),
       restartApp: (id) => this.#restartApp(id),
       importSignIn: (id) => void this.#importSignIn(id),
+      copySignInFromCouch: (id) => void this.#copySignInFromCouch(id),
       signOut: (id) => void this.#signOut(id),
       toast: (text) => this.#toast(text),
       forgetAllPhones: () => this.forgetAllPhones(),
@@ -2225,7 +2265,7 @@ export class Core {
           appMenu: {
             id: app.id,
             label: app.label,
-            ...(this.#signInNote ? { note: this.#signInNote.steps.join(" ") } : {}),
+            ...(this.#signInNote?.steps.length ? { note: this.#signInNote.steps.join(" ") } : {}),
           },
         }
       : {};

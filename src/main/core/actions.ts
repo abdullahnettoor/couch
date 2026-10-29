@@ -13,6 +13,7 @@ export interface ActionContext {
   retryApp(): void;
   restartApp(id: string): void;
   importSignIn(id: string): void;
+  copySignInFromCouch(id: string): void;
   signOut(id: string): void;
   toggleListener(): void;
   quit(): void;
@@ -41,6 +42,7 @@ function appAction(action: string): ActionHandler | undefined {
   if (action.startsWith(SIGN_IN_APP)) {
     const [verb, id = ""] = action.slice(SIGN_IN_APP.length).split(":");
     if (verb === "import") return (ctx) => ctx.importSignIn(id);
+    if (verb === "couch") return (ctx) => ctx.copySignInFromCouch(id);
     if (verb === "out") return (ctx) => ctx.signOut(id);
     return undefined;
   }

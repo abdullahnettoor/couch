@@ -1,11 +1,14 @@
 import { netflixCookies, parseBinaryCookies } from "./binary-cookies.ts";
 import type { AppSignIn, SignInResult } from "../apps/app.ts";
+import { couchNetflixCookies, type CouchCookieSource } from "./couch-cookies.ts";
 import type { WebKitCookie } from "./webkit-bridge.ts";
 
 export interface SafariSignInOptions {
   /** Where Safari keeps its cookie file, newest location first. */
   paths: string[];
   read(path: string): Promise<Buffer>;
+  /** Couch's own Chromium cookies for Netflix, read only. Absent: no "Copy sign-in from Couch". */
+  couch?: CouchCookieSource;
   target: {
     setCookies(cookies: WebKitCookie[]): Promise<void>;
     signOut(): Promise<void>;
@@ -34,7 +37,40 @@ export function createSafariSignIn(o: SafariSignInOptions): AppSignIn {
     tail = run.catch(() => {});
     return run;
   };
+  const write = (mine: number, cookies: WebKitCookie[]) =>
+    inTurn(async (): Promise<SignInResult> => {
+      if (generation !== mine) return { ok: false, reason: "cancelled" };
+      try {
+        await o.target.setCookies(cookies);
+      } catch {
+        return { ok: false, reason: "failed" };
+      }
+      return { ok: true, count: cookies.length };
+    });
+  const couch = o.couch;
+  const copyFromCouch: AppSignIn["copyFromCouch"] = couch && {
+    async available() {
+      try {
+        return couchNetflixCookies(await couch.get({})).length > 0;
+      } catch {
+        return false;
+      }
+    },
+    async copy() {
+      const mine = generation;
+      let cookies: WebKitCookie[];
+      try {
+        cookies = couchNetflixCookies(await couch.get({}));
+      } catch {
+        return { ok: false, reason: "failed" };
+      }
+      if (generation !== mine) return { ok: false, reason: "cancelled" };
+      if (cookies.length === 0) return { ok: false, reason: "none" };
+      return write(mine, cookies);
+    },
+  };
   return {
+    ...(copyFromCouch ? { copyFromCouch } : {}),
     async importSignIn() {
       const mine = generation;
       let data: Buffer | undefined;
@@ -58,15 +94,7 @@ export function createSafariSignIn(o: SafariSignInOptions): AppSignIn {
         return { ok: false, reason: "failed" };
       }
       if (cookies.length === 0) return { ok: false, reason: "none" };
-      return inTurn(async (): Promise<SignInResult> => {
-        if (generation !== mine) return { ok: false, reason: "cancelled" };
-        try {
-          await o.target.setCookies(cookies);
-        } catch {
-          return { ok: false, reason: "failed" };
-        }
-        return { ok: true, count: cookies.length };
-      });
+      return write(mine, cookies);
     },
     signOut() {
       generation++;

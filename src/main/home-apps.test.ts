@@ -355,6 +355,7 @@ describe("HomeApps module boundary", () => {
       hidden: (id) => log.push(`hidden:${id}`),
       changed: () => log.push("changed"),
       hasSignIn: () => false,
+      hasCouchCopy: () => false,
     });
     return { apps, log, store };
   }

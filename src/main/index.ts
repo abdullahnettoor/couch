@@ -6,6 +6,7 @@ import {
   ipcMain,
   Menu,
   screen,
+  session,
   WebContentsView,
 } from "electron";
 import { readFile } from "node:fs/promises";
@@ -34,7 +35,7 @@ import {
 } from "./web/webkit-test-page.ts";
 import { NATIVE_APP_CLASS, nativeAppFront, netflixEngine } from "./web/native-front.ts";
 import { youtubeDescription } from "./apps/youtube/youtube-web.ts";
-import { netflixDescription } from "./apps/netflix/netflix-web.ts";
+import { NETFLIX_PARTITION, netflixDescription } from "./apps/netflix/netflix-web.ts";
 import { NetflixApp } from "./apps/netflix/netflix-app.ts";
 import { YouTubeApp } from "./apps/youtube/youtube-app.ts";
 import { APP_ENTRIES } from "./apps/index.ts";
@@ -224,6 +225,8 @@ async function createScreen(): Promise<void> {
       ? createSafariSignIn({
           paths: safariCookiePaths(app.getPath("home")),
           read: (path) => readFile(path),
+          // Couch's own Chromium cookies, only read, and only when the menu or a copy asks.
+          couch: { get: (filter) => session.fromPartition(NETFLIX_PARTITION).cookies.get(filter) },
           target: netflix,
         })
       : undefined,

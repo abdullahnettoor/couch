@@ -818,7 +818,8 @@ static napi_value WebkitEvaluate(napi_env env, napi_callback_info info) {
 
 // webkitSetCookies(id, json, callback(error|null)): cookies into the view's WKHTTPCookieStore. Values are never logged.
 // All or nothing: if any cookie can't be built, none is set and the error is a fixed text that holds no values.
-// Safari's cookie file has no SameSite field, so no policy is set and WebKit applies its own default.
+// Optional "sameSite": "lax" or "strict" becomes NSHTTPCookieSameSitePolicy; "none" (or absent) sets no policy, and
+// anything else rejects the operation. Safari's cookie file has no SameSite field, so its cookies carry none.
 static napi_value WebkitSetCookies(napi_env env, napi_callback_info info) {
   size_t argc = 3; napi_value argv[3];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
@@ -847,7 +848,13 @@ static napi_value WebkitSetCookies(napi_env env, napi_callback_info info) {
           if ([d[@"secure"] boolValue]) p[NSHTTPCookieSecure] = @"TRUE";
           if ([d[@"httpOnly"] boolValue]) p[@"HttpOnly"] = @"TRUE";
           if ([d[@"expires"] isKindOfClass:[NSNumber class]]) p[NSHTTPCookieExpires] = [NSDate dateWithTimeIntervalSince1970:[d[@"expires"] doubleValue] / 1000.0];
-          c = [NSHTTPCookie cookieWithProperties:p];
+          id same = d[@"sameSite"];
+          BOOL sameOk = YES;
+          if (same == nil || same == [NSNull null] || [same isEqual:@"none"]) {}
+          else if ([same isEqual:@"lax"]) p[NSHTTPCookieSameSitePolicy] = NSHTTPCookieSameSiteLax;
+          else if ([same isEqual:@"strict"]) p[NSHTTPCookieSameSitePolicy] = NSHTTPCookieSameSiteStrict;
+          else sameOk = NO;
+          if (sameOk) c = [NSHTTPCookie cookieWithProperties:p];
         }
       }
       if (!c) { reply(@"a cookie was rejected"); return; }
