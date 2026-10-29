@@ -10,6 +10,8 @@ import { revealScreen } from "./reveal.ts";
 import { systemClock } from "./ports/clock.ts";
 import { createElectronMac } from "./ports/electron-mac.ts";
 import { ElectronWebApp } from "./web/electron-web-app.ts";
+import { WebKitWebApp } from "./web/webkit-web-app.ts";
+import { NATIVE_APP_CLASS, nativeAppFront, netflixEngine } from "./web/native-front.ts";
 import { youtubeDescription } from "./apps/youtube/youtube-web.ts";
 import { netflixDescription } from "./apps/netflix/netflix-web.ts";
 import { NetflixApp } from "./apps/netflix/netflix-app.ts";
@@ -30,6 +32,7 @@ import { chooseBinding } from "./listener.ts";
 import {
   createDrawerGlass,
   createEmbedFactory,
+  createWebKitBridge,
   disposeNativeWindow,
   setCursorHidden,
   watchMouseMoves,
@@ -163,11 +166,30 @@ async function createScreen(): Promise<void> {
     unloader.track("youtube", () => youtube.unload(), { loaded: true }),
   );
   const youtubeApp = new YouTubeApp(youtube, systemClock);
-  const netflix = new ElectronWebApp(
-    netflixDescription(),
-    win,
-    unloader.track("netflix", () => netflix.unload()),
-  );
+  // Developer flag COUCH_NETFLIX_ENGINE=webkit: Netflix in a native WKWebView under the window's web contents (FairPlay).
+  const webkitBridge =
+    process.env.COUCH_NETFLIX_ENGINE === "webkit" ? createWebKitBridge(() => win) : undefined;
+  const engine = netflixEngine(process.env, webkitBridge !== undefined);
+  if (process.env.COUCH_NETFLIX_ENGINE === "webkit" && engine !== "webkit")
+    console.warn("[netflix] WebKit is not available here; using Chromium");
+  const nativeApps = new Set<string>(engine === "webkit" ? ["netflix"] : []);
+  const netflix =
+    engine === "webkit"
+      ? new WebKitWebApp(
+          netflixDescription(),
+          webkitBridge!,
+          {
+            getContentBounds: () => win!.getContentBounds(),
+            onResize: (callback) => win!.on("resize", callback),
+            reveal: () => revealScreen(win!),
+          },
+          unloader.track("netflix", () => netflix.unload()),
+        )
+      : new ElectronWebApp(
+          netflixDescription(),
+          win,
+          unloader.track("netflix", () => netflix.unload()),
+        );
   const netflixApp = new NetflixApp(netflix, systemClock);
   mac.keepAwake(true);
   const listener = await detectListener({
@@ -207,7 +229,7 @@ async function createScreen(): Promise<void> {
     (command) => couch?.screenCommand(command),
     (event, input) => drawer.intercept(event, input),
   );
-  const webs: Record<string, ElectronWebApp> = { youtube, netflix };
+  const webs: Record<string, { focus(): void }> = { youtube, netflix };
   let front: { view: string; app?: string } = { view: "home" };
   const drawer = new QuickDrawer<WebContentsView>(
     win,
@@ -288,8 +310,17 @@ async function createScreen(): Promise<void> {
     send: (command) => couch?.screenCommand(command),
     slide: (phase) => drawer.slideStart(phase),
   });
+  let nativeFront = false;
   couch.onScreen((payload) => {
     for (const listener of screenListeners) listener(payload.playing);
+    // A native App view is under the window's web contents: Couch's own page goes transparent while it is in front.
+    const nativeNow = nativeAppFront(payload.state, nativeApps);
+    if (nativeNow !== nativeFront && win && !win.isDestroyed()) {
+      nativeFront = nativeNow;
+      void win.webContents.executeJavaScript(
+        `document.body.classList.toggle(${JSON.stringify(NATIVE_APP_CLASS)}, ${nativeNow})`,
+      );
+    }
     // Only over a web App: adding a view above the window would reorder the native video under the Library's cover.
     cover.set(payload.state.pictureOff && payload.state.view === "app");
     front = { view: payload.state.view, app: payload.state.app };

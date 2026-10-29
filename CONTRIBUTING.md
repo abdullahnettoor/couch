@@ -12,7 +12,7 @@ vp test run             # Vitest, once
 vp run start            # build and run Couch
 ```
 
-Couch runs on castLabs' Electron for Content Security (ECS), pinned in `package.json` as `github:castlabs/electron-releases#v<x>+wvcus` (currently v44.5.1; castLabs trails upstream Electron, so check their [releases](https://github.com/castlabs/electron-releases/releases) when upgrading). It behaves like stock Electron plus Widevine. `pnpm drm-check` plays Widevine's test stream and prints a report (`pnpm drm-check -- --url <service>` opens a service on its own partition).
+Couch runs on castLabs' Electron for Content Security (ECS), pinned in `package.json` as `github:castlabs/electron-releases#v<x>+wvcus` (currently v44.5.1; castLabs trails upstream Electron, so check their [releases](https://github.com/castlabs/electron-releases/releases) when upgrading). It behaves like stock Electron plus Widevine. `pnpm drm-check` plays Widevine's test stream and prints a report (`pnpm drm-check -- --url <service>` opens a service on its own partition). `pnpm webkit-selftest` is the WebKit counterpart: headless, it reports whether FairPlay is available and whether `setSinkId` exists in a `WKWebView` (needs the native add-on built).
 
 If `vp` isn't installed globally, run it as `pnpm exec vp …`. If `ELECTRON_RUN_AS_NODE` is set in your shell, unset it before `vp run start`.
 

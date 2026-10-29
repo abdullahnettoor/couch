@@ -1,4 +1,6 @@
 // Keeps the video and its glass at the bottom of the window's view stack: video < glass < everything else.
+// A third role, the WebKit App view (a native WKWebView under Chromium's compositor, ticket 110), sits right above them:
+// video < glass < WebKit app view < everything else; with no video it is the very bottom view.
 // A second role, the drawer's glass, sits directly under the drawer's own view (registered explicitly, see
 // beginDrawerRegistration) and goes with it: it is removed when the drawer is cleared or its view leaves the window.
 // Electron reorders its sibling views on its own (a new WebContentsView moved the video above the renderer),
@@ -38,6 +40,15 @@ class Keeper {
   void addGlass(V g) {
     if (std::find(glass_.begin(), glass_.end(), g) == glass_.end()) glass_.push_back(g);
     ensure();
+  }
+  // The WebKit App views stay at the bottom, above the video and its glass (when those are below), under everything else.
+  void addApp(V v) {
+    if (std::find(apps_.begin(), apps_.end(), v) == apps_.end()) apps_.push_back(v);
+    ensure();
+  }
+  void removeApp(V v) {
+    auto it = std::find(apps_.begin(), apps_.end(), v);
+    if (it != apps_.end()) apps_.erase(it);
   }
   // Ends the video's role (its glass stays in the host for the caller to remove); the drawer's glass is untouched.
   void release() { has_ = false; glass_.clear(); }
@@ -90,27 +101,43 @@ class Keeper {
   // The window is going away: nothing is placed or kept any more, and the drawer's glass leaves the host.
   void dispose() {
     clearDrawer();
-    has_ = false; glass_.clear(); hasAnchor_ = false; registering_ = false; before_.clear();
+    has_ = false; glass_.clear(); apps_.clear(); hasAnchor_ = false; registering_ = false; before_.clear();
   }
 
   // Idempotent. Only the video and glass views are ever moved; the host's other views keep their order.
   void ensure() {
     if (busy_) return;
     busy_ = true;
-    if (has_ && !ordered(host_.subviews())) placeVideo();
+    if (!ordered(host_.subviews())) place();
     placeDrawer();
     busy_ = false;
   }
 
  private:
-  void placeVideo() {
-    if (below_) {
-      host_.placeBottom(video_);
-    } else {
-      host_.placeTop(video_);
+  // What must be at the bottom, in order: the video and its glass (when below), then the WebKit app views.
+  std::vector<V> bottomRoles() const {
+    std::vector<V> out;
+    if (has_ && below_) { out.push_back(video_); out.insert(out.end(), glass_.begin(), glass_.end()); }
+    out.insert(out.end(), apps_.begin(), apps_.end());
+    return out;
+  }
+  // What must be on top, in order: the video and its glass when the Library places them above the web contents.
+  std::vector<V> topRoles() const {
+    std::vector<V> out;
+    if (has_ && !below_) { out.push_back(video_); out.insert(out.end(), glass_.begin(), glass_.end()); }
+    return out;
+  }
+
+  void place() {
+    std::vector<V> bottom = bottomRoles(), top = topRoles();
+    if (!bottom.empty()) {
+      host_.placeBottom(bottom[0]);
+      for (size_t i = 1; i < bottom.size(); i++) host_.placeAbove(bottom[i], bottom[i - 1]);
     }
-    V prev = video_;
-    for (V g : glass_) { host_.placeAbove(g, prev); prev = g; }
+    if (!top.empty()) {
+      host_.placeTop(top[0]);
+      for (size_t i = 1; i < top.size(); i++) host_.placeAbove(top[i], top[i - 1]);
+    }
   }
 
   void placeDrawer() {
@@ -132,12 +159,11 @@ class Keeper {
   }
 
   bool ordered(const std::vector<V> &s) const {
-    std::vector<V> mine{video_};
-    mine.insert(mine.end(), glass_.begin(), glass_.end());
-    size_t n = s.size(), m = mine.size();
-    if (n < m) return false;
-    size_t start = below_ ? 0 : n - m;
-    for (size_t i = 0; i < m; i++) if (s[start + i] != mine[i]) return false;
+    std::vector<V> bottom = bottomRoles(), top = topRoles();
+    size_t n = s.size();
+    if (n < bottom.size() + top.size()) return false;
+    for (size_t i = 0; i < bottom.size(); i++) if (s[i] != bottom[i]) return false;
+    for (size_t i = 0; i < top.size(); i++) if (s[n - top.size() + i] != top[i]) return false;
     return true;
   }
 
@@ -145,7 +171,7 @@ class Keeper {
   V video_{};
   V drawerGlass_{}, anchor_{};
   bool below_ = true, has_ = false, busy_ = false, drawerOn_ = false, hasAnchor_ = false, registering_ = false;
-  std::vector<V> glass_, before_;
+  std::vector<V> glass_, before_, apps_;
 };
 
 }  // namespace vieworder

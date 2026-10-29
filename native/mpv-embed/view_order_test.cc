@@ -270,6 +270,71 @@ int main() {
   CHECK(!real.has("dglass"));
   rk.clearDrawer();
 
+  // ---- Ticket 110: a WebKit App view. Role order: video < glass < WebKit app view < everything else (the compositor). ----
+  auto appOver = [&](FakeWindow &win, const std::vector<std::string> &glass) {
+    int prev = win.at("video");
+    for (auto &g : glass) { if (!(win.has(g) && win.at(g) > prev)) return false; prev = win.at(g); }
+    if (!(win.has("webkit") && win.at("webkit") > prev)) return false;
+    for (auto &w : win.stack) if (w != "video" && w != "webkit" && w.rfind("glass", 0) != 0 && win.at(w) < win.at("webkit")) return false;
+    return true;
+  };
+  FakeWindow wk;
+  wk.compositorDraws = true;
+  wk.stack = {"compositor", "web:renderer", "web:youtube"};
+  vieworder::Keeper<std::string> wkk(wk, [&](std::function<void()> n) { wk.notify = n; });
+  // With no video at all, the WebKit view goes to the very bottom, under the compositor that draws Couch's screen.
+  wkk.addApp("webkit");
+  CHECK(wk.at("webkit") == 0 && wk.at("compositor") == 1);
+  // Electron adds views and raises the WebKit view: it is put back under all of them.
+  wk.electronAdds("web:cover");
+  wk.electronRaises("webkit");
+  CHECK(wk.at("webkit") == 0);
+  // Other views keep their order.
+  CHECK(wk.at("compositor") < wk.at("web:renderer") && wk.at("web:renderer") < wk.at("web:youtube") &&
+        wk.at("web:youtube") < wk.at("web:cover"));
+  // The video arrives later: video < glass < webkit < the rest.
+  wkk.setVideo("video", true);
+  wkk.addGlass("glass0");
+  wkk.addGlass("glass1");
+  CHECK(appOver(wk, {"glass0", "glass1"}));
+  wk.electronRaises("video");
+  CHECK(appOver(wk, {"glass0", "glass1"}));
+  wk.electronRaises("webkit");
+  CHECK(appOver(wk, {"glass0", "glass1"}));
+  wk.electronRaises("glass0");
+  CHECK(appOver(wk, {"glass0", "glass1"}));
+  CHECK(wk.at("compositor") > wk.at("webkit"));
+  // A spurious notification leaves a correct stack alone.
+  auto wkBefore = wk.stack;
+  wk.changed();
+  CHECK(wk.stack == wkBefore);
+  // The drawer's glass stays refused over the compositor even with a WebKit view (ticket 104).
+  wkk.beginDrawerRegistration();
+  wk.electronAdds("web:drawer");
+  CHECK(wkk.endDrawerRegistration());
+  CHECK(!wkk.setDrawer("dglass"));
+  CHECK(!wk.has("dglass"));
+  CHECK(appOver(wk, {"glass0", "glass1"}));
+  // The video's role ends: the WebKit view stays at the bottom.
+  wk.remove("glass0"); wk.remove("glass1");
+  wkk.release();
+  wk.remove("video");
+  wk.electronRaises("webkit");
+  CHECK(wk.at("webkit") == 0);
+  // The video above the web contents (Library player placement) never lifts the WebKit view above anything.
+  wkk.setVideo("video", false);
+  CHECK(wk.stack.back() == "video" && wk.at("webkit") == 0);
+  wkk.release();
+  // Removing the role stops it being kept; disposing too.
+  wkk.removeApp("webkit");
+  wk.electronRaises("webkit");
+  CHECK(wk.stack.back() == "webkit");
+  wkk.addApp("webkit");
+  CHECK(wk.at("webkit") == 0);
+  wkk.dispose();
+  wk.electronRaises("webkit");
+  CHECK(wk.stack.back() == "webkit");
+
   std::printf("ok\n");
   return 0;
 }

@@ -477,3 +477,8 @@ html:not(.native-glass) .po-shelf {
   gap: calc(20 * var(--u));
   margin-top: calc(48 * var(--u));
 }
+/* A native App view (WebKit) sits under the window's web contents: Couch's own page draws nothing opaque, so it shows. */
+html:has(body.native-app-front),
+body.native-app-front {
+  background: transparent;
+}

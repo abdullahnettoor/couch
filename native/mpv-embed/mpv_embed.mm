@@ -3,6 +3,7 @@
 #import <Cocoa/Cocoa.h>
 #import <OpenGL/gl3.h>
 #import <QuartzCore/QuartzCore.h>
+#import <WebKit/WebKit.h>
 #include <dlfcn.h>
 #include <locale.h>
 #include <map>
@@ -452,6 +453,7 @@ static napi_value HideDrawerGlass(napi_env env, napi_callback_info info) {
 
 // disposeWindow(): the Screen window is closing. Pending animation completions are invalidated, the drawer's glass and
 // the keeper (with its run-loop observer) go, and the globals reset, all on the main thread. Safe to call twice.
+static void disposeWebKits();
 static napi_value DisposeWindow(napi_env env, napi_callback_info info) {
   onMain(^{
     drawerGen++;
@@ -460,6 +462,7 @@ static napi_value DisposeWindow(napi_env env, napi_callback_info info) {
     drawerGlass = nil;
     for (auto &kv : glass) [kv.second removeFromSuperview];
     glass.clear();
+    disposeWebKits();
     delete winOrder;
     winOrder = NULL;
     videoId = 0;
@@ -554,6 +557,352 @@ static napi_value UnwatchMouseMoves(napi_env env, napi_callback_info info) {
   return NULL;
 }
 
+
+// ---- WebKit App views (ticket 110): a WKWebView under Chromium's compositor, kept there by the Keeper's app role. ----
+// Events reach JS as (kind, a, b): message(name, json), loaded(url), navigated(url), failed(error).
+struct WkEvent { std::string kind, a, b; };
+static void CallWkEvent(napi_env env, napi_value jsCb, void *, void *data) {
+  WkEvent *e = (WkEvent *)data;
+  if (env && jsCb) {
+    napi_value args[3], undef;
+    napi_get_undefined(env, &undef);
+    napi_create_string_utf8(env, e->kind.c_str(), NAPI_AUTO_LENGTH, &args[0]);
+    napi_create_string_utf8(env, e->a.c_str(), NAPI_AUTO_LENGTH, &args[1]);
+    napi_create_string_utf8(env, e->b.c_str(), NAPI_AUTO_LENGTH, &args[2]);
+    napi_call_function(env, undef, jsCb, 3, args, NULL);
+  }
+  delete e;
+}
+static void CallWkResult(napi_env env, napi_value jsCb, void *, void *data) {
+  WkEvent *e = (WkEvent *)data;  // kind = error ("" for none), a = json
+  if (env && jsCb) {
+    napi_value args[2], undef;
+    napi_get_undefined(env, &undef);
+    if (e->kind.empty()) napi_get_null(env, &args[0]); else napi_create_string_utf8(env, e->kind.c_str(), NAPI_AUTO_LENGTH, &args[0]);
+    napi_create_string_utf8(env, e->a.c_str(), NAPI_AUTO_LENGTH, &args[1]);
+    napi_call_function(env, undef, jsCb, 2, args, NULL);
+  }
+  delete e;
+}
+static std::string toStd(NSString *s) { return s ? std::string([s UTF8String]) : std::string(); }
+// JSON.stringify([value]): any value (a primitive too) round-trips as the first element; unsupported values become null.
+static NSString *wkJson(id v) {
+  if (!v) v = [NSNull null];
+  if (![NSJSONSerialization isValidJSONObject:@[v]]) v = [NSNull null];
+  NSData *d = [NSJSONSerialization dataWithJSONObject:@[v] options:0 error:nil];
+  return d ? [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding] : @"[null]";
+}
+
+@interface CouchWebKit : NSObject <WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate>
+@property(nonatomic) WKWebView *web;
+@property(nonatomic) napi_threadsafe_function events;
+@property(nonatomic) NSWindow *offscreen;
+- (void)post:(const char *)kind a:(NSString *)a b:(NSString *)b;
+@end
+@implementation CouchWebKit
+- (void)post:(const char *)kind a:(NSString *)a b:(NSString *)b {
+  if (!self.events) return;
+  napi_call_threadsafe_function(self.events, new WkEvent{kind, toStd(a), toStd(b)}, napi_tsfn_nonblocking);
+}
+- (void)userContentController:(WKUserContentController *)c didReceiveScriptMessage:(WKScriptMessage *)m {
+  NSString *wrapped = wkJson(m.body);  // "[value]": the message carries the bare JSON value
+  [self post:"message" a:m.name b:[wrapped substringWithRange:NSMakeRange(1, wrapped.length - 2)]];
+}
+- (void)webView:(WKWebView *)w didFinishNavigation:(WKNavigation *)n { [self post:"loaded" a:w.URL.absoluteString b:nil]; }
+- (void)webView:(WKWebView *)w didFailNavigation:(WKNavigation *)n withError:(NSError *)e {
+  if (e.code != NSURLErrorCancelled) [self post:"failed" a:e.localizedDescription b:nil];
+}
+- (void)webView:(WKWebView *)w didFailProvisionalNavigation:(WKNavigation *)n withError:(NSError *)e {
+  if (e.code != NSURLErrorCancelled) [self post:"failed" a:e.localizedDescription b:nil];
+}
+- (void)webViewWebContentProcessDidTerminate:(WKWebView *)w { [self post:"failed" a:@"The page's process stopped" b:nil]; }
+- (WKWebView *)webView:(WKWebView *)w createWebViewWithConfiguration:(WKWebViewConfiguration *)c forNavigationAction:(WKNavigationAction *)a windowFeatures:(WKWindowFeatures *)f {
+  if (!a.targetFrame) [w loadRequest:a.request];
+  return nil;
+}
+- (void)webView:(WKWebView *)w requestMediaCapturePermissionForOrigin:(WKSecurityOrigin *)o initiatedByFrame:(WKFrameInfo *)f type:(WKMediaCaptureType)t decisionHandler:(void (^)(WKPermissionDecision))d {
+  d(WKPermissionDecisionDeny);
+}
+- (void)observeValueForKeyPath:(NSString *)k ofObject:(id)o change:(NSDictionary *)c context:(void *)x {
+  if ([k isEqualToString:@"URL"] && self.web.URL) [self post:"navigated" a:self.web.URL.absoluteString b:nil];
+}
+- (void)evaluate:(NSString *)script done:(void (^)(NSString *error, NSString *json))done {
+  // An expression (a promise is awaited); a statement list isn't one, so a syntax error retries as a plain script.
+  NSString *body = [NSString stringWithFormat:@"return await (%@\n);", script];
+  WKWebView *w = self.web;
+  [w callAsyncJavaScript:body arguments:@{} inFrame:nil inContentWorld:WKContentWorld.pageWorld completionHandler:^(id r, NSError *e) {
+    if (!e) return done(nil, wkJson(r));
+    NSString *msg = e.userInfo[@"WKJavaScriptExceptionMessage"] ?: e.localizedDescription;
+    if (![msg containsString:@"SyntaxError"]) return done(msg, @"[null]");
+    [w evaluateJavaScript:script completionHandler:^(id r2, NSError *e2) {
+      if (e2) done(e2.userInfo[@"WKJavaScriptExceptionMessage"] ?: e2.localizedDescription, @"[null]"); else done(nil, wkJson(r2));
+    }];
+  }];
+}
+@end
+
+static std::map<int, CouchWebKit *> webkits;
+static int nextWebkit = 1;
+
+static bool webkitAvailable() {
+  if (@available(macOS 14.0, *)) return NSClassFromString(@"WKWebView") != nil;
+  return false;
+}
+static std::string safariUserAgent() {
+  NSDictionary *plist = [NSDictionary dictionaryWithContentsOfFile:@"/Applications/Safari.app/Contents/Info.plist"];
+  NSString *v = plist[@"CFBundleShortVersionString"] ?: @"17.0";
+  return toStd([NSString stringWithFormat:@"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/%@ Safari/605.1.15", v]);
+}
+static napi_value makeString(napi_env env, const std::string &s) {
+  napi_value out; napi_create_string_utf8(env, s.c_str(), NAPI_AUTO_LENGTH, &out); return out;
+}
+static napi_threadsafe_function makeTsfn(napi_env env, napi_value cb, const char *name, napi_threadsafe_function_call_js call) {
+  napi_threadsafe_function fn = NULL;
+  napi_value n; napi_create_string_utf8(env, name, NAPI_AUTO_LENGTH, &n);
+  if (napi_create_threadsafe_function(env, cb, NULL, n, 0, 1, NULL, NULL, NULL, call, &fn) != napi_ok) return NULL;
+  napi_unref_threadsafe_function(env, fn);
+  return fn;
+}
+static CouchWebKit *newWebKit(NSString *storeId, NSString *ua) API_AVAILABLE(macos(14.0)) {
+  CouchWebKit *wk = [CouchWebKit new];
+  WKWebViewConfiguration *cfg = [WKWebViewConfiguration new];
+  if (storeId.length) cfg.websiteDataStore = [WKWebsiteDataStore dataStoreForIdentifier:[[NSUUID alloc] initWithUUIDString:storeId]];
+  else cfg.websiteDataStore = [WKWebsiteDataStore nonPersistentDataStore];
+  cfg.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
+  cfg.preferences.elementFullscreenEnabled = YES;
+  WKWebView *web = [[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 1280, 720) configuration:cfg];
+  if (ua.length) web.customUserAgent = ua;
+  web.navigationDelegate = wk;
+  web.UIDelegate = wk;
+  wk.web = web;
+  return wk;
+}
+static void destroyWebKit(CouchWebKit *wk) {
+  if (!wk) return;
+  if (wk.events) { napi_release_threadsafe_function(wk.events, napi_tsfn_release); wk.events = NULL; }
+  [wk.web removeObserver:wk forKeyPath:@"URL"];
+  wk.web.navigationDelegate = nil;
+  wk.web.UIDelegate = nil;
+  [wk.web.configuration.userContentController removeAllScriptMessageHandlers];
+  [wk.web stopLoading];
+  [wk.web removeFromSuperview];
+}
+
+static void disposeWebKits() {
+  for (auto &kv : webkits) destroyWebKit(kv.second);
+  webkits.clear();
+}
+
+// webkitSupported(): boolean (macOS 14+ for WKWebsiteDataStore(forIdentifier:))
+static napi_value WebkitSupported(napi_env env, napi_callback_info) {
+  napi_value out; napi_get_boolean(env, webkitAvailable(), &out); return out;
+}
+static napi_value WebkitUserAgent(napi_env env, napi_callback_info) { return makeString(env, safariUserAgent()); }
+
+// webkitCreate(handle, storeId, userAgent, callback): number. The view starts hidden, under everything else in the window.
+static napi_value WebkitCreate(napi_env env, napi_callback_info info) {
+  size_t argc = 4; napi_value argv[4];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  if (!webkitAvailable()) return fail(env, "WebKit views need macOS 14");
+  NSView *parent = windowParent(env, argv[0]);
+  if (!parent) return fail(env, "bad native handle");
+  NSString *store = [NSString stringWithUTF8String:str(env, argv[1]).c_str()];
+  NSString *ua = [NSString stringWithUTF8String:str(env, argv[2]).c_str()];
+  napi_threadsafe_function events = makeTsfn(env, argv[3], "couch-webkit-events", CallWkEvent);
+  __block int id = 0;
+  onMain(^{
+    if (@available(macOS 14.0, *)) {
+      CouchWebKit *wk = newWebKit(store, ua);
+      wk.events = events;
+      wk.web.hidden = YES;
+      [wk.web addObserver:wk forKeyPath:@"URL" options:NSKeyValueObservingOptionNew context:NULL];
+      id = nextWebkit++;
+      webkits[id] = wk;
+      wk.web.frame = parent.bounds;
+      [parent addSubview:wk.web positioned:NSWindowBelow relativeTo:nil];
+      orderFor(parent)->keeper.addApp(wk.web);
+    }
+  });
+  napi_value out; napi_create_int32(env, id, &out);
+  return out;
+}
+
+static CouchWebKit *wkFor(napi_env env, napi_value v) {
+  int32_t id = 0; napi_get_value_int32(env, v, &id);
+  auto it = webkits.find(id);
+  return it == webkits.end() ? nil : it->second;
+}
+
+static napi_value WebkitLoad(napi_env env, napi_callback_info info) {
+  size_t argc = 2; napi_value argv[2];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  CouchWebKit *wk = wkFor(env, argv[0]);
+  NSURL *url = [NSURL URLWithString:[NSString stringWithUTF8String:str(env, argv[1]).c_str()]];
+  if (wk && url) onMain(^{ [wk.web loadRequest:[NSURLRequest requestWithURL:url]]; });
+  return NULL;
+}
+
+// webkitEvaluate(id, script, callback(error|null, json))
+static napi_value WebkitEvaluate(napi_env env, napi_callback_info info) {
+  size_t argc = 3; napi_value argv[3];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  CouchWebKit *wk = wkFor(env, argv[0]);
+  NSString *script = [NSString stringWithUTF8String:str(env, argv[1]).c_str()];
+  napi_threadsafe_function fn = makeTsfn(env, argv[2], "couch-webkit-result", CallWkResult);
+  auto reply = ^(NSString *error, NSString *json) {
+    napi_call_threadsafe_function(fn, new WkEvent{toStd(error), toStd(json), ""}, napi_tsfn_nonblocking);
+    napi_release_threadsafe_function(fn, napi_tsfn_release);
+  };
+  if (!wk) { reply(@"no such view", @"[null]"); return NULL; }
+  onMain(^{ [wk evaluate:script done:reply]; });
+  return NULL;
+}
+
+static napi_value WebkitAddUserScript(napi_env env, napi_callback_info info) {
+  size_t argc = 2; napi_value argv[2];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  CouchWebKit *wk = wkFor(env, argv[0]);
+  NSString *src = [NSString stringWithUTF8String:str(env, argv[1]).c_str()];
+  if (wk) onMain(^{
+    [wk.web.configuration.userContentController addUserScript:[[WKUserScript alloc] initWithSource:src injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO]];
+  });
+  return NULL;
+}
+
+static napi_value WebkitAddMessageHandler(napi_env env, napi_callback_info info) {
+  size_t argc = 2; napi_value argv[2];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  CouchWebKit *wk = wkFor(env, argv[0]);
+  NSString *name = [NSString stringWithUTF8String:str(env, argv[1]).c_str()];
+  if (wk) onMain(^{
+    [wk.web.configuration.userContentController removeScriptMessageHandlerForName:name];
+    [wk.web.configuration.userContentController addScriptMessageHandler:wk name:name];
+  });
+  return NULL;
+}
+
+// webkitSetFrame(id, x, y, w, h): window content points, top-left origin.
+static napi_value WebkitSetFrame(napi_env env, napi_callback_info info) {
+  size_t argc = 5; napi_value argv[5];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  CouchWebKit *wk = wkFor(env, argv[0]);
+  double x, y, w, h;
+  napi_get_value_double(env, argv[1], &x); napi_get_value_double(env, argv[2], &y);
+  napi_get_value_double(env, argv[3], &w); napi_get_value_double(env, argv[4], &h);
+  if (wk) onMain(^{
+    NSView *parent = wk.web.superview;
+    CGFloat H = parent.bounds.size.height;
+    wk.web.frame = NSMakeRect(x, parent.isFlipped ? y : H - y - h, w, h);
+  });
+  return NULL;
+}
+
+static napi_value WebkitSetVisible(napi_env env, napi_callback_info info) {
+  size_t argc = 2; napi_value argv[2];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  CouchWebKit *wk = wkFor(env, argv[0]);
+  bool v; napi_get_value_bool(env, argv[1], &v);
+  if (wk) onMain(^{ wk.web.hidden = !v; });
+  return NULL;
+}
+
+static napi_value WebkitFocus(napi_env env, napi_callback_info info) {
+  size_t argc = 1; napi_value argv[1];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  CouchWebKit *wk = wkFor(env, argv[0]);
+  if (wk) onMain(^{ [wk.web.window makeFirstResponder:wk.web]; });
+  return NULL;
+}
+
+// A real NSEvent keyDown/keyUp, delivered to the WKWebView itself (not the system event queue, so no other app sees it).
+static bool sendKeyEvent(WKWebView *web, const std::string &name, bool down) {
+  struct K { const char *name; unsigned short code; unichar ch; bool arrow; };
+  static const K keys[] = {
+    {"Up", 126, NSUpArrowFunctionKey, true}, {"Down", 125, NSDownArrowFunctionKey, true},
+    {"Left", 123, NSLeftArrowFunctionKey, true}, {"Right", 124, NSRightArrowFunctionKey, true},
+    {"Return", 36, '\r', false}, {"Escape", 53, 0x1b, false}, {"Space", 49, ' ', false}};
+  for (const K &k : keys) {
+    if (name != k.name) continue;
+    NSString *chars = [NSString stringWithCharacters:&k.ch length:1];
+    NSEvent *e = [NSEvent keyEventWithType:down ? NSEventTypeKeyDown : NSEventTypeKeyUp location:NSZeroPoint
+                             modifierFlags:k.arrow ? (NSEventModifierFlagNumericPad | NSEventModifierFlagFunction) : 0
+                                 timestamp:[NSProcessInfo processInfo].systemUptime windowNumber:web.window.windowNumber
+                                   context:nil characters:chars charactersIgnoringModifiers:chars isARepeat:NO keyCode:k.code];
+    if (down) [web keyDown:e]; else [web keyUp:e];
+    return true;
+  }
+  return false;
+}
+
+static napi_value WebkitSendKey(napi_env env, napi_callback_info info) {
+  size_t argc = 3; napi_value argv[3];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  CouchWebKit *wk = wkFor(env, argv[0]);
+  std::string key = str(env, argv[1]);
+  bool down; napi_get_value_bool(env, argv[2], &down);
+  if (wk) onMain(^{ sendKeyEvent(wk.web, key, down); });
+  return NULL;
+}
+
+static napi_value WebkitDestroy(napi_env env, napi_callback_info info) {
+  size_t argc = 1; napi_value argv[1];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  int32_t id; napi_get_value_int32(env, argv[0], &id);
+  auto it = webkits.find(id);
+  if (it == webkits.end()) return NULL;
+  CouchWebKit *wk = it->second;
+  webkits.erase(it);
+  onMain(^{
+    if (winOrder) winOrder->keeper.removeApp(wk.web);
+    destroyWebKit(wk);
+  });
+  return NULL;
+}
+
+// webkitSelfTest(script, keys, callback(error|null, json)): a detached WKWebView in a window that is never shown, on a
+// secure origin (https://example.com, no network), with a recorder for key events. Sends `keys` through the same NSEvent
+// path as webkitSendKey, then runs `script` (an expression, a promise is awaited). Nothing visible, nothing persistent.
+static napi_value WebkitSelfTest(napi_env env, napi_callback_info info) {
+  size_t argc = 3; napi_value argv[3];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  if (!webkitAvailable()) return fail(env, "WebKit views need macOS 14");
+  NSString *script = [NSString stringWithUTF8String:str(env, argv[0]).c_str()];
+  std::vector<std::string> keys;
+  uint32_t n = 0; napi_get_array_length(env, argv[1], &n);
+  for (uint32_t i = 0; i < n; i++) { napi_value k; napi_get_element(env, argv[1], i, &k); keys.push_back(str(env, k)); }
+  napi_threadsafe_function fn = makeTsfn(env, argv[2], "couch-webkit-selftest", CallWkResult);
+  auto reply = ^(NSString *error, NSString *json) {
+    napi_call_threadsafe_function(fn, new WkEvent{toStd(error), toStd(json), ""}, napi_tsfn_nonblocking);
+    napi_release_threadsafe_function(fn, napi_tsfn_release);
+  };
+  onMain(^{
+    if (@available(macOS 14.0, *)) {
+      CouchWebKit *wk = newWebKit(nil, safariUserAgent().c_str() ? [NSString stringWithUTF8String:safariUserAgent().c_str()] : nil);
+      NSWindow *w = [[NSWindow alloc] initWithContentRect:NSMakeRect(-20000, -20000, 1280, 720) styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:NO];
+      w.releasedWhenClosed = NO;
+      [w.contentView addSubview:wk.web];
+      static NSMutableArray *keepAlive = [NSMutableArray new];
+      [keepAlive addObject:wk]; [keepAlive addObject:w];
+      wk.offscreen = w;
+      NSString *html = @"<!doctype html><title>t</title><script>window.__keys=[];addEventListener('keydown',function(e){window.__keys.push(e.type+':'+e.key)});addEventListener('keyup',function(e){window.__keys.push(e.type+':'+e.key)});</script><body>x</body>";
+      wk.events = NULL;
+      __block NSString *scriptCopy = script;
+      __weak CouchWebKit *weak = wk;
+      [wk.web loadHTMLString:html baseURL:[NSURL URLWithString:@"https://example.com/"]];
+      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        CouchWebKit *wk2 = weak;
+        if (!wk2) return reply(@"gone", @"[null]");
+        [wk2.offscreen makeFirstResponder:wk2.web];
+        for (auto &k : keys) { sendKeyEvent(wk2.web, k, true); sendKeyEvent(wk2.web, k, false); }
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+          [wk2 evaluate:scriptCopy done:reply];
+        });
+      });
+    }
+  });
+  return NULL;
+}
+
 static napi_value Init(napi_env env, napi_value exports) {
   napi_property_descriptor d[] = {
     {"create", 0, Create, 0, 0, 0, napi_default, 0},
@@ -570,6 +919,19 @@ static napi_value Init(napi_env env, napi_value exports) {
     {"setCursorHidden", 0, SetCursorHidden, 0, 0, 0, napi_default, 0},
     {"watchMouseMoves", 0, WatchMouseMoves, 0, 0, 0, napi_default, 0},
     {"unwatchMouseMoves", 0, UnwatchMouseMoves, 0, 0, 0, napi_default, 0},
+    {"webkitSupported", 0, WebkitSupported, 0, 0, 0, napi_default, 0},
+    {"webkitUserAgent", 0, WebkitUserAgent, 0, 0, 0, napi_default, 0},
+    {"webkitCreate", 0, WebkitCreate, 0, 0, 0, napi_default, 0},
+    {"webkitLoad", 0, WebkitLoad, 0, 0, 0, napi_default, 0},
+    {"webkitEvaluate", 0, WebkitEvaluate, 0, 0, 0, napi_default, 0},
+    {"webkitAddUserScript", 0, WebkitAddUserScript, 0, 0, 0, napi_default, 0},
+    {"webkitAddMessageHandler", 0, WebkitAddMessageHandler, 0, 0, 0, napi_default, 0},
+    {"webkitSetFrame", 0, WebkitSetFrame, 0, 0, 0, napi_default, 0},
+    {"webkitSetVisible", 0, WebkitSetVisible, 0, 0, 0, napi_default, 0},
+    {"webkitFocus", 0, WebkitFocus, 0, 0, 0, napi_default, 0},
+    {"webkitSendKey", 0, WebkitSendKey, 0, 0, 0, napi_default, 0},
+    {"webkitDestroy", 0, WebkitDestroy, 0, 0, 0, napi_default, 0},
+    {"webkitSelfTest", 0, WebkitSelfTest, 0, 0, 0, napi_default, 0},
     {"destroy", 0, Destroy, 0, 0, 0, napi_default, 0}};
   napi_define_properties(env, exports, sizeof(d) / sizeof(d[0]), d);
   return exports;

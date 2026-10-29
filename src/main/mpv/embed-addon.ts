@@ -2,6 +2,7 @@ import type { BrowserWindow } from "electron";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import type { DrawerGlass } from "../web/quick-drawer.ts";
+import type { WebKitBridge, WebKitEvent, WebKitView } from "../web/webkit-bridge.ts";
 import type { EmbedFactory } from "./mpv-player.ts";
 
 type DrawerGlassRect = Parameters<DrawerGlass["open"]>[0];
@@ -39,6 +40,41 @@ interface Addon {
   setCursorHidden(hidden: boolean): void;
   watchMouseMoves(cb: () => void): void;
   unwatchMouseMoves(): void;
+}
+
+/** The native WKWebView API (native/mpv-embed). Events arrive as `(kind, a, b)`: message(name, json), loaded(url), navigated(url), failed(error). */
+export interface WebKitAddon {
+  webkitSupported(): boolean;
+  webkitUserAgent(): string;
+  webkitCreate(
+    handle: Buffer,
+    storeId: string,
+    userAgent: string,
+    callback: (kind: string, a: string, b: string) => void,
+  ): number;
+  webkitLoad(id: number, url: string): void;
+  /** Calls back with an error message, or null and the result as `JSON.stringify([value])`. */
+  webkitEvaluate(
+    id: number,
+    script: string,
+    callback: (error: string | null, json: string) => void,
+  ): void;
+  webkitAddUserScript(id: number, source: string): void;
+  webkitAddMessageHandler(id: number, name: string): void;
+  webkitSetFrame(id: number, x: number, y: number, w: number, h: number): void;
+  webkitSetVisible(id: number, visible: boolean): void;
+  webkitFocus(id: number): void;
+  webkitSendKey(id: number, key: string, down: boolean): void;
+  webkitDestroy(id: number): void;
+}
+
+/** Sends `keys` as NSEvents to a detached WKWebView in a never-shown window on a secure origin, then runs the script; calls back with the JSON it returned. For self-tests only. */
+export interface WebKitSelfTestAddon {
+  webkitSelfTest(
+    script: string,
+    keys: string[],
+    callback: (error: string | null, json: string) => void,
+  ): void;
 }
 
 function loadAddon(): Addon {
@@ -150,4 +186,96 @@ export function createEmbedFactory(win: () => BrowserWindow | undefined): EmbedF
       destroy: () => addon.destroy(id),
     };
   };
+}
+
+/**
+ * Native WKWebViews in `win`, or undefined when the add-on isn't built or this macOS has no WKWebView.
+ * Loading is lazy: nothing happens until a view is created.
+ */
+export function createWebKitBridge(
+  win: () => BrowserWindow | undefined,
+  load: () => WebKitAddon = () => loadAddon() as unknown as WebKitAddon,
+): WebKitBridge | undefined {
+  let addon: WebKitAddon;
+  try {
+    addon = load();
+    if (!addon.webkitSupported()) return undefined;
+  } catch {
+    return undefined;
+  }
+  return {
+    userAgent: () => addon.webkitUserAgent(),
+    create: (options): WebKitView => {
+      const window = win();
+      if (!window || window.isDestroyed()) throw new Error("no window to embed into");
+      const listeners = new Set<(event: WebKitEvent) => void>();
+      const emit = (event: WebKitEvent) => {
+        for (const l of Array.from(listeners)) l(event);
+      };
+      const id = addon.webkitCreate(
+        window.getNativeWindowHandle(),
+        options.storeId,
+        options.userAgent,
+        (kind, a, b) => {
+          if (kind === "message") {
+            let body: unknown;
+            try {
+              body = JSON.parse(b);
+            } catch {
+              return;
+            }
+            emit({ type: "message", name: a, body });
+          } else if (kind === "loaded" || kind === "navigated") emit({ type: kind, url: a });
+          else if (kind === "failed") emit({ type: "failed", error: a });
+        },
+      );
+      return {
+        load: (url) => addon.webkitLoad(id, url),
+        evaluate: (script) =>
+          new Promise((resolve, reject) =>
+            addon.webkitEvaluate(id, script, (error, json) => {
+              if (error !== null) return reject(new Error(error));
+              try {
+                resolve((JSON.parse(json) as unknown[])[0]);
+              } catch (e) {
+                reject(e);
+              }
+            }),
+          ),
+        addUserScript: (source) => addon.webkitAddUserScript(id, source),
+        addMessageHandler: (name) => addon.webkitAddMessageHandler(id, name),
+        setFrame: (x, y, w, h) => addon.webkitSetFrame(id, x, y, w, h),
+        setVisible: (visible) => addon.webkitSetVisible(id, visible),
+        focus: () => addon.webkitFocus(id),
+        sendKey: (key, down) => addon.webkitSendKey(id, key, down),
+        onEvent: (listener) => {
+          listeners.add(listener);
+          return () => void listeners.delete(listener);
+        },
+        destroy: () => addon.webkitDestroy(id),
+      };
+    },
+  };
+}
+
+/** Runs a self-test script in a detached WKWebView; resolves to what it returned. Rejects when the add-on has no WebKit. */
+export function webkitSelfTest(
+  script: string,
+  keys: string[] = [],
+  load: () => WebKitSelfTestAddon = () => loadAddon() as unknown as WebKitSelfTestAddon,
+): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    try {
+      load().webkitSelfTest(script, keys, (error, json) => {
+        if (error !== null) return reject(new Error(error));
+        try {
+          resolve((JSON.parse(json) as unknown[])[0]);
+        } catch (e) {
+          reject(e);
+        }
+      });
+    } catch (e) {
+      reject(e);
+    }
+  });
 }

@@ -11,6 +11,7 @@
     "package": "vp run build && node scripts/package.mjs",
     "postinstall": "node scripts/ensure-electron.mjs",
     "sign:dev": "node scripts/sign-dev.mjs",
+    "webkit-selftest": "node scripts/webkit-selftest.mjs",
     "drm-check": "node scripts/drm-check/run.mjs",
     "sample": "sh scripts/make-sample.sh",
     "icons": "sh scripts/make-icons.sh",
