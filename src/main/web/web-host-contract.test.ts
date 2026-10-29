@@ -146,6 +146,7 @@ class FakeWebKitView implements WebKitView {
   load(url: string) {
     this.loads.push(url);
   }
+  async setCookies() {}
   async evaluate(script: string, _options: { kind: EvaluateKind }) {
     this.scripts.push(script);
     if (this.failing) throw new Error("page script failed");

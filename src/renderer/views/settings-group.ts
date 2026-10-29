@@ -58,6 +58,7 @@ export function render(payload: ScreenPayload): void {
           chevron: false,
         }),
       ),
+      ...(menu.note ? [el("p", "details-hint", menu.note)] : []),
     );
     root.append(box);
   }

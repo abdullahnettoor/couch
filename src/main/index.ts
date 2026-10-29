@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, screen, WebContentsView } from "electron";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { screenPointer } from "./pointer-position.ts";
 import { Channel, type GlassRect, type GridReport } from "../shared/ipc.ts";
@@ -11,6 +12,7 @@ import { systemClock } from "./ports/clock.ts";
 import { createElectronMac } from "./ports/electron-mac.ts";
 import { ElectronWebApp } from "./web/electron-web-app.ts";
 import { resolveWebKitStore } from "./web/webkit-stores.ts";
+import { createSafariSignIn, safariCookiePaths } from "./web/safari-sign-in.ts";
 import { WebKitWebApp } from "./web/webkit-web-app.ts";
 import { NATIVE_APP_CLASS, nativeAppFront, netflixEngine } from "./web/native-front.ts";
 import { youtubeDescription } from "./apps/youtube/youtube-web.ts";
@@ -192,7 +194,17 @@ async function createScreen(): Promise<void> {
           win,
           unloader.track("netflix", () => netflix.unload()),
         );
-  const netflixApp = new NetflixApp(netflix, systemClock);
+  const netflixApp = new NetflixApp(
+    netflix,
+    systemClock,
+    netflix instanceof WebKitWebApp
+      ? createSafariSignIn({
+          paths: safariCookiePaths(app.getPath("home")),
+          read: (path) => readFile(path),
+          target: netflix,
+        })
+      : undefined,
+  );
   mac.keepAwake(true);
   const listener = await detectListener({
     store,

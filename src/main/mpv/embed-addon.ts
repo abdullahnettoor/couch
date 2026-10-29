@@ -67,6 +67,8 @@ export interface WebKitAddon {
     kind: "expression" | "body",
     callback: (error: string | null, json: string) => void,
   ): void;
+  /** `cookiesJson` is a JSON array of `{ domain, name, path, value, secure, httpOnly, expires? }` (expires in Unix ms). Calls back with an error message, or null. */
+  webkitSetCookies(id: number, cookiesJson: string, callback: (error: string | null) => void): void;
   webkitAddUserScript(id: number, source: string, world: "couch" | "page"): void;
   /** The handler exists in the "couch" world only. */
   webkitAddMessageHandler(id: number, name: string): void;
@@ -261,6 +263,12 @@ export function createWebKitBridge(
                 reject(e);
               }
             }),
+          ),
+        setCookies: (cookies) =>
+          new Promise((resolve, reject) =>
+            addon.webkitSetCookies(id, JSON.stringify(cookies), (error) =>
+              error === null ? resolve() : reject(new Error(error)),
+            ),
           ),
         addUserScript: (source, world) => addon.webkitAddUserScript(id, source, world),
         addMessageHandler: (name) => addon.webkitAddMessageHandler(id, name),

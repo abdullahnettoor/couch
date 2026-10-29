@@ -21,6 +21,17 @@ export type WebKitEvent =
   /** The main frame's address changed (including pushState). */
   | { type: "navigated"; url: string };
 
+/** A cookie to put in an App's store. `expires` is Unix milliseconds; absent for a session cookie. */
+export interface WebKitCookie {
+  domain: string;
+  name: string;
+  path: string;
+  value: string;
+  secure: boolean;
+  httpOnly: boolean;
+  expires?: number;
+}
+
 /** One native `WKWebView` in the Screen window, under Chromium's compositor (native/mpv-embed). */
 export interface WebKitView {
   load(url: string): void;
@@ -33,6 +44,8 @@ export interface WebKitView {
   /** A rectangle in window content points, top-left origin. */
   setFrame(x: number, y: number, width: number, height: number): void;
   setVisible(visible: boolean): void;
+  /** Sets cookies in the view's data store (`WKHTTPCookieStore`); resolves once all are set. */
+  setCookies(cookies: WebKitCookie[]): Promise<void>;
   /** Makes the view the window's first responder, so keys reach it. */
   focus(): void;
   /** A native NSEvent keyDown or keyUp sent to the view (names as in a description's `keyCodes`: Up, Down, Left, Right, Return, Escape). */

@@ -6,6 +6,7 @@ import {
   type EvaluateKind,
   type ScriptWorld,
   type WebKitBridge,
+  type WebKitCookie,
   type WebKitEvent,
   type WebKitFrame,
   type WebKitView,
@@ -29,6 +30,7 @@ class FakeView implements WebKitView {
   evaluated: string[] = [];
   focused = 0;
   destroyed = false;
+  cookies: WebKitCookie[] = [];
   listeners = new Set<(e: WebKitEvent) => void>();
   /** Answers to `evaluate`, by a substring of the script. */
   answers: Array<[string, unknown]> = [];
@@ -64,6 +66,10 @@ class FakeView implements WebKitView {
   focus() {
     this.focused++;
   }
+  async setCookies(cookies: WebKitCookie[]) {
+    this.log.push("cookies");
+    this.cookies.push(...cookies);
+  }
   sendKey(key: string, down: boolean) {
     this.keys.push([key, down]);
   }
@@ -87,8 +93,11 @@ const bridge: WebKitBridge = {
     views.push(v);
     return v;
   },
-  async removeStore() {},
+  async removeStore(id: string) {
+    removed.push([id, views.at(-1)?.destroyed ?? true]);
+  },
 };
+const removed: Array<[string, boolean]> = [];
 
 let resize: () => void = () => {};
 const win: WebKitHostWindow = {
@@ -114,6 +123,7 @@ function make(store: WebKitStore = STORE): { web: WebKitWebApp; view: () => Fake
 
 beforeEach(() => {
   views.length = 0;
+  removed.length = 0;
 });
 
 describe("showing and hiding", () => {
@@ -558,5 +568,56 @@ describe("messages from the page are untrusted", () => {
       send(view(), click(0));
       expect(events.filter((e) => e.type === "confirm")).toEqual([]);
     });
+  });
+});
+
+describe("sign-in", () => {
+  const cookie: WebKitCookie = {
+    domain: ".netflix.com",
+    name: "n",
+    path: "/",
+    value: "fake",
+    secure: true,
+    httpOnly: false,
+  };
+
+  test("cookies go into the App's own view, before the page is loaded again", async () => {
+    const { web, view } = make();
+    await web.setCookies([cookie]);
+    expect(view().cookies).toEqual([cookie]);
+    expect(view().log.indexOf("cookies")).toBeLessThan(view().log.lastIndexOf("load"));
+  });
+
+  test("cookies set on a view that is already loaded reload it", async () => {
+    const { web, view } = make();
+    web.start();
+    const loads = view().loads.length;
+    await web.setCookies([cookie]);
+    expect(view().loads.length).toBe(loads + 1);
+  });
+
+  test("sign out destroys the view first, then removes the App's store, and the next show starts fresh", async () => {
+    const { web } = make();
+    web.start();
+    await web.signOut();
+    expect(removed).toEqual([[STORE.id, true]]);
+    web.start();
+    expect(views).toHaveLength(2);
+  });
+
+  test("sign out under the ephemeral store removes nothing and still drops the view", async () => {
+    const { web } = make({ ephemeral: true });
+    web.start();
+    await web.signOut();
+    expect(removed).toEqual([]);
+    expect(views[0]!.destroyed).toBe(true);
+  });
+
+  test("sign out while the App is on screen hides it first", async () => {
+    const { web } = make();
+    web.show();
+    await web.signOut();
+    expect(views[0]!.destroyed).toBe(true);
+    expect(removed).toEqual([[STORE.id, true]]);
   });
 });

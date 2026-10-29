@@ -77,11 +77,24 @@ export interface AppTyping {
   captureText(on: boolean): void;
 }
 
+/** What an import from Safari came to. `permission`: Couch has no Full Disk Access; `none`: no Netflix cookies found. */
+export type SignInResult =
+  | { ok: true; count: number }
+  | { ok: false; reason: "permission" | "none" | "failed" };
+
+/** An App whose sign-in Settings can fill from Safari or clear. */
+export interface AppSignIn {
+  importSignIn(): Promise<SignInResult>;
+  signOut(): Promise<void>;
+}
+
 /**
  * A web App: a full-screen web view core hands the Screen to. While it is the front App, core
  * sends it the D-pad, OK, Back, play/pause, seek and typing; everything App-specific lives behind this.
  */
 export interface App extends SoundSink {
+  /** Present when Settings → Apps offers "Import Safari sign-in" and "Sign out" for this App. */
+  readonly signIn?: AppSignIn;
   /** Present when the App takes text; without it the Remote shows no Type button. */
   readonly typing?: AppTyping;
   /** Which control layout the Remote shows while the App is in front; "app" when absent. */

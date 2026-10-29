@@ -763,6 +763,43 @@ static napi_value WebkitEvaluate(napi_env env, napi_callback_info info) {
   return NULL;
 }
 
+// webkitSetCookies(id, json, callback(error|null)): cookies into the view's WKHTTPCookieStore. Values are never logged.
+static napi_value WebkitSetCookies(napi_env env, napi_callback_info info) {
+  size_t argc = 3; napi_value argv[3];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  CouchWebKit *wk = wkFor(env, argv[0]);
+  NSData *json = [[NSString stringWithUTF8String:str(env, argv[1]).c_str()] dataUsingEncoding:NSUTF8StringEncoding];
+  napi_threadsafe_function fn = makeTsfn(env, argv[2], "couch-webkit-cookies", CallWkResult);
+  auto reply = ^(NSString *error) {
+    napi_call_threadsafe_function(fn, new WkEvent{toStd(error), "[null]", ""}, napi_tsfn_nonblocking);
+    napi_release_threadsafe_function(fn, napi_tsfn_release);
+  };
+  NSArray *list = [NSJSONSerialization JSONObjectWithData:json options:0 error:nil];
+  if (!wk || ![list isKindOfClass:[NSArray class]]) { reply(@"no such view or bad cookies"); return NULL; }
+  onMain(^{
+    NSMutableArray<NSHTTPCookie *> *cookies = [NSMutableArray array];
+    for (id item in list) {
+      if (![item isKindOfClass:[NSDictionary class]]) continue;
+      NSDictionary *d = item;
+      NSMutableDictionary *p = [NSMutableDictionary dictionary];
+      p[NSHTTPCookieDomain] = d[@"domain"] ?: @"";
+      p[NSHTTPCookieName] = d[@"name"] ?: @"";
+      p[NSHTTPCookiePath] = [d[@"path"] length] ? d[@"path"] : @"/";
+      p[NSHTTPCookieValue] = d[@"value"] ?: @"";
+      if ([d[@"secure"] boolValue]) p[NSHTTPCookieSecure] = @"TRUE";
+      if ([d[@"httpOnly"] boolValue]) p[@"HttpOnly"] = @"TRUE";
+      if ([d[@"expires"] isKindOfClass:[NSNumber class]]) p[NSHTTPCookieExpires] = [NSDate dateWithTimeIntervalSince1970:[d[@"expires"] doubleValue] / 1000.0];
+      NSHTTPCookie *c = [NSHTTPCookie cookieWithProperties:p];
+      if (c) [cookies addObject:c];
+    }
+    WKHTTPCookieStore *store = wk.web.configuration.websiteDataStore.httpCookieStore;
+    if (cookies.count == 0) { reply(nil); return; }
+    __block NSUInteger left = cookies.count;
+    for (NSHTTPCookie *c in cookies) [store setCookie:c completionHandler:^{ if (--left == 0) reply(nil); }];
+  });
+  return NULL;
+}
+
 static napi_value WebkitAddUserScript(napi_env env, napi_callback_info info) {
   size_t argc = 3; napi_value argv[3];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
@@ -951,6 +988,7 @@ static napi_value Init(napi_env env, napi_value exports) {
     {"webkitCreate", 0, WebkitCreate, 0, 0, 0, napi_default, 0},
     {"webkitLoad", 0, WebkitLoad, 0, 0, 0, napi_default, 0},
     {"webkitEvaluate", 0, WebkitEvaluate, 0, 0, 0, napi_default, 0},
+    {"webkitSetCookies", 0, WebkitSetCookies, 0, 0, 0, napi_default, 0},
     {"webkitAddUserScript", 0, WebkitAddUserScript, 0, 0, 0, napi_default, 0},
     {"webkitAddMessageHandler", 0, WebkitAddMessageHandler, 0, 0, 0, napi_default, 0},
     {"webkitSetFrame", 0, WebkitSetFrame, 0, 0, 0, napi_default, 0},

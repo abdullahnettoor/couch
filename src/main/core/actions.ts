@@ -1,4 +1,5 @@
 import { OPEN_APP, RESTART_APP } from "../apps/index.ts";
+import { SIGN_IN_APP } from "./home-apps.ts";
 import { SETTINGS_APP } from "../../shared/settings-grid.ts";
 import type { View } from "../../shared/protocol.ts";
 
@@ -11,6 +12,8 @@ export interface ActionContext {
   openApp(id: string): void;
   retryApp(): void;
   restartApp(id: string): void;
+  importSignIn(id: string): void;
+  signOut(id: string): void;
   toggleListener(): void;
   quit(): void;
 }
@@ -35,6 +38,12 @@ function appAction(action: string): ActionHandler | undefined {
   if (action.startsWith(OPEN_APP)) return (ctx) => ctx.openApp(action.slice(OPEN_APP.length));
   if (action.startsWith(SETTINGS_APP))
     return (ctx) => ctx.openAppMenu(action.slice(SETTINGS_APP.length));
+  if (action.startsWith(SIGN_IN_APP)) {
+    const [verb, id = ""] = action.slice(SIGN_IN_APP.length).split(":");
+    if (verb === "import") return (ctx) => ctx.importSignIn(id);
+    if (verb === "out") return (ctx) => ctx.signOut(id);
+    return undefined;
+  }
   if (action.startsWith(RESTART_APP))
     return (ctx) => ctx.restartApp(action.slice(RESTART_APP.length));
   return undefined;

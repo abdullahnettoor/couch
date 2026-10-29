@@ -26,6 +26,10 @@ function fakeAddon() {
       calls.push(["removeStore", storeId]);
       cb(storeId === "busy" ? "in use" : null);
     },
+    webkitSetCookies: (id, json, cb) => {
+      calls.push(["cookies", id, json]);
+      cb(json.includes("refuse") ? "refused" : null);
+    },
     webkitAddMessageHandler: (id, name) => calls.push(["handler", id, name]),
     webkitSetFrame: (id, x, y, w, h) => calls.push(["frame", id, x, y, w, h]),
     webkitSetVisible: (id, v) => calls.push(["visible", id, v]),
@@ -171,5 +175,25 @@ describe("the WebKit bridge over the native add-on", () => {
       { type: "navigated", url: "https://b/" },
       { type: "failed", error: "offline" },
     ]);
+  });
+
+  test("cookies reach the view's store as JSON, and a refusal rejects", async () => {
+    const f = fakeAddon();
+    const view = createWebKitBridge(
+      () => window as any,
+      () => f.addon,
+    )!.create({ store: { ephemeral: false, id: "s" }, userAgent: "UA" });
+    const cookie = {
+      domain: ".netflix.com",
+      name: "n",
+      path: "/",
+      value: "v",
+      secure: true,
+      httpOnly: false,
+      expires: 5000,
+    };
+    await view.setCookies([cookie]);
+    expect(f.calls.at(-1)).toEqual(["cookies", 7, JSON.stringify([cookie])]);
+    await expect(view.setCookies([{ ...cookie, name: "refuse" }])).rejects.toThrow("refused");
   });
 });

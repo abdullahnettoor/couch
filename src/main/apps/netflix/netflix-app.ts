@@ -1,7 +1,7 @@
 import type { Confirmation, PromptId, TrackKind } from "../../../shared/protocol.ts";
 import type { Clock } from "../../ports/clock.ts";
 import type { YouTube } from "../../ports/youtube.ts";
-import type { App, AppEvent, AppKey, AppTyping } from "../app.ts";
+import type { App, AppEvent, AppKey, AppSignIn, AppTyping } from "../app.ts";
 
 /** A Back sent to Netflix that changed no route within this long, and that the page did not handle itself, counts as already at home. */
 const BACK_SETTLE_MS = 800;
@@ -16,6 +16,7 @@ export class NetflixApp implements App {
   readonly showVolume = true;
   readonly showSkip = true;
   readonly typing: AppTyping;
+  readonly signIn: AppSignIn | undefined;
   #port: YouTube;
   #clock: Clock;
   #home = true;
@@ -25,7 +26,8 @@ export class NetflixApp implements App {
   #backAt: number | undefined;
   #listeners = new Set<(event: AppEvent) => void>();
 
-  constructor(port: YouTube, clock: Clock) {
+  constructor(port: YouTube, clock: Clock, signIn?: AppSignIn) {
+    this.signIn = signIn;
     this.#port = port;
     this.#clock = clock;
     this.typing = {

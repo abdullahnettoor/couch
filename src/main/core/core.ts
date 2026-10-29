@@ -142,6 +142,8 @@ const MPV_MISSING = "Couch needs mpv to play videos. Install it with: brew insta
 const VOLUME_STEP = 5;
 const LIBRARY_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const videoKey = (report: PlaybackReport) => `${report.title ?? ""}|${report.duration}`;
+const FULL_DISK_ACCESS_NOTE =
+  "Couch can't read Safari's cookies yet. Open System Settings → Privacy & Security → Full Disk Access, turn on Couch, then restart Couch and try again.";
 const APP_NOTE = "Press Home on your phone to come back";
 
 /** The single source of truth: holds the Screen state and turns commands into new state. */
@@ -211,6 +213,7 @@ export class Core {
   #addonsPage: AddonsPage;
   #homePage: HomePage;
   #homeApps: HomeApps;
+  #signInNote: string | undefined;
   #sound: SoundOutput;
   #quick: QuickSettings;
   #search: LibrarySearchView;
@@ -337,6 +340,7 @@ export class Core {
         }
         this.#setView("home");
       },
+      hasSignIn: (id) => !!this.#apps.get(id)?.signIn,
       changed: () => {
         const at = this.#homeApps.menuRow();
         if (at >= 0) this.#state.focus.settingsApps = { r: at, c: 0 };
@@ -1921,6 +1925,7 @@ export class Core {
     }
     if (this.#state.view === "settingsApps" && this.#homeApps.menuId) {
       delete this.#state.focus[APPS_MENU_KEY];
+      this.#signInNote = undefined;
       return this.#homeApps.closeMenu();
     }
     if (this.#state.view === "librarySearch") return this.#setView("library");
@@ -1948,6 +1953,7 @@ export class Core {
     if (from === view) return;
     if (view !== "settingsApps" && view !== "addons") {
       this.#homeApps.resetMenu();
+      this.#signInNote = undefined;
       delete this.#state.focus[APPS_MENU_KEY];
     }
     if (from === "app") {
@@ -2020,6 +2026,43 @@ export class Core {
     this.#appsFailed.delete(id);
     app.restart();
     this.#openApp(id);
+  }
+
+  /** Settings → Apps → Import Safari sign-in. The App reads Safari and fills its own store; core only hears how it went. */
+  async #importSignIn(id: string): Promise<void> {
+    const app = this.#apps.get(id);
+    if (!app?.signIn) return;
+    this.#signInNote = undefined;
+    const result = await app.signIn
+      .importSignIn()
+      .catch(() => ({ ok: false, reason: "failed" }) as const);
+    if (result.ok) {
+      this.#toast(
+        `Imported ${result.count} ${app.label} ${result.count === 1 ? "cookie" : "cookies"}`,
+      );
+    } else if (result.reason === "permission") {
+      this.#signInNote = FULL_DISK_ACCESS_NOTE;
+      this.#toast("Couch needs Full Disk Access to read Safari");
+    } else {
+      this.#toast(
+        result.reason === "none"
+          ? `No ${app.label} sign-in found in Safari`
+          : "Couldn't import the Safari sign-in",
+      );
+    }
+    this.#emit();
+  }
+
+  async #signOut(id: string): Promise<void> {
+    const app = this.#apps.get(id);
+    if (!app?.signIn) return;
+    this.#signInNote = undefined;
+    const done = await app.signIn.signOut().then(
+      () => true,
+      () => false,
+    );
+    this.#toast(done ? `Signed out of ${app.label}` : `Couldn't sign out of ${app.label}`);
+    this.#emit();
   }
 
   #restartApp(id: string): void {
@@ -2155,6 +2198,8 @@ export class Core {
       openApp: (id) => this.#openApp(id),
       retryApp: () => this.#retryApp(),
       restartApp: (id) => this.#restartApp(id),
+      importSignIn: (id) => void this.#importSignIn(id),
+      signOut: (id) => void this.#signOut(id),
       toast: (text) => this.#toast(text),
       forgetAllPhones: () => this.forgetAllPhones(),
       toggleListener: () => void this.#toggleListener(),
@@ -2164,7 +2209,15 @@ export class Core {
 
   #appMenuPayload(): Pick<ScreenPayload, "appMenu"> {
     const app = this.#catalog().find((a) => a.id === this.#homeApps.menuId);
-    return app ? { appMenu: { id: app.id, label: app.label } } : {};
+    return app
+      ? {
+          appMenu: {
+            id: app.id,
+            label: app.label,
+            ...(this.#signInNote ? { note: this.#signInNote } : {}),
+          },
+        }
+      : {};
   }
 
   #loginItem = { available: false, on: false, running: false };

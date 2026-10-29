@@ -4,6 +4,7 @@ import type { Store } from "../ports/store.ts";
 
 const KEY = "home.apps";
 export const HOME_APP = "home:";
+export const SIGN_IN_APP = "app:signin:";
 /** The menu's own focus, kept apart from the list behind it. */
 export const APPS_MENU_KEY = "settingsApps:menu";
 
@@ -67,6 +68,8 @@ export interface HomeAppsHost {
   /** An App was hidden: core leaves it first if it is open. */
   hidden(id: string): void;
   changed(): void;
+  /** Whether App `id` offers Import Safari sign-in and Sign out. */
+  hasSignIn(id: string): boolean;
 }
 
 /** Which Apps Home shows and in what order; Settings → Apps edits it, through a menu over the list. */
@@ -179,6 +182,16 @@ export class HomeApps {
       { id: "home-down", label: "Move down", action: `${HOME_APP}move:1:${id}` },
       ...(entry?.web
         ? [{ id: "restart", label: `Restart ${entry.label}`, action: `${RESTART_APP}${entry.id}` }]
+        : []),
+      ...(this.#h.hasSignIn(id)
+        ? [
+            {
+              id: "sign-in-import",
+              label: "Import Safari sign-in",
+              action: `${SIGN_IN_APP}import:${id}`,
+            },
+            { id: "sign-in-out", label: "Sign out", action: `${SIGN_IN_APP}out:${id}` },
+          ]
         : []),
       ...(entry?.addons ? [{ id: "addons", label: "Add-ons", action: "settings:addons" }] : []),
     ];

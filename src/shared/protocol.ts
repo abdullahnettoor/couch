@@ -372,7 +372,7 @@ export interface ScreenPayload {
   /** Settings and its "Show and film details" page: the TMDB key label, On/Off and any hint. */
   details?: { keyLabel: string; hasOwnKey: boolean; enabled: boolean; hint?: string };
   /** Settings → Apps with the menu open: the App it is for (its row stays marked). */
-  appMenu?: { id: string; label: string };
+  appMenu?: { id: string; label: string; note?: string };
   /** What Home draws behind everything; on the Home settings page, shown with the tile in focus as `preview`. */
   home?: HomePayload;
   /** Settings and the Sound output page. */

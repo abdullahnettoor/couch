@@ -354,6 +354,7 @@ describe("HomeApps module boundary", () => {
       toast: (t) => log.push(`toast:${t}`),
       hidden: (id) => log.push(`hidden:${id}`),
       changed: () => log.push("changed"),
+      hasSignIn: () => false,
     });
     return { apps, log, store };
   }

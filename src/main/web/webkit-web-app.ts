@@ -8,6 +8,7 @@ import type { WebAppDescription } from "./web-app.ts";
 import type {
   WebKitBridge,
   WebKitEvent,
+  WebKitCookie,
   WebKitFrame,
   WebKitStore,
   WebKitView,
@@ -241,6 +242,21 @@ export class WebKitWebApp implements YouTube {
     this.#url = "";
     this.#confirmButtons = 0;
     this.#core.reset();
+  }
+
+  /** Puts cookies in this App's store and loads its home again, so the page sees them. */
+  async setCookies(cookies: WebKitCookie[]): Promise<void> {
+    if (!this.#view) this.start();
+    const view = this.#view!;
+    await view.setCookies(cookies);
+    if (this.#view === view) this.#load();
+  }
+
+  /** Forgets the sign-in: the view goes first (WebKit refuses to remove a store a view uses), then the store. */
+  async signOut(): Promise<void> {
+    if (this.#visible) this.hide();
+    this.unload();
+    if (!this.#store.ephemeral) await this.#bridge.removeStore(this.#store.id);
   }
 
   restart(): void {
