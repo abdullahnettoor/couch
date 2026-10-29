@@ -216,14 +216,22 @@ export class SoundOutput {
     }));
   }
 
+  /** One short line for the Apps that play to the Mac's output whatever is chosen. */
+  #note(): string | undefined {
+    const labels = this.#h.sinks.filter((s) => s.followsMacOutput).map((s) => s.label);
+    return labels.length ? `${labels.join(" and ")} follows the Mac's output` : undefined;
+  }
+
   payload(): SoundPayload {
     const selected = this.#effective();
+    const note = this.#note();
     return {
       selected: selected?.uid ?? "default",
       label: selected?.name ?? "System default",
       ...(this.#missing()
         ? { hint: `${this.#chosen!.name} isn't connected · using System default` }
         : {}),
+      ...(note ? { note } : {}),
     };
   }
 

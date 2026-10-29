@@ -241,3 +241,18 @@ describe("Quick settings", () => {
     expect(quick()).toBeUndefined();
   });
 });
+
+describe("Quick settings, an App that follows the Mac's output", () => {
+  test("the drawer carries the note, and has none without such an App", async () => {
+    const film = new FakeWebApp("film", "Film", { followsMacOutput: true });
+    h = await startHarness(undefined, { apps: [{ entry: entry("film", "Film"), app: film }] });
+    const phone = await h.connectPhone();
+    await settle();
+    await open(phone);
+    expect(quick()?.note).toBe("Film follows the Mac's output");
+    await h.stop();
+    const { phone: p2 } = await start();
+    await open(p2);
+    expect(quick()?.note).toBeUndefined();
+  });
+});

@@ -79,6 +79,8 @@ export interface YouTube {
    * found it; false means the view keeps the System default for now.
    */
   setOutputDevice(name: string | undefined): Promise<boolean>;
+  /** True when the view plays to the Mac's current output whatever is chosen (WebKit). */
+  readonly followsMacOutput?: boolean;
   restart(): void;
   /**
    * Drops the loaded page (the session stays on disk) and forgets where it was: the next `show()`

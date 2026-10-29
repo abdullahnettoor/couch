@@ -320,6 +320,8 @@ export interface SoundPayload {
   label: string;
   /** Present while the chosen device isn't connected. */
   hint?: string;
+  /** Present while an App plays to the Mac's output whatever is chosen: "Netflix follows the Mac's output". */
+  note?: string;
 }
 
 /** One row (or button) of the Quick settings drawer. */
@@ -340,6 +342,8 @@ export interface QuickPayload {
   focusedId: string;
   volume: number;
   muted: boolean;
+  /** The Sound output note (see `SoundPayload.note`). */
+  note?: string;
 }
 
 /** Core → Screen renderer. */

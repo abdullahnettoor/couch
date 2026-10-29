@@ -56,6 +56,8 @@ export type AppEvent =
 export interface SoundSink {
   readonly id: string;
   readonly label: string;
+  /** True when the App plays to the Mac's current output whatever device is chosen (Sound output says so). */
+  readonly followsMacOutput?: boolean;
   /** Couch's own volume, 0-100. */
   setVolume(percent: number): void;
   /**

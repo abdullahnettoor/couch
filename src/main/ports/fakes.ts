@@ -208,6 +208,8 @@ export class FakeYouTube implements YouTube {
 }
 
 export interface FakeWebAppOptions {
+  /** The App plays to the Mac's current output whatever device is chosen. */
+  followsMacOutput?: boolean;
   typeLabel?: string;
   showVolume?: boolean;
   showSkip?: boolean;
@@ -266,6 +268,9 @@ export class FakeWebApp implements App {
       this.pressPrompt = (id) => this.#record("pressPrompt", id);
       this.setSpeed = (speed) => this.#record("setSpeed", speed);
     }
+  }
+  get followsMacOutput() {
+    return this.options.followsMacOutput ?? false;
   }
   get showVolume() {
     return this.options.showVolume ?? false;

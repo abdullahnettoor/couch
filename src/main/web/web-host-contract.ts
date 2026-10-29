@@ -2,10 +2,11 @@ import { describe, expect, test, vi } from "vite-plus/test";
 import { netflixDescription } from "../apps/netflix/netflix-web.ts";
 import type { YouTube, YouTubeEvent } from "../ports/youtube.ts";
 import type { PlaybackAdapter } from "./web-app.ts";
+import { soundScript } from "./web-sound.ts";
 
 /** What the shared host contract needs of an engine's test rig (fake `WebContents`, or the fake WebKit bridge). */
 export interface HostRig {
-  host: Required<YouTube>;
+  host: Required<Omit<YouTube, "followsMacOutput">>;
   events: YouTubeEvent[];
   /** Shows the host and waits until its home has been asked for. */
   show(): Promise<void>;
@@ -129,6 +130,22 @@ export function describeWebHostContract(name: string, makeRig: () => HostRig): v
         await rig.show();
         rig.host.scrollToTop();
         expect(rig.scripts().at(-1)).toContain("scrollTo");
+      });
+    });
+
+    describe("sound", () => {
+      test("Couch's volume reaches the page's media through the shared sound script", async () => {
+        const rig = makeRig();
+        await rig.show();
+        rig.host.setVolume(40);
+        await vi.waitFor(() =>
+          expect(
+            rig
+              .scripts()
+              .filter((s) => s.includes("__couchSound"))
+              .at(-1),
+          ).toBe(soundScript(40, "", false)),
+        );
       });
     });
 

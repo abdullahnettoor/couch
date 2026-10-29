@@ -105,6 +105,9 @@ export class NetflixApp implements App {
   showConfirm(confirm: Confirmation | undefined) {
     this.#port.showConfirm(confirm);
   }
+  get followsMacOutput() {
+    return this.#port.followsMacOutput;
+  }
   setVolume(percent: number) {
     this.#port.setVolume(percent);
   }

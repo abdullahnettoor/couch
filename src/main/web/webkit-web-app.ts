@@ -158,6 +158,7 @@ export class WebKitWebApp implements YouTube {
       case "loaded":
         if (this.#failed || !event.url.startsWith("https:")) return;
         this.#emit({ type: "loaded" });
+        if (!this.#visible) this.#run(hiddenScript(true));
         this.#applySound();
         return;
       case "failed":
@@ -220,6 +221,7 @@ export class WebKitWebApp implements YouTube {
     this.#fit();
     view.setVisible(true);
     this.#run(hiddenScript(false));
+    this.#applySound();
     void this.#win.reveal().then(() => view.focus());
   }
 
@@ -228,6 +230,7 @@ export class WebKitWebApp implements YouTube {
     this.#confirmButtons = 0;
     this.#core.hidden();
     this.#view?.setVisible(false);
+    this.#applySound();
     this.#run(hiddenScript(true));
     this.#lifecycle?.hidden();
   }
@@ -343,15 +346,20 @@ export class WebKitWebApp implements YouTube {
     this.#applySound();
   }
 
+  /** A hidden App is silent: its media is at volume 0 (and paused) whatever Couch's volume is. */
   #applySound(): void {
-    this.#run(soundScript(this.#volume, "", false));
+    this.#run(soundScript(this.#visible ? this.#volume : 0, "", false));
   }
 
-  /** The sound output follows the Mac for now (ticket 114 settles `setSinkId`). */
-  async setOutputDevice(name: string | undefined): Promise<boolean> {
-    if (name === undefined) return true;
-    this.#emit({ type: "output", name, ok: false });
-    return false;
+  /**
+   * WebKit lists no `audiooutput` ids without a capture grant (which would ask the household for the
+   * microphone), and `setSinkId` takes only those ids, so Netflix plays to the Mac's current output.
+   * Asking for a device is accepted quietly; Sound output shows the note instead of a failure.
+   */
+  readonly followsMacOutput = true;
+
+  async setOutputDevice(_name: string | undefined): Promise<boolean> {
+    return true;
   }
 
   /** Not supported yet (WebKit's add-ons need user scripts that can be removed): reloads in place. */

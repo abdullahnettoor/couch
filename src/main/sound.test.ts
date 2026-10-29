@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
+import { FakeWebApp } from "./ports/fakes.ts";
 import { FileStore } from "./ports/store.ts";
 import { startHarness, type FakePhone, type Harness } from "./testing/harness.ts";
 
@@ -276,5 +277,35 @@ describe("Settings from the phone's Home", () => {
     expect(h.screen.last.state.view).toBe("settings");
     await phone.press("openSettings");
     expect(h.screen.last.state.view).toBe("settings");
+  });
+});
+
+describe("an App that follows the Mac's output", () => {
+  const entry = {
+    id: "film",
+    label: "Film",
+    icon: "<svg></svg>",
+    action: "app:open:film",
+    web: true,
+  };
+  test("Sound output says so, and picking a device is not reported as a failure", async () => {
+    store.write("sound", { output: MONITOR });
+    const film = new FakeWebApp("film", "Film", { followsMacOutput: true });
+    h = await startHarness(store, { apps: [{ entry, app: film }] });
+    h.mac.setOutputDevices([SPEAKERS, MONITOR]);
+    phone = await h.connectPhone();
+    await settle();
+    await openSoundPage();
+    expect(h.screen.last.sound).toEqual({
+      selected: MONITOR.uid,
+      label: "L27h-4A",
+      note: "Film follows the Mac's output",
+    });
+  });
+
+  test("with no such App there is no note", async () => {
+    await start();
+    await openSoundPage();
+    expect(h.screen.last.sound?.note).toBeUndefined();
   });
 });

@@ -13,6 +13,11 @@ import {
   type WebKitStore,
   type WebKitViewOptions,
 } from "./webkit-bridge.ts";
+import { FakeClock } from "../ports/fakes.ts";
+import { MemoryStore } from "../ports/store.ts";
+import { IdleUnloader } from "./idle-unload.ts";
+import { hiddenScript } from "./hidden-audio.ts";
+import { soundScript } from "./web-sound.ts";
 import { webkitStoreId } from "./webkit-stores.ts";
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import { WebKitWebApp, type WebKitHostWindow } from "./webkit-web-app.ts";
@@ -662,5 +667,84 @@ describe("sign-in", () => {
     await web.signOut();
     expect(views[0]!.destroyed).toBe(true);
     expect(removed).toEqual([[STORE.id, true]]);
+  });
+});
+
+describe("sound", () => {
+  const lastSound = (v: FakeView) => v.evaluated.filter((s) => s.includes("__couchSound")).at(-1)!;
+  const loaded = (v: FakeView) => v.emit({ type: "loaded", url: "https://www.netflix.com/browse" });
+
+  test("Couch's volume goes to the page's media through the shared sound script", () => {
+    const { web, view } = make();
+    web.show();
+    web.setVolume(40);
+    expect(lastSound(view())).toBe(soundScript(40, "", false));
+  });
+
+  test("a mute (volume 0) and the volume back are both applied", () => {
+    const { web, view } = make();
+    web.show();
+    web.setVolume(0);
+    expect(lastSound(view())).toBe(soundScript(0, "", false));
+    web.setVolume(55);
+    expect(lastSound(view())).toBe(soundScript(55, "", false));
+  });
+
+  test("a page that loads gets the current volume", () => {
+    const { web, view } = make();
+    web.show();
+    web.setVolume(25);
+    loaded(view());
+    expect(lastSound(view())).toBe(soundScript(25, "", false));
+  });
+
+  test("while hidden the page's media is at volume 0, and shown again it is back at Couch's", () => {
+    const { web, view } = make();
+    web.show();
+    web.setVolume(40);
+    web.hide();
+    expect(lastSound(view())).toBe(soundScript(0, "", false));
+    web.setVolume(70);
+    expect(lastSound(view())).toBe(soundScript(0, "", false));
+    web.show();
+    expect(lastSound(view())).toBe(soundScript(70, "", false));
+  });
+
+  test("a page that finishes loading while hidden is paused and silent", () => {
+    const { web, view } = make();
+    web.show();
+    web.setVolume(40);
+    web.hide();
+    loaded(view());
+    expect(view().evaluated).toContain(hiddenScript(true));
+    expect(lastSound(view())).toBe(soundScript(0, "", false));
+  });
+
+  test("the output follows the Mac: asking for a device is accepted quietly and says so", async () => {
+    const { web } = make();
+    expect(web.followsMacOutput).toBe(true);
+    expect(await web.setOutputDevice("L27h-4A")).toBe(true);
+    expect(await web.setOutputDevice(undefined)).toBe(true);
+    expect(events.filter((e) => e.type === "output")).toEqual([]);
+  });
+});
+
+describe("idle unload", () => {
+  test("the unloader destroys the hidden view and the next show makes a new one that loads", async () => {
+    const clock = new FakeClock();
+    const unloader = new IdleUnloader(clock, new MemoryStore());
+    let web!: WebKitWebApp;
+    const lifecycle = unloader.track("netflix", () => web.unload());
+    const youtube = unloader.track("youtube", () => {}, { loaded: true });
+    web = new WebKitWebApp(netflix, bridge, win, STORE, lifecycle);
+    web.show();
+    web.hide();
+    youtube.shown();
+    youtube.hidden();
+    clock.advance(11 * 60_000);
+    expect(views[0]!.destroyed).toBe(true);
+    web.show();
+    expect(views).toHaveLength(2);
+    expect(views[1]!.loads).toEqual([netflix.url]);
   });
 });
