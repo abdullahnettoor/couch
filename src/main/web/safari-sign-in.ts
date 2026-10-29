@@ -1,5 +1,5 @@
 import { netflixCookies, parseBinaryCookies } from "./binary-cookies.ts";
-import type { AppSignIn } from "../apps/app.ts";
+import type { AppSignIn, SignInResult } from "../apps/app.ts";
 import type { WebKitCookie } from "./webkit-bridge.ts";
 
 export interface SafariSignInOptions {
@@ -25,8 +25,18 @@ export function safariCookiePaths(home: string): string[] {
  * file to the App's store and nowhere else: results and errors never carry them.
  */
 export function createSafariSignIn(o: SafariSignInOptions): AppSignIn {
+  // Sign out bumps `generation` before anything else, so an import whose read was in flight can no longer write.
+  // Writes and sign outs run one at a time, so a sign out never overlaps cookies still going into the store.
+  let generation = 0;
+  let tail: Promise<unknown> = Promise.resolve();
+  const inTurn = <T>(work: () => Promise<T>): Promise<T> => {
+    const run = tail.then(work, work);
+    tail = run.catch(() => {});
+    return run;
+  };
   return {
     async importSignIn() {
+      const mine = generation;
       let data: Buffer | undefined;
       let blocked = false;
       for (const path of o.paths) {
@@ -39,6 +49,7 @@ export function createSafariSignIn(o: SafariSignInOptions): AppSignIn {
           else if (code !== "ENOENT") return { ok: false, reason: "failed" };
         }
       }
+      if (generation !== mine) return { ok: false, reason: "cancelled" };
       if (!data) return { ok: false, reason: blocked ? "permission" : "none" };
       let cookies: WebKitCookie[];
       try {
@@ -47,13 +58,19 @@ export function createSafariSignIn(o: SafariSignInOptions): AppSignIn {
         return { ok: false, reason: "failed" };
       }
       if (cookies.length === 0) return { ok: false, reason: "none" };
-      try {
-        await o.target.setCookies(cookies);
-      } catch {
-        return { ok: false, reason: "failed" };
-      }
-      return { ok: true, count: cookies.length };
+      return inTurn(async (): Promise<SignInResult> => {
+        if (generation !== mine) return { ok: false, reason: "cancelled" };
+        try {
+          await o.target.setCookies(cookies);
+        } catch {
+          return { ok: false, reason: "failed" };
+        }
+        return { ok: true, count: cookies.length };
+      });
     },
-    signOut: () => o.target.signOut(),
+    signOut() {
+      generation++;
+      return inTurn(() => o.target.signOut());
+    },
   };
 }

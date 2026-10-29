@@ -62,6 +62,9 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .search.dim { opacity:.35; }
   .cw { margin-top:18px; display:flex; gap:14px; align-items:center; padding:10px; border-radius:20px; background:var(--card); width:100%; text-align:left; }
   .cw .pic { width:104px; height:58px; border-radius:10px; background:#3a3a3c center/cover; flex:none; }
+  .note-card { margin-top:18px; padding:14px 16px; border-radius:20px; background:var(--card); width:100%; text-align:left; font-size:14px; }
+  .note-card b { display:block; font-size:16px; margin-bottom:6px; }
+  .note-card ol { margin:0; padding-left:20px; color:var(--t3); }
   .cw.nx { margin:10px 0 0; }
   .cw b { display:block; font-size:16px; }
   .cw span.l { font-size:13px; color:var(--t3); }
@@ -214,6 +217,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 <main id="controls">
   <div class="bar" id="ibar">__BAR_ID__<button id="qs" data-cmd="quickSettings" aria-label="Quick settings" data-i="sliders"></button><button id="gear" data-cmd="openSettings" aria-label="Settings" data-i="gear" hidden></button></div>
   <button class="cw" id="cw" data-cmd="resume" hidden><span class="pic" id="cw-pic"></span><span class="txt"><b id="cw-title"></b><span class="l" id="cw-left"></span></span><span class="go" data-i="play"></span></button>
+  <div class="note-card" id="signin-note" role="status" hidden><b id="signin-title"></b><ol id="signin-steps"></ol></div>
   <button class="search" id="fixbtn" data-cmd="menu" hidden><span id="fix-label">Fix match</span></button>
   <button class="search" id="search" data-cmd="typeOpen" hidden><span data-i="search"></span><span id="search-label">Search</span></button>
   <div class="other" id="other" hidden>Typing on another phone</div>
@@ -409,6 +413,13 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       $("cw-title").textContent = s.continueCard.title;
       $("cw-left").textContent = s.continueCard.left;
       $("cw-pic").style.backgroundImage = s.continueCard.thumbKey ? thumb(s.continueCard.thumbKey) : "none";
+    }
+    $("signin-note").hidden = !s.signInNote;
+    if (s.signInNote) {
+      $("signin-title").textContent = s.signInNote.title;
+      var steps = $("signin-steps");
+      steps.textContent = "";
+      s.signInNote.steps.forEach(function (t) { var li = document.createElement("li"); li.textContent = t; steps.appendChild(li); });
     }
     $("fixbtn").hidden = !s.fixAvailable || !!np;
     $("search").hidden = !(s.typeLabel && s.typeAvailable) || !!np || !!s.fixAvailable;

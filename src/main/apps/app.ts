@@ -77,10 +77,10 @@ export interface AppTyping {
   captureText(on: boolean): void;
 }
 
-/** What an import from Safari came to. `permission`: Couch has no Full Disk Access; `none`: no Netflix cookies found. */
+/** What an import from Safari came to. `permission`: Couch has no Full Disk Access; `none`: no Netflix cookies found; `cancelled`: a sign out came first. */
 export type SignInResult =
   | { ok: true; count: number }
-  | { ok: false; reason: "permission" | "none" | "failed" };
+  | { ok: false; reason: "permission" | "none" | "failed" | "cancelled" };
 
 /** An App whose sign-in Settings can fill from Safari or clear. */
 export interface AppSignIn {

@@ -101,6 +101,23 @@ describe("Safari's binarycookies parser", () => {
     expect(all[2]!.expires).toBeUndefined();
   });
 
+  test("flag bits other than Secure and HttpOnly mean nothing, and no SameSite is read", () => {
+    const f = file([
+      page([
+        cookie({ url: ".netflix.com", name: "N", path: "/", value: "v", flags: 0x1a, exp: 0 }),
+      ]),
+    ]);
+    const [c] = parseBinaryCookies(f);
+    expect(c).toEqual({
+      domain: ".netflix.com",
+      name: "N",
+      path: "/",
+      value: "v",
+      secure: false,
+      httpOnly: false,
+    });
+  });
+
   test("a bad magic is rejected", () => {
     expect(() => parseBinaryCookies(Buffer.from("nope1234"))).toThrow();
   });
@@ -114,5 +131,83 @@ describe("Safari's binarycookies parser", () => {
   test("only netflix.com and its subdomains are kept", () => {
     const kept = netflixCookies(parseBinaryCookies(file([p1, p2])));
     expect(kept.map((c) => c.name)).toEqual(["FAKE1", "FAKE2"]);
+  });
+
+  describe("hostile pages fail closed", () => {
+    // One page of two cookies: the page starts at byte 12; its offset table is at +8, terminator at +16, records from +20.
+    const base = () => Buffer.from(file([p1]));
+    const PAGE = 12;
+    const rec = (b: Buffer, i: number) => PAGE + b.readUInt32LE(PAGE + 8 + 4 * i);
+    const size = (b: Buffer, i: number) => b.readUInt32LE(rec(b, i));
+
+    test("the untouched page parses", () => {
+      expect(parseBinaryCookies(base())).toHaveLength(2);
+    });
+
+    test("a record offset into the other record (overlap) is rejected", () => {
+      const b = base();
+      b.writeUInt32LE(b.readUInt32LE(PAGE + 8) + 10, PAGE + 12);
+      expect(() => parseBinaryCookies(b)).toThrow();
+    });
+
+    test("two records at the same offset are rejected", () => {
+      const b = base();
+      b.writeUInt32LE(b.readUInt32LE(PAGE + 8), PAGE + 12);
+      expect(() => parseBinaryCookies(b)).toThrow();
+    });
+
+    test("a record offset inside the offset table is rejected", () => {
+      const b = base();
+      b.writeUInt32LE(8, PAGE + 8);
+      expect(() => parseBinaryCookies(b)).toThrow();
+    });
+
+    test("a missing offset-table terminator is rejected", () => {
+      const b = base();
+      b.writeUInt32LE(1, PAGE + 16);
+      expect(() => parseBinaryCookies(b)).toThrow();
+    });
+
+    test("a record size past the end of the page is rejected", () => {
+      const b = base();
+      b.writeUInt32LE(size(b, 1) + 1000, rec(b, 1));
+      expect(() => parseBinaryCookies(b)).toThrow();
+    });
+
+    test("a record size that runs into the next record is rejected", () => {
+      const b = base();
+      b.writeUInt32LE(size(b, 0) + 5, rec(b, 0));
+      expect(() => parseBinaryCookies(b)).toThrow();
+    });
+
+    test("a record too small for its header is rejected", () => {
+      const b = base();
+      b.writeUInt32LE(20, rec(b, 0));
+      expect(() => parseBinaryCookies(b)).toThrow();
+    });
+
+    test("a string offset that leaves its record (into the next one) is rejected", () => {
+      const b = base();
+      b.writeUInt32LE(size(b, 0) + 3, rec(b, 0) + 28);
+      expect(() => parseBinaryCookies(b)).toThrow();
+    });
+
+    test("a string offset inside the record header is rejected", () => {
+      const b = base();
+      b.writeUInt32LE(10, rec(b, 0) + 20);
+      expect(() => parseBinaryCookies(b)).toThrow();
+    });
+
+    test("a string with no terminator inside its record is rejected, not read on into the next", () => {
+      const b = base();
+      b[rec(b, 0) + size(b, 0) - 1] = 0x78;
+      expect(() => parseBinaryCookies(b)).toThrow();
+    });
+
+    test("a page count larger than its offset table is rejected", () => {
+      const b = base();
+      b.writeUInt32LE(5000, PAGE + 4);
+      expect(() => parseBinaryCookies(b)).toThrow();
+    });
   });
 });

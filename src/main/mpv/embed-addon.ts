@@ -69,6 +69,8 @@ export interface WebKitAddon {
   ): void;
   /** `cookiesJson` is a JSON array of `{ domain, name, path, value, secure, httpOnly, expires? }` (expires in Unix ms). Calls back with an error message, or null. */
   webkitSetCookies(id: number, cookiesJson: string, callback: (error: string | null) => void): void;
+  /** What the view's store holds, as `JSON.stringify([[{ domain, name, path, secure, httpOnly, expires, sameSite }]])` (never values). For self-tests. */
+  webkitListCookies(id: number, callback: (error: string | null, json: string) => void): void;
   webkitAddUserScript(id: number, source: string, world: "couch" | "page"): void;
   /** The handler exists in the "couch" world only. */
   webkitAddMessageHandler(id: number, name: string): void;

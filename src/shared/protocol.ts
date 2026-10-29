@@ -435,6 +435,12 @@ export interface RemoteContinueCard {
   thumbKey?: string;
 }
 
+/** A short explanation the Remote shows as a card: a title and the steps to follow. */
+export interface RemoteNote {
+  title: string;
+  steps: string[];
+}
+
 /** Mac → every phone: sent whole after every change. */
 export interface RemoteSnapshot {
   type: "snapshot";
@@ -445,6 +451,8 @@ export interface RemoteSnapshot {
   /** Home only, when a video is in progress. */
   continueCard?: RemoteContinueCard;
   typeAvailable: boolean;
+  /** Settings → Apps: why a sign-in import couldn't read Safari, and what to do (the Screen shows the same steps). */
+  signInNote?: RemoteNote;
   /** A question is up on the Screen; the D-pad, OK and Back answer it. */
   confirm?: Confirmation;
   /** A show or film tile is focused and details are on: the phone offers Fix match (command `menu`). */

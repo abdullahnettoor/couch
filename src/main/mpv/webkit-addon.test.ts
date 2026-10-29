@@ -30,6 +30,7 @@ function fakeAddon() {
       calls.push(["cookies", id, json]);
       cb(json.includes("refuse") ? "refused" : null);
     },
+    webkitListCookies: (_id, cb) => cb(null, "[[]]"),
     webkitAddMessageHandler: (id, name) => calls.push(["handler", id, name]),
     webkitSetFrame: (id, x, y, w, h) => calls.push(["frame", id, x, y, w, h]),
     webkitSetVisible: (id, v) => calls.push(["visible", id, v]),

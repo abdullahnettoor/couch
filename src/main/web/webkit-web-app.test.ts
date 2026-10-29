@@ -596,13 +596,56 @@ describe("sign-in", () => {
     expect(view().loads.length).toBe(loads + 1);
   });
 
-  test("sign out destroys the view first, then removes the App's store, and the next show starts fresh", async () => {
+  test("sign out destroys the view first, then removes the App's store, and loads a fresh view", async () => {
     const { web } = make();
     web.start();
     await web.signOut();
     expect(removed).toEqual([[STORE.id, true]]);
-    web.start();
     expect(views).toHaveLength(2);
+    expect(views[0]!.destroyed).toBe(true);
+    expect(views[1]!.destroyed).toBe(false);
+    expect(views[1]!.loads).toEqual([netflix.url]);
+  });
+
+  test("the reload has happened before sign out resolves, after the store is gone", async () => {
+    const order: string[] = [];
+    const slow: WebKitBridge = {
+      ...bridge,
+      create: (o) => (order.push("create"), bridge.create(o)),
+      removeStore: async (id) => {
+        order.push("remove");
+        await Promise.resolve();
+        order.push("removed");
+        return bridge.removeStore(id);
+      },
+    };
+    const web = new WebKitWebApp(netflix, slow, win, STORE);
+    web.start();
+    order.length = 0;
+    await web.signOut();
+    order.push("resolved");
+    expect(order).toEqual(["remove", "removed", "create", "resolved"]);
+    expect(views.at(-1)!.loads).toEqual([netflix.url]);
+  });
+
+  test("a view that was shown comes back shown, and one that was hidden stays hidden", async () => {
+    const shown = make();
+    shown.web.show();
+    await shown.web.signOut();
+    expect(shown.view().visible.at(-1)).toBe(true);
+    expect(shown.view().loads).toEqual([netflix.url]);
+
+    views.length = 0;
+    const hidden = make();
+    hidden.web.start();
+    await hidden.web.signOut();
+    expect(hidden.view().visible.at(-1)).toBe(false);
+  });
+
+  test("signing out an App that never loaded loads nothing", async () => {
+    const { web } = make();
+    await web.signOut();
+    expect(views).toHaveLength(0);
   });
 
   test("sign out under the ephemeral store removes nothing and still drops the view", async () => {

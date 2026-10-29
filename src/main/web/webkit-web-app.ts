@@ -252,11 +252,20 @@ export class WebKitWebApp implements YouTube {
     if (this.#view === view) this.#load();
   }
 
-  /** Forgets the sign-in: the view goes first (WebKit refuses to remove a store a view uses), then the store. */
+  /**
+   * Forgets the sign-in: the view goes first (WebKit refuses to remove a store a view uses), then the store.
+   * Once the store is gone the page loads again from scratch, so the sign-in page is up straight away; a view
+   * that was on screen comes back on screen, one that was never loaded stays unloaded.
+   */
   async signOut(): Promise<void> {
-    if (this.#visible) this.hide();
+    const wasVisible = this.#visible;
+    const wasLoaded = !!this.#view;
+    if (wasVisible) this.hide();
     this.unload();
     if (!this.#store.ephemeral) await this.#bridge.removeStore(this.#store.id);
+    if (!wasLoaded) return;
+    this.start();
+    if (wasVisible) this.show();
   }
 
   restart(): void {

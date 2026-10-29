@@ -9,6 +9,7 @@ import {
   type Command,
   type GridItem,
   type RemoteId,
+  type RemoteNote,
   type RemoteSnapshot,
   type ScreenPayload,
   type ScreenState,
@@ -142,8 +143,13 @@ const MPV_MISSING = "Couch needs mpv to play videos. Install it with: brew insta
 const VOLUME_STEP = 5;
 const LIBRARY_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const videoKey = (report: PlaybackReport) => `${report.title ?? ""}|${report.duration}`;
-const FULL_DISK_ACCESS_NOTE =
-  "Couch can't read Safari's cookies yet. Open System Settings → Privacy & Security → Full Disk Access, turn on Couch, then restart Couch and try again.";
+const FULL_DISK_ACCESS_NOTE: RemoteNote = {
+  title: "Couch needs Full Disk Access",
+  steps: [
+    "Open System Settings → Privacy & Security → Full Disk Access and turn on Couch.",
+    "Restart Couch, then try Import Safari sign-in again.",
+  ],
+};
 const APP_NOTE = "Press Home on your phone to come back";
 
 /** The single source of truth: holds the Screen state and turns commands into new state. */
@@ -213,7 +219,7 @@ export class Core {
   #addonsPage: AddonsPage;
   #homePage: HomePage;
   #homeApps: HomeApps;
-  #signInNote: string | undefined;
+  #signInNote: RemoteNote | undefined;
   #sound: SoundOutput;
   #quick: QuickSettings;
   #search: LibrarySearchView;
@@ -1269,6 +1275,9 @@ export class Core {
           }
         : {}),
       ...(s.confirm ? { confirm: s.confirm } : {}),
+      ...(this.#signInNote && s.view === "settingsApps" && this.#homeApps.menuId
+        ? { signInNote: this.#signInNote }
+        : {}),
       typeAvailable: (s.view === "app" && !!front?.typing) || s.view === "details" || searchable,
       ...(this.#show.fixTarget() ? { fixAvailable: true } : {}),
       ...(s.view === "details" ? { typeLabel: "Type TMDB key" } : {}),
@@ -2040,6 +2049,8 @@ export class Core {
       this.#toast(
         `Imported ${result.count} ${app.label} ${result.count === 1 ? "cookie" : "cookies"}`,
       );
+    } else if (result.reason === "cancelled") {
+      // A sign out came first and has its own toast.
     } else if (result.reason === "permission") {
       this.#signInNote = FULL_DISK_ACCESS_NOTE;
       this.#toast("Couch needs Full Disk Access to read Safari");
@@ -2214,7 +2225,7 @@ export class Core {
           appMenu: {
             id: app.id,
             label: app.label,
-            ...(this.#signInNote ? { note: this.#signInNote } : {}),
+            ...(this.#signInNote ? { note: this.#signInNote.steps.join(" ") } : {}),
           },
         }
       : {};

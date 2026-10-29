@@ -135,4 +135,64 @@ describe("importing Safari's sign-in", () => {
     await t.signIn.signOut();
     expect(t.signedOut()).toBe(1);
   });
+
+  test("sign out during a held-back Safari read wins: nothing is written afterwards", async () => {
+    let release!: (b: Buffer) => void;
+    const order: string[] = [];
+    const signIn = createSafariSignIn({
+      paths: ["/x"],
+      read: () => new Promise<Buffer>((r) => (release = r)),
+      target: {
+        setCookies: async () => void order.push("set"),
+        signOut: async () => void order.push("signOut"),
+      },
+    });
+    const importing = signIn.importSignIn();
+    await signIn.signOut();
+    release(sample);
+    expect(await importing).toEqual({ ok: false, reason: "cancelled" });
+    expect(order).toEqual(["signOut"]);
+  });
+
+  test("sign out waits for cookies already being written, then clears them", async () => {
+    let finish!: () => void;
+    const order: string[] = [];
+    const signIn = createSafariSignIn({
+      paths: ["/x"],
+      read: async () => sample,
+      target: {
+        setCookies: () => new Promise<void>((r) => (finish = r)).then(() => void order.push("set")),
+        signOut: async () => void order.push("signOut"),
+      },
+    });
+    const importing = signIn.importSignIn();
+    await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 0));
+    const out = signIn.signOut();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(order).toEqual([]);
+    finish();
+    await Promise.all([importing, out]);
+    expect(order).toEqual(["set", "signOut"]);
+  });
+
+  test("an import started after a sign out works again", async () => {
+    const t = make(async () => sample);
+    await t.signIn.signOut();
+    expect(await t.signIn.importSignIn()).toEqual({ ok: true, count: 2 });
+  });
+
+  test("Safari's file has no SameSite field: the cookies handed over carry none, so WebKit's default applies", async () => {
+    const t = make(async () => sample);
+    await t.signIn.importSignIn();
+    for (const c of t.set[0]!)
+      expect(Object.keys(c).sort()).toEqual([
+        "domain",
+        "httpOnly",
+        "name",
+        "path",
+        "secure",
+        "value",
+      ]);
+  });
 });
