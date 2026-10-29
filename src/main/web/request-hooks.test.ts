@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from "vite-plus/test";
 import { applyToRequestHeaders, buildIdentity } from "../apps/youtube/youtube-identity.ts";
-import { requestHooksFor, type HookSession } from "./request-hooks.ts";
+import { releaseRequestHooks, requestHooksFor, type HookSession } from "./request-hooks.ts";
 
 function fakeSession() {
   const registered = { headers: 0, before: 0 };
@@ -79,5 +79,36 @@ describe("request hooks", () => {
     expect(await sendHeaders("https://x.test/", { A: "1" })).toEqual({ A: "1", "X-Second": "yes" });
     expect(warn).toHaveBeenCalledTimes(2);
     warn.mockRestore();
+  });
+});
+
+describe("releasing a session's hooks", () => {
+  function holder() {
+    const held: Record<string, unknown> = {};
+    const ses: HookSession = {
+      webRequest: {
+        onBeforeSendHeaders: (l: any) => void (held.headers = l),
+        onBeforeRequest: (l: any) => void (held.before = l),
+      },
+    };
+    return { ses, held };
+  }
+
+  test("once no handler is left the session's listeners are cleared", () => {
+    const { ses, held } = holder();
+    const off = requestHooksFor(ses).onBeforeRequest(() => undefined);
+    releaseRequestHooks(ses);
+    expect(typeof held.before).toBe("function");
+    off();
+    releaseRequestHooks(ses);
+    expect(held).toEqual({ before: null, headers: null });
+  });
+
+  test("a session is hooked afresh after a release", () => {
+    const { ses, held } = holder();
+    requestHooksFor(ses);
+    releaseRequestHooks(ses);
+    requestHooksFor(ses).onBeforeRequest(() => undefined);
+    expect(typeof held.before).toBe("function");
   });
 });

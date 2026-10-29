@@ -70,7 +70,9 @@ const fake = vi.hoisted(() => {
   }
   const views: FakeContents[] = [];
   const counts = { hooksAdded: 0, preloadsRegistered: 0, preloadsRemoved: 0 };
-  return { FakeContents, views, counts };
+  /** What the fake Session holds: every session-level listener a host may leave behind. */
+  const held: Record<string, unknown> = {};
+  return { FakeContents, views, counts, held };
 });
 
 vi.mock("electron", () => {
@@ -84,9 +86,20 @@ vi.mock("electron", () => {
   }
   const session = {
     setUserAgent() {},
-    setPermissionRequestHandler() {},
-    setPermissionCheckHandler() {},
-    webRequest: { onBeforeRequest() {}, onBeforeSendHeaders() {} },
+    setPermissionRequestHandler(h: unknown) {
+      fake.held.permissionRequest = h;
+    },
+    setPermissionCheckHandler(h: unknown) {
+      fake.held.permissionCheck = h;
+    },
+    webRequest: {
+      onBeforeRequest(h: unknown) {
+        fake.held.beforeRequest = h;
+      },
+      onBeforeSendHeaders(h: unknown) {
+        fake.held.beforeSendHeaders = h;
+      },
+    },
     registerPreloadScript: () => {
       fake.counts.preloadsRegistered++;
       return "id";
@@ -150,9 +163,36 @@ beforeEach(() => {
   fake.counts.preloadsRegistered = fake.counts.preloadsRemoved = 0;
   winResize.n = 0;
   children.clear();
+  for (const k of Object.keys(fake.held)) delete fake.held[k];
 });
 
 describe("dispose (an engine switch)", () => {
+  test("every session-level listener the host registered is released: permission handlers and request hooks", () => {
+    const web = new ElectronWebApp(netflix, win);
+    expect(typeof fake.held.permissionRequest).toBe("function");
+    expect(typeof fake.held.permissionCheck).toBe("function");
+    expect(typeof fake.held.beforeRequest).toBe("function");
+    expect(typeof fake.held.beforeSendHeaders).toBe("function");
+    web.dispose();
+    expect(fake.held).toEqual({
+      permissionRequest: null,
+      permissionCheck: null,
+      beforeRequest: null,
+      beforeSendHeaders: null,
+    });
+  });
+
+  test("a newer host on the same session keeps its own handlers when the older one is disposed", () => {
+    const old = new ElectronWebApp(netflix, win);
+    const fresh = new ElectronWebApp(netflix, win);
+    old.dispose();
+    expect(typeof fake.held.permissionCheck).toBe("function");
+    expect(typeof fake.held.beforeRequest).toBe("function");
+    fresh.dispose();
+    expect(fake.held.permissionCheck).toBeNull();
+    expect(fake.held.beforeRequest).toBeNull();
+  });
+
   test("takes the view out of the window, closes it, stops listening to the window and reports home", async () => {
     const web = new ElectronWebApp(netflix, win);
     const events: unknown[] = [];

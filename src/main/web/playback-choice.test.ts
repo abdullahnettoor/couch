@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vite-plus/test";
 import { MemoryStore } from "../ports/store.ts";
 import type { Engine, WebKitAvailability } from "./native-front.ts";
+import { SwitchableWebApp, type SwitchableHost } from "./switchable-web-app.ts";
+import { PlaybackUnavailable } from "../apps/app.ts";
 import { createPlayback, readStoredEngine } from "./playback-choice.ts";
 
 function rig(webkit: WebKitAvailability, engine: Engine) {
@@ -13,7 +15,7 @@ function rig(webkit: WebKitAvailability, engine: Engine) {
       host.engine = e;
     },
   };
-  const playback = createPlayback({ store, appId: "netflix", host, webkit });
+  const playback = createPlayback({ store, appId: "netflix", host, webkit: () => webkit });
   return { store, switches, host, playback };
 }
 const yes = { available: true } as const;
@@ -52,7 +54,7 @@ describe("the per-App playback choice", () => {
   });
 
   test("the reason is on offer whenever WebKit isn't available, and only then", () => {
-    expect(rig(no, "chromium").playback.unavailable).toBe(no.reason);
+    expect(rig(no, "chromium").playback.unavailable).toBe(`WebKit unavailable: ${no.reason}`);
     expect(rig(yes, "chromium").playback.unavailable).toBeUndefined();
   });
 
@@ -73,5 +75,80 @@ describe("the per-App playback choice", () => {
     expect(readStoredEngine(store, "netflix")).toBeUndefined();
     store.write("apps-playback", "x");
     expect(readStoredEngine(store, "netflix")).toBeUndefined();
+  });
+});
+
+describe("the choice is saved only after a successful switch", () => {
+  test("a failing switch stores nothing and the row still names the old engine", async () => {
+    const store = new MemoryStore();
+    const host = {
+      engine: "chromium" as Engine,
+      switchTo() {
+        throw new Error("init failed");
+      },
+    };
+    const playback = createPlayback({ store, appId: "netflix", host, webkit: () => yes });
+    await expect(playback.select("webkit")).rejects.toThrow(/init failed/);
+    expect(readStoredEngine(store, "netflix")).toBeUndefined();
+    expect(playback.current().id).toBe("chromium");
+  });
+
+  test("through the real switcher: factory and init failures keep the old host and the old choice, and switching back still works", async () => {
+    const store = new MemoryStore();
+    store.write("apps-playback", { netflix: "chromium" });
+    const made: string[] = [];
+    let mode: "create" | "init" | "ok" = "create";
+    const stub = (engine: Engine, failInit: boolean): SwitchableHost => {
+      const calls: string[] = [];
+      const h = {
+        calls,
+        disposed: false,
+        onEvent: () => () => {},
+        setKeyGate: () => {
+          if (failInit) throw new Error("init failed");
+        },
+        dispose() {
+          h.disposed = true;
+        },
+      };
+      made.push(engine);
+      return h as unknown as SwitchableHost;
+    };
+    const switcher = new SwitchableWebApp((engine) => {
+      if (made.length > 0 && mode === "create") throw new Error("factory failed");
+      return stub(engine, made.length > 0 && mode === "init");
+    }, "chromium");
+    switcher.setKeyGate(() => false);
+    const playback = createPlayback({
+      store,
+      appId: "netflix",
+      host: switcher,
+      webkit: () => yes,
+    });
+    await expect(playback.select("webkit")).rejects.toThrow(/factory failed/);
+    mode = "init";
+    await expect(playback.select("webkit")).rejects.toThrow(/init failed/);
+    expect(readStoredEngine(store, "netflix")).toBe("chromium");
+    expect(switcher.engine).toBe("chromium");
+    mode = "ok";
+    await playback.select("webkit");
+    expect(switcher.engine).toBe("webkit");
+    expect(readStoredEngine(store, "netflix")).toBe("webkit");
+    await playback.select("chromium");
+    expect(switcher.engine).toBe("chromium");
+    expect(readStoredEngine(store, "netflix")).toBe("chromium");
+  });
+
+  test("availability is asked each time, so a late FairPlay answer shows", async () => {
+    let now: WebKitAvailability = { available: false, reason: "Still checking" };
+    const store = new MemoryStore();
+    const host = { engine: "chromium" as Engine, switchTo: (e: Engine) => void (host.engine = e) };
+    const playback = createPlayback({ store, appId: "netflix", host, webkit: () => now });
+    expect(playback.unavailable).toBe("WebKit unavailable: Still checking");
+    await expect(playback.select("webkit")).rejects.toThrow(PlaybackUnavailable);
+    now = yes;
+    expect(playback.unavailable).toBeUndefined();
+    await playback.select("webkit");
+    expect(host.engine).toBe("webkit");
   });
 });

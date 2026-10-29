@@ -101,12 +101,15 @@ export interface PlaybackOption {
   label: string;
 }
 
+/** `select` refuses an engine that can't run here; the message is the reason, in words for a toast. */
+export class PlaybackUnavailable extends Error {}
+
 /** An App that can run on more than one engine (Netflix: WebKit with FairPlay, or Chromium with Widevine). */
 export interface AppPlayback {
   readonly options: readonly PlaybackOption[];
   /** The engine in use now. */
   current(): PlaybackOption;
-  /** Why the preferred engine can't be used here, in words for the menu; absent when it can. */
+  /** Why the preferred engine can't be used here, a whole phrase for the row and the toast; absent when it can. */
   readonly unavailable?: string;
   /** Stores the choice and swaps the App to that engine; rejects when it can't. */
   select(id: string): Promise<void>;

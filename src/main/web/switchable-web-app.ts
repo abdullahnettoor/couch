@@ -16,8 +16,9 @@ export interface SwitchableHost extends YouTube {
 
 /**
  * One App port over the engine the household picked: it builds the host for the current engine and swaps it when asked.
- * The old host is disposed first (its data stays on disk), the new one is given Couch's state and, if the App had been
- * opened, starts loading; a host that was never opened loads on its first show, as before.
+ * The swap is transactional: the new host is built and given Couch's state first; only then is the old one disposed
+ * (its data stays on disk). A failure before that leaves the old host exactly as it was. A hidden App is never started
+ * by a switch: the new host loads on its next show, so the IdleUnloader stays in charge.
  */
 export class SwitchableWebApp implements YouTube {
   #create: (engine: Engine) => SwitchableHost;
@@ -25,13 +26,14 @@ export class SwitchableWebApp implements YouTube {
   #host: SwitchableHost;
   #stop: () => void;
   #listeners = new Set<(event: YouTubeEvent) => void>();
+  #switched = new Set<(engine: Engine) => void>();
   #gate: KeyGate | undefined;
   #volume: number | undefined;
   #output: string | undefined;
   #capturing = false;
   #overlay = false;
   #visible = false;
-  #opened = false;
+  #pending: Engine | undefined;
 
   constructor(create: (engine: Engine) => SwitchableHost, engine: Engine) {
     this.#create = create;
@@ -49,22 +51,70 @@ export class SwitchableWebApp implements YouTube {
     return engine === this.#engine ? this.#host : undefined;
   }
 
+  /** Hears each completed switch. */
+  onSwitch(listener: (engine: Engine) => void): () => void {
+    this.#switched.add(listener);
+    return () => void this.#switched.delete(listener);
+  }
+
+  /** Throws, leaving the old host in place, when the new one can't be built or set up. */
   switchTo(engine: Engine): void {
+    this.#pending = undefined;
     if (engine === this.#engine) return;
+    const next = this.#create(engine);
+    try {
+      if (this.#gate) next.setKeyGate(this.#gate);
+      if (this.#volume !== undefined) next.setVolume(this.#volume);
+      if (this.#output !== undefined) void next.setOutputDevice(this.#output).catch(() => {});
+      if (this.#capturing) next.captureText(true);
+      if (this.#overlay) next.setOverlay?.(true);
+    } catch (e) {
+      try {
+        next.dispose();
+      } catch {
+        // the half-built host is being thrown away anyway
+      }
+      throw e;
+    }
     // The old host reports "home" while it goes, so the core's route is fresh; then nothing more is heard from it.
     this.#host.dispose();
     this.#stop();
-    const next = this.#create(engine);
     this.#engine = engine;
     this.#host = next;
     this.#stop = next.onEvent((e) => this.#emit(e));
-    if (this.#gate) next.setKeyGate(this.#gate);
-    if (this.#volume !== undefined) next.setVolume(this.#volume);
-    if (this.#output !== undefined) void next.setOutputDevice(this.#output);
-    if (this.#capturing) next.captureText(true);
-    if (this.#overlay) next.setOverlay?.(true);
-    if (this.#visible) next.show();
-    else if (this.#opened) next.start();
+    if (this.#visible) {
+      try {
+        next.show();
+      } catch (e) {
+        console.warn("[netflix] the new host couldn't show:", e);
+      }
+    }
+    for (const l of Array.from(this.#switched)) l(engine);
+  }
+
+  /**
+   * Switches quietly: at once when the App is hidden, else when it is next hidden, so a playing page is never
+   * interrupted. Returns whether it switched now. A failure is logged and the old host stays.
+   */
+  switchWhenAway(engine: Engine): boolean {
+    if (engine === this.#engine) {
+      this.#pending = undefined;
+      return true;
+    }
+    if (this.#visible) {
+      this.#pending = engine;
+      return false;
+    }
+    this.#quietly(engine);
+    return this.#engine === engine;
+  }
+
+  #quietly(engine: Engine): void {
+    try {
+      this.switchTo(engine);
+    } catch (e) {
+      console.warn(`[netflix] couldn't switch to ${engine}:`, e);
+    }
   }
 
   #emit(event: YouTubeEvent): void {
@@ -72,16 +122,16 @@ export class SwitchableWebApp implements YouTube {
   }
 
   show(note?: string): void {
-    this.#opened = true;
     this.#visible = true;
     this.#host.show(note);
   }
   hide(): void {
     this.#visible = false;
     this.#host.hide();
+    const pending = this.#pending;
+    if (pending) this.#quietly(pending);
   }
   start(): void {
-    this.#opened = true;
     this.#host.start();
   }
   focus(): void {
@@ -147,7 +197,6 @@ export class SwitchableWebApp implements YouTube {
     return this.#host.followsMacOutput;
   }
   restart(): void {
-    this.#opened = true;
     this.#host.restart();
   }
   unload(): void {

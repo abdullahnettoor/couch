@@ -27,7 +27,13 @@ import type { Clock } from "../ports/clock.ts";
 import type { Mac } from "../ports/mac.ts";
 import { pickTargetDisplay } from "../display.ts";
 import { APP_ENTRIES, OPEN_APP, type AppEntry } from "../apps/index.ts";
-import type { App, AppEvent, AppTyping, PlaybackReport } from "../apps/app.ts";
+import {
+  PlaybackUnavailable,
+  type App,
+  type AppEvent,
+  type AppTyping,
+  type PlaybackReport,
+} from "../apps/app.ts";
 import { randomBytes } from "node:crypto";
 import type { Store } from "../ports/store.ts";
 import type { Thumbnails } from "../ports/thumbnails.ts";
@@ -350,7 +356,10 @@ export class Core {
         }
         this.#setView("home");
       },
-      playback: (id) => this.#apps.get(id)?.playback?.current().label,
+      playback: (id) => {
+        const playback = this.#apps.get(id)?.playback;
+        return playback && { label: playback.current().label, unavailable: playback.unavailable };
+      },
       hasSignIn: (id) => !!this.#apps.get(id)?.signIn,
       hasCouchCopy: (id) => this.#couchCopy.has(id),
       changed: () => {
@@ -1282,8 +1291,8 @@ export class Core {
         : {}),
       ...(s.confirm ? { confirm: s.confirm } : {}),
       ...(s.toast ? { toast: { text: s.toast, id: this.#toastId } } : {}),
-      ...(this.#signInNote && s.view === "settingsApps" && this.#homeApps.menuId
-        ? { signInNote: this.#signInNote }
+      ...(s.view === "settingsApps" && this.#homeApps.menuId && this.#remoteNote()
+        ? { signInNote: this.#remoteNote() }
         : {}),
       typeAvailable: (s.view === "app" && !!front?.typing) || s.view === "details" || searchable,
       ...(this.#show.fixTarget() ? { fixAvailable: true } : {}),
@@ -2116,14 +2125,16 @@ export class Core {
     if (!next) return;
     this.#signInNote = undefined;
     this.#couchCopy.delete(id);
-    const done = await playback.select(next.id).then(
-      () => true,
-      () => false,
+    const failure = await playback.select(next.id).then(
+      () => undefined,
+      (e: unknown) => e,
     );
     this.#toast(
-      done
+      failure === undefined
         ? `${app.label} now plays with ${next.label}`
-        : `Couldn't switch ${app.label}'s playback`,
+        : failure instanceof PlaybackUnavailable
+          ? failure.message
+          : `Couldn't switch ${app.label}'s playback`,
     );
     this.#emit();
     void this.#refreshCouchCopy(id);
@@ -2290,13 +2301,17 @@ export class Core {
     };
   }
 
-  /** Under the menu: the sign-in steps if any, and why the other engine isn't offered. */
-  #menuNote(id: string): { note?: string } {
-    const parts = [
-      this.#signInNote?.steps.join(" "),
-      this.#apps.get(id)?.playback?.unavailable,
-    ].filter((p): p is string => !!p);
-    return parts.length ? { note: parts.join(" ") } : {};
+  /** Under the menu: the sign-in steps, if any (why the other engine isn't offered is on the Playback row). */
+  #menuNote(): { note?: string } {
+    return this.#signInNote ? { note: this.#signInNote.steps.join(" ") } : {};
+  }
+
+  /** The card the Remote shows under an App's menu: the sign-in steps, else why the other playback engine isn't offered. */
+  #remoteNote(): RemoteNote | undefined {
+    if (this.#signInNote) return this.#signInNote;
+    const id = this.#homeApps.menuId;
+    const reason = id ? this.#apps.get(id)?.playback?.unavailable : undefined;
+    return reason ? { title: "Playback", steps: [reason] } : undefined;
   }
 
   #appMenuPayload(): Pick<ScreenPayload, "appMenu"> {
@@ -2306,7 +2321,7 @@ export class Core {
           appMenu: {
             id: app.id,
             label: app.label,
-            ...this.#menuNote(app.id),
+            ...this.#menuNote(),
           },
         }
       : {};

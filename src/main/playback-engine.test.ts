@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "vite-plus/test";
 import type { AppEntry } from "./apps/index.ts";
-import type { AppPlayback, AppSignIn } from "./apps/app.ts";
+import { PlaybackUnavailable, type AppPlayback, type AppSignIn } from "./apps/app.ts";
 import { FakeWebApp } from "./ports/fakes.ts";
 import { startHarness, type FakePhone, type Harness } from "./testing/harness.ts";
 
@@ -25,6 +25,7 @@ class SwitchingFake extends FakeWebApp {
   engine = "webkit";
   selects: string[] = [];
   failWith: string | undefined;
+  unavailableError = false;
   readonly playback: AppPlayback;
   readonly #signIn: AppSignIn = {
     importSignIn: async () => ({ ok: true, count: 1 }),
@@ -38,7 +39,10 @@ class SwitchingFake extends FakeWebApp {
       unavailable,
       select: async (id) => {
         this.selects.push(id);
-        if (this.failWith) throw new Error(this.failWith);
+        if (this.failWith)
+          throw this.unavailableError
+            ? new PlaybackUnavailable(this.failWith)
+            : new Error(this.failWith);
         this.engine = id;
       },
     };
@@ -159,12 +163,37 @@ describe("Settings → Apps → Playback", () => {
     expect(labels()).toContain("Playback: WebKit (FairPlay)");
   });
 
-  test("when WebKit isn't available the menu says why", async () => {
-    const a = app("FairPlay isn't available on this Mac");
+  test("when WebKit isn't available the Playback row itself says why, on the Screen and on the Remote", async () => {
+    const a = app("WebKit unavailable: FairPlay isn't available on this Mac");
     a.engine = "chromium";
-    await start(a);
-    expect(h.screen.last.appMenu?.note).toContain("FairPlay isn't available on this Mac");
-    expect(labels()).toContain("Playback: Chromium (Widevine)");
+    const phone = await start(a);
+    expect(labels()).toContain(
+      "Playback: Chromium (Widevine) · WebKit unavailable: FairPlay isn't available on this Mac",
+    );
+    expect(h.screen.last.appMenu?.note).toBeUndefined();
+    expect(phone.last?.signInNote).toEqual({
+      title: "Playback",
+      steps: ["WebKit unavailable: FairPlay isn't available on this Mac"],
+    });
+  });
+
+  test("toggling when WebKit isn't available toasts the reason, on the Screen and on the phone, and changes nothing", async () => {
+    const a = app("WebKit unavailable: FairPlay isn't available on this Mac");
+    a.engine = "chromium";
+    a.failWith = "WebKit unavailable: FairPlay isn't available on this Mac";
+    a.unavailableError = true;
+    const phone = await start(a);
+    await pick(
+      phone,
+      "Playback: Chromium (Widevine) · WebKit unavailable: FairPlay isn't available on this Mac",
+    );
+    expect(h.screen.last.state.toast).toBe(
+      "WebKit unavailable: FairPlay isn't available on this Mac",
+    );
+    expect(phone.last?.toast?.text).toBe(
+      "WebKit unavailable: FairPlay isn't available on this Mac",
+    );
+    expect(a.engine).toBe("chromium");
   });
 
   test("with both engines available there is no reason shown", async () => {

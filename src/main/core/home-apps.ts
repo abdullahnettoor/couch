@@ -70,7 +70,8 @@ export interface HomeAppsHost {
   hidden(id: string): void;
   changed(): void;
   /** The engine App `id` plays with now, when it offers a choice. */
-  playback(id: string): string | undefined;
+  /** The engine in use, and why the other can't be used when it can't. */
+  playback(id: string): { label: string; unavailable?: string } | undefined;
   /** Whether App `id` offers Import Safari sign-in and Sign out. */
   hasSignIn(id: string): boolean;
   /** Whether App `id` can copy a sign-in from Couch's Chromium engine right now (it holds one). */
@@ -177,6 +178,7 @@ export class HomeApps {
     const id = this.#menu ?? "";
     const entry = this.#h.known().find((e) => e.id === id);
     const shown = this.isShown(id);
+    const playback = this.#h.playback(id);
     const items: Array<Omit<GridItem, "r" | "c">> = [
       {
         id: "home-toggle",
@@ -188,11 +190,11 @@ export class HomeApps {
       ...(entry?.web
         ? [{ id: "restart", label: `Restart ${entry.label}`, action: `${RESTART_APP}${entry.id}` }]
         : []),
-      ...(this.#h.playback(id)
+      ...(playback
         ? [
             {
               id: "playback",
-              label: `Playback: ${this.#h.playback(id)}`,
+              label: `Playback: ${playback.label}${playback.unavailable ? ` · ${playback.unavailable}` : ""}`,
               action: `${PLAYBACK_APP}${id}`,
             },
           ]

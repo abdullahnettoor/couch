@@ -1,5 +1,13 @@
 import { join } from "node:path";
-import { app, BrowserWindow, WebContentsView, clipboard, components, session } from "electron";
+import {
+  app,
+  BrowserWindow,
+  WebContentsView,
+  clipboard,
+  components,
+  session,
+  type Session,
+} from "electron";
 import type { Confirmation, PromptId, TrackKind } from "../../shared/protocol.ts";
 import { revealScreen } from "../reveal.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
@@ -10,7 +18,7 @@ import { FIELD_BLURRED, FIELD_FOCUSED, pageFocusFunction } from "./page-focus.ts
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import { COUCH_HOST_CONSOLE, HOST_CONSOLE_PREFIX } from "./couch-host.ts";
 import { parsePageMessage } from "./webkit-messages.ts";
-import { requestHooksFor, type RequestHooks } from "./request-hooks.ts";
+import { releaseRequestHooks, requestHooksFor, type RequestHooks } from "./request-hooks.ts";
 import { blockLocalFiles } from "./local-files.ts";
 import { HIDE_SCROLLBARS_CSS } from "./hide-scrollbars.ts";
 import { SessionPreloads } from "./session-preloads.ts";
@@ -35,6 +43,9 @@ interface ConsoleFrame {
 }
 
 /** The web-App host: one persistent, always-loaded view over the Screen window, described by `desc`. */
+/** Which host last set a session's permission handlers (Electron keeps one of each per session). */
+const permissionOwners = new WeakMap<object, object>();
+
 export class ElectronWebApp implements YouTube {
   #desc: WebAppDescription;
   #win: BrowserWindow;
@@ -65,6 +76,7 @@ export class ElectronWebApp implements YouTube {
   #guard!: BlankGuard;
   #hooks: RequestHooks;
   #preloads: SessionPreloads;
+  #ses: Session;
   #addonRequests: Array<() => void> = [];
   #ownHooks: Array<() => void> = [];
   #onResize = () => this.#fit();
@@ -103,6 +115,8 @@ export class ElectronWebApp implements YouTube {
     );
     // The view may ask the Mac for nothing (no microphone, no camera). Its media permission *check*
     // is answered yes only for the App's own origin, and only for what choosing an output needs.
+    this.#ses = ses;
+    permissionOwners.set(ses, this);
     ses.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
     ses.setPermissionCheckHandler((_wc, permission, origin) => {
       return allowsPermission(permission, origin, this.#enumerating, (o) => desc.isOwnOrigin(o));
@@ -306,6 +320,13 @@ export class ElectronWebApp implements YouTube {
     this.#win.off("resize", this.#onResize);
     for (const off of [...this.#ownHooks.splice(0), ...this.#addonRequests.splice(0)]) off();
     this.#preloads.clear();
+    releaseRequestHooks(this.#ses);
+    // Only if no newer host took the handlers over since.
+    if (permissionOwners.get(this.#ses) === this) {
+      permissionOwners.delete(this.#ses);
+      this.#ses.setPermissionRequestHandler(null);
+      this.#ses.setPermissionCheckHandler(null);
+    }
     this.#win.contentView.removeChildView(this.#view);
     this.#view.webContents.close();
     this.#core.reset();

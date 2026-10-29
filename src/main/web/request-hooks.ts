@@ -14,8 +14,12 @@ export type HeadersHandler = (details: HeadersDetails) => Record<string, string>
 
 export interface HookSession {
   webRequest: {
-    onBeforeRequest(listener: (details: any, callback: (response: any) => void) => void): void;
-    onBeforeSendHeaders(listener: (details: any, callback: (response: any) => void) => void): void;
+    onBeforeRequest(
+      listener: ((details: any, callback: (response: any) => void) => void) | null,
+    ): void;
+    onBeforeSendHeaders(
+      listener: ((details: any, callback: (response: any) => void) => void) | null,
+    ): void;
   };
 }
 
@@ -34,7 +38,10 @@ export class RequestHooks {
   #before: BeforeRequestHandler[] = [];
   #headers: HeadersHandler[] = [];
 
+  #ses: HookSession;
+
   constructor(ses: HookSession) {
+    this.#ses = ses;
     ses.webRequest.onBeforeRequest((details, callback) => {
       for (const handler of [...this.#before]) {
         let result;
@@ -61,6 +68,16 @@ export class RequestHooks {
     });
   }
 
+  get empty(): boolean {
+    return this.#before.length === 0 && this.#headers.length === 0;
+  }
+
+  /** Takes this object's listeners off the session. */
+  detach(): void {
+    this.#ses.webRequest.onBeforeRequest(null);
+    this.#ses.webRequest.onBeforeSendHeaders(null);
+  }
+
   onBeforeRequest(handler: BeforeRequestHandler): () => void {
     this.#before.push(handler);
     return () => void (this.#before = this.#before.filter((h) => h !== handler));
@@ -79,4 +96,12 @@ export function requestHooksFor(ses: HookSession): RequestHooks {
   let found = hooks.get(ses);
   if (!found) hooks.set(ses, (found = new RequestHooks(ses)));
   return found;
+}
+
+/** The host is going: when no handler is left on the session, its listeners come off too (a later host hooks it afresh). */
+export function releaseRequestHooks(ses: HookSession): void {
+  const found = hooks.get(ses);
+  if (!found?.empty) return;
+  found.detach();
+  hooks.delete(ses);
 }

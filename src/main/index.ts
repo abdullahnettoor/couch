@@ -33,8 +33,14 @@ import {
   testPageEnabled,
   type TestPageServer,
 } from "./web/webkit-test-page.ts";
-import { NATIVE_APP_CLASS, chooseEngine, nativeAppFront } from "./web/native-front.ts";
-import { checkFairPlay, FAIRPLAY_SCRIPT } from "./web/fairplay.ts";
+import {
+  NATIVE_APP_CLASS,
+  chooseEngine,
+  nativeAppFront,
+  engineAfterProbe,
+  type Engine,
+} from "./web/native-front.ts";
+import { startFairPlay, FAIRPLAY_SCRIPT } from "./web/fairplay.ts";
 import { SwitchableWebApp } from "./web/switchable-web-app.ts";
 import { createPlayback, readStoredEngine } from "./web/playback-choice.ts";
 import { youtubeDescription } from "./apps/youtube/youtube-web.ts";
@@ -195,19 +201,41 @@ async function createScreen(): Promise<void> {
   // Netflix's engine: WebKit (FairPlay) where it is available, unless the household chose Chromium (Settings → Apps →
   // Netflix → Playback). COUCH_NETFLIX_ENGINE=webkit|chromium is a developer override, never needed in normal use.
   const webkitBridge = createWebKitBridge(() => win);
-  const webkitAvailability = await checkFairPlay({
-    store,
-    version: `${webkitBridge?.userAgent() ?? "none"}|${process.getSystemVersion()}`,
-    run: webkitBridge ? () => webkitSelfTest(FAIRPLAY_SCRIPT) : undefined,
-  });
-  const chosen = chooseEngine({
-    stored: readStoredEngine(store, "netflix"),
+  const packaged = isPackagedBuild(app, process);
+  const stored = (): Engine | undefined => readStoredEngine(store, "netflix");
+  // The FairPlay check never holds Couch up: a cached answer is used at once; with none, Netflix starts on Chromium
+  // (the safe default) and the probe runs in the background. A late "available" switches quietly (see below).
+  let netflixReady = false;
+  const onAnswer = engineAfterProbe({
+    packaged,
+    stored,
     env: process.env,
-    webkit: webkitAvailability,
+    get switcher() {
+      return netflix;
+    },
+  });
+  const fairplay = startFairPlay(
+    {
+      store,
+      version: `${webkitBridge?.userAgent() ?? "none"}|${process.getSystemVersion()}`,
+      run: webkitBridge ? () => webkitSelfTest(FAIRPLAY_SCRIPT) : undefined,
+    },
+    (answer) => {
+      if (netflixReady) onAnswer(answer);
+    },
+  );
+  // The developer override (unpackaged runs only) names its engine up front, so it waits for the probe.
+  const devEngine = !packaged && process.env.COUCH_NETFLIX_ENGINE === "webkit";
+  if (devEngine) await fairplay.done;
+  const chosen = chooseEngine({
+    packaged,
+    stored: stored(),
+    env: process.env,
+    webkit: fairplay.current(),
   });
   if (chosen.reason) console.warn(`[netflix] using Chromium: ${chosen.reason}`);
   const nativeApps = new Set<string>(chosen.engine === "webkit" ? ["netflix"] : []);
-  const testPage = chosen.engine === "webkit" ? await startTestPage() : undefined;
+  const testPage = await startTestPage();
   const netflixIdle = unloader.track("netflix", () => netflix.unload());
   const netflix: SwitchableWebApp = new SwitchableWebApp((engine) => {
     if (engine === "webkit") {
@@ -275,15 +303,18 @@ async function createScreen(): Promise<void> {
         get engine() {
           return netflix.engine;
         },
-        switchTo: (engine) => {
-          netflix.switchTo(engine);
-          if (engine === "webkit") nativeApps.add("netflix");
-          else nativeApps.delete("netflix");
-        },
+        switchTo: (engine) => netflix.switchTo(engine),
       },
-      webkit: webkitAvailability,
+      webkit: () => fairplay.current(),
     }),
   );
+  netflix.onSwitch((engine) => {
+    if (engine === "webkit") nativeApps.add("netflix");
+    else nativeApps.delete("netflix");
+  });
+  // An answer that came while the host was being built is applied now.
+  netflixReady = true;
+  onAnswer(fairplay.current());
   mac.keepAwake(true);
   const listener = await detectListener({
     store,

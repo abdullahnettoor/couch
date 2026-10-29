@@ -25,14 +25,31 @@ export interface FairPlayCheck {
   timeoutMs?: number;
 }
 
-/** Whether WebKit's FairPlay is available, asked once per Safari/macOS version and cached; a failed check is never cached. */
-export async function checkFairPlay(o: FairPlayCheck): Promise<WebKitAvailability> {
-  if (!o.run) {
-    return { available: false, reason: "Couch's WebKit add-on isn't available on this Mac" };
-  }
+const NO_ADDON: WebKitAvailability = {
+  available: false,
+  reason: "Couch's WebKit add-on isn't available on this Mac",
+};
+const CHECKING: WebKitAvailability = {
+  available: false,
+  reason: "Still checking whether FairPlay is available",
+};
+const FAILED: WebKitAvailability = {
+  available: false,
+  reason: "Couldn't check whether FairPlay is available",
+};
+
+/** The cached answer for this Safari/macOS pair, if there is one. */
+function cachedAnswer(o: FairPlayCheck): WebKitAvailability | undefined {
   const cached = o.store.read<{ version?: string; granted?: boolean }>(DOC, {});
-  if (cached.version === o.version && typeof cached.granted === "boolean")
-    return answer(cached.granted);
+  return cached.version === o.version && typeof cached.granted === "boolean"
+    ? answer(cached.granted)
+    : undefined;
+}
+
+/** Runs the probe once. Only a clear "granted" or "denied: ..." is an answer (and cached); anything else is a failed check. */
+async function probe(
+  o: FairPlayCheck & { run: () => Promise<unknown> },
+): Promise<WebKitAvailability> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const raw = await Promise.race([
@@ -41,17 +58,44 @@ export async function checkFairPlay(o: FairPlayCheck): Promise<WebKitAvailabilit
         timer = setTimeout(() => reject(new Error("timeout")), o.timeoutMs ?? 10_000);
       }),
     ]);
-    const granted =
-      (raw as { keySystems?: Record<string, string> } | undefined)?.keySystems?.[
-        "com.apple.fps.3_0"
-      ] === "granted";
+    const system = (raw as { keySystems?: Record<string, unknown> } | null | undefined)
+      ?.keySystems?.["com.apple.fps.3_0"];
+    const granted = system === "granted";
+    const denied = typeof system === "string" && /^denied(: .*)?$/.test(system);
+    if (!granted && !denied) return FAILED;
     o.store.write(DOC, { version: o.version, granted });
     return answer(granted);
   } catch {
-    return { available: false, reason: "Couldn't check whether FairPlay is available" };
+    return FAILED;
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** Whether WebKit's FairPlay is available, asked once per Safari/macOS version and cached; a failed check is never cached. */
+export async function checkFairPlay(o: FairPlayCheck): Promise<WebKitAvailability> {
+  if (!o.run) return NO_ADDON;
+  return cachedAnswer(o) ?? probe({ ...o, run: o.run });
+}
+
+/**
+ * The same check without waiting for it: a cached answer is used at once; with none, `current()` says it is still
+ * checking while the probe runs in the background, and `onAnswer` hears the result (granted, denied or a failed check).
+ */
+export function startFairPlay(
+  o: FairPlayCheck,
+  onAnswer: (answer: WebKitAvailability) => void,
+): { current(): WebKitAvailability; done: Promise<WebKitAvailability> } {
+  if (!o.run) return { current: () => NO_ADDON, done: Promise.resolve(NO_ADDON) };
+  const cached = cachedAnswer(o);
+  if (cached) return { current: () => cached, done: Promise.resolve(cached) };
+  let now = CHECKING;
+  const done = probe({ ...o, run: o.run }).then((a) => {
+    now = a;
+    onAnswer(a);
+    return a;
+  });
+  return { current: () => now, done };
 }
 
 function answer(granted: boolean): WebKitAvailability {
