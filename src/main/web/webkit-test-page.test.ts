@@ -1,5 +1,7 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir, networkInterfaces } from "node:os";
+import { get as httpGet, type IncomingMessage } from "node:http";
+import { connect } from "node:net";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 import { netflixDescription } from "../apps/netflix/netflix-web.ts";
@@ -18,12 +20,25 @@ describe("the dev-only test page that plays a synthetic video in the WebKit host
       COUCH_WEBKIT_EPHEMERAL: "1",
       COUCH_WEBKIT_TEST_PAGE: "1",
     };
-    expect(testPageEnabled(on)).toBe(true);
-    expect(testPageEnabled({ ...on, COUCH_WEBKIT_TEST_PAGE: undefined })).toBe(false);
-    expect(testPageEnabled({ ...on, COUCH_WEBKIT_TEST_PAGE: "true" })).toBe(false);
-    expect(testPageEnabled({ ...on, COUCH_WEBKIT_EPHEMERAL: undefined })).toBe(false);
-    expect(testPageEnabled({ ...on, COUCH_NETFLIX_ENGINE: "chromium" })).toBe(false);
-    expect(testPageEnabled({})).toBe(false);
+    const dev = { isPackaged: false };
+    expect(testPageEnabled(on, dev)).toBe(true);
+    expect(testPageEnabled({ ...on, COUCH_WEBKIT_TEST_PAGE: undefined }, dev)).toBe(false);
+    expect(testPageEnabled({ ...on, COUCH_WEBKIT_TEST_PAGE: "true" }, dev)).toBe(false);
+    expect(testPageEnabled({ ...on, COUCH_WEBKIT_EPHEMERAL: undefined }, dev)).toBe(false);
+    expect(testPageEnabled({ ...on, COUCH_NETFLIX_ENGINE: "chromium" }, dev)).toBe(false);
+    expect(testPageEnabled({}, dev)).toBe(false);
+  });
+
+  test("is impossible in a packaged or production build, even with all three variables set", () => {
+    const on = {
+      COUCH_NETFLIX_ENGINE: "webkit",
+      COUCH_WEBKIT_EPHEMERAL: "1",
+      COUCH_WEBKIT_TEST_PAGE: "1",
+    };
+    expect(testPageEnabled(on, { isPackaged: true })).toBe(false);
+    expect(testPageEnabled({ ...on, NODE_ENV: "production" }, { isPackaged: true })).toBe(false);
+    expect(testPageEnabled({ ...on, NODE_ENV: "production" }, { isPackaged: false })).toBe(false);
+    expect(testPageEnabled({ ...on, NODE_ENV: "development" }, { isPackaged: false })).toBe(true);
   });
 
   test("the page has one large muted, looping, autoplaying video of the served clip", () => {
@@ -85,6 +100,51 @@ describe("the dev-only test page that plays a synthetic video in the WebKit host
       const bad = await fetch(`${server.origin}/clip.mp4`, { headers: { range: "bytes=5000-" } });
       expect(bad.status).toBe(416);
       expect((await fetch(`${server.origin}/other`)).status).toBe(404);
+    });
+  });
+
+  describe("shutdown", () => {
+    test("binds 127.0.0.1 only: no other address of this machine connects", async () => {
+      const server = await serveTestPage(join(mkdtempSync(join(tmpdir(), "couch-tp-")), "x.mp4"));
+      try {
+        expect(server.host).toBe("127.0.0.1");
+        const port = Number(new URL(server.origin).port);
+        const others = Object.values(networkInterfaces())
+          .flat()
+          .filter((i) => i && i.family === "IPv4" && !i.internal);
+        for (const nic of others) {
+          const refused = await new Promise<boolean>((resolve) => {
+            const s = connect({ host: nic!.address, port, timeout: 1000 });
+            s.once("connect", () => (s.destroy(), resolve(false)));
+            s.once("error", () => resolve(true));
+            s.once("timeout", () => (s.destroy(), resolve(true)));
+          });
+          expect(refused).toBe(true);
+        }
+      } finally {
+        await server.close();
+      }
+    });
+
+    test("close() ends a clip request still in progress and does not hang", async () => {
+      const file = join(mkdtempSync(join(tmpdir(), "couch-tp-")), "big.mp4");
+      writeFileSync(file, Buffer.alloc(64 * 1024 * 1024));
+      const server = await serveTestPage(file);
+      const res = await new Promise<IncomingMessage>((resolve, reject) => {
+        const req = httpGet(`${server.origin}/clip.mp4`, resolve);
+        req.on("error", reject);
+      });
+      res.pause();
+      const ended = new Promise<void>((resolve) => {
+        res.on("error", () => resolve());
+        res.on("close", () => resolve());
+      });
+      const closed = await Promise.race([
+        server.close().then(() => "closed"),
+        new Promise((r) => setTimeout(() => r("hung"), 3000)),
+      ]);
+      expect(closed).toBe("closed");
+      await ended;
     });
   });
 

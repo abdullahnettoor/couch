@@ -368,24 +368,27 @@ ipcMain.on(Channel.glass, (_event, rects: GlassRect[]) => player?.setGlass(rects
 
 /** Developer-only (COUCH_WEBKIT_TEST_PAGE=1, see webkit-test-page.ts): a local page that plays a synthetic clip in the WebKit host. */
 async function startTestPage(): Promise<TestPageServer | undefined> {
-  if (!testPageEnabled(process.env)) return undefined;
+  if (!testPageEnabled(process.env, { isPackaged: app.isPackaged })) return undefined;
   const clip = await ensureTestClip(join(app.getPath("userData"), "test-page"), findFfmpeg());
   if (!clip) {
     console.warn("[netflix] test page needs ffmpeg; using Netflix");
     return undefined;
   }
   const server = await serveTestPage(clip);
-  app.on("will-quit", () => void server.close());
+  testPageServer = server;
   return server;
 }
 
+let testPageServer: TestPageServer | undefined;
 let quitting = false;
 app.on("before-quit", (event) => {
   if (quitting || !player) return;
   event.preventDefault();
   quitting = true;
   couch?.beforeQuit();
-  void Promise.all([player.dispose(), couch?.stop()]).finally(() => app.quit());
+  void Promise.all([player.dispose(), couch?.stop(), testPageServer?.close()]).finally(() =>
+    app.quit(),
+  );
 });
 
 // Only Couch's own ⌘Q asks; every other quit (log out, shut down, Dock → Quit) goes straight through.

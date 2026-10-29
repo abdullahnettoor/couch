@@ -1,6 +1,13 @@
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, statSync, createReadStream } from "node:fs";
-import { createServer } from "node:http";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  createReadStream,
+  type ReadStream,
+} from "node:fs";
+import { createServer, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { WebAppDescription } from "./web-app.ts";
@@ -12,7 +19,11 @@ import type { WebAppDescription } from "./web-app.ts";
  * playback probe still run on it (the address is a `/watch/` page), so Picture off, Quick settings, the volume
  * display, questions and the search bar can be checked while "something plays", with no account and no network.
  */
-export function testPageEnabled(env: Record<string, string | undefined>): boolean {
+export function testPageEnabled(
+  env: Record<string, string | undefined>,
+  build: { isPackaged: boolean },
+): boolean {
+  if (build.isPackaged || env.NODE_ENV === "production") return false;
   return (
     env.COUCH_NETFLIX_ENGINE === "webkit" &&
     env.COUCH_WEBKIT_EPHEMERAL === "1" &&
@@ -52,11 +63,20 @@ export function parseRange(
 export interface TestPageServer {
   url: string;
   origin: string;
+  host: string;
   close: () => Promise<void>;
 }
 
 /** Serves the watch page and the clip (with byte ranges, which WebKit's media needs) on 127.0.0.1 only. */
 export function serveTestPage(clipPath: string): Promise<TestPageServer> {
+  const streams = new Set<ReadStream>();
+  const send = (stream: ReadStream, res: ServerResponse) => {
+    streams.add(stream);
+    stream.once("close", () => streams.delete(stream));
+    stream.on("error", () => res.destroy());
+    res.once("close", () => stream.destroy());
+    stream.pipe(res);
+  };
   const server = createServer((req, res) => {
     const path = (req.url ?? "").split("?")[0];
     if (path === WATCH) {
@@ -76,7 +96,7 @@ export function serveTestPage(clipPath: string): Promise<TestPageServer> {
     const asked = req.headers.range;
     if (asked === undefined) {
       res.writeHead(200, { ...head, "content-length": String(size) });
-      createReadStream(clipPath).pipe(res);
+      send(createReadStream(clipPath), res);
       return;
     }
     const range = parseRange(asked, size);
@@ -89,7 +109,7 @@ export function serveTestPage(clipPath: string): Promise<TestPageServer> {
       "content-range": `bytes ${range.start}-${range.end}/${size}`,
       "content-length": String(range.end - range.start + 1),
     });
-    createReadStream(clipPath, range).pipe(res);
+    send(createReadStream(clipPath, range), res);
   });
   return new Promise((resolve, reject) => {
     server.once("error", reject);
@@ -99,7 +119,13 @@ export function serveTestPage(clipPath: string): Promise<TestPageServer> {
       resolve({
         url: `${origin}${WATCH}`,
         origin,
-        close: () => new Promise<void>((done) => server.close(() => done())),
+        host: "127.0.0.1",
+        close: () =>
+          new Promise<void>((done) => {
+            server.close(() => done());
+            for (const stream of streams) stream.destroy();
+            server.closeAllConnections();
+          }),
       });
     });
   });
