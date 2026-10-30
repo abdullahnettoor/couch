@@ -40,7 +40,7 @@ Couch needs an updater: Sparkle, or Electron's `autoUpdater` with a feed. It als
 
 ## Before the repo goes public
 
-- Clean commit `95a58a6`, which contains a profile name, from the history.
+- Planning notes (`.issues/`, `.wayfinder/`) are local only and were removed from the history before the first push.
 - **Keys:** the TMDB key is injected at build time from `COUCH_TMDB_TOKEN` and isn't committed. Keep it out of public builds' logs, or use a per-user key.
 - **Personal paths:** check the repo for personal paths and machine names in docs and issues.
 

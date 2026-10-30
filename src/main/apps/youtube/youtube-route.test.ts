@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
 import { isYouTubeHome, isYouTubeOrigin } from "./youtube-route.ts";
 
-// Routes recorded from a real signed-in session on 2026-10-21 (see .issues/053-youtube-back-confirmations.md).
+// Routes recorded from a real signed-in session on 2026-10-21.
 describe("isYouTubeHome", () => {
   test("Home is the bare route, with nothing open over it", () => {
     for (const url of [

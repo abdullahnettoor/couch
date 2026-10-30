@@ -27,3 +27,7 @@ out
 .debug/
 native/mpv-embed/*.node
 .env
+
+# Planning and tickets stay local (not pushed)
+.issues/
+.wayfinder/

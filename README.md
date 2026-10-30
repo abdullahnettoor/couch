@@ -1,6 +1,6 @@
 # Couch
 
-Turns a Mac connected to a TV into a couch-friendly media centre, controlled from phones. See `.issues/001-couch-v1-spec.md` for the spec and `GLOSSARY.md` for the words we use.
+Turns a Mac connected to a TV into a couch-friendly media centre, controlled from phones. See `PRODUCT.md` for what it's for and `GLOSSARY.md` for the words we use.
 
 Contributing (set-up, tickets, adding a YouTube add-on or a web App): see `CONTRIBUTING.md`. What it takes to ship Couch to other people: see `SHIPPING.md`.
 

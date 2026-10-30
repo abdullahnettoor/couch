@@ -28,7 +28,7 @@ Only needed when working on DRM Apps (Netflix, Prime Video, Disney+, Hotstar): t
 
 ## How work is tracked
 
-Work lives in `.issues/` as markdown files (see `.issues/README.md`): a spec (`NNN-slug.md`) and the tickets cut from it (`parent:` points at the spec). A ticket has `status`, `assignee`, `blocked_by` and acceptance criteria as checkboxes. To find work an agent or person can pick up, run the ready query from `.issues/README.md`, then check each ticket's `blocked_by`. Claim a ticket by setting `assignee` before you start, tick the criteria as you meet them, and set `status: closed` when done.
+Work is tracked in a local `.issues/` folder of markdown files, kept out of git (see `.gitignore`; the maintainer keeps it): a spec (`NNN-slug.md`) and the tickets cut from it (`parent:` points at the spec). A ticket has `status`, `assignee`, `blocked_by` and acceptance criteria as checkboxes. To find work an agent or person can pick up, run the ready query from `.issues/README.md`, then check each ticket's `blocked_by`. Claim a ticket by setting `assignee` before you start, tick the criteria as you meet them, and set `status: closed` when done.
 
 Build test-first: write a failing test for the behaviour, make it pass, repeat. Besides unit tests, do a real check (run the thing) and record it in the ticket. Never touch a running household Couch or its real partitions: copy the partition to a temp folder and run your own Electron instance on it.
 
