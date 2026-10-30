@@ -300,7 +300,8 @@
   overflow: hidden;
   background: rgba(30, 30, 32, 0.7);
 }
-.h-badge svg {
+/* Beats the App tile's own logo sizes (.h-app .g-tile svg, .h-app .youtube-face svg), which the badge also matches. */
+.h-app .g-tile .h-badge svg {
   width: 70%;
   height: 70%;
 }
