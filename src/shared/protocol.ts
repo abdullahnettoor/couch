@@ -482,6 +482,8 @@ export interface RemoteSnapshot {
   /** The end-of-video card: the next video in the folder, waiting for a Play press. */
   next?: { title: string; line?: string; thumbKey?: string };
   nowPlaying?: {
+    /** Playing or paused counts as active; a video at its end (a web video that ended, or the Library's next card) does not. */
+    active: boolean;
     title: string;
     line?: string;
     folder: string;

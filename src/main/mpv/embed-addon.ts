@@ -374,8 +374,10 @@ export interface MediaRemoteAddon {
     paused: boolean,
   ): void;
   mediaRemoteStop(): void;
-  /** Registers, publishes and releases with no window or input; returns JSON of what the command centre held at each step. */
+  /** JSON of what the command centre holds right now (self-test; no window or input). */
   mediaRemoteSelfTest(): string;
+  /** Self-test: fires a command through its registered handler and Start's callback, like a real press. False when none is registered. */
+  mediaRemoteSelfPress(command: string): boolean;
 }
 
 const MEDIA_COMMANDS: readonly MediaCommand[] = ["play", "pause", "toggle", "next", "previous"];

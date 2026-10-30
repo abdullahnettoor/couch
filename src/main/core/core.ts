@@ -1316,6 +1316,7 @@ export class Core {
               : "other",
       nowPlaying: s.player
         ? {
+            active: s.controls !== "next",
             ...this.#present(s.player.path),
             folder: basename(dirname(s.player.path)),
             position: s.player.pos,
@@ -1402,6 +1403,7 @@ export class Core {
     const report = front && this.#playback.get(front.id);
     if (!front || !report) return undefined;
     return {
+      active: !report.ended,
       title: report.title ?? front.label,
       folder: front.label,
       position: report.position,

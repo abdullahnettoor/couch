@@ -56,7 +56,8 @@ export class MediaKeys {
   }
 
   #now(): RemoteSnapshot["nowPlaying"] {
-    return this.#core.snapshot("media-keys").nowPlaying;
+    const np = this.#core.snapshot("media-keys").nowPlaying;
+    return np?.active ? np : undefined;
   }
 
   #sync(): void {

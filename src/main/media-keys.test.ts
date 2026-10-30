@@ -127,6 +127,28 @@ describe("Mac media keys", () => {
   });
 });
 
+describe("Mac media keys: release on completion", () => {
+  test("an ordinary pause keeps the commands", async () => {
+    const { center, tube } = await start();
+    play(tube, false);
+    play(tube, true);
+    expect(center.registered).toBe(true);
+  });
+
+  test("a web video that reached its end releases them", async () => {
+    const { center, tube } = await start();
+    play(tube, false, 599);
+    tube.emit({
+      type: "playback",
+      playback: { position: 600, duration: 600, paused: true, title: "Cat video", ended: true },
+    });
+    expect(center.registered).toBe(false);
+    expect(center.info).toBeUndefined();
+    play(tube, false, 0, "Next one");
+    expect(center.registered).toBe(true);
+  });
+});
+
 describe("Mac media keys: position", () => {
   test("a position that keeps up with the Mac's own clock is not republished; a jump is", async () => {
     let t = 0;
@@ -167,6 +189,41 @@ describe("Mac media keys: Library with Picture off", () => {
       center.press("toggle");
       expect(h.player.calls.some((c) => c.call === "setPaused")).toBe(true);
       expect(phone.last?.pictureOff).toBe(true);
+    } finally {
+      await h.stop();
+      rmSync(root, { recursive: true, force: true });
+      rmSync(storeDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("Mac media keys: Library end-of-video card", () => {
+  test("the next card releases the commands", async () => {
+    const root = mkdtempSync(join(tmpdir(), "couch-mk-"));
+    const storeDir = mkdtempSync(join(tmpdir(), "couch-mkstore-"));
+    try {
+      mkdirSync(join(root, "Show"));
+      writeFileSync(join(root, "Show", "Show S01E01.mkv"), "");
+      writeFileSync(join(root, "Show", "Show S01E02.mkv"), "");
+      const store = new FileStore(storeDir);
+      store.write("library", { folders: [root] });
+      h = await startHarness(store);
+      const center = new FakeRemoteCommands();
+      new MediaKeys(h.app.core, center);
+      const phone = await h.connectPhone();
+      await phone.press("right");
+      await phone.press("right");
+      await phone.press("ok");
+      await focusFolders(h, phone);
+      await phone.press("ok");
+      await phone.press("ok");
+      await phone.press("ok");
+      h.player.emit({ type: "duration", seconds: 600 });
+      expect(center.registered).toBe(true);
+      h.player.emit({ type: "ended", reason: "eof" });
+      expect(h.screen.last.state.controls).toBe("next");
+      expect(h.screen.last.overlay?.next?.title).toBe("Episode 2");
+      expect(center.registered).toBe(false);
     } finally {
       await h.stop();
       rmSync(root, { recursive: true, force: true });

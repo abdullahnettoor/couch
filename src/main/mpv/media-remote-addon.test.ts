@@ -12,6 +12,7 @@ function fakeAddon() {
     mediaRemoteSetInfo: (...args) => calls.push(["info", ...args]),
     mediaRemoteStop: () => calls.push(["stop"]),
     mediaRemoteSelfTest: () => "{}",
+    mediaRemoteSelfPress: () => false,
   };
   return { addon, calls, press: (c: string) => press(c) };
 }
