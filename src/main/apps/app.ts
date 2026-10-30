@@ -8,6 +8,14 @@ import type {
 } from "../../shared/protocol.ts";
 import type { TextEdit } from "../../shared/keyboard.ts";
 
+/** The title and art an App already knows for a title id (for example from a Continue entry), lent to Now Playing while that id plays. */
+export interface NowPlayingHint {
+  id: string;
+  title: string;
+  /** Must already be on the App's own artwork hosts. */
+  artwork?: string;
+}
+
 export type AppKey = "up" | "down" | "left" | "right" | "ok" | "back";
 
 /** What a web App's page is playing now, as the shared playback layer reads it. */
@@ -18,6 +26,8 @@ export interface PlaybackReport {
   paused: boolean;
   title?: string;
   artwork?: string;
+  /** The App's own id for what plays (Netflix's title id), when its adapter can name it; a Now Playing hint is matched against it. */
+  id?: string;
   /** Present when the App's adapter can list them. */
   tracks?: { subtitles: TrackList; audio: TrackList };
   /** The App's own button over the video right now; absent when none is showing. */

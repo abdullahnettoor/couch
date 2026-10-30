@@ -244,6 +244,35 @@ export function describeWebHostContract(
         expect((await reported(plain)).at(-1)?.artwork).toBeUndefined();
       });
 
+      test("the header's title and the title id the page names are reported as they are", async () => {
+        const named = {
+          ...report,
+          title: "Some Show \u00b7 S1:E2 \u00b7 Second",
+          id: "70000101",
+        };
+        expect((await reported(named)).at(-1)).toMatchObject({
+          title: "Some Show \u00b7 S1:E2 \u00b7 Second",
+          id: "70000101",
+        });
+      });
+
+      test("the probe the host runs reads the player header, the title id and the art records", async () => {
+        vi.useFakeTimers();
+        try {
+          const rig = makeRig();
+          await rig.show();
+          rig.answer('querySelectorAll("video")', report);
+          await vi.advanceTimersByTimeAsync(500);
+          const probe = rig.scripts().find((x) => x.includes('querySelectorAll("video")'))!;
+          expect(probe).toContain("video-title");
+          expect(probe).toContain("couchNfArt");
+          expect(probe).toContain("report.id");
+        } finally {
+          disposeRigs();
+          vi.useRealTimers();
+        }
+      });
+
       test("a page that is not playing (a home preview) reports nothing", async () => {
         expect(await reported(undefined)).toEqual([]);
       });

@@ -34,6 +34,7 @@ import {
   type App,
   type AppEvent,
   type AppTyping,
+  type NowPlayingHint,
   type PlaybackReport,
 } from "../apps/app.ts";
 import { randomBytes } from "node:crypto";
@@ -185,6 +186,7 @@ export class Core {
   /** What each App was last told to draw over itself. */
   /** What each web App's page last reported playing; cleared when the App is hidden. */
   #playback = new Map<string, PlaybackReport>();
+  #hints = new Map<string, NowPlayingHint>();
   #pictureOffScope: string | undefined;
   #lastSubtitles = new Map<string, string>();
   /** The speed the household chose for the playing Library video; 1 for every new video. */
@@ -1398,13 +1400,27 @@ export class Core {
     if (apply !== undefined) app.setSpeed(apply);
   }
 
+  /**
+   * Lends an App's Now Playing a title and art for a title id (what Continue knows when it opens a
+   * title). Used only while a report names that id and has no title or art of its own; dropped when
+   * a report names another id.
+   */
+  setNowPlayingHint(appId: string, hint: NowPlayingHint | undefined): void {
+    if (hint) this.#hints.set(appId, hint);
+    else this.#hints.delete(appId);
+    this.#emit();
+  }
+
   /** Now Playing for the front web App, from what its page last reported. */
   #appNowPlaying(front: App | undefined): RemoteSnapshot["nowPlaying"] {
     const report = front && this.#playback.get(front.id);
     if (!front || !report) return undefined;
+    const hint = this.#hints.get(front.id);
+    const lent = hint && report.id === hint.id ? hint : undefined;
+    const artwork = report.artwork ?? lent?.artwork;
     return {
       active: !report.ended,
-      title: report.title ?? front.label,
+      title: report.title ?? lent?.title ?? front.label,
       folder: front.label,
       position: report.position,
       duration: report.duration,
@@ -1419,7 +1435,7 @@ export class Core {
       ...(report.speeds?.length && front.setSpeed
         ? { speed: report.speed ?? 1, speeds: report.speeds }
         : {}),
-      ...(report.artwork ? { artwork: report.artwork } : {}),
+      ...(artwork ? { artwork } : {}),
       ...(report.prompt && front.pressPrompt ? { prompt: report.prompt } : {}),
     };
   }
@@ -2267,6 +2283,9 @@ export class Core {
       case "playback":
         if (event.playback) {
           this.#playback.set(app.id, event.playback);
+          const hint = this.#hints.get(app.id);
+          if (hint && event.playback.id !== undefined && event.playback.id !== hint.id)
+            this.#hints.delete(app.id);
           if (event.playback.ended && this.#pictureOffScope === `app:${app.id}`) {
             this.#state.pictureOff = false;
             this.#pictureOffScope = undefined;

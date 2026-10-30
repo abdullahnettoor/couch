@@ -3,7 +3,7 @@ import type { PagePreload } from "../../web/web-app.ts";
 const KEY = "couchNfArt";
 const SEEN = "couchNfSeen";
 const TITLES = "couchNfTitles";
-const LAST = "couchNfLast";
+const SEEN_CAP = 300;
 
 /**
  * Netflix's player sets no media-session artwork and its watch page holds none, so the box art is
@@ -21,6 +21,10 @@ export const NETFLIX_ART_PRELOAD: PagePreload = {
   func: `function () {
   var KEY = "${KEY}";
   function load() { try { return JSON.parse(sessionStorage.getItem(KEY) || "{}"); } catch (e) { return {}; } }
+  function trim(o, n) {
+    var k = Object.keys(o).filter(function (x) { return x !== "open" && x !== "pending"; });
+    while (k.length > n) delete o[k.shift()];
+  }
   function https(src) { return typeof src === "string" && src.indexOf("https:") === 0 ? src : null; }
   function biggest(root) {
     var best = null, area = -1;
@@ -31,24 +35,37 @@ export const NETFLIX_ART_PRELOAD: PagePreload = {
     });
     return best;
   }
-  var SEEN = "${SEEN}";
+  var SEEN = "${SEEN}", CAP = ${SEEN_CAP};
+  var seen = new Map();
+  var cards = new WeakMap();
+  try {
+    JSON.parse(sessionStorage.getItem(SEEN) || "[]").forEach(function (p) { seen.set(p[0], p[1]); });
+  } catch (e) {}
   function scan() {
     try {
-      if (/^\\/watch\\//.test(location.pathname)) return;
-      var seen = {};
-      try { seen = JSON.parse(sessionStorage.getItem(SEEN) || "{}"); } catch (e) {}
-      if (Object.keys(seen).length > 300) seen = {};
+      if (document.visibilityState === "hidden" || /^\\/watch\\//.test(location.pathname)) return;
       var changed = false;
       Array.prototype.forEach.call(
         document.querySelectorAll('a[href*="jbv="], a[href*="/title/"], a[href*="/watch/"]'),
         function (a) {
-          var m = /(jbv=|\\/title\\/|\\/watch\\/)(\\d+)/.exec(a.getAttribute("href") || "");
-          var img = a.querySelector("img");
-          var src = img && https(img.src);
-          if (m && src && seen[m[2]] !== src) { seen[m[2]] = src; changed = true; }
+          var rec = cards.get(a);
+          if (!rec) {
+            var m = /(jbv=|\\/title\\/|\\/watch\\/)(\\d+)/.exec(a.getAttribute("href") || "");
+            rec = { id: m && m[2], img: null, src: null };
+            cards.set(a, rec);
+          }
+          if (!rec.id) return;
+          if (!rec.img) rec.img = a.querySelector("img");
+          var src = rec.img && https(rec.img.src);
+          if (!src || src === rec.src) return;
+          rec.src = src;
+          seen.delete(rec.id);
+          seen.set(rec.id, src);
+          while (seen.size > CAP) seen.delete(seen.keys().next().value);
+          changed = true;
         },
       );
-      if (changed) sessionStorage.setItem(SEEN, JSON.stringify(seen));
+      if (changed) sessionStorage.setItem(SEEN, JSON.stringify(Array.from(seen)));
     } catch (err) {}
   }
   setInterval(scan, 2000);
@@ -57,7 +74,7 @@ export const NETFLIX_ART_PRELOAD: PagePreload = {
       var t = e.target;
       if (!t || !t.closest) return;
       var s = load();
-      if (Object.keys(s).length > 30) s = {};
+      trim(s, 30);
       var dialog = t.closest('[role="dialog"]');
       var billboard = t.closest('[data-uia="billboard"]');
       var a = t.closest('a[href*="jbv="], a[href*="/title/"], a[href*="/watch/"]');
@@ -124,38 +141,32 @@ export const NETFLIX_TITLE = `(function () {
 
 /**
  * The box art for the title on the player: what its own click recorded, else a card link seen in
- * the page, else a Play click just before it. An episode that follows on its own (the next episode
- * autoplays under a new id) takes the art of the title just before it when the header names the same
- * series; otherwise nothing.
+ * the page, else a Play click just before it. Art is tied to a title id only (never to a name, so an
+ * autoplayed episode with no id-bound art shows none). Whatever is found is stored for that id, so
+ * the art stays once the card has left the scan's store.
  */
 export const NETFLIX_ARTWORK = `(function () {
   try {
-    ${READ_TITLE}
     var s = JSON.parse(sessionStorage.getItem("${KEY}") || "{}");
     var m = /^\\/watch\\/(\\d+)/.exec(location.pathname);
     if (!m) return null;
     var id = m[1];
-    var now = null;
-    try { now = readTitle(id); } catch (e) {}
-    var seen = {}, last = null;
-    try { seen = JSON.parse(sessionStorage.getItem("${SEEN}") || "{}"); } catch (e) {}
-    try { last = JSON.parse(sessionStorage.getItem("${LAST}") || "null"); } catch (e) {}
-    var done = function (art) {
-      sessionStorage.setItem("${LAST}", JSON.stringify({ id: id, art: art }));
-      return art;
-    };
-    if (s[id]) return done(s[id]);
-    if (seen[id]) return done(seen[id]);
-    if (s.pending && Date.now() - s.pending.at < 30000) {
-      s[id] = s.pending.art;
-      delete s.pending;
-      sessionStorage.setItem("${KEY}", JSON.stringify(s));
-      return done(s[id]);
-    }
-    if (last && last.id !== id && last.art) {
-      var before = JSON.parse(sessionStorage.getItem("${TITLES}") || "{}")[last.id];
-      if (now && before && now.series === before.series) return done(last.art);
-    }
-    return null;
+    if (s[id]) return s[id];
+    var art = null;
+    var seen = JSON.parse(sessionStorage.getItem("${SEEN}") || "[]");
+    for (var i = seen.length - 1; i >= 0; i--) if (seen[i][0] === id) { art = seen[i][1]; break; }
+    if (!art && s.pending && Date.now() - s.pending.at < 30000) { art = s.pending.art; delete s.pending; }
+    if (!art) return null;
+    s[id] = art;
+    var k = Object.keys(s).filter(function (x) { return x !== "open" && x !== "pending" && x !== id; });
+    while (k.length > 30) delete s[k.shift()];
+    sessionStorage.setItem("${KEY}", JSON.stringify(s));
+    return art;
   } catch (e) { return null; }
+})()`;
+
+/** The title id from the player's address, or null off the player. */
+export const NETFLIX_TITLE_ID = `(function () {
+  var m = /^\\/watch\\/(\\d+)/.exec(location.pathname);
+  return m ? m[1] : null;
 })()`;

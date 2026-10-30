@@ -76,6 +76,56 @@ describe("Now Playing for a web App", () => {
     });
   });
 
+  describe("a now-playing hint", () => {
+    const hint = { id: "70000001", title: "Hinted show", artwork: "https://img.example/hint.jpg" };
+    const report = (id?: string, extra = {}) => ({
+      type: "playback" as const,
+      playback: { position: 1, duration: 10, paused: false, ...(id ? { id } : {}), ...extra },
+    });
+
+    test("shows for the matching title id when the page names no title or art", async () => {
+      const { tube, phone } = await start();
+      h.app.core.setNowPlayingHint("tube", hint);
+      tube.emit(report("70000001"));
+      await phone.waitFor(() => phone.last?.nowPlaying !== undefined);
+      expect(phone.last?.nowPlaying).toMatchObject({
+        title: "Hinted show",
+        artwork: "https://img.example/hint.jpg",
+      });
+    });
+
+    test("never overrides what the page itself reports", async () => {
+      const { tube, phone } = await start();
+      h.app.core.setNowPlayingHint("tube", hint);
+      tube.emit(report("70000001", { title: "Page title", artwork: "https://img.example/p.jpg" }));
+      await phone.waitFor(() => phone.last?.nowPlaying !== undefined);
+      expect(phone.last?.nowPlaying).toMatchObject({
+        title: "Page title",
+        artwork: "https://img.example/p.jpg",
+      });
+    });
+
+    test("is dropped when another title id plays, and does not come back", async () => {
+      const { tube, phone } = await start();
+      h.app.core.setNowPlayingHint("tube", hint);
+      tube.emit(report("70000002"));
+      await phone.waitFor(() => phone.last?.nowPlaying !== undefined);
+      expect(phone.last?.nowPlaying).toMatchObject({ title: "Tube" });
+      expect(phone.last?.nowPlaying?.artwork).toBeUndefined();
+      tube.emit(report("70000001"));
+      await phone.waitFor(() => phone.last?.nowPlaying?.position === 1);
+      expect(phone.last?.nowPlaying).toMatchObject({ title: "Tube" });
+    });
+
+    test("is not used for a report that names no id", async () => {
+      const { tube, phone } = await start();
+      h.app.core.setNowPlayingHint("tube", hint);
+      tube.emit(report());
+      await phone.waitFor(() => phone.last?.nowPlaying !== undefined);
+      expect(phone.last?.nowPlaying).toMatchObject({ title: "Tube" });
+    });
+  });
+
   test("falls back to the App's name without a title, and carries artwork", async () => {
     const { tube, phone } = await start();
     tube.emit({

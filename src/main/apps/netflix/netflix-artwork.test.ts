@@ -2,6 +2,11 @@ import vm from "node:vm";
 import { describe, expect, test } from "vite-plus/test";
 import { composeReport, playbackProbe } from "../../web/playback.ts";
 import { NETFLIX_ART_PRELOAD } from "./netflix-artwork.ts";
+import {
+  PLAYER_TITLE_FILM,
+  PLAYER_TITLE_SERIES,
+  type FixtureNode,
+} from "./fixtures/player-title.ts";
 import { netflixDescription } from "./netflix-web.ts";
 
 const desc = netflixDescription("130.0.0.0");
@@ -48,7 +53,9 @@ class El {
   #images(): El[] {
     return this.children.flatMap((c) => (c.src ? [c, ...c.#images()] : c.#images()));
   }
+  static counts = { imageReads: 0 };
   querySelector(sel: string) {
+    if (sel === "img") El.counts.imageReads++;
     return sel === "img" ? (this.#images()[0] ?? null) : null;
   }
   querySelectorAll(sel: string) {
@@ -84,6 +91,8 @@ function page(path = "/browse") {
   const store = new Map<string, string>();
   const body = new El();
   const timers: (() => void)[] = [];
+  const counts = { queries: 0, writes: 0, imageReads: 0 };
+  El.counts = counts;
   const sandbox: any = {
     setInterval: (f: () => void) => timers.push(f),
     location: { pathname: path },
@@ -91,12 +100,19 @@ function page(path = "/browse") {
     innerHeight: 720,
     sessionStorage: {
       getItem: (k: string) => store.get(k) ?? null,
-      setItem: (k: string, v: string) => void store.set(k, v),
+      setItem: (k: string, v: string) => {
+        counts.writes++;
+        store.set(k, v);
+      },
     },
     document: {
+      visibilityState: "visible",
       addEventListener: (t: string, h: (e: any) => void) => (listeners[t] ??= []).push(h),
       querySelector: (sel: string) => body.all(sel)[0] ?? null,
-      querySelectorAll: (sel: string) => body.all(sel),
+      querySelectorAll: (sel: string) => {
+        counts.queries++;
+        return body.all(sel);
+      },
     },
     navigator: {},
   };
@@ -111,6 +127,11 @@ function page(path = "/browse") {
     /** Clears the page, as Netflix's route change does. */
     clear: () => void (body.children.length = 0),
     tick: () => timers.forEach((f) => f()),
+    hide: (hidden: boolean) => (sandbox.document.visibilityState = hidden ? "hidden" : "visible"),
+    counts,
+    seenIds: (): string[] =>
+      (JSON.parse(store.get("couchNfSeen") ?? "[]") as [string, string][]).map(([id]) => id),
+    seenSize: () => (JSON.parse(store.get("couchNfSeen") ?? "[]") as unknown[]).length,
     artwork: (): unknown => vm.runInContext(playback.artwork!(), sandbox),
     title: (): unknown => vm.runInContext(playback.title!(), sandbox),
   };
@@ -238,7 +259,7 @@ describe("Netflix Now Playing artwork", () => {
     });
   });
 
-  describe("the next episode autoplays", () => {
+  describe("no guessing across episodes", () => {
     const header = (...parts: string[]) => {
       const h = new El({ "data-uia": "video-title" });
       for (const t of parts) {
@@ -248,7 +269,7 @@ describe("Netflix Now Playing artwork", () => {
       return h;
     };
 
-    test("it keeps the series' art when the header names the same series", () => {
+    test("an autoplayed episode with no card or click of its own gets no art, even under the same header", () => {
       const p = page();
       p.click(card("70000001"));
       p.click(episode("70000100", popup()));
@@ -258,30 +279,141 @@ describe("Netflix Now Playing artwork", () => {
       p.clear();
       p.go("/watch/70000101");
       p.show(header("Some Show", "S1:E2", "Second"));
-      expect(p.artwork()).toBe(CARD_ART);
+      expect(p.artwork()).toBeFalsy();
     });
 
-    test("a different title that follows does not borrow the art", () => {
+    test("two different series with the same header name never share art", () => {
       const p = page();
       p.click(card("70000001"));
       p.click(episode("70000100", popup()));
       p.go("/watch/70000100");
-      p.show(header("Some Show", "S1:E1", "Pilot"));
+      p.show(header("Same Name", "S1:E1", "Pilot"));
       expect(p.artwork()).toBe(CARD_ART);
       p.clear();
       p.go("/watch/70000900");
-      p.show(header("Another Show", "S1:E1", "Pilot"));
+      p.show(header("Same Name", "S1:E1", "Pilot"));
       expect(p.artwork()).toBeFalsy();
     });
 
-    test("without a header there is no proof of the same series, so no art", () => {
+    test("an episode bound by its own id to a card keeps that card's art", () => {
       const p = page();
       p.click(card("70000001"));
-      p.click(episode("70000100", popup()));
-      p.go("/watch/70000100");
-      expect(p.artwork()).toBe(CARD_ART);
+      p.click(episode("70000101", popup()));
       p.go("/watch/70000101");
-      expect(p.artwork()).toBeFalsy();
+      expect(p.artwork()).toBe(CARD_ART);
+    });
+  });
+
+  describe("art that sticks", () => {
+    test("art found for the playing id is kept after the card is evicted, over repeated probes", () => {
+      const p = page();
+      p.show(card("70000001"));
+      p.tick();
+      p.clear();
+      p.go("/watch/70000001");
+      expect(p.artwork()).toBe(CARD_ART);
+      p.clear();
+      p.go("/browse");
+      for (let i = 0; i < 350; i++) p.show(card(String(80000000 + i), OTHER_ART));
+      p.tick();
+      p.clear();
+      p.go("/watch/70000001");
+      for (let i = 0; i < 5; i++) expect(p.artwork()).toBe(CARD_ART);
+    });
+
+    test("a hidden header does not lose it", () => {
+      const p = page();
+      p.show(card("70000001"));
+      p.tick();
+      p.clear();
+      p.go("/watch/70000001");
+      const h = new El({ "data-uia": "video-title" });
+      new El({}, h).text = "A Film";
+      p.show(h);
+      expect(p.artwork()).toBe(CARD_ART);
+      p.clear();
+      expect(p.artwork()).toBe(CARD_ART);
+      expect(p.artwork()).toBe(CARD_ART);
+    });
+  });
+
+  describe("bounded browse work", () => {
+    test("a hidden document is not scanned", () => {
+      const p = page();
+      p.show(card("70000001"));
+      p.hide(true);
+      p.tick();
+      expect(p.counts.queries).toBe(0);
+      p.hide(false);
+      p.tick();
+      expect(p.counts.queries).toBeGreaterThan(0);
+    });
+
+    test("an unchanged page costs no reads of images and no writes after the first scan", () => {
+      const p = page();
+      for (let i = 0; i < 40; i++) p.show(card(String(70000000 + i)));
+      p.tick();
+      const writes = p.counts.writes;
+      const imgs = p.counts.imageReads;
+      for (let i = 0; i < 10; i++) p.tick();
+      expect(p.counts.writes).toBe(writes);
+      expect(p.counts.imageReads).toBe(imgs);
+    });
+
+    test("a changed image or one new card writes once", () => {
+      const p = page();
+      const c = card("70000001");
+      p.show(c);
+      p.tick();
+      const writes = p.counts.writes;
+      p.show(card("70000002", OTHER_ART));
+      p.tick();
+      p.tick();
+      expect(p.counts.writes).toBe(writes + 1);
+    });
+
+    test("the store never exceeds its cap and keeps the newest", () => {
+      const p = page();
+      for (let i = 0; i < 400; i++) p.show(card(String(70000000 + i)));
+      p.tick();
+      expect(p.seenSize()).toBeLessThanOrEqual(300);
+      expect(p.seenIds()).toContain("70000399");
+      expect(p.seenIds()).not.toContain("70000000");
+    });
+
+    test("a card seen again is kept over older ones (least recently used)", () => {
+      const p = page();
+      const first = card("70000000");
+      p.show(first);
+      for (let i = 1; i < 300; i++) p.show(card(String(70000000 + i)));
+      p.tick();
+      first.children[0]!.src = OTHER_ART;
+      p.show(card("70009999"));
+      p.tick();
+      expect(p.seenIds()).toContain("70000000");
+      expect(p.seenIds()).not.toContain("70000001");
+      expect(p.seenSize()).toBeLessThanOrEqual(300);
+    });
+  });
+
+  describe("the title from the hand-built player header fixture", () => {
+    const build = (n: FixtureNode, parent?: El): El => {
+      const e = new El(n.a, parent);
+      if (n.x) e.text = n.x;
+      for (const c of n.c ?? []) build(c, e);
+      return e;
+    };
+
+    test("a series reads from the fixture's heading and spans", () => {
+      const p = page("/watch/70000101");
+      p.show(build(PLAYER_TITLE_SERIES));
+      expect(p.title()).toBe("Some Show \u00b7 S1:E2 \u00b7 Second");
+    });
+
+    test("a film reads from the fixture's heading", () => {
+      const p = page("/watch/70000200");
+      p.show(build(PLAYER_TITLE_FILM));
+      expect(p.title()).toBe("A Film");
     });
   });
 
@@ -322,6 +454,34 @@ describe("Netflix Now Playing artwork", () => {
       p.show(header("A Film"));
       expect(p.title()).toBeFalsy();
     });
+  });
+
+  test("the report names the title id from the watch address, so a hint can match it", async () => {
+    const sandbox: any = {
+      innerWidth: 1280,
+      innerHeight: 720,
+      location: { pathname: "/watch/70000042" },
+      sessionStorage: { getItem: () => null, setItem: () => {} },
+      document: {
+        querySelectorAll: () => [
+          {
+            readyState: 4,
+            duration: 100,
+            currentTime: 5,
+            paused: false,
+            getBoundingClientRect: () => ({ width: 1280, height: 720 }),
+          },
+        ],
+      },
+      navigator: {},
+    };
+    sandbox.window = sandbox;
+    vm.createContext(sandbox);
+    const found = await vm.runInContext(
+      playbackProbe({ active: playback.active!(), id: playback.titleId!() }),
+      sandbox,
+    );
+    expect(found.id).toBe("70000042");
   });
 
   test("the report takes the header's title when the media session has none, and the media session's when it has", async () => {
