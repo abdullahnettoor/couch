@@ -85,14 +85,28 @@ export interface BackOptions {
 }
 
 /** "‹ Settings": a small line above a page's title that sends Back. Not a grid item, so the D-pad never lands on it. */
-export function backLink(to: View, covered = false, label = VIEW_LABELS[to]): HTMLElement {
-  const link = el("button", "g-back") as HTMLButtonElement;
+export function backLink(
+  to: View,
+  covered = false,
+  label = VIEW_LABELS[to],
+  corner = false,
+): HTMLElement {
+  const link = el("button", corner ? "g-back corner" : "g-back") as HTMLButtonElement;
   link.append(document.createTextNode(`‹ ${label}`));
   link.setAttribute("aria-label", `Back to ${label}`);
   link.tabIndex = -1;
   link.disabled = covered;
   link.addEventListener("click", () => window.couch.send({ command: "back" }));
   return link;
+}
+
+/** The back link for pages with a layout of their own: pinned to the page's top-left, so nothing moves. */
+export function cornerBack(
+  label: string,
+  payload: ScreenPayload,
+  to: View = "library",
+): HTMLElement {
+  return backLink(to, payload.state.confirm !== undefined, label, true);
 }
 
 /** A Glass pill button, e.g. Done. */

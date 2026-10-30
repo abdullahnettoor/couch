@@ -1,6 +1,6 @@
 import type { ScreenPayload, ShowEpisode } from "../../shared/protocol.ts";
 import { el, focusable, genreLabels, root } from "./dom.ts";
-import { glassPill, topbar } from "./glass.ts";
+import { cornerBack, glassPill, topbar } from "./glass.ts";
 
 function escape(text: string): string {
   return text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -130,5 +130,6 @@ export function render(payload: ScreenPayload): void {
   p.track.style.transform = `translateY(${-p.offset}px)`;
   if (fresh) void p.track.offsetHeight;
   p.page.querySelector(".topbar")?.remove();
-  p.page.append(topbar(payload));
+  p.page.querySelector(".g-back")?.remove();
+  p.page.append(topbar(payload), cornerBack(show.backTo ?? "Library", payload));
 }

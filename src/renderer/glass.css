@@ -1306,6 +1306,13 @@ body:has(.ls-page) .toast:not(.notice) {
 .g-back:disabled {
   pointer-events: none;
 }
+.g-back.corner {
+  position: absolute;
+  left: calc(96 * var(--u));
+  top: calc(28 * var(--u));
+  margin: 0;
+  z-index: 5;
+}
 .wp-panel .g-back {
   margin-left: 0;
 }

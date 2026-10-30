@@ -484,6 +484,23 @@ export class Core {
     return view === "folder" ? `folder:${folderPath}` : view;
   }
 
+  /** Where Back goes from a folder: the parent's name inside a subfolder, nothing when it goes to the Library. */
+  #parentName(): { parent?: string } {
+    const path = this.#state.folderPath ?? "";
+    const toLibrary =
+      this.#libraryFolders.includes(path) || !this.#libraryFolders.some((f) => path.startsWith(f));
+    return toLibrary ? {} : { parent: basename(dirname(path)) };
+  }
+
+  #showPayload(): Pick<ScreenPayload, "show"> {
+    if (this.#state.view !== "show") return {};
+    const page = this.#show.payload();
+    const show = page.show;
+    return show && this.#showFrom === "librarySearch"
+      ? { show: { ...show, backTo: "Search" } }
+      : page;
+  }
+
   #isLibraryView(): boolean {
     return LIBRARY_VIEWS.includes(this.#state.view);
   }
@@ -516,6 +533,7 @@ export class Core {
       case "folder":
         return {
           heading: basename(this.#state.folderPath ?? ""),
+          ...this.#parentName(),
           entries: this.#listing.map((e) => this.#withMosaic(this.#decorate(e))),
           emptyText: "No videos in this folder.",
         };
@@ -1207,7 +1225,7 @@ export class Core {
       playing: this.#pictureScope() !== undefined,
       muted: this.#sound.muted,
       library: this.#library(focused?.id),
-      ...(this.#state.view === "show" ? this.#show.payload() : {}),
+      ...this.#showPayload(),
       ...(this.#state.view === "fixMatch" ? this.#show.fixPayload() : {}),
       ...(this.#state.view === "librarySearch" ? this.#search.payload() : {}),
       ...(this.#state.view === "details" ||

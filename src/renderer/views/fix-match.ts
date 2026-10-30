@@ -1,6 +1,6 @@
 import type { ScreenPayload } from "../../shared/protocol.ts";
 import { el, focusable, root } from "./dom.ts";
-import { glassRow } from "./glass.ts";
+import { cornerBack, glassRow } from "./glass.ts";
 
 function escape(text: string): string {
   return text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -32,6 +32,6 @@ export function render(payload: ScreenPayload): void {
       chevron: false,
     }),
   );
-  page.append(box);
+  page.append(box, cornerBack(fix.name, payload, "show"));
   root.append(page);
 }

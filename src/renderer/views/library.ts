@@ -1,7 +1,7 @@
 import type { LibraryEntry, LibraryRow, ScreenPayload } from "../../shared/protocol.ts";
 import { iconSvg } from "../../shared/icons.ts";
 import { el, focusable, genreLabels, root } from "./dom.ts";
-import { topbar } from "./glass.ts";
+import { cornerBack, topbar } from "./glass.ts";
 
 function escape(text: string): string {
   return text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -83,6 +83,7 @@ export function render(payload: ScreenPayload): void {
   const page = el("div", "screen-glass");
   page.append(topbar(payload));
   const inFolder = payload.viewKey !== "library";
+  page.append(cornerBack(inFolder ? (lib.parent ?? "Library") : "Home", payload));
   page.append(
     el("div", "lib-head", `${inFolder ? "<small>Library</small>" : ""}${escape(lib.heading)}`),
   );
@@ -256,7 +257,14 @@ function renderRoot(payload: ScreenPayload): void {
     block.append(grid);
     body.append(block);
   }
-  firstPage.replaceChildren(backdrop!, featured, ...(chips ? [chips] : []), body, topbar(payload));
+  firstPage.replaceChildren(
+    backdrop!,
+    featured,
+    ...(chips ? [chips] : []),
+    body,
+    topbar(payload),
+    cornerBack("Home", payload),
+  );
   fitFeatured(featured);
 
   if (chips) scrollChips(chips, chipTrack);

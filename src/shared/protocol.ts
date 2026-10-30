@@ -259,6 +259,8 @@ export interface LibraryPayload {
   chips?: LibraryChip[];
   /** The Library's first page: the tile the featured area shows. The focused tile, else the last focused one, else the first. */
   featuredId?: string;
+  /** Inside a subfolder: the parent folder's name, which Back returns to. Absent in a Library folder (Back goes to the Library). */
+  parent?: string;
 }
 
 /** One row of the show page's episode list (or an extra). */
@@ -280,6 +282,8 @@ export interface ShowEpisode {
 /** What the show page draws: details on the left, season tabs and the episode list on the right. */
 export interface ShowPagePayload {
   id: string;
+  /** Opened from Library search: Back returns there. Absent: Back goes to the Library. */
+  backTo?: "Search";
   name: string;
   /** "2021", "2 seasons", "18 episodes" … */
   meta: string[];

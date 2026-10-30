@@ -1,7 +1,7 @@
 import type { LibraryRow, ScreenPayload } from "../../shared/protocol.ts";
 import { iconSvg } from "../../shared/icons.ts";
 import { el, focusable, root } from "./dom.ts";
-import { topbar } from "./glass.ts";
+import { cornerBack, topbar } from "./glass.ts";
 import { card, posterLabel } from "./library.ts";
 import { typingSlot } from "./typing.ts";
 
@@ -56,7 +56,7 @@ export function render(payload: ScreenPayload): void {
     const text = `Nothing matches “${escape(search.query.trim())}”`;
     body.append(el("div", "lib-empty glass", `${iconSvg("search")}<span>${text}</span>`));
   }
-  page.append(field, body, topbar(payload));
+  page.append(field, body, topbar(payload), cornerBack("Library", payload));
   if (search.searching) page.append(el("div", "ls-searching", "Searching…"));
   root.append(page);
 

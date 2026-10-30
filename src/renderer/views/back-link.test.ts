@@ -79,3 +79,86 @@ describe("Settings back link", () => {
     expect(send).not.toHaveBeenCalled();
   });
 });
+
+const entry = { title: "A", path: "/a", kind: "folder", hue: 1 };
+const library = {
+  heading: "Library",
+  entries: [entry],
+  rows: [{ id: "r", title: "R", entries: [] }],
+};
+const show = {
+  id: "s",
+  name: "Severance",
+  meta: [],
+  primary: "Play",
+  tabs: [],
+  episodes: [],
+  artExpected: false,
+};
+
+interface Case {
+  name: string;
+  view: View;
+  extra: object;
+  label: string;
+  title?: string;
+}
+const browsing: Case[] = [
+  { name: "Library", view: "library", extra: { viewKey: "library", library }, label: "Home" },
+  {
+    name: "a library folder",
+    view: "folder",
+    extra: { viewKey: "folder:/m/a", library: { ...library, rows: undefined } },
+    label: "Library",
+  },
+  {
+    name: "a subfolder",
+    view: "folder",
+    extra: { viewKey: "folder:/m/a/b", library: { ...library, rows: undefined, parent: "Shows" } },
+    label: "Shows",
+  },
+  { name: "a show", view: "show", extra: { show }, label: "Library" },
+  {
+    name: "a show opened from search",
+    view: "show",
+    extra: { show: { ...show, backTo: "Search" } },
+    label: "Search",
+  },
+  {
+    name: "Fix match",
+    view: "fixMatch",
+    extra: { fixMatch: { name: "Severance", loading: false, options: [] } },
+    label: "Severance",
+  },
+  {
+    name: "Library search",
+    view: "librarySearch",
+    extra: { search: { query: "", searching: false, typing: false, rows: [] } },
+    label: "Library",
+  },
+];
+
+describe("Library back links", () => {
+  test.each(browsing)("$name: label, name, one back, not a grid item", (c) => {
+    views[c.view]!.render(payload(c.view, c.extra));
+    const links = screen.querySelectorAll<HTMLElement>(".g-back");
+    expect(links.length).toBe(1);
+    expect(links[0]!.textContent).toBe(`‹ ${c.label}`);
+    expect(links[0]!.getAttribute("aria-label")).toBe(`Back to ${c.label}`);
+    expect(links[0]!.dataset.id).toBeUndefined();
+    links[0]!.click();
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith({ command: "back" });
+  });
+
+  test.each(browsing)("$name: disabled and silent under an overlay", (c) => {
+    const confirm = { title: "Sure?", options: ["Yes"], index: 0 };
+    views[c.view]!.render(
+      payload(c.view, { ...c.extra, state: { view: c.view, remotes: 0, confirm } }),
+    );
+    const link = screen.querySelector<HTMLButtonElement>(".g-back")!;
+    expect(link.disabled).toBe(true);
+    link.click();
+    expect(send).not.toHaveBeenCalled();
+  });
+});
