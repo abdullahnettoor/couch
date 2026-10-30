@@ -484,23 +484,6 @@ export class Core {
     return view === "folder" ? `folder:${folderPath}` : view;
   }
 
-  /** Where Back goes from a folder: the parent's name inside a subfolder, nothing when it goes to the Library. */
-  #parentName(): { parent?: string } {
-    const path = this.#state.folderPath ?? "";
-    const toLibrary =
-      this.#libraryFolders.includes(path) || !this.#libraryFolders.some((f) => path.startsWith(f));
-    return toLibrary ? {} : { parent: basename(dirname(path)) };
-  }
-
-  #showPayload(): Pick<ScreenPayload, "show"> {
-    if (this.#state.view !== "show") return {};
-    const page = this.#show.payload();
-    const show = page.show;
-    return show && this.#showFrom === "librarySearch"
-      ? { show: { ...show, backTo: "Search" } }
-      : page;
-  }
-
   #isLibraryView(): boolean {
     return LIBRARY_VIEWS.includes(this.#state.view);
   }
@@ -533,7 +516,6 @@ export class Core {
       case "folder":
         return {
           heading: basename(this.#state.folderPath ?? ""),
-          ...this.#parentName(),
           entries: this.#listing.map((e) => this.#withMosaic(this.#decorate(e))),
           emptyText: "No videos in this folder.",
         };
@@ -1224,8 +1206,9 @@ export class Core {
       ...(quick ? { quick } : {}),
       playing: this.#pictureScope() !== undefined,
       muted: this.#sound.muted,
+      ...this.#backPayload(),
       library: this.#library(focused?.id),
-      ...this.#showPayload(),
+      ...(this.#state.view === "show" ? this.#show.payload() : {}),
       ...(this.#state.view === "fixMatch" ? this.#show.fixPayload() : {}),
       ...(this.#state.view === "librarySearch" ? this.#search.payload() : {}),
       ...(this.#state.view === "details" ||
@@ -1648,7 +1631,7 @@ export class Core {
     if (this.#state.typingBy !== "screen") return false;
     const name = command.command;
     if (name === "back") {
-      this.#type({ command: "typeCancel" }, "screen");
+      this.#back();
     } else if (from === "screen" && NAV.includes(name)) {
       if (name === "down" && this.#typingFor === "librarySearch")
         this.#type({ command: "typeSubmit" }, "screen");
@@ -1963,49 +1946,77 @@ export class Core {
     else this.#toast(`${item.label} is coming soon`);
   }
 
-  #back(): void {
+  /** Whether a folder's Back goes up to the Library (a Library folder, or one outside every Library folder) rather than to its parent folder. */
+  #folderToLibrary(path: string): boolean {
+    return (
+      this.#libraryFolders.includes(path) || !this.#libraryFolders.some((f) => path.startsWith(f))
+    );
+  }
+
+  /** What Back does now, named: the one place that decides, for the back link's label and for Back itself. */
+  #backStep(): { label?: string; act: () => void } | undefined {
+    const view = this.#state.view;
+    if (this.#state.typingBy === "screen")
+      return { label: "Stop typing", act: () => this.#type({ command: "typeCancel" }, "screen") };
     const front = this.#front();
     if (front) {
-      if (front.back() === "leave") {
-        this.#ask(
-          `Leave ${front.label}?`,
-          ["Stay", "Go to Home"],
-          [() => {}, () => this.#setView("home")],
-        );
-        this.#leaveConfirm = this.#state.confirm;
-      }
-      return;
+      return {
+        act: () => {
+          if (front.back() !== "leave") return;
+          this.#ask(
+            `Leave ${front.label}?`,
+            ["Stay", "Go to Home"],
+            [() => {}, () => this.#setView("home")],
+          );
+          this.#leaveConfirm = this.#state.confirm;
+        },
+      };
     }
-    if (this.#state.view === "folder") {
+    const go = (label: string, act: () => void) => ({ label, act });
+    if (view === "folder") {
       const path = this.#state.folderPath ?? "";
-      if (
-        this.#libraryFolders.includes(path) ||
-        !this.#libraryFolders.some((f) => path.startsWith(f))
-      )
-        this.#state.view = "library";
-      else this.#openFolder(dirname(path));
-      return;
+      return this.#folderToLibrary(path)
+        ? go(VIEW_LABELS.library, () => (this.#state.view = "library"))
+        : go(basename(dirname(path)), () => this.#openFolder(dirname(path)));
     }
-    if (this.#state.view === "library" && this.#chip) {
-      this.#chip = undefined;
-      this.#state.focus[this.viewKey] = { r: 1, c: 0 };
-      return;
+    if (view === "library" && this.#chip) {
+      return go("All", () => {
+        this.#chip = undefined;
+        this.#state.focus[this.viewKey] = { r: 1, c: 0 };
+      });
     }
-    if (this.#state.view === "settingsApps" && this.#homeApps.menuId) {
-      delete this.#state.focus[APPS_MENU_KEY];
-      return this.#homeApps.closeMenu();
+    if (view === "settingsApps" && this.#homeApps.menuId) {
+      return go(VIEW_LABELS.settingsApps, () => {
+        delete this.#state.focus[APPS_MENU_KEY];
+        this.#homeApps.closeMenu();
+      });
     }
-    if (this.#state.view === "librarySearch") return this.#setView("library");
-    if (this.#state.view === "show" && this.#showFrom === "librarySearch")
-      return this.#setView("librarySearch");
-    if (this.#state.view === "fixMatch") {
-      this.#show.leaveFix();
+    if (view === "librarySearch") return go(VIEW_LABELS.library, () => this.#setView("library"));
+    if (view === "show" && this.#showFrom === "librarySearch")
+      return go(VIEW_LABELS.librarySearch, () => this.#setView("librarySearch"));
+    if (view === "fixMatch") {
+      return go(this.#show.fixBackLabel(), () => {
+        this.#show.leaveFix();
+        this.#keepLibraryFocus();
+      });
+    }
+    const target = BACK_TARGETS[view];
+    if (!target) return undefined;
+    return go(view === "addons" ? "YouTube" : VIEW_LABELS[target], () => {
+      this.#setView(target);
       this.#keepLibraryFocus();
-      return;
-    }
-    const target = BACK_TARGETS[this.#state.view];
-    if (target) this.#setView(target);
-    this.#keepLibraryFocus();
+    });
+  }
+
+  #backPayload(): Pick<ScreenPayload, "back"> {
+    const label = this.#backStep()?.label;
+    return label ? { back: { label } } : {};
+  }
+
+  #back(): void {
+    const step = this.#backStep();
+    if (step) step.act();
+    else this.#keepLibraryFocus();
   }
 
   /** Changes view; leaving an App hides it (pausing playback) and lets the display sleep again. */

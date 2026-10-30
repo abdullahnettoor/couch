@@ -32,6 +32,6 @@ export function render(payload: ScreenPayload): void {
       chevron: false,
     }),
   );
-  page.append(box, cornerBack(fix.name, payload, "show"));
+  page.append(box, ...cornerBack(payload));
   root.append(page);
 }

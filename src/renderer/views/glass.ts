@@ -100,13 +100,20 @@ export function backLink(
   return link;
 }
 
-/** The back link for pages with a layout of their own: pinned to the page's top-left, so nothing moves. */
-export function cornerBack(
-  label: string,
-  payload: ScreenPayload,
-  to: View = "library",
-): HTMLElement {
-  return backLink(to, payload.state.confirm !== undefined, label, true);
+/** Something is drawn over the page, so the link under it must not take clicks: a confirmation, Quick settings, the Apps menu, Picture off. */
+export function overlayOpen(payload: ScreenPayload): boolean {
+  return (
+    payload.state.confirm !== undefined ||
+    payload.quick !== undefined ||
+    payload.appMenu !== undefined ||
+    payload.state.pictureOff
+  );
+}
+
+/** The back link for pages with a layout of their own: pinned to the page's top-left, so nothing moves. The label is the core's (`payload.back`); a page the core gives none has no link. */
+export function cornerBack(payload: ScreenPayload): HTMLElement[] {
+  if (!payload.back) return [];
+  return [backLink("library", overlayOpen(payload), payload.back.label, true)];
 }
 
 /** A Glass pill button, e.g. Done. */

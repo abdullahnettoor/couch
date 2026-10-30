@@ -131,5 +131,5 @@ export function render(payload: ScreenPayload): void {
   if (fresh) void p.track.offsetHeight;
   p.page.querySelector(".topbar")?.remove();
   p.page.querySelector(".g-back")?.remove();
-  p.page.append(topbar(payload), cornerBack(show.backTo ?? "Library", payload));
+  p.page.append(topbar(payload), ...cornerBack(payload));
 }

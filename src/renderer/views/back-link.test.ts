@@ -100,65 +100,81 @@ interface Case {
   name: string;
   view: View;
   extra: object;
-  label: string;
-  title?: string;
 }
 const browsing: Case[] = [
-  { name: "Library", view: "library", extra: { viewKey: "library", library }, label: "Home" },
+  { name: "Library", view: "library", extra: { viewKey: "library", library } },
   {
     name: "a library folder",
     view: "folder",
     extra: { viewKey: "folder:/m/a", library: { ...library, rows: undefined } },
-    label: "Library",
   },
-  {
-    name: "a subfolder",
-    view: "folder",
-    extra: { viewKey: "folder:/m/a/b", library: { ...library, rows: undefined, parent: "Shows" } },
-    label: "Shows",
-  },
-  { name: "a show", view: "show", extra: { show }, label: "Library" },
-  {
-    name: "a show opened from search",
-    view: "show",
-    extra: { show: { ...show, backTo: "Search" } },
-    label: "Search",
-  },
+  { name: "a show", view: "show", extra: { show } },
   {
     name: "Fix match",
     view: "fixMatch",
     extra: { fixMatch: { name: "Severance", loading: false, options: [] } },
-    label: "Severance",
   },
   {
     name: "Library search",
     view: "librarySearch",
     extra: { search: { query: "", searching: false, typing: false, rows: [] } },
-    label: "Library",
   },
 ];
 
+// A label no page could guess: it can only come from payload.back.
+const LABEL = "Wherever Back goes";
+
 describe("Library back links", () => {
-  test.each(browsing)("$name: label, name, one back, not a grid item", (c) => {
-    views[c.view]!.render(payload(c.view, c.extra));
+  test.each(browsing)("$name: the core's label, name, one back, not a grid item", (c) => {
+    views[c.view]!.render(payload(c.view, { ...c.extra, back: { label: LABEL } }));
     const links = screen.querySelectorAll<HTMLElement>(".g-back");
     expect(links.length).toBe(1);
-    expect(links[0]!.textContent).toBe(`‹ ${c.label}`);
-    expect(links[0]!.getAttribute("aria-label")).toBe(`Back to ${c.label}`);
+    expect(links[0]!.textContent).toBe(`‹ ${LABEL}`);
+    expect(links[0]!.getAttribute("aria-label")).toBe(`Back to ${LABEL}`);
     expect(links[0]!.dataset.id).toBeUndefined();
     links[0]!.click();
     expect(send).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenCalledWith({ command: "back" });
   });
 
-  test.each(browsing)("$name: disabled and silent under an overlay", (c) => {
-    const confirm = { title: "Sure?", options: ["Yes"], index: 0 };
-    views[c.view]!.render(
-      payload(c.view, { ...c.extra, state: { view: c.view, remotes: 0, confirm } }),
+  test.each(browsing)("$name: no link when the core names no Back", (c) => {
+    views[c.view]!.render(payload(c.view, c.extra));
+    expect(screen.querySelector(".g-back")).toBeNull();
+  });
+
+  test("Library search while typing shows the core's Stop typing, in the same place", () => {
+    const extra = { search: { query: "", searching: false, typing: true, rows: [] } };
+    views.librarySearch!.render(
+      payload("librarySearch", { ...extra, back: { label: "Stop typing" } }),
     );
-    const link = screen.querySelector<HTMLButtonElement>(".g-back")!;
-    expect(link.disabled).toBe(true);
-    link.click();
-    expect(send).not.toHaveBeenCalled();
+    expect(screen.querySelector(".g-back")!.textContent).toBe("‹ Stop typing");
+    expect(screen.querySelector(".g-back")!.classList.contains("corner")).toBe(true);
+  });
+
+  const overlays: [string, object][] = [
+    ["a confirmation", { confirm: { title: "Sure?", options: ["Yes"], index: 0 } }],
+    ["Picture off", { pictureOff: true }],
+  ];
+  const covers: [string, (c: Case) => object][] = [
+    ...overlays.map(([n, state]): [string, (c: Case) => object] => [
+      n,
+      (c) => ({ state: { view: c.view, remotes: 0, ...state } }),
+    ]),
+    [
+      "Quick settings",
+      () => ({
+        quick: { items: [], focusedId: "", volume: 0.5, muted: false },
+      }),
+    ],
+    ["the Apps menu", () => ({ appMenu: { id: "youtube", label: "YouTube" } })],
+  ];
+  describe.each(covers)("under %s", (_name, cover) => {
+    test.each(browsing)("$name: the link is disabled and silent", (c) => {
+      views[c.view]!.render(payload(c.view, { ...c.extra, back: { label: LABEL }, ...cover(c) }));
+      const link = screen.querySelector<HTMLButtonElement>(".g-back")!;
+      expect(link.disabled).toBe(true);
+      link.click();
+      expect(send).not.toHaveBeenCalled();
+    });
   });
 });

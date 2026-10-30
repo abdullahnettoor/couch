@@ -83,7 +83,7 @@ export function render(payload: ScreenPayload): void {
   const page = el("div", "screen-glass");
   page.append(topbar(payload));
   const inFolder = payload.viewKey !== "library";
-  page.append(cornerBack(inFolder ? (lib.parent ?? "Library") : "Home", payload));
+  page.append(...cornerBack(payload));
   page.append(
     el("div", "lib-head", `${inFolder ? "<small>Library</small>" : ""}${escape(lib.heading)}`),
   );
@@ -263,7 +263,7 @@ function renderRoot(payload: ScreenPayload): void {
     ...(chips ? [chips] : []),
     body,
     topbar(payload),
-    cornerBack("Home", payload),
+    ...cornerBack(payload),
   );
   fitFeatured(featured);
 

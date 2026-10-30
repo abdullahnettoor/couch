@@ -56,7 +56,7 @@ export function render(payload: ScreenPayload): void {
     const text = `Nothing matches “${escape(search.query.trim())}”`;
     body.append(el("div", "lib-empty glass", `${iconSvg("search")}<span>${text}</span>`));
   }
-  page.append(field, body, topbar(payload), cornerBack("Library", payload));
+  page.append(field, body, topbar(payload), ...cornerBack(payload));
   if (search.searching) page.append(el("div", "ls-searching", "Searching…"));
   root.append(page);
 

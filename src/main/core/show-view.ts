@@ -348,15 +348,24 @@ export class ShowView {
     };
   }
 
-  fixPayload(): Pick<ScreenPayload, "fixMatch"> {
+  #fixName(): string {
     const id = this.#fixId ?? "";
     const name =
       this.#h.library.show(id)?.name ??
       this.#h.library.films().find((f) => f.path === id)?.title ??
       "";
+    return name.replace(/\s*\(\d{4}\)$/, "");
+  }
+
+  /** What Back from Fix match names: the Library, or the show it was opened from. */
+  fixBackLabel(): string {
+    return this.#fixBack === "library" ? "Library" : this.#fixName();
+  }
+
+  fixPayload(): Pick<ScreenPayload, "fixMatch"> {
     return {
       fixMatch: {
-        name: name.replace(/\s*\(\d{4}\)$/, ""),
+        name: this.#fixName(),
         loading: this.#fixOptions === undefined,
         options: (this.#fixOptions ?? []).map((o) => ({
           id: `cand:${o.tmdbId}`,
