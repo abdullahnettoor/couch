@@ -37,7 +37,8 @@ const pages: [View, string][] = [
   ["settingsApps", "‹ Settings"],
   ["soundOutput", "‹ Settings"],
   ["settingsHome", "‹ Settings"],
-  ["addons", "‹ Apps"],
+  ["addons", "‹ YouTube"],
+  ["appError", "‹ Home"],
   ["addPhone", "‹ Remotes and Devices"],
   ["libraryFolders", "‹ Library"],
   ["details", "‹ Library"],
@@ -53,7 +54,9 @@ describe("Settings back link", () => {
       expect(links.length).toBe(1);
       expect(links[0]!.textContent).toBe(label);
       expect(links[0]!.dataset.id).toBeUndefined();
+      expect(links[0]!.getAttribute("aria-label")).toBe(`Back to ${label.slice(2)}`);
       links[0]!.click();
+      expect(send).toHaveBeenCalledTimes(1);
       expect(send).toHaveBeenCalledWith({ command: "back" });
     },
   );

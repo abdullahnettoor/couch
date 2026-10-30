@@ -20,6 +20,6 @@ export function render(payload: ScreenPayload): void {
       ),
       ...addons.map((a) => el("p", "details-hint", `${a.label}: ${a.description}`)),
     ],
-    { to: "settingsApps" },
+    { to: "settingsApps", label: "YouTube" },
   );
 }

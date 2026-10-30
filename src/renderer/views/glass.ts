@@ -80,12 +80,15 @@ export interface BackOptions {
   to: View;
   /** An overlay is open over the page: the link sits under it and does nothing. */
   covered?: boolean;
+  /** Names the place Back returns to when it isn't the view's own name (e.g. an App's menu over the Apps list). */
+  label?: string;
 }
 
 /** "‹ Settings": a small line above a page's title that sends Back. Not a grid item, so the D-pad never lands on it. */
-export function backLink(to: View, covered = false): HTMLElement {
+export function backLink(to: View, covered = false, label = VIEW_LABELS[to]): HTMLElement {
   const link = el("button", "g-back") as HTMLButtonElement;
-  link.append(document.createTextNode(`‹ ${VIEW_LABELS[to]}`));
+  link.append(document.createTextNode(`‹ ${label}`));
+  link.setAttribute("aria-label", `Back to ${label}`);
   link.tabIndex = -1;
   link.disabled = covered;
   link.addEventListener("click", () => window.couch.send({ command: "back" }));
@@ -116,7 +119,7 @@ export function splitPage(art: SplitArt, content: HTMLElement[], back?: BackOpti
   const page = el("div", "screen-glass");
   page.append(splitArt(art));
   const list = el("div", "split-list");
-  if (back) list.append(backLink(back.to, back.covered));
+  if (back) list.append(backLink(back.to, back.covered, back.label));
   list.append(...content);
   page.append(list);
   root.append(page);
