@@ -642,3 +642,97 @@ describe("a question with answers on the phone", () => {
     expect(hidden("ask")).toBe(true);
   });
 });
+
+describe("the Apps row", () => {
+  const icon = (n: string) => `<svg class="i" data-n="${n}"></svg>`;
+  const apps = ["YouTube", "Netflix", "Library"].map((label) => ({
+    id: label.toLowerCase(),
+    label,
+    icon: icon(label),
+  }));
+  const home = (extra: Record<string, unknown> = {}) =>
+    page.send({
+      ...page.base,
+      layout: "home",
+      where: "Home",
+      typeAvailable: false,
+      apps,
+      ...extra,
+    });
+  const buttons = () => [
+    ...page.els
+      .get("apps")!
+      .innerHTML.matchAll(/<button[^>]*aria-label="([^"]+)"[^>]*>(.*?)<\/button>/g),
+  ];
+
+  test("sits in the idle controls above the D-pad, in its own block", () => {
+    const main = REMOTE_PAGE.slice(
+      REMOTE_PAGE.indexOf('<main id="controls">'),
+      REMOTE_PAGE.indexOf("</main>"),
+    );
+    expect(main.indexOf('id="apps"')).toBeGreaterThan(-1);
+    expect(main.indexOf('id="apps"')).toBeLessThan(main.indexOf('id="dpad"'));
+  });
+
+  test("one labelled button per shown App, in Home order, with its icon", () => {
+    home();
+    expect(hidden("apps")).toBe(false);
+    expect(buttons().map((m) => m[1])).toEqual(["Open YouTube", "Open Netflix", "Open Library"]);
+    const html = page.els.get("apps")!.innerHTML;
+    expect(html.indexOf("YouTube")).toBeLessThan(html.indexOf("Netflix"));
+    expect(html.indexOf("Netflix")).toBeLessThan(html.indexOf("Library"));
+    expect(html).toContain('data-n="Netflix"');
+    expect(html).toContain('<span class="n">Library</span>');
+  });
+
+  test("a tap sends openApp with the App's id", () => {
+    home();
+    const html = page.els.get("apps")!.innerHTML;
+    const args = html
+      .match(/data-args="([^"]+)"/g)!
+      .map((a) => JSON.parse(a.slice(11, -1).replace(/&quot;/g, '"')));
+    expect(args).toEqual([{ app: "youtube" }, { app: "netflix" }, { app: "library" }]);
+    page.tapRow("openApp", args[1]);
+    expect(commands()).toEqual([{ type: "command", command: "openApp", args: { app: "netflix" } }]);
+  });
+
+  test("a label with markup is escaped", () => {
+    home({ apps: [{ id: "x", label: '<b>"x"', icon: icon("x") }] });
+    expect(page.els.get("apps")!.innerHTML).not.toContain("<b>");
+    expect(page.els.get("apps")!.innerHTML).toContain("&lt;b&gt;&quot;x&quot;");
+  });
+
+  test("scrolls sideways past 4 Apps, and centres up to 4", () => {
+    home();
+    expect(page.els.get("apps")!.classes.has("few")).toBe(true);
+    home({ apps: [1, 2, 3, 4, 5].map((n) => ({ id: `a${n}`, label: `A${n}`, icon: icon("a") })) });
+    expect(page.els.get("apps")!.classes.has("few")).toBe(false);
+    expect(REMOTE_PAGE).toMatch(/\.apps \{[^}]*overflow-x:auto/);
+  });
+
+  test("hidden while playing, off Home, and with no Apps", () => {
+    home();
+    expect(hidden("apps")).toBe(false);
+    page.playing({}, { layout: "app", apps });
+    expect(hidden("apps")).toBe(true);
+    home({ apps: [] });
+    expect(hidden("apps")).toBe(true);
+    page.send({ ...page.base, layout: "app", typing: "none", apps });
+    expect(hidden("apps")).toBe(true);
+  });
+
+  test("dims and stops taps when Couch is off, like the rest of the controls", () => {
+    home();
+    page.send({ type: "power", state: "off" });
+    expect(page.bodyClasses.has("off")).toBe(true);
+    expect(REMOTE_PAGE).toMatch(/\.off main \{[^}]*pointer-events:none/);
+  });
+
+  test("the row is not redrawn when only the volume changes", () => {
+    home();
+    const el = page.els.get("apps")!;
+    el.innerHTML = "marker";
+    home({ volume: 50 });
+    expect(el.innerHTML).toBe("marker");
+  });
+});

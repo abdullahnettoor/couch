@@ -1274,6 +1274,14 @@ export class Core {
           : s.view === "home" || s.view === "player" || s.view === "librarySearch"
             ? s.view
             : "other",
+      ...(s.view === "home"
+        ? {
+            apps: this.#homeApps
+              .rows()
+              .filter((r) => r.shown)
+              .map(({ id, label, icon }) => ({ id, label, icon })),
+          }
+        : {}),
       ...(card
         ? {
             continueCard: {
@@ -1585,6 +1593,9 @@ export class Core {
         break;
       case "openSettings":
         if (this.#state.view === "home") this.#setView("settings");
+        break;
+      case "openApp":
+        if (this.#state.view === "home") this.#openShown(command.args?.app ?? "");
         break;
       case "typeOpen":
       case "typeText":
@@ -2099,6 +2110,13 @@ export class Core {
         return { ...item, c, ...(c === 0 ? { initial: true } : {}) };
       }),
     ];
+  }
+
+  /** A Remote's quick action: what OK on the App's Home tile does, for a shown App only. */
+  #openShown(id: string): void {
+    if (!this.#homeApps.isShown(id)) return;
+    const action = actionFor(this.#catalog().find((e) => e.id === id)?.action ?? "");
+    if (action) action(this.#actionContext());
   }
 
   #openApp(id: string): void {

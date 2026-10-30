@@ -61,6 +61,7 @@ export const COMMAND_NAMES = [
   "setPictureOff",
   "quickSettings",
   "confirmAnswer",
+  "openApp",
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
@@ -107,6 +108,8 @@ export interface CommandArgs {
   id?: PromptId;
   /** playUpNext: position in the Up next list; confirmAt (Screen only) and confirmAnswer (phones): the confirmation button clicked */
   index?: number;
+  /** openApp: the App's id, from the snapshot's `apps` */
+  app?: string;
   /** toggleAddon: the add-on's id (YouTube's add-ons) */
   addon?: string;
   /** setPictureOff: true hides the picture, false brings it back */
@@ -460,6 +463,8 @@ export interface RemoteSnapshot {
   where: string;
   view: View;
   layout: RemoteLayout;
+  /** Home only: the Apps Home shows, in order, for the Remote's quick actions (command `openApp`). */
+  apps?: Array<{ id: string; label: string; icon: string }>;
   /** Home only, when a video is in progress. */
   continueCard?: RemoteContinueCard;
   typeAvailable: boolean;

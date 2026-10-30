@@ -45,6 +45,7 @@ const ARGS: Partial<Record<CommandName, Record<string, Field>>> = {
   typeOpen: { text: text() },
   typeText: { text: text() },
   toggleAddon: { addon: text() },
+  openApp: { app: text(64) },
   pressPrompt: { id: { kind: "enum", values: ["skipIntro", "skipRecap", "nextEpisode"] } },
   setPictureOff: { on: { kind: "boolean" } },
   confirmAnswer: { index: { kind: "integer" }, text: text() },

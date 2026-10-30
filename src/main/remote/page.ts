@@ -84,6 +84,14 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   body.idle main { min-height:0; gap:8px; padding-top:8px; }
   body.idle .cw, body.idle .search { margin:0; flex:none; }
   body.idle .search { height:52px; }
+  .apps { display:flex; gap:14px; overflow-x:auto; overscroll-behavior-x:contain; scrollbar-width:none; margin:14px -20px 0; padding:2px 20px; flex:none; -webkit-overflow-scrolling:touch; }
+  .apps::-webkit-scrollbar { display:none; }
+  .apps.few { justify-content:center; }
+  .app { flex:0 0 68px; display:flex; flex-direction:column; align-items:center; gap:6px; color:var(--t3); font-size:12px; font-weight:600; min-width:0; }
+  .app .ic { width:56px; height:56px; border-radius:28px; background:var(--card); display:grid; place-items:center; overflow:hidden; box-shadow:inset 0 1px 0 rgba(255,255,255,.07); }
+  .app .ic svg { width:30px; height:30px; font-size:30px; }
+  .app:active .ic { background:var(--card-2); }
+  .app span.n { max-width:68px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .padwrap { flex:1; min-height:0; display:grid; place-items:center; }
   body.idle .pad { margin:0; width:min(320px, 82vw, 100%, 46dvh); }
   body.idle .other { margin:0; }
@@ -240,6 +248,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   <button class="search" id="fixbtn" data-cmd="menu" hidden><span id="fix-label">Fix match</span></button>
   <button class="search" id="search" data-cmd="typeOpen" hidden><span data-i="search"></span><span id="search-label">Search</span></button>
   <div class="other" id="other" hidden>Typing on another phone</div>
+  <div class="apps" id="apps" role="group" aria-label="Apps" hidden></div>
   <div class="padwrap"><div class="pad" id="dpad">__PAD__</div></div>
   __VPILL_ID__
 </main>
@@ -424,6 +433,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     if (sheetKind && !$("np-sheet").hidden) $("np-rows").innerHTML = sheetHtml(sheetKind, s);
   }
 
+  var appsRow = "";
   function render(s) {
     phoneToast(s.toast);
     last = s;
@@ -450,6 +460,13 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     $("id-vol-n").textContent = $("np-vol-n").textContent = s.muted ? "Muted" : String(Math.round(s.volume));
     $("id-vol").classList.toggle("muted", !!s.muted);
     $("np-vol").classList.toggle("muted", !!s.muted);
+    var apps = L === "home" && !np && s.apps && s.apps.length ? s.apps : [];
+    $("apps").hidden = !apps.length;
+    $("apps").classList.toggle("few", apps.length <= 4);
+    var row = apps.map(function (a) {
+      return '<button type="button" class="app" data-cmd="openApp" data-args="' + esc(JSON.stringify({ app: a.id })) + '" aria-label="Open ' + esc(a.label) + '"><span class="ic">' + a.icon + '</span><span class="n">' + esc(a.label) + "</span></button>";
+    }).join("");
+    if (row !== appsRow) { appsRow = row; $("apps").innerHTML = row; }
     $("cw").hidden = L !== "home" || !s.continueCard;
     if (s.continueCard) {
       $("cw-title").textContent = s.continueCard.title;
