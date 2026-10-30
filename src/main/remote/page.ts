@@ -429,7 +429,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     last = s;
     var L = s.layout || "other";
     $("where").textContent = s.where;
-    $("count").textContent = s.remotes === 1 ? " · 1 phone" : " · " + s.remotes + " phones";
+    $("count").textContent = !s.remotes ? "" : s.remotes === 1 ? " · 1 phone" : " · " + s.remotes + " phones";
     var np = s.nowPlaying;
     if (!np) { padOpen = false; closeSheet(); }
     document.body.classList.toggle("np", !!np);
@@ -505,7 +505,8 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   $("confirm-off").addEventListener("click", function () { $("confirm").hidden = true; });
   $("confirm-cancel").addEventListener("click", function () { $("confirm").hidden = true; });
 
-  var queue = [], queueTimer = null;
+  var queue = [], queueTimer = null, QUEUE_MS = 2000, got = false;
+  var SAFE = { volUp: 1, volDown: 1, mute: 1, playpause: 1, seekBy: 1 };
   function notice(text) {
     var el = $("phone-toast");
     el.textContent = text;
@@ -513,25 +514,35 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     clearTimeout(phoneToastTimer);
     phoneToastTimer = setTimeout(function () { el.classList.remove("show"); }, 3000);
   }
+  /** Drops entries older than 2 s, each on its own clock; re-arms the timer for the oldest left. */
+  function expireQueue() {
+    clearTimeout(queueTimer);
+    var now = Date.now(), before = queue.length;
+    queue = queue.filter(function (q) { return now - q.at < QUEUE_MS; });
+    if (queue.length < before) notice("Couldn't reach Couch");
+    if (queue.length) queueTimer = setTimeout(expireQueue, QUEUE_MS - (now - queue[0].at));
+  }
   function dropQueue() {
     clearTimeout(queueTimer);
     if (queue.length) notice("Couldn't reach Couch");
     queue = [];
   }
-  /** Sends at once when connected; while connecting, holds the tap for up to 2 s and sends it on connect. */
+  /** Sends at once when connected. While disconnected only context-independent commands wait (up to 2 s each) for the first snapshot; everything else is dropped with a toast. */
   function post(msg) {
-    if (open) { ws.send(JSON.stringify(msg)); return; }
+    if (open && (got || msg.command === "power")) { ws.send(JSON.stringify(msg)); return; }
     if (msg.command === "power" || pstate !== "on") return;
+    if (!Object.prototype.hasOwnProperty.call(SAFE, msg.command)) { notice("Couldn't reach Couch"); return; }
     if (queue.length >= 8) queue.shift();
-    queue.push(msg);
+    queue.push({ at: Date.now(), msg: msg });
     clearTimeout(queueTimer);
-    queueTimer = setTimeout(dropQueue, 2000);
+    queueTimer = setTimeout(expireQueue, QUEUE_MS - (Date.now() - queue[0].at));
   }
+  /** Called on the first snapshot of a connection: only then is the screen known, so only then do held taps go. */
   function flushQueue() {
     clearTimeout(queueTimer);
-    var q = queue;
+    var now = Date.now(), q = queue;
     queue = [];
-    q.forEach(post);
+    q.forEach(function (e) { if (now - e.at < QUEUE_MS) ws.send(JSON.stringify(e.msg)); });
   }
   function sendArgs(command, args) {
     if (navigator.vibrate) navigator.vibrate(12);
@@ -607,24 +618,58 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   art.addEventListener("pointercancel", function () { g = null; });
 
   var LAST = "couch-last", saveTimer = null, pending = "";
-  /** The last snapshot is kept so a reopened Remote can draw at once. It never holds the pairing key or the transient parts (toast, question, typing). */
-  function remember(msg) {
-    var copy = {};
-    for (var k in msg) copy[k] = msg[k];
-    delete copy.toast; delete copy.confirm; delete copy.typeSeed;
-    copy.typing = "none";
-    pending = JSON.stringify(copy);
+  /** cyrb53: a small synchronous hash. The cache stores this of the pairing key, never the key. */
+  function hash(str) {
+    var h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (var i = 0; i < str.length; i++) {
+      var c = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ c, 2654435761);
+      h2 = Math.imul(h2 ^ c, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+  }
+  var keyHash = key ? hash(key) : "";
+  function dropCache() {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    pending = "";
+    try { localStorage.removeItem(LAST); } catch (e) {}
+  }
+  function text(v, n) { return typeof v === "string" ? v.slice(0, n) : ""; }
+  /** What the last view keeps so a reopened Remote can draw at once: display fields only (view, App, title, artwork, paused, volume, mute, power), bound to the pairing key by hash. Never Up next, folders, history, progress or Continue cards. */
+  function remember(s) {
+    if (!keyHash) { dropCache(); return; }
+    var np = s.nowPlaying;
+    var c = { v: 1, h: keyHash, view: np ? "np" : "idle", paused: !!(np && np.paused), volume: Number(s.volume) || 0, muted: !!s.muted, power: pstate };
+    if (np) {
+      c.title = text(np.title, 200);
+      c.art = text(np.artwork, 500);
+      if (np.app) c.app = { id: text(np.app.id, 40), label: text(np.app.label, 40) };
+    }
+    pending = JSON.stringify(c);
     if (saveTimer) return;
     saveTimer = setTimeout(function () {
       saveTimer = null;
       try { localStorage.setItem(LAST, pending); } catch (e) {}
     }, 1000);
   }
+  /** A cache for another key, no key, or the old format is cleared and ignored. */
   function cached() {
-    try {
-      var s = JSON.parse(localStorage.getItem(LAST));
-      return s && s.type === "snapshot" ? s : null;
-    } catch (e) { return null; }
+    var c = null;
+    try { c = JSON.parse(localStorage.getItem(LAST)); } catch (e) {}
+    if (!c) return null;
+    if (c.v !== 1 || !keyHash || c.h !== keyHash || (c.view !== "idle" && c.view !== "np")) { dropCache(); return null; }
+    var snap = { type: "snapshot", where: "", layout: "other", typing: "none", volume: Number(c.volume) || 0, muted: !!c.muted, remotes: 0 };
+    if (c.view === "np") {
+      snap.nowPlaying = {
+        title: text(c.title, 200), folder: "", position: 0, duration: 0, paused: !!c.paused,
+        artwork: /^https:\/\//.test(c.art || "") ? c.art : "",
+        app: c.app ? { id: text(c.app.id, 40), label: text(c.app.label, 40), icon: "" } : null
+      };
+    }
+    return snap;
   }
 
   var live = false;
@@ -632,15 +677,15 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     var proto = location.protocol === "https:" ? "wss:" : "ws:";
     live = true;
     var sock = ws = new WebSocket(proto + "//" + location.host + "/ws?key=" + encodeURIComponent(key));
-    sock.onopen = function () { retry = 0; setOnline(true); flushQueue(); };
+    sock.onopen = function () { retry = 0; got = false; setOnline(true); };
     sock.onmessage = function (e) {
       var msg = JSON.parse(e.data);
-      if (msg.type === "snapshot") { setPower("on"); render(msg); remember(msg); }
+      if (msg.type === "snapshot") { setPower("on"); render(msg); remember(msg); if (!got) { got = true; flushQueue(); } }
       else if (msg.type === "power") { setPower(msg.state, msg.failed); if (msg.state !== "on") dropQueue(); }
     };
     sock.onclose = function () {
       if (sock !== ws) return;
-      live = false;
+      live = false; got = false;
       var wait = Math.min(300 * Math.pow(1.6, retry++), 8000);
       setOnline(false);
       $("confirm").hidden = true;
@@ -718,12 +763,13 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     $("pbtn").hidden = true;
     $("banner").hidden = true;
     $("status").textContent = "Not paired";
+    dropCache();
     $("pw-title").textContent = "Couch isn't paired yet";
     $("pw-sub").textContent = "Open Couch on the Mac once to pair a phone.";
     return;
   }
   var snap = cached();
-  if (snap) { snap.toast = undefined; snap.confirm = undefined; snap.typing = "none"; render(snap); }
+  if (snap) render(snap);
   connect();
 })();
 </script>

@@ -19,7 +19,20 @@ function load(opts: Opts = {}) {
     fullscreenElement: null,
     visibilityState: "visible",
     getElementById: () =>
-      new Proxy({}, { get: (_t, k) => (k === "disabled" ? false : () => {}), set: () => true }),
+      new Proxy(
+        {},
+        {
+          get: (_t, k) =>
+            k === "disabled"
+              ? false
+              : k === "classList"
+                ? { toggle() {}, add() {}, remove() {} }
+                : k === "style"
+                  ? {}
+                  : () => {},
+          set: () => true,
+        },
+      ),
     querySelectorAll: () => [],
     addEventListener: on,
     body: { classList: { toggle() {} } },
@@ -51,6 +64,17 @@ function load(opts: Opts = {}) {
     navigator: { userAgent: opts.userAgent ?? "Mozilla/5.0 (Linux; Android 14) Chrome/120" },
   });
   sockets[0]!.onopen?.();
+  sockets[0]!.onmessage?.({
+    data: JSON.stringify({
+      type: "snapshot",
+      where: "Home",
+      layout: "home",
+      typing: "none",
+      volume: 30,
+      muted: false,
+      remotes: 1,
+    }),
+  });
   const tap = () =>
     fire("click", {
       target: {
