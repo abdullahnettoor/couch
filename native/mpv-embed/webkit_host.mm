@@ -735,6 +735,31 @@ static napi_value WebkitRemoveStore(napi_env env, napi_callback_info info) {
 - (BOOL)canBecomeKeyWindow { return YES; }
 @end
 
+// An NSEvent made from a CGEvent has no window (the self-test's window is never ordered in, so the window server has no
+// record of it), and WebKit drops a wheel event it cannot place in the view's window. Tell this one event which window and
+// point it belongs to, as a real event from the input monitor would.
+static const void *kEventWindowKey = &kEventWindowKey;
+static const void *kEventPointKey = &kEventPointKey;
+static void bindEventToWindow(NSEvent *e, NSWindow *w, NSPoint p) {
+  Class c = [e class];
+  static NSMutableSet *patched = [NSMutableSet new];
+  if (![patched containsObject:c]) {
+    [patched addObject:c];
+    auto origWindow = (NSWindow *(*)(id, SEL))class_getMethodImplementation(c, @selector(window));
+    auto origLoc = (NSPoint (*)(id, SEL))class_getMethodImplementation(c, @selector(locationInWindow));
+    class_replaceMethod(c, @selector(window), imp_implementationWithBlock(^NSWindow *(NSEvent *self_) {
+      NSWindow *bound = objc_getAssociatedObject(self_, kEventWindowKey);
+      return bound ?: origWindow(self_, @selector(window));
+    }), "@@:");
+    class_replaceMethod(c, @selector(locationInWindow), imp_implementationWithBlock(^NSPoint(NSEvent *self_) {
+      NSValue *v = objc_getAssociatedObject(self_, kEventPointKey);
+      return v ? v.pointValue : origLoc(self_, @selector(locationInWindow));
+    }), "{CGPoint=dd}@:");
+  }
+  objc_setAssociatedObject(e, kEventWindowKey, w, OBJC_ASSOCIATION_RETAIN);
+  objc_setAssociatedObject(e, kEventPointKey, [NSValue valueWithPoint:p], OBJC_ASSOCIATION_RETAIN);
+}
+
 static napi_value WebkitSelfTest(napi_env env, napi_callback_info info) {
   size_t argc = 3; napi_value argv[3];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
@@ -796,9 +821,9 @@ static napi_value WebkitSelfTest(napi_env env, napi_callback_info info) {
             [wk2.web mouseDown:mouse(NSEventTypeLeftMouseDown)];
             [wk2.web mouseUp:mouse(NSEventTypeLeftMouseUp)];
             CGEventRef cg = CGEventCreateScrollWheelEvent(NULL, kCGScrollEventUnitLine, 1, -3);
-            CGEventSetLocation(cg, CGPointMake(at.x, 720 - at.y));
             NSEvent *wheel = [NSEvent eventWithCGEvent:cg];
             CFRelease(cg);
+            bindEventToWindow(wheel, wk2.offscreen, at);
             [wk2.web scrollWheel:wheel];
             continue;
           }
