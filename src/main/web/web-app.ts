@@ -50,6 +50,8 @@ export interface PlaybackAdapter {
   tracks?(): string;
   /** Toggles play and pause through the App's own control; absent, the host sends the media key. */
   playPause?(): string;
+  /** An expression giving the title of what plays (or falsy), when the page's media session names none. */
+  title?(): string;
   /** An expression giving an artwork URL (or falsy) for what plays, when the page's media session names none. */
   artwork?(): string;
   /** An expression giving `{ id, label }` for the App's own prompt button when one is visible (Skip Intro, Next Episode), else falsy. */

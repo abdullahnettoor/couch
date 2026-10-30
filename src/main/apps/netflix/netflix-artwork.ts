@@ -1,6 +1,9 @@
 import type { PagePreload } from "../../web/web-app.ts";
 
 const KEY = "couchNfArt";
+const SEEN = "couchNfSeen";
+const TITLES = "couchNfTitles";
+const LAST = "couchNfLast";
 
 /**
  * Netflix's player sets no media-session artwork and its watch page holds none, so the box art is
@@ -9,7 +12,9 @@ const KEY = "couchNfArt";
  * click: a card (its image), a /watch/<id> link (its own image, else the open pop-up's card art or
  * the billboard's image), and a Play button whose title id is only known once the player opens
  * (it waits briefly for the next /watch/<id>). A series' episodes take the art of the pop-up they
- * were clicked in. Art that can't be tied to the playing title is never guessed.
+ * were clicked in. A title started without a click (a keypress, a deep link into a page that showed
+ * its card, the WebKit engine's other event path) is covered by a passive scan that records each
+ * card link's own image by title id. Art that can't be tied to the playing title is never guessed.
  */
 export const NETFLIX_ART_PRELOAD: PagePreload = {
   name: "Netflix box art",
@@ -26,6 +31,27 @@ export const NETFLIX_ART_PRELOAD: PagePreload = {
     });
     return best;
   }
+  var SEEN = "${SEEN}";
+  function scan() {
+    try {
+      if (/^\\/watch\\//.test(location.pathname)) return;
+      var seen = {};
+      try { seen = JSON.parse(sessionStorage.getItem(SEEN) || "{}"); } catch (e) {}
+      if (Object.keys(seen).length > 300) seen = {};
+      var changed = false;
+      Array.prototype.forEach.call(
+        document.querySelectorAll('a[href*="jbv="], a[href*="/title/"], a[href*="/watch/"]'),
+        function (a) {
+          var m = /(jbv=|\\/title\\/|\\/watch\\/)(\\d+)/.exec(a.getAttribute("href") || "");
+          var img = a.querySelector("img");
+          var src = img && https(img.src);
+          if (m && src && seen[m[2]] !== src) { seen[m[2]] = src; changed = true; }
+        },
+      );
+      if (changed) sessionStorage.setItem(SEEN, JSON.stringify(seen));
+    } catch (err) {}
+  }
+  setInterval(scan, 2000);
   document.addEventListener("click", function (e) {
     try {
       var t = e.target;
@@ -55,18 +81,80 @@ export const NETFLIX_ART_PRELOAD: PagePreload = {
 }`,
 };
 
-/** The remembered box art for the title on the player: what its own click recorded, else a Play click just before it. */
+/**
+ * Page script defining `readTitle(id)`: the title as the player's header shows it (the series, then
+ * the season and episode, then the episode's name; a film is one line). Netflix draws the header only
+ * while the bar is up, so what was read is kept per title id.
+ */
+const READ_TITLE = `
+  var TITLES = "${TITLES}";
+  var readTitle = function (id) {
+    var all = {};
+    try { all = JSON.parse(sessionStorage.getItem(TITLES) || "{}"); } catch (e) {}
+    var h = document.querySelector('[data-uia="video-title"]');
+    var parts = [];
+    if (h) {
+      Array.prototype.forEach.call(h.children || [], function (c) {
+        var t = String(c.textContent || "").replace(/\\s+/g, " ").trim();
+        if (t) parts.push(t);
+      });
+      if (!parts.length) {
+        var whole = String(h.textContent || "").replace(/\\s+/g, " ").trim();
+        if (whole) parts.push(whole);
+      }
+    }
+    if (parts.length) {
+      if (Object.keys(all).length > 30) all = {};
+      all[id] = { series: parts[0], text: parts.join(" \u00b7 ") };
+      sessionStorage.setItem(TITLES, JSON.stringify(all));
+    }
+    return all[id] || null;
+  };
+`;
+
+/** The title for what plays, from the player's header (remembered while the bar is hidden). */
+export const NETFLIX_TITLE = `(function () {
+  try {
+    ${READ_TITLE}
+    var m = /^\\/watch\\/(\\d+)/.exec(location.pathname);
+    var t = m && readTitle(m[1]);
+    return t ? t.text : null;
+  } catch (e) { return null; }
+})()`;
+
+/**
+ * The box art for the title on the player: what its own click recorded, else a card link seen in
+ * the page, else a Play click just before it. An episode that follows on its own (the next episode
+ * autoplays under a new id) takes the art of the title just before it when the header names the same
+ * series; otherwise nothing.
+ */
 export const NETFLIX_ARTWORK = `(function () {
   try {
+    ${READ_TITLE}
     var s = JSON.parse(sessionStorage.getItem("${KEY}") || "{}");
     var m = /^\\/watch\\/(\\d+)/.exec(location.pathname);
     if (!m) return null;
-    if (s[m[1]]) return s[m[1]];
+    var id = m[1];
+    var now = null;
+    try { now = readTitle(id); } catch (e) {}
+    var seen = {}, last = null;
+    try { seen = JSON.parse(sessionStorage.getItem("${SEEN}") || "{}"); } catch (e) {}
+    try { last = JSON.parse(sessionStorage.getItem("${LAST}") || "null"); } catch (e) {}
+    var done = function (art) {
+      sessionStorage.setItem("${LAST}", JSON.stringify({ id: id, art: art }));
+      return art;
+    };
+    if (s[id]) return done(s[id]);
+    if (seen[id]) return done(seen[id]);
     if (s.pending && Date.now() - s.pending.at < 30000) {
-      s[m[1]] = s.pending.art;
+      s[id] = s.pending.art;
       delete s.pending;
       sessionStorage.setItem("${KEY}", JSON.stringify(s));
-      return s[m[1]];
+      return done(s[id]);
+    }
+    if (last && last.id !== id && last.art) {
+      var before = JSON.parse(sessionStorage.getItem("${TITLES}") || "{}")[last.id];
+      if (now && before && now.series === before.series) return done(last.art);
     }
     return null;
   } catch (e) { return null; }

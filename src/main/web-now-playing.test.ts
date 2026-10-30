@@ -56,6 +56,26 @@ describe("Now Playing for a web App", () => {
     await phone.waitFor(() => phone.last?.nowPlaying === undefined);
   });
 
+  test("a Remote that connects late gets the title and artwork at once", async () => {
+    const { tube } = await start();
+    tube.emit({
+      type: "playback",
+      playback: {
+        position: 30,
+        duration: 600,
+        paused: false,
+        title: "Cat video",
+        artwork: "https://img.example/a.jpg",
+      },
+    });
+    const late = await h.connectPhone();
+    await late.waitFor(() => late.last !== undefined);
+    expect(late.last?.nowPlaying).toMatchObject({
+      title: "Cat video",
+      artwork: "https://img.example/a.jpg",
+    });
+  });
+
   test("falls back to the App's name without a title, and carries artwork", async () => {
     const { tube, phone } = await start();
     tube.emit({

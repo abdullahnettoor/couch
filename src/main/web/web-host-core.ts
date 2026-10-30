@@ -149,6 +149,7 @@ export class WebHostCore {
           active: adapter?.active?.(),
           speeds: adapter?.speeds,
           artwork: adapter?.artwork?.(),
+          title: adapter?.title?.(),
           prompt: adapter?.prompt?.(),
         }),
       )

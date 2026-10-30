@@ -9,7 +9,7 @@ const MAIN_VIDEO_SHARE = 0.4;
 /**
  * Page script (an async expression) that finds the page's playing video and the site's
  * media-session title and artwork. `tracks` is an adapter's script (an expression); its answer
- * is added when it works. Artwork is whatever the page names (else the adapter's `artwork` expression); `composeReport` keeps only the App's own. `active` is an adapter's expression that is false
+ * is added when it works. Artwork is whatever the page names (else the adapter's `artwork` expression; the title likewise from `title` when the media session has none); `composeReport` keeps only the App's own. `active` is an adapter's expression that is false
  * while the App shows no real playback (a home-page preview), so nothing is reported then.
  */
 export function playbackProbe(
@@ -17,11 +17,12 @@ export function playbackProbe(
     tracks?: string;
     active?: string;
     artwork?: string;
+    title?: string;
     speeds?: number[];
     prompt?: string;
   } = {},
 ): string {
-  const { tracks, active, artwork, speeds, prompt } = options;
+  const { tracks, active, artwork, title, speeds, prompt } = options;
   return `(async () => {
   ${active ? `try { if (!(${active})) return undefined; } catch (e) { return undefined; }` : ""}
   var area = window.innerWidth * window.innerHeight;
@@ -54,6 +55,7 @@ export function playbackProbe(
       if (pic) report.artwork = pic;
     }
   } catch (e) {}
+  ${title ? `if (!report.title) { try { var named = ${title}; if (typeof named === "string" && named) report.title = named; } catch (e) {} }` : ""}
   ${artwork ? `if (!report.artwork) { try { var own = ${artwork}; if (typeof own === "string") report.artwork = own; } catch (e) {} }` : ""}
   ${prompt ? `try { var p = ${prompt}; if (p && typeof p.label === "string") report.prompt = { id: p.id, label: p.label }; } catch (e) {}` : ""}
   ${tracks ? `try { var t = await (${tracks}); if (t) report.tracks = t; } catch (e) {}` : ""}

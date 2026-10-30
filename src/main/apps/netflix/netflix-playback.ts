@@ -1,6 +1,6 @@
 import { WAKE_POINTER_SOURCE } from "../../web/pointer-wake.ts";
 import type { PlaybackAdapter } from "../../web/web-app.ts";
-import { NETFLIX_ARTWORK } from "./netflix-artwork.ts";
+import { NETFLIX_ARTWORK, NETFLIX_TITLE } from "./netflix-artwork.ts";
 
 /**
  * Shared page helpers. Netflix draws its bar only while the pointer moves over the page, so each
@@ -136,6 +136,7 @@ const PROMPT_FINDER = `
 export const NETFLIX_PLAYBACK: PlaybackAdapter = {
   active: () => `/^\\/watch\\//.test(location.pathname)`,
   artwork: () => NETFLIX_ARTWORK,
+  title: () => NETFLIX_TITLE,
   seek: (seconds) =>
     `(async function(){try{${HELPERS}
   await reveal();

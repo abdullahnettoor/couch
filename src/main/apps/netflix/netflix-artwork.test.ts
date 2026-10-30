@@ -18,6 +18,7 @@ class El {
   attrs: Record<string, string>;
   parent: El | undefined;
   src: string | undefined;
+  text = "";
   constructor(attrs: Record<string, string> = {}, parent?: El, src?: string) {
     this.attrs = attrs;
     this.parent = parent;
@@ -31,6 +32,12 @@ class El {
       const l = /^\s*a\[href\*="([^"]*)"\]\s*$/.exec(part);
       return !!l && (this.attrs.href ?? "").includes(l[1]!);
     });
+  }
+  get textContent(): string {
+    return this.text || this.children.map((c) => c.textContent).join(" ");
+  }
+  all(sel: string): El[] {
+    return this.children.flatMap((c) => [...(c.#matches(sel) ? [c] : []), ...c.all(sel)]);
   }
   closest(sel: string): El | null {
     return this.#matches(sel) ? this : (this.parent?.closest(sel) ?? null);
@@ -75,7 +82,10 @@ function billboardPlay() {
 function page(path = "/browse") {
   const listeners: Record<string, ((e: any) => void)[]> = {};
   const store = new Map<string, string>();
+  const body = new El();
+  const timers: (() => void)[] = [];
   const sandbox: any = {
+    setInterval: (f: () => void) => timers.push(f),
     location: { pathname: path },
     innerWidth: 1280,
     innerHeight: 720,
@@ -85,8 +95,8 @@ function page(path = "/browse") {
     },
     document: {
       addEventListener: (t: string, h: (e: any) => void) => (listeners[t] ??= []).push(h),
-      querySelector: () => null,
-      querySelectorAll: () => [],
+      querySelector: (sel: string) => body.all(sel)[0] ?? null,
+      querySelectorAll: (sel: string) => body.all(sel),
     },
     navigator: {},
   };
@@ -96,7 +106,13 @@ function page(path = "/browse") {
   return {
     click: (target: unknown) => (listeners.click ?? []).forEach((h) => h({ target })),
     go: (p: string) => (sandbox.location.pathname = p),
+    /** Puts an element on the page (a card in a row, the player's header). */
+    show: (el: El) => void body.children.push(el),
+    /** Clears the page, as Netflix's route change does. */
+    clear: () => void (body.children.length = 0),
+    tick: () => timers.forEach((f) => f()),
     artwork: (): unknown => vm.runInContext(playback.artwork!(), sandbox),
+    title: (): unknown => vm.runInContext(playback.title!(), sandbox),
   };
 }
 
@@ -200,5 +216,144 @@ describe("Netflix Now Playing artwork", () => {
     };
     expect((await run(CARD_ART))?.artwork).toBe(CARD_ART);
     expect((await run("https://tracker.example/a.jpg"))?.artwork).toBeUndefined();
+  });
+
+  describe("a title started without a click", () => {
+    test("a card the page showed gives its art when the title is played by a key", () => {
+      const p = page();
+      p.show(card("70000001"));
+      p.tick();
+      p.clear();
+      p.go("/watch/70000001");
+      expect(p.artwork()).toBe(CARD_ART);
+    });
+
+    test("a card that was never shown for that title gives nothing", () => {
+      const p = page();
+      p.show(card("70000001"));
+      p.tick();
+      p.clear();
+      p.go("/watch/70000555");
+      expect(p.artwork()).toBeFalsy();
+    });
+  });
+
+  describe("the next episode autoplays", () => {
+    const header = (...parts: string[]) => {
+      const h = new El({ "data-uia": "video-title" });
+      for (const t of parts) {
+        const c = new El({}, h);
+        c.text = t;
+      }
+      return h;
+    };
+
+    test("it keeps the series' art when the header names the same series", () => {
+      const p = page();
+      p.click(card("70000001"));
+      p.click(episode("70000100", popup()));
+      p.go("/watch/70000100");
+      p.show(header("Some Show", "S1:E1", "Pilot"));
+      expect(p.artwork()).toBe(CARD_ART);
+      p.clear();
+      p.go("/watch/70000101");
+      p.show(header("Some Show", "S1:E2", "Second"));
+      expect(p.artwork()).toBe(CARD_ART);
+    });
+
+    test("a different title that follows does not borrow the art", () => {
+      const p = page();
+      p.click(card("70000001"));
+      p.click(episode("70000100", popup()));
+      p.go("/watch/70000100");
+      p.show(header("Some Show", "S1:E1", "Pilot"));
+      expect(p.artwork()).toBe(CARD_ART);
+      p.clear();
+      p.go("/watch/70000900");
+      p.show(header("Another Show", "S1:E1", "Pilot"));
+      expect(p.artwork()).toBeFalsy();
+    });
+
+    test("without a header there is no proof of the same series, so no art", () => {
+      const p = page();
+      p.click(card("70000001"));
+      p.click(episode("70000100", popup()));
+      p.go("/watch/70000100");
+      expect(p.artwork()).toBe(CARD_ART);
+      p.go("/watch/70000101");
+      expect(p.artwork()).toBeFalsy();
+    });
+  });
+
+  describe("the title from the player's header", () => {
+    const header = (...parts: string[]) => {
+      const h = new El({ "data-uia": "video-title" });
+      for (const t of parts) {
+        const c = new El({}, h);
+        c.text = t;
+      }
+      return h;
+    };
+
+    test("a series reads as its name, season and episode, and episode title", () => {
+      const p = page("/watch/70000100");
+      p.show(header("Some Show", "S1:E2", "Second"));
+      expect(p.title()).toBe("Some Show \u00b7 S1:E2 \u00b7 Second");
+    });
+
+    test("a film reads as its name", () => {
+      const p = page("/watch/70000100");
+      p.show(header("A Film"));
+      expect(p.title()).toBe("A Film");
+    });
+
+    test("it is remembered while Netflix hides the bar, and not lent to another title", () => {
+      const p = page("/watch/70000100");
+      p.show(header("A Film"));
+      expect(p.title()).toBe("A Film");
+      p.clear();
+      expect(p.title()).toBe("A Film");
+      p.go("/watch/70000200");
+      expect(p.title()).toBeFalsy();
+    });
+
+    test("nothing off the player", () => {
+      const p = page("/browse");
+      p.show(header("A Film"));
+      expect(p.title()).toBeFalsy();
+    });
+  });
+
+  test("the report takes the header's title when the media session has none, and the media session's when it has", async () => {
+    const run = async (metadata: unknown) => {
+      const sandbox: any = {
+        innerWidth: 1280,
+        innerHeight: 720,
+        location: { pathname: "/watch/70000001" },
+        sessionStorage: { getItem: () => null, setItem: () => {} },
+        document: {
+          querySelectorAll: () => [
+            {
+              readyState: 4,
+              duration: 100,
+              currentTime: 5,
+              paused: false,
+              getBoundingClientRect: () => ({ width: 1280, height: 720 }),
+            },
+          ],
+          querySelector: () => ({ children: [], textContent: " A  Film " }),
+        },
+        navigator: { mediaSession: { metadata } },
+      };
+      sandbox.window = sandbox;
+      vm.createContext(sandbox);
+      const found = await vm.runInContext(
+        playbackProbe({ active: playback.active!(), title: playback.title!() }),
+        sandbox,
+      );
+      return composeReport(found, undefined, false, desc.artworkHosts);
+    };
+    expect((await run(null))?.title).toBe("A Film");
+    expect((await run({ title: "Session title", artwork: [] }))?.title).toBe("Session title");
   });
 });
