@@ -8,6 +8,6 @@ MPV_INC="${MPV_INCLUDE:-$(brew --prefix mpv 2>/dev/null || echo /opt/homebrew)/i
 ARCH="${MPV_EMBED_ARCH:-$(uname -m)}"
 clang++ -std=c++17 -fobjc-arc -O2 -arch "$ARCH" -DNAPI_VERSION=8 -DNODE_GYP_MODULE_NAME=mpv_embed \
   -bundle -undefined dynamic_lookup -I"$NODE_INC" -I"$MPV_INC" \
-  -framework Cocoa -framework OpenGL -framework QuartzCore -framework WebKit \
-  -Wno-deprecated-declarations mpv_embed.mm webkit_host.mm -o mpv_embed.node
+  -framework Cocoa -framework OpenGL -framework QuartzCore -framework WebKit -framework MediaPlayer \
+  -Wno-deprecated-declarations mpv_embed.mm webkit_host.mm media_remote.mm -o mpv_embed.node
 echo "built native/mpv-embed/mpv_embed.node"

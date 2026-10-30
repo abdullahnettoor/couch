@@ -11,7 +11,7 @@
     "package": "vp run build && node scripts/package.mjs",
     "postinstall": "node scripts/ensure-electron.mjs",
     "sign:dev": "node scripts/sign-dev.mjs",
-    "webkit-selftest": "node scripts/webkit-selftest.mjs && node scripts/webkit-cookies-check.mjs",
+    "webkit-selftest": "node scripts/media-remote-selftest.mjs && node scripts/webkit-selftest.mjs && node scripts/webkit-cookies-check.mjs",
     "webkit-test-page-check": "node scripts/webkit-test-page-check.mjs",
     "webkit-cookies-check": "node scripts/webkit-cookies-check.mjs",
     "drm-check": "node scripts/drm-check/run.mjs",

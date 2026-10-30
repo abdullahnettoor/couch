@@ -15,6 +15,7 @@
 #include "napi_util.h"
 #include "window_order.h"
 #include "webkit_host.h"
+#include "media_remote.h"
 #include <mpv/client.h>
 #include <mpv/render.h>
 #include <mpv/render_gl.h>
@@ -567,6 +568,7 @@ static napi_value Init(napi_env env, napi_value exports) {
     {"destroy", 0, Destroy, 0, 0, 0, napi_default, 0}};
   napi_define_properties(env, exports, sizeof(d) / sizeof(d[0]), d);
   registerWebKit(env, exports);
+  registerMediaRemote(env, exports);
   return exports;
 }
 NAPI_MODULE(NODE_GYP_MODULE_NAME, Init)

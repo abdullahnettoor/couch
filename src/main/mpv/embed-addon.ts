@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 import type { DrawerGlass } from "../web/quick-drawer.ts";
 import type { WebKitBridge, WebKitEvent, WebKitKey, WebKitView } from "../web/webkit-bridge.ts";
+import type { MediaCommand, RemoteCommands } from "../media-keys.ts";
 import type { EmbedFactory } from "./mpv-player.ts";
 
 type DrawerGlassRect = Parameters<DrawerGlass["open"]>[0];
@@ -360,4 +361,42 @@ export function webkitSelfTest(
       reject(e);
     }
   });
+}
+
+/** The native media-key side (native/mpv-embed/media_remote.mm). */
+export interface MediaRemoteAddon {
+  mediaRemoteStart(onPress: (command: string) => void): void;
+  mediaRemoteSetInfo(
+    title: string,
+    app: string,
+    position: number,
+    duration: number,
+    paused: boolean,
+  ): void;
+  mediaRemoteStop(): void;
+  /** Registers, publishes and releases with no window or input; returns JSON of what the command centre held at each step. */
+  mediaRemoteSelfTest(): string;
+}
+
+const MEDIA_COMMANDS: readonly MediaCommand[] = ["play", "pause", "toggle", "next", "previous"];
+
+/** The Mac's remote command centre over the native add-on, or undefined when the add-on isn't built. Nothing registers until `start`. */
+export function createRemoteCommands(
+  load: () => MediaRemoteAddon = () => loadAddon() as unknown as MediaRemoteAddon,
+): RemoteCommands | undefined {
+  let addon: MediaRemoteAddon;
+  try {
+    addon = load();
+    if (typeof addon.mediaRemoteStart !== "function") return undefined;
+  } catch {
+    return undefined;
+  }
+  return {
+    start: (on) =>
+      addon.mediaRemoteStart((command) => {
+        if ((MEDIA_COMMANDS as readonly string[]).includes(command)) on(command as MediaCommand);
+      }),
+    setInfo: (i) => addon.mediaRemoteSetInfo(i.title, i.app, i.position, i.duration, i.paused),
+    stop: () => addon.mediaRemoteStop(),
+  };
 }

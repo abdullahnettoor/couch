@@ -63,6 +63,7 @@ import { chooseBinding } from "./listener.ts";
 import {
   createDrawerGlass,
   createEmbedFactory,
+  createRemoteCommands,
   createWebKitBridge,
   disposeNativeWindow,
   setCursorHidden,
@@ -74,16 +75,21 @@ import { wireCursor, wireTeardown, type CursorHost } from "./cursor-lifecycle.ts
 import { PictureCover } from "./web/picture-cover.ts";
 import { QuickDrawer } from "./web/quick-drawer.ts";
 import { EdgeGesture } from "./quick-edge.ts";
+import { MediaKeys } from "./media-keys.ts";
 import { MouseMoves } from "./mouse-moves.ts";
 import { wireQuickIpc } from "./quick-ipc.ts";
 import { MpvPlayer } from "./mpv/mpv-player.ts";
 
 // Fixed name so app data lives in ~/Library/Application Support/Couch whichever way Couch is launched.
 app.setName("Couch");
+// Couch owns the Mac's media keys and Now Playing (media-keys.ts). Chromium's own media session would register on the same
+// MPRemoteCommandCenter and fire a second play/pause for every press, so it and its key handling are off.
+app.commandLine.appendSwitch("disable-features", "HardwareMediaKeyHandling,MediaSessionService");
 
 let win: BrowserWindow | undefined;
 let player: MpvPlayer | undefined;
 let couch: CouchApp | undefined;
+let mediaKeys: MediaKeys | undefined;
 let mpvMissing = false;
 let mpvMessage: string | undefined;
 
@@ -407,6 +413,8 @@ async function createScreen(): Promise<void> {
     },
     open: () => couch?.screenCommand({ command: "quickEdge" }),
   });
+  const remoteCommands = createRemoteCommands();
+  if (remoteCommands && couch) mediaKeys = new MediaKeys(couch.core, remoteCommands);
   const screenListeners: Array<(playing: boolean) => void> = [];
   const lifecycle: CursorHost = {
     focused: () => win?.isFocused() === true,
@@ -496,6 +504,7 @@ app.on("before-quit", (event) => {
   if (quitting || !player) return;
   event.preventDefault();
   quitting = true;
+  mediaKeys?.dispose();
   couch?.beforeQuit();
   void Promise.all([player.dispose(), couch?.stop(), testPageServer?.close()]).finally(() =>
     app.quit(),
