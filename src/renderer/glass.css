@@ -1206,6 +1206,21 @@ body:has(.ls-page) .toast:not(.notice) {
   background: var(--wp-base);
   box-shadow: inset 0 0 0 calc(2 * var(--u)) rgba(255, 255, 255, 0.12);
 }
+.wp-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.wp-full {
+  min-height: calc(34 * var(--u));
+  padding: 0 calc(10 * var(--u));
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #fff;
+  font-size: calc(26 * var(--u));
+  font-weight: 600;
+}
 .wp-tile.chosen .wp-name::after {
   content: " ·  In use";
   font-weight: 500;

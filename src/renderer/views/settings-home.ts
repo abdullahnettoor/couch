@@ -16,6 +16,7 @@ export function render(payload: ScreenPayload): void {
   homeView.render(payload);
   const home = payload.home;
   const tiles = el("div", "wp-tiles");
+  const full = el("div", "wp-full");
   for (const w of WALLPAPERS) {
     const id = `wp:${w.id}`;
     const tile = el(
@@ -45,6 +46,7 @@ export function render(payload: ScreenPayload): void {
       swatch.style.backgroundPosition = "center";
     }
     tiles.append(focusable(tile, id));
+    if (id === payload.focusedId) full.textContent = inUse ? `${p.label} ·  In use` : p.label;
   }
   panel?.remove();
   panel = el("div", "wp-panel");
@@ -53,6 +55,7 @@ export function render(payload: ScreenPayload): void {
     el("h1", "wp-title", "Home"),
     el("h2", "wp-head", "Wallpaper"),
     tiles,
+    full,
     glassRow({
       id: "artwork",
       label: "Show artwork behind Resume",
