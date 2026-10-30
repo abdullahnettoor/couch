@@ -40,11 +40,16 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .live { display:flex; align-items:center; gap:6px; font-size:13px; }
   .live i { width:8px; height:8px; border-radius:4px; background:var(--live); }
   .off .live i { background:var(--danger); }
+  .connecting .live i { background:var(--t3); }
   .banner { margin-top:12px; padding:12px 16px; border-radius:var(--r-row); background:var(--glass-strong); backdrop-filter:blur(40px) saturate(1.8); box-shadow:var(--glass-edge); color:var(--t1); font-size:14px; font-weight:600; display:flex; align-items:center; gap:10px; }
   .banner::before { content:""; width:8px; height:8px; border-radius:4px; background:var(--danger); flex:none; }
   .note { margin-top:10px; padding:0 16px; font-size:14px; color:var(--t3); }
   main { flex:1; display:flex; flex-direction:column; transition:opacity .2s; }
   .off main { opacity:.35; pointer-events:none; }
+  .conn { position:relative; height:2px; margin-top:6px; border-radius:1px; overflow:hidden; background:rgba(255,255,255,.08); flex:none; }
+  .conn::after { content:""; position:absolute; top:0; bottom:0; width:34%; border-radius:1px; background:var(--t3); animation:conn 1.3s ease-in-out infinite; }
+  @keyframes conn { from { left:-34%; } to { left:100%; } }
+  @media (prefers-reduced-motion:reduce) { .conn::after { animation:none; left:33%; opacity:.6; } }
   .pad { margin:26px auto 0; width:min(270px, 70vw); aspect-ratio:1; border-radius:50%; position:relative; background:radial-gradient(circle at 50% 35%, #3a3a3c, var(--card)); box-shadow:inset 0 0 0 1px rgba(255,255,255,.06), 0 18px 40px rgba(0,0,0,.4); flex:none; }
   .dir { position:absolute; width:24%; height:24%; display:grid; place-items:center; color:var(--t3); font-size:26px; border-radius:50%; }
   .dir:active { background:rgba(255,255,255,.12); }
@@ -170,6 +175,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 </head>
 <body>
 <div class="top"><div>On the Screen<b id="where"></b></div><div class="topr"><div class="live"><i></i><span id="status">Connecting…</span><span id="count"></span></div><button class="pbtn" id="pbtn" aria-label="Power" data-i="power"></button></div></div>
+<div class="conn" id="conn" role="status" aria-label="Connecting" hidden></div>
 <div class="pw" id="pw" hidden>
   <img src="/touch-icon.png" alt="">
   <h1 id="pw-title">Couch is off</h1>
@@ -263,12 +269,22 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   fill(document);
   function thumb(k) { return "url(/thumb/" + k + ".jpg?key=" + encodeURIComponent(key) + ")"; }
 
+  var pstate = "on";
+  /** Three states: Connecting (no socket yet), Connected, and Couch off (the Listener said so); only the last dims. */
+  function paint() {
+    var couchOff = pstate === "off" || pstate === "starting";
+    var connecting = !open && !couchOff;
+    document.body.classList.toggle("off", couchOff);
+    document.body.classList.toggle("connecting", connecting);
+    $("conn").hidden = !connecting;
+    var unreachable = connecting && retry >= 3;
+    $("banner").hidden = !unreachable;
+    $("hint").hidden = !unreachable;
+    $("status").textContent = couchOff ? "Offline" : open ? "Connected" : "Connecting…";
+  }
   function setOnline(on) {
     open = on;
-    document.body.classList.toggle("off", !on);
-    $("banner").hidden = on;
-    $("hint").hidden = on || retry < 3;
-    $("status").textContent = on ? "Connected" : "Offline";
+    paint();
   }
 
   function fmt(t) {
@@ -469,10 +485,10 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   }
 
   var failTimer = null;
-  var pstate = "on";
   function setPower(state, failed) {
     if (state === "on" && pstate === "on") return;
     pstate = state;
+    paint();
     clearTimeout(failTimer);
     var off = state === "off", starting = state === "starting";
     $("pw").hidden = !(off || starting);
@@ -489,10 +505,37 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   $("confirm-off").addEventListener("click", function () { $("confirm").hidden = true; });
   $("confirm-cancel").addEventListener("click", function () { $("confirm").hidden = true; });
 
+  var queue = [], queueTimer = null;
+  function notice(text) {
+    var el = $("phone-toast");
+    el.textContent = text;
+    el.classList.add("show");
+    clearTimeout(phoneToastTimer);
+    phoneToastTimer = setTimeout(function () { el.classList.remove("show"); }, 3000);
+  }
+  function dropQueue() {
+    clearTimeout(queueTimer);
+    if (queue.length) notice("Couldn't reach Couch");
+    queue = [];
+  }
+  /** Sends at once when connected; while connecting, holds the tap for up to 2 s and sends it on connect. */
+  function post(msg) {
+    if (open) { ws.send(JSON.stringify(msg)); return; }
+    if (msg.command === "power" || pstate !== "on") return;
+    if (queue.length >= 8) queue.shift();
+    queue.push(msg);
+    clearTimeout(queueTimer);
+    queueTimer = setTimeout(dropQueue, 2000);
+  }
+  function flushQueue() {
+    clearTimeout(queueTimer);
+    var q = queue;
+    queue = [];
+    q.forEach(post);
+  }
   function sendArgs(command, args) {
-    if (!open) return;
     if (navigator.vibrate) navigator.vibrate(12);
-    ws.send(JSON.stringify({ type: "command", command: command, args: args }));
+    post({ type: "command", command: command, args: args });
   }
 
   var seek = $("seek");
@@ -563,29 +606,53 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   });
   art.addEventListener("pointercancel", function () { g = null; });
 
+  var LAST = "couch-last", saveTimer = null, pending = "";
+  /** The last snapshot is kept so a reopened Remote can draw at once. It never holds the pairing key or the transient parts (toast, question, typing). */
+  function remember(msg) {
+    var copy = {};
+    for (var k in msg) copy[k] = msg[k];
+    delete copy.toast; delete copy.confirm; delete copy.typeSeed;
+    copy.typing = "none";
+    pending = JSON.stringify(copy);
+    if (saveTimer) return;
+    saveTimer = setTimeout(function () {
+      saveTimer = null;
+      try { localStorage.setItem(LAST, pending); } catch (e) {}
+    }, 1000);
+  }
+  function cached() {
+    try {
+      var s = JSON.parse(localStorage.getItem(LAST));
+      return s && s.type === "snapshot" ? s : null;
+    } catch (e) { return null; }
+  }
+
+  var live = false;
   function connect() {
     var proto = location.protocol === "https:" ? "wss:" : "ws:";
-    ws = new WebSocket(proto + "//" + location.host + "/ws?key=" + encodeURIComponent(key));
-    ws.onopen = function () { retry = 0; setOnline(true); };
-    ws.onmessage = function (e) {
+    live = true;
+    var sock = ws = new WebSocket(proto + "//" + location.host + "/ws?key=" + encodeURIComponent(key));
+    sock.onopen = function () { retry = 0; setOnline(true); flushQueue(); };
+    sock.onmessage = function (e) {
       var msg = JSON.parse(e.data);
-      if (msg.type === "snapshot") { setPower("on"); render(msg); }
-      else if (msg.type === "power") setPower(msg.state, msg.failed);
+      if (msg.type === "snapshot") { setPower("on"); render(msg); remember(msg); }
+      else if (msg.type === "power") { setPower(msg.state, msg.failed); if (msg.state !== "on") dropQueue(); }
     };
-    ws.onclose = function () {
+    sock.onclose = function () {
+      if (sock !== ws) return;
+      live = false;
+      var wait = Math.min(300 * Math.pow(1.6, retry++), 8000);
       setOnline(false);
       $("confirm").hidden = true;
-      var wait = Math.min(1000 * Math.pow(1.6, retry++), 8000);
       clearTimeout(timer);
       timer = setTimeout(connect, wait);
     };
   }
 
   function send(command, text) {
-    if (!open) return;
     var m = { type: "command", command: command };
     if (text !== undefined) m.args = { text: text };
-    ws.send(JSON.stringify(m));
+    post(m);
   }
   $("text").addEventListener("input", function () { send("typeText", $("text").value); });
   $("form").addEventListener("submit", function (e) { e.preventDefault(); send("typeSubmit"); });
@@ -626,11 +693,12 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   });
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "hidden") fullscreenRequested = false;
+    else if (!live && ws) { clearTimeout(timer); connect(); }
   });
 
   document.addEventListener("click", function (e) {
     var el = e.target.closest ? e.target.closest("[data-cmd]") : null;
-    if (!el || el.disabled || !open) return;
+    if (!el || el.disabled) return;
     if (navigator.vibrate) navigator.vibrate(12);
     var msg = { type: "command", command: el.getAttribute("data-cmd") };
     var secs = el.getAttribute("data-seconds");
@@ -638,10 +706,11 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     var raw = el.getAttribute("data-args");
     if (raw) msg.args = JSON.parse(raw);
     if (el.getAttribute("data-close")) closeSheet();
-    ws.send(JSON.stringify(msg));
+    post(msg);
   });
 
-  setOnline(false);
+  document.body.classList.toggle("idle", true);
+  paint();
   if (typeof window !== "undefined" && window.COUCH_UNPAIRED) {
     $("pw").hidden = false;
     $("pw-btn").hidden = true;
@@ -653,6 +722,8 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     $("pw-sub").textContent = "Open Couch on the Mac once to pair a phone.";
     return;
   }
+  var snap = cached();
+  if (snap) { snap.toast = undefined; snap.confirm = undefined; snap.typing = "none"; render(snap); }
   connect();
 })();
 </script>
