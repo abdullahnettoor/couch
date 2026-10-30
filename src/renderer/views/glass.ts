@@ -1,6 +1,6 @@
 import { clockParts } from "../../shared/clock-format.ts";
 import { iconSvg, type IconName } from "../../shared/icons.ts";
-import type { ScreenPayload } from "../../shared/protocol.ts";
+import { VIEW_LABELS, type ScreenPayload, type View } from "../../shared/protocol.ts";
 import { el, focusable, root } from "./dom.ts";
 
 /** The top-right strip: phone count, gear (focusable id "settings"), clock. */
@@ -75,6 +75,23 @@ export function glassRow(o: RowOptions): HTMLElement {
   return focusable(row, o.id);
 }
 
+export interface BackOptions {
+  /** The view Back goes to; it names the link. */
+  to: View;
+  /** An overlay is open over the page: the link sits under it and does nothing. */
+  covered?: boolean;
+}
+
+/** "‹ Settings": a small line above a page's title that sends Back. Not a grid item, so the D-pad never lands on it. */
+export function backLink(to: View, covered = false): HTMLElement {
+  const link = el("button", "g-back") as HTMLButtonElement;
+  link.append(document.createTextNode(`‹ ${VIEW_LABELS[to]}`));
+  link.tabIndex = -1;
+  link.disabled = covered;
+  link.addEventListener("click", () => window.couch.send({ command: "back" }));
+  return link;
+}
+
 /** A Glass pill button, e.g. Done. */
 export function glassPill(
   id: string,
@@ -94,11 +111,12 @@ type SplitArt =
   | { logo: string };
 
 /** Big art on the left, content on the right. `art` is an icon name, an image, or ready-made HTML (QR). */
-export function splitPage(art: SplitArt, content: HTMLElement[]): void {
+export function splitPage(art: SplitArt, content: HTMLElement[], back?: BackOptions): void {
   root.replaceChildren();
   const page = el("div", "screen-glass");
   page.append(splitArt(art));
   const list = el("div", "split-list");
+  if (back) list.append(backLink(back.to, back.covered));
   list.append(...content);
   page.append(list);
   root.append(page);

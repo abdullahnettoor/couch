@@ -29,23 +29,27 @@ export function render(payload: ScreenPayload): void {
             value: rowValue(item.id, payload),
           }),
         );
-  splitPage({ icon: "gear" }, [
-    el("h1", "", VIEW_LABELS[view as View]),
-    ...rows,
-    ...(view === "settingsRemotes" && l
-      ? [
-          el(
-            "p",
-            "details-hint",
-            l.available
-              ? l.running
-                ? "Listener running · Couch will stay reachable"
-                : "Listener off"
-              : "Available in the installed Couch.app",
-          ),
-        ]
-      : []),
-  ]);
+  splitPage(
+    { icon: "gear" },
+    [
+      el("h1", "", VIEW_LABELS[view as View]),
+      ...rows,
+      ...(view === "settingsRemotes" && l
+        ? [
+            el(
+              "p",
+              "details-hint",
+              l.available
+                ? l.running
+                  ? "Listener running · Couch will stay reachable"
+                  : "Listener off"
+                : "Available in the installed Couch.app",
+            ),
+          ]
+        : []),
+    ],
+    { to: "settings", covered: !!menu },
+  );
   if (menu) {
     const box = el("div", "g-menu");
     box.append(

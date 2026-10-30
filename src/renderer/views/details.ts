@@ -34,5 +34,5 @@ export function render(payload: ScreenPayload): void {
     value?.replaceChildren(typingSlot());
   }
   if (d?.hint) content.push(el("p", "details-hint", d.hint));
-  splitPage({ icon: "gear" }, content);
+  splitPage({ icon: "gear" }, content, { to: "settingsLibrary" });
 }

@@ -1,7 +1,7 @@
 import type { ScreenPayload } from "../../shared/protocol.ts";
 import { WALLPAPERS, wallpaperVars } from "../../shared/wallpapers.ts";
 import { el, focusable, root } from "./dom.ts";
-import { glassRow } from "./glass.ts";
+import { backLink, glassRow } from "./glass.ts";
 import * as homeView from "./home.ts";
 
 function setVars(node: HTMLElement, id: string): void {
@@ -49,6 +49,7 @@ export function render(payload: ScreenPayload): void {
   panel?.remove();
   panel = el("div", "wp-panel");
   panel.append(
+    backLink("settings"),
     el("h1", "wp-title", "Home"),
     el("h2", "wp-head", "Wallpaper"),
     tiles,
