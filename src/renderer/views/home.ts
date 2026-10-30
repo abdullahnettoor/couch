@@ -49,6 +49,7 @@ function filmTile(v: LibraryEntry, focused: boolean): HTMLElement {
       el("div", "h-prog", `<i style="width:${Math.round(v.progress.fraction * 100)}%"></i>`),
     );
   }
+  if (v.app) tile.append(el("span", `h-badge ${v.app.id}-face`, v.app.icon));
   const cap = el(
     "div",
     "g-cap",
@@ -164,10 +165,9 @@ function heroHtml(hero: LibraryEntry, focused: (id: string) => boolean): HTMLEle
     }</div>`,
   );
   const acts = el("div", "h-acts");
-  acts.append(
-    glassPill("resume", "Resume", focused("resume"), "play"),
-    glassPill("fromstart", "From start", focused("fromstart"), "restart"),
-  );
+  acts.append(glassPill("resume", "Resume", focused("resume"), "play"));
+  if (hero.app?.fromStart !== false)
+    acts.append(glassPill("fromstart", "From start", focused("fromstart"), "restart"));
   return [text, acts];
 }
 

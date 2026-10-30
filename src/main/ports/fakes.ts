@@ -153,6 +153,9 @@ export class FakeYouTube implements YouTube {
   setSpeed(speed: number) {
     this.#record("setSpeed", speed);
   }
+  openAt(url: string) {
+    this.#record("openAt", url);
+  }
   submitSearch(text: string) {
     this.#record("submitSearch", text);
   }

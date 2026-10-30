@@ -53,6 +53,8 @@ export class WebHostCore {
   #skipTimer: ReturnType<typeof setTimeout> | undefined;
   #searchTimer: ReturnType<typeof setTimeout> | undefined;
   #lastSkipAt = 0;
+  /** An address asked for before the page's first load: that load goes there instead of home. */
+  #startUrl: string | undefined;
 
   /** `pollsRoute`: ask the page for its state every tick (otherwise the engine pushes it with `setPage`). */
   constructor(
@@ -94,11 +96,38 @@ export class WebHostCore {
     }
   }
 
+  /**
+   * Opens the App at `url`, which must be an https address of the App's own origin (anything else is refused).
+   * With the page not loaded yet, its first load goes there (see `firstUrl`); otherwise the page navigates now.
+   */
+  openAt(url: string, loadIssued: boolean): void {
+    if (!this.#isOwnPage(url)) return;
+    if (loadIssued) this.#engine.load(url);
+    else this.#startUrl = url;
+  }
+
+  #isOwnPage(url: string): boolean {
+    try {
+      const u = new URL(url);
+      return u.protocol === "https:" && this.#desc.isOwnOrigin(u.origin);
+    } catch {
+      return false;
+    }
+  }
+
+  /** What the page's first load asks for: the address `openAt` was given, once, else the App's home. */
+  firstUrl(): string {
+    const url = this.#startUrl ?? this.#desc.url;
+    this.#startUrl = undefined;
+    return url;
+  }
+
   /** The page is gone (an idle unload): back to a fresh, home-bound state. */
   reset(): void {
     this.#inSearch = false;
     this.#page = this.#desc.route.idle;
     this.#routes = this.#desc.route.tracker();
+    this.#startUrl = undefined;
     this.#emit({ type: "route", home: true });
   }
 
@@ -161,9 +190,9 @@ export class WebHostCore {
           this.#tracksAt = now;
           this.#tracks = found?.tracks as TrackReport | undefined;
         }
-        this.#reportPlayback(
-          composeReport(found, this.#tracks, !!adapter?.seek, this.#desc.artworkHosts),
-        );
+        const report = composeReport(found, this.#tracks, !!adapter?.seek, this.#desc.artworkHosts);
+        const resume = report && this.#desc.resume?.(this.#engine.url(), report.position);
+        this.#reportPlayback(report && resume ? { ...report, resume } : report);
       })
       .catch(() => this.#reportPlayback(undefined))
       .finally(() => {

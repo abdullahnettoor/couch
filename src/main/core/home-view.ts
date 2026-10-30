@@ -22,13 +22,18 @@ export function homeGrid(
             label: `Resume ${film.title}`,
             action: `library:play:${film.path}`,
           },
-          {
-            id: "fromstart",
-            r: 1,
-            c: 1,
-            label: `${film.title} from start`,
-            action: `library:playstart:${film.path}`,
-          },
+          // A title in an App whose own site decides where to resume (Netflix) has no From start.
+          ...(film.app?.fromStart === false
+            ? []
+            : [
+                {
+                  id: "fromstart",
+                  r: 1,
+                  c: 1,
+                  label: `${film.title} from start`,
+                  action: `library:playstart:${film.path}`,
+                },
+              ]),
         ]
       : []),
     ...apps.map((i) => ({ ...i, r: 2 })),

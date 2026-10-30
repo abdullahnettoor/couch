@@ -427,6 +427,83 @@ export function describeWebHostContract(
       });
     });
 
+    describe("the resume address in the report", () => {
+      const report = async (url: string) => {
+        vi.useFakeTimers();
+        const rig = makeRig();
+        await rig.show();
+        rig.navigate(url);
+        rig.answer('querySelectorAll("video")', playing);
+        await vi.advanceTimersByTimeAsync(500);
+        return rig.events.filter((e) => e.type === "playback").at(-1) as
+          | { playback?: { resume?: string } }
+          | undefined;
+      };
+
+      test("a watch page gets the address the description builds for it", async () => {
+        const last = await report("https://www.netflix.com/watch/80100172?trackId=1");
+        expect(last?.playback?.resume).toBe("https://www.netflix.com/watch/80100172");
+      });
+
+      test("a page the description refuses gets none", async () => {
+        const last = await report("https://www.netflix.com/browse?jbv=80100172");
+        expect(last?.playback).toBeDefined();
+        expect(last?.playback?.resume).toBeUndefined();
+      });
+    });
+
+    describe("opening at an address", () => {
+      const title = "https://www.netflix.com/watch/80100172";
+      /** Pages asked for, leaving out the blank one Chromium starts on. */
+      const pages = (rig: HostRig) => rig.loads().filter((u) => u !== "about:blank");
+
+      test("before the first load, the App's first page is that address, not its home", async () => {
+        const rig = makeRig();
+        rig.host.openAt(title);
+        await rig.show();
+        expect(pages(rig)).toEqual([title]);
+      });
+
+      test("a later show goes home again", async () => {
+        const rig = makeRig();
+        rig.host.openAt(title);
+        await rig.show();
+        rig.host.hide();
+        rig.host.restart();
+        await vi.waitFor(() => expect(rig.loads().at(-1)).toBe(netflix.url));
+      });
+
+      test("with the page already loaded, the page goes there", async () => {
+        const rig = makeRig();
+        await rig.show();
+        rig.loaded();
+        rig.host.openAt(title);
+        expect(rig.loads().at(-1)).toBe(title);
+      });
+
+      test.each([
+        ["another site", "https://www.example.com/watch/80100172"],
+        ["a look-alike host", "https://www.netflix.com.evil.example/watch/1"],
+        ["plain http", "http://www.netflix.com/watch/80100172"],
+        ["a script", "javascript:alert(1)"],
+        ["not a URL", "nonsense"],
+      ])("refuses %s", async (_n, url) => {
+        const rig = makeRig();
+        await rig.show();
+        rig.loaded();
+        const before = rig.loads().length;
+        rig.host.openAt(url);
+        expect(rig.loads()).toHaveLength(before);
+      });
+
+      test("a refused address before the first load leaves the home as the first page", async () => {
+        const rig = makeRig();
+        rig.host.openAt("https://www.example.com/x");
+        await rig.show();
+        expect(pages(rig)).toEqual([netflix.url]);
+      });
+    });
+
     describe("keys and Back", () => {
       test("OK and the arrows are pressed with the description's key codes", async () => {
         const rig = makeRig();

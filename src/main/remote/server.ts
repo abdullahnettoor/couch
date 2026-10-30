@@ -48,6 +48,7 @@ const ARGS: Partial<Record<CommandName, Record<string, Field>>> = {
   openApp: { app: text(64) },
   pressPrompt: { id: { kind: "enum", values: ["skipIntro", "skipRecap", "nextEpisode"] } },
   setPictureOff: { on: { kind: "boolean" } },
+  forgetContinue: { entry: text() },
   confirmAnswer: { index: { kind: "integer" }, text: text() },
 };
 

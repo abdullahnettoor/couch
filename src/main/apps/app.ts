@@ -39,6 +39,8 @@ export interface PlaybackReport {
   canSeek?: boolean;
   /** The video reached its end and is still on the page. Absent while it plays. */
   ended?: boolean;
+  /** The address that reopens this title at this position, built by the App's description; absent for any page it refuses (browse, search). */
+  resume?: string;
 }
 
 /** What a web App tells core. Anything about its own pages (routes, Shorts...) stays inside the App. */
@@ -183,6 +185,8 @@ export interface App extends SoundSink {
   pressPrompt?(id: PromptId): void;
   /** Sets the playback speed (1 = normal); absent when the App can't. */
   setSpeed?(speed: number): void;
+  /** Opens the App at this address (a resume URL it built), when it is on the App's own origin; call before `show()` so the first load goes there. Absent when the App can't. */
+  openAt?(url: string): void;
   /** Draws the volume level above the App, or removes it when undefined. */
   drawVolume(percent: number | undefined): void;
   /** Draws Couch's question over the App, or removes it when undefined. */

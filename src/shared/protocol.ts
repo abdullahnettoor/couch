@@ -62,6 +62,7 @@ export const COMMAND_NAMES = [
   "quickSettings",
   "confirmAnswer",
   "openApp",
+  "forgetContinue",
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
@@ -112,6 +113,8 @@ export interface CommandArgs {
   app?: string;
   /** toggleAddon: the add-on's id (YouTube's add-ons) */
   addon?: string;
+  /** forgetContinue: the Continue watching entry's id (its `path`); without it, the newest */
+  entry?: string;
   /** setPictureOff: true hides the picture, false brings it back */
   on?: boolean;
   /** quickPick (Screen only): the id of the drawer row clicked */
@@ -226,6 +229,8 @@ export interface LibraryEntry {
   genres?: string[];
   /** Home: TMDB overview under the hero title. */
   overview?: string;
+  /** A Continue watching entry for a title in a web App rather than a Library video; `path` is then a made-up id, not a file. `fromStart`: its resume address carries the time, so From start can drop it (YouTube; Netflix decides itself). */
+  app?: { id: string; label: string; icon: string; fromStart: boolean };
 }
 
 /** One row on the Library's first page. */
@@ -448,6 +453,9 @@ export interface RemoteContinueCard {
   left: string;
   /** Cache key of the video's picture, when one exists (not a path). */
   thumbKey?: string;
+  /** An App title: its artwork (a URL on the App's own hosts, fetched by the phone) and the App's badge. */
+  art?: string;
+  app?: { id: string; label: string; icon: string };
 }
 
 /** A short explanation the Remote shows as a card: a title and the steps to follow. */

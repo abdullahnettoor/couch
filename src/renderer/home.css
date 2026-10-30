@@ -288,6 +288,22 @@
 .h-film-art {
   background: hsl(var(--hue), 18%, 22%) center / cover;
 }
+.h-badge {
+  position: absolute;
+  left: calc(14 * var(--u));
+  top: calc(14 * var(--u));
+  width: calc(44 * var(--u));
+  height: calc(44 * var(--u));
+  border-radius: calc(12 * var(--u));
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: rgba(30, 30, 32, 0.7);
+}
+.h-badge svg {
+  width: 70%;
+  height: 70%;
+}
 .h-prog {
   position: absolute;
   left: calc(18 * var(--u));

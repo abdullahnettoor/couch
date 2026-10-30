@@ -77,6 +77,9 @@ export class YouTubeApp implements App {
   seekBy(seconds: number) {
     this.#port.seekBy(seconds);
   }
+  openAt(url: string) {
+    this.#port.openAt(url);
+  }
   seekTo(seconds: number) {
     this.#port.seekTo?.(seconds);
   }

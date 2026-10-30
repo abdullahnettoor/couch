@@ -92,3 +92,16 @@ export function netflixRoute(): RouteSignals {
     },
   };
 }
+
+/** The address that reopens a title: `/watch/<id>` on Netflix's own site, nothing else of the page's (Netflix resumes the position itself). */
+export function netflixResumeUrl(url: string): string | undefined {
+  try {
+    const u = new URL(url);
+    const own = u.hostname === "www.netflix.com" || u.hostname === "netflix.com";
+    if (u.protocol !== "https:" || !own) return undefined;
+    const id = /^(?:\/[a-z]{2}(?:-[a-z]{2,4})?)?\/watch\/(\d+)\/?$/i.exec(u.pathname)?.[1];
+    return id ? `https://www.netflix.com/watch/${id}` : undefined;
+  } catch {
+    return undefined;
+  }
+}

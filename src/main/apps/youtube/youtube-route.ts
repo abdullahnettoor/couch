@@ -41,3 +41,22 @@ export function isYouTubeOrigin(origin: string): boolean {
     return false;
   }
 }
+
+/** The address that reopens a video at `position`: YouTube TV's watch URL with the video id and whole seconds; undefined for anything but a watch page. */
+export function youtubeResumeUrl(url: string, position: number): string | undefined {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:" || u.hostname !== "www.youtube.com") return undefined;
+    const tv = /^\/tv\/?$/.test(u.pathname) && /^#\/watch(?:\/|\?|$)/.test(u.hash);
+    if (!tv && u.pathname !== "/watch") return undefined;
+    const query = tv ? u.hash.slice(u.hash.indexOf("?") + 1) : u.search;
+    const id = (
+      tv && !u.hash.includes("?") ? new URLSearchParams() : new URLSearchParams(query)
+    ).get("v");
+    if (!id || !/^[\w-]{11}$/.test(id)) return undefined;
+    const t = Number.isFinite(position) ? Math.max(0, Math.floor(position)) : 0;
+    return `https://www.youtube.com/tv#/watch?v=${id}&t=${t}`;
+  } catch {
+    return undefined;
+  }
+}

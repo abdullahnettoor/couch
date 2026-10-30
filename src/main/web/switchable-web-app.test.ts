@@ -41,6 +41,9 @@ class FakeHost implements SwitchableHost {
   sendKey(k: string) {
     this.#log(`key:${k}`);
   }
+  openAt(url: string) {
+    this.#log(`openAt:${url}`);
+  }
   submitSearch() {}
   showSearchBar() {}
   captureText(on: boolean) {
@@ -105,6 +108,16 @@ describe("the Netflix host that can switch engine", () => {
     expect(app.engine).toBe("webkit");
     expect(hosts).toHaveLength(1);
     expect(hosts[0]!.calls).toContain("key:ok");
+  });
+
+  test("opening at an address goes to whichever engine runs, before and after a switch", () => {
+    const { app, hosts } = rig("chromium");
+    const url = "https://www.netflix.com/watch/80100172";
+    app.openAt(url);
+    app.switchTo("webkit");
+    app.openAt(url);
+    expect(hosts[0]!.calls).toContain(`openAt:${url}`);
+    expect(hosts[1]!.calls).toContain(`openAt:${url}`);
   });
 
   test("switching disposes the old host and shows nothing of it again", () => {

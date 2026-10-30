@@ -117,6 +117,17 @@ describe("the Screen's CSP", () => {
     expect(WALLPAPER_URL.startsWith("file:")).toBe(true);
   });
 
+  test("lets Continue watching show an App's artwork from that App's own image hosts and no others", async () => {
+    const { youtubeDescription } = await import("./apps/youtube/youtube-web.ts");
+    const { netflixDescription } = await import("./apps/netflix/netflix-web.ts");
+    const hosts = [
+      ...(youtubeDescription("130.0.0.0").artworkHosts ?? []),
+      ...(netflixDescription("130.0.0.0").artworkHosts ?? []),
+    ];
+    const web = sources("img-src").filter((s) => s.startsWith("https:"));
+    expect(web.sort()).toEqual(hosts.map((h) => `https://*.${h}`).sort());
+  });
+
   test("and scripts only from the page itself", () => {
     expect(sources("default-src")).toEqual(["'self'"]);
     expect(sources("script-src")).toEqual([]);

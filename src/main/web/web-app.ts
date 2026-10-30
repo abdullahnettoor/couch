@@ -102,6 +102,11 @@ export interface WebAppDescription {
   hideScrollbars?: boolean;
   /** Domains (with their subdomains) the App's own artwork comes from; Now Playing artwork from anywhere else is dropped, since every Remote fetches it. */
   artworkHosts?: string[];
+  /**
+   * Turns the page's address and the playing position (seconds) into the address that reopens this title there,
+   * built only from the title's id and the time; undefined for anything else (browse, search, another origin).
+   */
+  resume?(url: string, position: number): string | undefined;
   /** Present when the plain video isn't enough: seeking and tracks through the App's own player. */
   playback?: PlaybackAdapter;
   /** Turns on Couch's focus for the page: D-pad moves a ring between controls, OK clicks. */

@@ -209,7 +209,7 @@ export class WebKitWebApp implements YouTube {
   #load(): void {
     this.#failed = false;
     this.#loaded = false;
-    this.#view?.load(this.#desc.url);
+    this.#view?.load(this.#core.firstUrl());
   }
 
   #onEvent(event: WebKitEvent): void {
@@ -489,6 +489,10 @@ export class WebKitWebApp implements YouTube {
   captureText(on: boolean): void {
     this.#capturing = on;
     this.#route();
+  }
+
+  openAt(url: string): void {
+    this.#core.openAt(url, !!this.#view);
   }
 
   submitSearch(text: string): void {

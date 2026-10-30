@@ -6,6 +6,7 @@ import { NETFLIX_PLAYBACK } from "./netflix-playback.ts";
 import {
   isNetflixOrigin,
   isNetflixSearchUrl,
+  netflixResumeUrl,
   netflixRoute,
   netflixSearchUrlFor,
 } from "./netflix-route.ts";
@@ -76,6 +77,7 @@ export function netflixDescription(version?: string): WebAppDescription {
     // Back is the browser's for the player and pages Couch doesn't know; a title's pop-up closes with Netflix's own Escape.
     backByHistory: true,
     isOwnOrigin: isNetflixOrigin,
+    resume: (url) => netflixResumeUrl(url),
     search: {
       isSearchUrl: isNetflixSearchUrl,
       urlFor: netflixSearchUrlFor,

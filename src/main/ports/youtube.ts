@@ -49,6 +49,11 @@ export interface YouTube {
   sendKey(key: YouTubeKey): void;
   /** Scrolls the page back to its top; absent for a view that has nothing to scroll. */
   scrollToTop?(): void;
+  /**
+   * Opens the App at this address, only if it is an https address of the App's own origin: now if its page is
+   * loaded, else as its first page. Anything else is ignored.
+   */
+  openAt(url: string): void;
   /** Searches YouTube for the whole text, once (YouTube's search link). */
   submitSearch(text: string): void;
   /** Draws Couch's floating search bar with this text over the view, or removes it when undefined. */

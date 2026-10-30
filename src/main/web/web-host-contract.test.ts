@@ -130,7 +130,7 @@ function electronRig(description: WebAppDescription): HostRig {
     events,
     show: async () => {
       host.show();
-      await vi.waitFor(() => expect(contents.loads).toContain(description.url));
+      await vi.waitFor(() => expect(contents.loads.some((u) => u !== "about:blank")).toBe(true));
     },
     dispose: () => host.dispose(),
     playPauseDelivered: () => contents.inputs.some((i) => i.keyCode === "MediaPlayPause"),

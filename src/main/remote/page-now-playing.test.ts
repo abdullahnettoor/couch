@@ -173,6 +173,63 @@ describe("the idle Remote", () => {
     expect(hidden("search")).toBe(true);
   });
 
+  test("an App title's card shows its art and the App's badge", () => {
+    const art = "https://occ-0-1.1.nflximg.net/a.jpg";
+    idle({
+      layout: "home",
+      where: "Home",
+      continueCard: {
+        ...card,
+        art,
+        app: { id: "netflix", label: "Netflix", icon: "<svg>n</svg>" },
+      },
+    });
+    expect(hidden("cw")).toBe(false);
+    expect(page.els.get("cw-pic")!.style.backgroundImage).toBe(`url(${JSON.stringify(art)})`);
+    expect(hidden("cw-app")).toBe(false);
+    expect(page.els.get("cw-app")!.innerHTML).toBe("<svg>n</svg>");
+    idle({ layout: "home", where: "Home", continueCard: card });
+    expect(hidden("cw-app")).toBe(true);
+  });
+
+  test("holding the card removes it from Continue watching, and the tap after the hold does not resume", () => {
+    vi.useFakeTimers();
+    try {
+      // The page takes its timers when it loads, so it loads again under the fake ones.
+      page = loadPage();
+      page.open();
+      idle({ layout: "home", where: "Home", continueCard: card });
+      const cw = page.els.get("cw")!;
+      cw.handlers.pointerdown!();
+      vi.advanceTimersByTime(800);
+      expect(commands().at(-1)).toMatchObject({ command: "forgetContinue" });
+      const sent = page.sent.length;
+      cw.handlers.pointerup!();
+      cw.handlers.click!({ stopImmediatePropagation() {} });
+      expect(page.sent).toHaveLength(sent);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a quick tap on the card resumes", () => {
+    vi.useFakeTimers();
+    try {
+      // The page takes its timers when it loads, so it loads again under the fake ones.
+      page = loadPage();
+      page.open();
+      idle({ layout: "home", where: "Home", continueCard: card });
+      const cw = page.els.get("cw")!;
+      cw.handlers.pointerdown!();
+      vi.advanceTimersByTime(100);
+      cw.handlers.pointerup!();
+      vi.advanceTimersByTime(1000);
+      expect(commands().some((c) => c.command === "forgetContinue")).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("a web App shows its Type label as the one card", () => {
     idle({ typeLabel: "Search Netflix", typeAvailable: true });
     expect(hidden("search")).toBe(false);

@@ -407,3 +407,38 @@ describe("Settings → Home with the Mac's pictures", () => {
     expect(chosen).toEqual(["Couch"]);
   });
 });
+
+describe("Home's Continue watching for an App title", () => {
+  const title = (fromStart: boolean): LibraryEntry =>
+    ({
+      path: "app:netflix:https://www.netflix.com/watch/1",
+      title: "Arcane",
+      hue: 10,
+      thumb: "https://occ-0-1.1.nflximg.net/a.jpg",
+      folder: "Netflix",
+      progress: { fraction: 0.2, left: "40 min left" },
+      app: { id: "netflix", label: "Netflix", icon: "<svg>n</svg>", fromStart },
+    }) as LibraryEntry;
+  const tile = () =>
+    screen.querySelector('[data-id="app:netflix:https://www.netflix.com/watch/1"]')!;
+
+  test("its tile carries the App's badge next to the art and progress", () => {
+    home.render(payload({ homeVideos: [title(false)] }));
+    expect(tile().querySelector(".h-badge")?.innerHTML).toBe("<svg>n</svg>");
+    expect(tile().querySelector(".h-prog")).not.toBeNull();
+    expect(screen.querySelector(".h-film-art")).not.toBeNull();
+  });
+
+  test("a Library video's tile has no badge", () => {
+    home.render(payload());
+    expect(screen.querySelector(".h-badge")).toBeNull();
+  });
+
+  test("the hero offers From start only when the App's address carries the time", () => {
+    home.render(payload({ homeVideos: [title(true)], hero: title(true) }));
+    expect(screen.querySelector('[data-id="fromstart"]')).not.toBeNull();
+    home.render(payload({ homeVideos: [title(false)], hero: title(false) }));
+    expect(screen.querySelector('[data-id="resume"]')).not.toBeNull();
+    expect(screen.querySelector('[data-id="fromstart"]')).toBeNull();
+  });
+});

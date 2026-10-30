@@ -339,7 +339,7 @@ export class ElectronWebApp implements YouTube {
     this.#failed = false;
     this.#loadIssued = true;
     void this.#view.webContents
-      .loadURL(this.#desc.url, { userAgent: this.#desc.identity.userAgent })
+      .loadURL(this.#core.firstUrl(), { userAgent: this.#desc.identity.userAgent })
       .catch(() => {});
   }
 
@@ -507,6 +507,10 @@ export class ElectronWebApp implements YouTube {
 
   captureText(on: boolean): void {
     this.#capturing = on;
+  }
+
+  openAt(url: string): void {
+    this.#core.openAt(url, this.#loadIssued);
   }
 
   submitSearch(text: string): void {

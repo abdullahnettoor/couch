@@ -54,6 +54,7 @@ import { applyEdit, type TextEdit } from "../../shared/keyboard.ts";
 import type { LibraryChip, TrackList, UpNextItem } from "../../shared/protocol.ts";
 import { PlayerControls } from "./player-controls.ts";
 import { History } from "./history.ts";
+import { ContinueApps, fromStartUrl, titleKey } from "./continue-apps.ts";
 import { ShowView } from "./show-view.ts";
 import { AddonsPage } from "./addons-page.ts";
 import { APPS_MENU_KEY, HomeApps, leavesOnHide } from "./home-apps.ts";
@@ -221,6 +222,7 @@ export class Core {
   #rootKey: string | undefined;
   #controls: PlayerControls;
   #history: History;
+  #appTitles: ContinueApps;
   /** The Library index and its Shows and Films; scans run in the background. */
   readonly library: MediaLibrary;
   /** TMDB details for Shows and Films (saved matches, Fix match, key settings). */
@@ -259,6 +261,7 @@ export class Core {
     this.#ports = ports;
     const lib = ports.store.read<{ folders?: unknown }>("library", {});
     this.#history = new History(ports.store);
+    this.#appTitles = new ContinueApps(ports.store);
     this.library = new MediaLibrary(ports.store, ports.clock);
     this.details = new MetadataService({
       store: ports.store,
@@ -508,7 +511,7 @@ export class Core {
                 ...this.#withMosaic(e),
                 feature: { kind: "Folder" as const, title: e.title },
               })),
-          continueWatching: this.#continueEntries(),
+          continueWatching: this.#libraryContinueEntries(),
           rows,
           chips: this.#chips(),
           ...(featuredId ? { featuredId } : {}),
@@ -573,7 +576,7 @@ export class Core {
       library: this.library,
       history: this.#history,
       decorate: (e) => this.#decorate(e),
-      continueEntries: this.#continueEntries(),
+      continueEntries: this.#libraryContinueEntries(),
       thumb: (p) => this.#thumbs.urlFor(p),
       details: (id) => this.details.detailsFor(id),
     });
@@ -649,26 +652,89 @@ export class Core {
     this.#thumbs.want(paths);
   }
 
+  /** Home's Continue watching and the Remote's card: Library videos and App titles together, newest first. */
   #continueEntries(): LibraryEntry[] {
+    const videos = this.#libraryContinue();
+    const titles = this.#appContinue();
+    if (!titles.length) return videos.map((v) => v.entry);
+    return [...videos, ...titles].sort((a, b) => b.at - a.at).map((v) => v.entry);
+  }
+
+  /** The Library's own row: its in-progress videos only. */
+  #libraryContinueEntries(): LibraryEntry[] {
+    return this.#libraryContinue().map((v) => v.entry);
+  }
+
+  /** Each remembered App title, as a Continue watching entry, unless its App is hidden or gone. */
+  #appContinue(): Array<{ at: number; entry: LibraryEntry }> {
+    return this.#appTitles.entries().flatMap((e) => {
+      const app = this.#apps.get(e.app);
+      const icon = this.#catalog().find((c) => c.id === e.app)?.icon;
+      if (!app || !icon || !this.#homeApps.isShown(e.app)) return [];
+      const fraction = Math.min(1, e.position / e.duration);
+      const left = Math.max(1, Math.ceil((e.duration - e.position) / 60));
+      return [
+        {
+          at: e.at,
+          entry: {
+            kind: "video",
+            path: `app:${e.app}:${titleKey(e.url)}`,
+            title: e.title,
+            hue: hueFor(e.title),
+            folder: app.label,
+            ...(e.art ? { thumb: e.art } : {}),
+            progress: { fraction, left: `${left} min left` },
+            app: {
+              id: e.app,
+              label: app.label,
+              icon,
+              fromStart: fromStartUrl(e.url) !== e.url,
+            },
+          } satisfies LibraryEntry,
+        },
+      ];
+    });
+  }
+
+  /** The entry a Continue watching id (`app:<id>:<key>`) names, if it is still remembered. */
+  #appTitleFor(path: string): { app: string; key: string } | undefined {
+    const m = /^app:([^:]+):(.+)$/.exec(path);
+    return m ? { app: m[1]!, key: m[2]! } : undefined;
+  }
+
+  /** Opens the App at where the remembered title was left (`fromStart`: at its beginning, for an App whose address carries the time). */
+  #resumeAppTitle(path: string, fromStart = false): void {
+    const id = this.#appTitleFor(path);
+    const entry = id && this.#appTitles.find(id.app, id.key);
+    const app = id && this.#apps.get(id.app);
+    if (!entry || !app || !this.#homeApps.isShown(entry.app)) return;
+    app.openAt?.(fromStart ? fromStartUrl(entry.url) : entry.url);
+    this.#openApp(entry.app);
+  }
+
+  #libraryContinue(): Array<{ at: number; entry: LibraryEntry }> {
     if (!this.#homeApps.isShown("library")) return [];
     return this.#history.continueWatching().map((c) => {
       const { title, line } = presentation(c.path);
       const { details, episode } = this.#art(c.path);
       const thumb = this.#still(c.path, (p) => this.#thumbs.lookup(p));
-      return this.#decorate({
-        kind: "video",
-        path: c.path,
-        title: episode?.name ?? title,
-        ...(line ? { line } : {}),
-        hue: hueFor(title),
-        folder: basename(dirname(c.path)),
-        thumb,
-        ...(details?.backdrop ? { backdrop: details.backdrop } : {}),
-        ...(details?.genres?.length ? { genres: topGenres(details) } : {}),
-        ...((episode?.overview ?? details?.overview)
-          ? { overview: episode?.overview ?? details?.overview }
-          : {}),
-      });
+      return {
+        at: c.at,
+        entry: this.#decorate({
+          kind: "video",
+          path: c.path,
+          title: episode?.name ?? title,
+          ...(line ? { line } : {}),
+          hue: hueFor(title),
+          folder: basename(dirname(c.path)),
+          thumb,
+          ...(details?.backdrop ? { backdrop: details.backdrop } : {}),
+          ...(details?.genres?.length ? { genres: topGenres(details) } : {}),
+          ...((episode?.overview ?? details?.overview)
+            ? { overview: episode?.overview ?? details?.overview }
+            : {}),
+        }),
+      };
     });
   }
 
@@ -792,8 +858,8 @@ export class Core {
     const arg = rest.join(":");
     if (verb === "missing") this.#toast("Connect the drive to see this folder");
     else if (verb === "open") this.#openFolder(arg);
-    else if (verb === "play") this.#play(arg);
-    else if (verb === "playstart") this.#play(arg, true);
+    else if (verb === "play") this.#playContinue(arg);
+    else if (verb === "playstart") this.#playContinue(arg, true);
     else if (verb === "search") {
       this.#search.open();
       if (this.#source === "screen") this.#search.action("search:field", "screen");
@@ -815,6 +881,20 @@ export class Core {
         .catch(() => {});
     } else return false;
     return true;
+  }
+
+  /** Removes an entry from Continue watching: an App title for good, a Library video's saved position. */
+  #forgetContinue(path: string | undefined): void {
+    if (!path) return;
+    const id = this.#appTitleFor(path);
+    const done = id ? this.#appTitles.forget(id.app, id.key) : this.#history.forget(path);
+    if (done) this.#toast("Removed from Continue watching");
+  }
+
+  /** A Continue watching entry: a Library video, or an App title that reopens its App. */
+  #playContinue(path: string, fromStart = false): void {
+    if (this.#appTitleFor(path)) this.#resumeAppTitle(path, fromStart);
+    else this.#play(path, fromStart);
   }
 
   /** Start a Library video full screen, resuming where it was left. */
@@ -867,6 +947,7 @@ export class Core {
 
   /** Save where the playing video is (no-op when nothing plays). Also called on quit and display changes. */
   savePlayingPosition(): void {
+    this.#appTitles.flush();
     const p = this.#state.player;
     if (p) this.#history.save(p.path, p.pos, p.dur, this.#ports.clock.now());
   }
@@ -1287,7 +1368,14 @@ export class Core {
             continueCard: {
               title: card.title,
               left: card.progress?.left ?? "",
-              ...(this.#thumbKey(card.path) ? { thumbKey: this.#thumbKey(card.path) } : {}),
+              ...(card.app
+                ? {
+                    ...(card.thumb ? { art: card.thumb } : {}),
+                    app: { id: card.app.id, label: card.app.label, icon: card.app.icon },
+                  }
+                : this.#thumbKey(card.path)
+                  ? { thumbKey: this.#thumbKey(card.path) }
+                  : {}),
             },
           }
         : {}),
@@ -1548,9 +1636,12 @@ export class Core {
         const newest = this.#continueEntries()[0];
         if (!newest) break;
         this.#setView("home");
-        this.#play(newest.path);
+        this.#playContinue(newest.path);
         break;
       }
+      case "forgetContinue":
+        this.#forgetContinue(command.args?.entry ?? this.#continueEntries()[0]?.path);
+        break;
       case "playpause":
         this.#front()?.playPause?.();
         break;
@@ -2070,6 +2161,7 @@ export class Core {
       if (this.#leaveConfirm && this.#state.confirm === this.#leaveConfirm) this.#dismissConfirm();
       this.#state.typingBy = undefined;
       this.#playback.delete(this.#state.app ?? "");
+      this.#appTitles.flush();
       this.#appSpeed.clear(this.#state.app ?? "");
       this.#apps.get(this.#state.app ?? "")?.hide();
     }
@@ -2327,6 +2419,7 @@ export class Core {
           const hint = this.#hints.get(app.id);
           if (hint && event.playback.id !== undefined && event.playback.id !== hint.id)
             this.#hints.delete(app.id);
+          this.#appTitles.report(app.id, event.playback, this.#ports.clock.now());
           if (event.playback.ended && this.#pictureOffScope === `app:${app.id}`) {
             this.#state.pictureOff = false;
             this.#pictureOffScope = undefined;
@@ -2334,6 +2427,7 @@ export class Core {
           this.#holdAppSpeed(app, event.playback);
         } else {
           this.#playback.delete(app.id);
+          this.#appTitles.flush();
         }
         break;
       case "searchOpened":

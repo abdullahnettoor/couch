@@ -66,6 +66,8 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .search svg { font-size:22px; }
   .search.dim { opacity:.35; }
   .cw { margin-top:18px; display:flex; gap:14px; align-items:center; padding:10px; border-radius:20px; background:var(--card); width:100%; text-align:left; }
+  .cw .cwapp { display:grid; place-items:center; width:24px; height:24px; margin:4px; border-radius:7px; background:rgba(28,28,30,.75); overflow:hidden; }
+  .cw .cwapp svg { width:70%; height:70%; }
   .cw .pic { width:104px; height:58px; border-radius:10px; background:#3a3a3c center/cover; flex:none; }
   .note-card { margin-top:18px; padding:14px 16px; border-radius:20px; background:var(--card); width:100%; text-align:left; font-size:14px; }
   .note-card b { display:block; font-size:16px; margin-bottom:6px; }
@@ -243,7 +245,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 </div>
 <main id="controls">
   <div class="bar" id="ibar">__BAR_ID__<button id="qs" data-cmd="quickSettings" aria-label="Quick settings" data-i="sliders"></button><button id="gear" data-cmd="openSettings" aria-label="Settings" data-i="gear" hidden></button></div>
-  <button class="cw" id="cw" data-cmd="resume" hidden><span class="pic" id="cw-pic"></span><span class="txt"><b id="cw-title"></b><span class="l" id="cw-left"></span></span><span class="go" data-i="play"></span></button>
+  <button class="cw" id="cw" data-cmd="resume" hidden><span class="pic" id="cw-pic"><span class="cwapp" id="cw-app" hidden></span></span><span class="txt"><b id="cw-title"></b><span class="l" id="cw-left"></span></span><span class="go" data-i="play"></span></button>
   <div class="note-card" id="playback-note" role="status" hidden><b id="playback-title"></b><ol id="playback-steps"></ol></div>
   <button class="search" id="fixbtn" data-cmd="menu" hidden><span id="fix-label">Fix match</span></button>
   <button class="search" id="search" data-cmd="typeOpen" hidden><span data-i="search"></span><span id="search-label">Search</span></button>
@@ -471,7 +473,10 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     if (s.continueCard) {
       $("cw-title").textContent = s.continueCard.title;
       $("cw-left").textContent = s.continueCard.left;
-      $("cw-pic").style.backgroundImage = s.continueCard.thumbKey ? thumb(s.continueCard.thumbKey) : "none";
+      var cc = s.continueCard;
+      $("cw-pic").style.backgroundImage = cc.art ? "url(" + JSON.stringify(cc.art) + ")" : cc.thumbKey ? thumb(cc.thumbKey) : "none";
+      $("cw-app").innerHTML = cc.app ? cc.app.icon : "";
+      $("cw-app").hidden = !cc.app;
     }
     var q = s.confirm && s.confirm.phone ? s.confirm : null;
     $("ask").hidden = !q;
@@ -756,6 +761,24 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "hidden") fullscreenRequested = false;
     else if (!live && ws) { clearTimeout(timer); connect(); }
+  });
+
+  // Holding the Continue watching card removes it from Continue watching (the click that follows a hold is swallowed).
+  var cwHold = null, cwHeld = false;
+  var cwCard = $("cw");
+  cwCard.addEventListener("pointerdown", function () {
+    cwHeld = false;
+    clearTimeout(cwHold);
+    cwHold = setTimeout(function () { cwHeld = true; sendArgs("forgetContinue"); }, 700);
+  });
+  ["pointerup", "pointerleave", "pointercancel"].forEach(function (name) {
+    cwCard.addEventListener(name, function () { clearTimeout(cwHold); });
+  });
+  cwCard.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+  cwCard.addEventListener("click", function (e) {
+    if (!cwHeld) return;
+    cwHeld = false;
+    e.stopImmediatePropagation();
   });
 
   document.addEventListener("click", function (e) {

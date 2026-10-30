@@ -66,6 +66,14 @@ export class History {
     this.#store.write("history", { items: this.#items });
   }
 
+  /** Drops where this video was left; true if it had a record. */
+  forget(path: string): boolean {
+    if (!(path in this.#items)) return false;
+    delete this.#items[path];
+    this.#store.write("history", { items: this.#items });
+    return true;
+  }
+
   /** In-progress videos whose files still exist, newest first. */
   continueWatching(): InProgress[] {
     return Object.entries(this.#items)

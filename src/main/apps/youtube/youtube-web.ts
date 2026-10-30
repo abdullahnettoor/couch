@@ -3,7 +3,12 @@ import { YOUTUBE_ADDONS } from "./addons/index.ts";
 import { compatEnabled } from "./addons/4k.ts";
 import { enabledAddons, type AddonChoices } from "../../web/addon.ts";
 import { applyToRequestHeaders, buildIdentity } from "./youtube-identity.ts";
-import { isYouTubeOrigin, PAGE_STATE_SCRIPT, RouteTracker } from "./youtube-route.ts";
+import {
+  isYouTubeOrigin,
+  PAGE_STATE_SCRIPT,
+  RouteTracker,
+  youtubeResumeUrl,
+} from "./youtube-route.ts";
 import { YOUTUBE_PLAYBACK } from "./youtube-playback.ts";
 import { CONTROLS_HIDE_MS, SKIP_COMMIT_MS, skipKeys } from "./youtube-skip.ts";
 
@@ -46,6 +51,7 @@ export function youtubeDescription(
       back: "Escape",
     },
     isOwnOrigin: isYouTubeOrigin,
+    resume: youtubeResumeUrl,
     search: { isSearchUrl, urlFor: searchUrlFor, placeholder: "Search YouTube" },
     route: {
       script: PAGE_STATE_SCRIPT,

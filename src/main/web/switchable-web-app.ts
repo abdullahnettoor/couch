@@ -151,6 +151,9 @@ export class SwitchableWebApp implements YouTube {
   scrollToTop(): void {
     this.#host.scrollToTop?.();
   }
+  openAt(url: string): void {
+    this.#host.openAt(url);
+  }
   submitSearch(text: string): void {
     this.#host.submitSearch(text);
   }
