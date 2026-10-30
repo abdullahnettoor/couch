@@ -2,6 +2,7 @@ import type { GridItem, ScreenPayload } from "../shared/protocol.ts";
 import type { CouchApi } from "../shared/ipc.ts";
 import { keyCommand } from "./picture-off-keys.ts";
 import { VIEWS } from "./views/index.ts";
+import { showing } from "./views/glass.ts";
 import { renderConfirm, renderHud } from "./hud.ts";
 import { renderPictureOff } from "./picture-off.ts";
 import { isTypingTarget, syncTyping } from "./views/typing.ts";
@@ -121,6 +122,7 @@ window.couch.onScreen((payload) => {
   if (view?.grid?.length && payload.grid.length === 0) {
     window.couch.reportGrid({ viewKey: payload.viewKey, items: view.grid });
   }
+  showing(payload);
   view?.render(payload);
   syncTyping(payload, payload.search?.query ?? "");
   // Transparent only once mpv reports a duration (the video is on screen); black before that.

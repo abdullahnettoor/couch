@@ -177,4 +177,19 @@ describe("Library back links", () => {
       expect(send).not.toHaveBeenCalled();
     });
   });
+
+  test("a Settings page's link does nothing while Quick settings or a question covers it", async () => {
+    const { showing } = await import("./glass.ts");
+    for (const extra of [
+      { quick: { items: [] } },
+      { state: { view: "settings", remotes: 0, confirm: { title: "Quit Couch?" } } },
+    ]) {
+      const p = payload("settings", extra);
+      showing(p);
+      views.settings!.render(p);
+      screen.querySelector<HTMLElement>(".g-back")!.click();
+      expect(send).not.toHaveBeenCalled();
+    }
+    showing(payload("settings"));
+  });
 });

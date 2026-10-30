@@ -84,6 +84,12 @@ export interface BackOptions {
   label?: string;
 }
 
+let shown: ScreenPayload | undefined;
+/** The payload being drawn, so every back link (including Settings' own) knows when something covers it. */
+export function showing(payload: ScreenPayload): void {
+  shown = payload;
+}
+
 /** "‹ Settings": a small line above a page's title that sends Back. Not a grid item, so the D-pad never lands on it. */
 export function backLink(
   to: View,
@@ -95,7 +101,7 @@ export function backLink(
   link.append(document.createTextNode(`‹ ${label}`));
   link.setAttribute("aria-label", `Back to ${label}`);
   link.tabIndex = -1;
-  link.disabled = covered;
+  link.disabled = covered || (shown !== undefined && overlayOpen(shown));
   link.addEventListener("click", () => window.couch.send({ command: "back" }));
   return link;
 }

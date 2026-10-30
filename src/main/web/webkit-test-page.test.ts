@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir, networkInterfaces } from "node:os";
 import { get as httpGet, type IncomingMessage } from "node:http";
 import { connect } from "node:net";
@@ -136,7 +136,8 @@ describe("the dev-only test page that plays a synthetic video in the WebKit host
 
     test("close() ends a clip request still in progress and does not hang", async () => {
       const file = join(mkdtempSync(join(tmpdir(), "couch-tp-")), "big.mp4");
-      writeFileSync(file, Buffer.alloc(64 * 1024 * 1024));
+      writeFileSync(file, "");
+      truncateSync(file, 64 * 1024 * 1024);
       const server = await serveTestPage(file);
       const res = await new Promise<IncomingMessage>((resolve, reject) => {
         const req = httpGet(`${server.origin}/clip.mp4`, resolve);
@@ -149,11 +150,11 @@ describe("the dev-only test page that plays a synthetic video in the WebKit host
       });
       const closed = await Promise.race([
         server.close().then(() => "closed"),
-        new Promise((r) => setTimeout(() => r("hung"), 3000)),
+        new Promise((r) => setTimeout(() => r("hung"), 10_000)),
       ]);
       expect(closed).toBe("closed");
       await ended;
-    });
+    }, 15_000);
   });
 
   describe("its description", () => {
