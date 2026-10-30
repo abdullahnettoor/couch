@@ -710,7 +710,7 @@ describe("the Apps row", () => {
     expect(REMOTE_PAGE).toMatch(/\.apps \{[^}]*overflow-x:auto/);
   });
 
-  test("hidden while playing, off Home, and with no Apps", () => {
+  test("shown on any idle view, hidden while playing and with no Apps", () => {
     home();
     expect(hidden("apps")).toBe(false);
     page.playing({}, { layout: "app", apps });
@@ -718,7 +718,9 @@ describe("the Apps row", () => {
     home({ apps: [] });
     expect(hidden("apps")).toBe(true);
     page.send({ ...page.base, layout: "app", typing: "none", apps });
-    expect(hidden("apps")).toBe(true);
+    expect(hidden("apps")).toBe(false);
+    page.send({ ...page.base, layout: "other", where: "Library", apps });
+    expect(hidden("apps")).toBe(false);
   });
 
   test("dims and stops taps when Couch is off, like the rest of the controls", () => {

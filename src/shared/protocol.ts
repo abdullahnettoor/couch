@@ -463,7 +463,7 @@ export interface RemoteSnapshot {
   where: string;
   view: View;
   layout: RemoteLayout;
-  /** Home only: the Apps Home shows, in order, for the Remote's quick actions (command `openApp`). */
+  /** Idle only (nothing playing): the Apps Home shows, in order, for the Remote's quick actions (command `openApp`). */
   apps?: Array<{ id: string; label: string; icon: string }>;
   /** Home only, when a video is in progress. */
   continueCard?: RemoteContinueCard;

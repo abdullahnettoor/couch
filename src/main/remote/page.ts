@@ -460,7 +460,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     $("id-vol-n").textContent = $("np-vol-n").textContent = s.muted ? "Muted" : String(Math.round(s.volume));
     $("id-vol").classList.toggle("muted", !!s.muted);
     $("np-vol").classList.toggle("muted", !!s.muted);
-    var apps = L === "home" && !np && s.apps && s.apps.length ? s.apps : [];
+    var apps = !np && s.apps && s.apps.length ? s.apps : [];
     $("apps").hidden = !apps.length;
     $("apps").classList.toggle("few", apps.length <= 4);
     var row = apps.map(function (a) {

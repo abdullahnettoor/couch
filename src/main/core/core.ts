@@ -1274,7 +1274,7 @@ export class Core {
           : s.view === "home" || s.view === "player" || s.view === "librarySearch"
             ? s.view
             : "other",
-      ...(s.view === "home"
+      ...(this.#nothingPlaying()
         ? {
             apps: this.#homeApps
               .rows()
@@ -1488,10 +1488,17 @@ export class Core {
     if (this.#ambient) {
       this.#ambient = false;
       this.#armAmbient();
+      if (command.command !== "openApp" || !this.#canOpenShown(command.args?.app ?? "")) {
+        this.#emit();
+        return;
+      }
+    }
+    this.#armAmbient();
+    if (command.command === "openApp") {
+      this.#openFromAnywhere(command.args?.app ?? "");
       this.#emit();
       return;
     }
-    this.#armAmbient();
     if (this.#quickCommand(command)) {
       this.#emit();
       return;
@@ -1593,9 +1600,6 @@ export class Core {
         break;
       case "openSettings":
         if (this.#state.view === "home") this.#setView("settings");
-        break;
-      case "openApp":
-        if (this.#state.view === "home") this.#openShown(command.args?.app ?? "");
         break;
       case "typeOpen":
       case "typeText":
@@ -2112,7 +2116,26 @@ export class Core {
     ];
   }
 
-  /** A Remote's quick action: what OK on the App's Home tile does, for a shown App only. */
+  /** Idle: nothing playing, so the Remote shows the Apps row. */
+  #nothingPlaying(): boolean {
+    return !this.#state.player && !this.#appNowPlaying(this.#front());
+  }
+
+  #canOpenShown(id: string): boolean {
+    if (!this.#nothingPlaying() || !this.#homeApps.isShown(id)) return false;
+    const inFront = this.#state.view === "app" || this.#state.view === "appError";
+    return !(inFront && this.#state.app === id);
+  }
+
+  /** A Remote's quick action from any idle view: leave the place as going Home does, then open the App. */
+  #openFromAnywhere(id: string): void {
+    if (!this.#canOpenShown(id)) return;
+    if (this.#quick.isOpen) this.#quick.close();
+    this.#setView("home");
+    this.#openShown(id);
+  }
+
+  /** What OK on the App's Home tile does, for a shown App only. */
   #openShown(id: string): void {
     if (!this.#homeApps.isShown(id)) return;
     const action = actionFor(this.#catalog().find((e) => e.id === id)?.action ?? "");
