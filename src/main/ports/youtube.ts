@@ -29,6 +29,8 @@ export type YouTubeEvent =
   | { type: "input" }
   /** Back closed something in the page (a player menu, the bar, a pop-up) without changing its route. */
   | { type: "backHandled" }
+  /** A Continue open went somewhere that isn't the App's own (a redirect, data:, javascript:): the host cancelled it and loaded the App's home. */
+  | { type: "blocked" }
   /** What the page is playing, or undefined when nothing is. */
   | { type: "playback"; playback: PlaybackReport | undefined }
   /** The view found (ok) or still can't find the output it was asked for; sent whenever it looks again. */

@@ -40,6 +40,8 @@ function fakeAddon() {
     webkitAnswerKey: (id, keyId, replay) => calls.push(["answer", id, keyId, replay]),
     webkitWakePointer: (id, x, y) => calls.push(["wake", id, x, y]),
     webkitSetInput: (id, k, c, f, p) => calls.push(["input", id, k, c, f, p]),
+    webkitSetNavigationGuard: (id, on) => calls.push(["guard", id, on]),
+    webkitAnswerNavigation: (id, navId, allow) => calls.push(["navigation", id, navId, allow]),
     webkitDestroy: (id) => calls.push(["destroy", id]),
   };
   return { addon, calls, fire: (k: string, a = "", b = "") => callback(k, a, b) };
@@ -126,6 +128,25 @@ describe("the WebKit bridge over the native add-on", () => {
       ["focus", 7],
       ["key", 7, "Return", true],
       ["destroy", 7],
+    ]);
+  });
+
+  test("a held navigation reaches the host as `navigating` with its id, and the answer goes back by id", () => {
+    const f = fakeAddon();
+    const view = createWebKitBridge(
+      () => window as any,
+      () => f.addon,
+    )!.create({ store: { ephemeral: true }, userAgent: "u" });
+    const seen: WebKitEvent[] = [];
+    view.onEvent((e) => seen.push(e));
+    view.setNavigationGuard(true);
+    f.fire("navigating", "https://phish.example/x", "12");
+    f.fire("navigating", "data:text/html,x", "nonsense");
+    view.answerNavigation(12, false);
+    expect(seen).toEqual([{ type: "navigating", id: 12, url: "https://phish.example/x" }]);
+    expect(f.calls.slice(1)).toEqual([
+      ["guard", 7, true],
+      ["navigation", 7, 12, false],
     ]);
   });
 

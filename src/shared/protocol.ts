@@ -453,8 +453,7 @@ export interface RemoteContinueCard {
   left: string;
   /** Cache key of the video's picture, when one exists (not a path). */
   thumbKey?: string;
-  /** An App title: its artwork (a URL on the App's own hosts, fetched by the phone) and the App's badge. */
-  art?: string;
+  /** An App title: the App's badge (its picture, if saved, is `thumbKey`). */
   app?: { id: string; label: string; icon: string };
 }
 

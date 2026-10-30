@@ -12,6 +12,8 @@ const PRESS = `["pointerdown","mousedown","pointerup","mouseup","click"].forEach
  */
 export const YOUTUBE_PLAYBACK: PlaybackAdapter = {
   active: () => `/^#\\/watch\\b/.test(location.hash)`,
+  // The player carries `ad-showing` or `ad-interrupting` while an ad plays, and its ad overlays (`ytp-ad-*`) are in the page.
+  ad: () => `!!document.querySelector(".ad-showing, .ad-interrupting, [class*='ytp-ad-']")`,
   seek: (seconds) =>
     `(function(){var v=document.querySelector("video");if(v)v.currentTime=${Number(seconds)}})()`,
   tracks: () =>

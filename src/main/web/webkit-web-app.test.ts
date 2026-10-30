@@ -105,6 +105,14 @@ class FakeView implements WebKitView {
   wakePointer(x: number, y: number) {
     this.wakes.push([x, y]);
   }
+  guards: boolean[] = [];
+  setNavigationGuard(on: boolean) {
+    this.guards.push(on);
+  }
+  navigationAnswers: Array<[number, boolean]> = [];
+  answerNavigation(id: number, allow: boolean) {
+    this.navigationAnswers.push([id, allow]);
+  }
   routing: WebKitInputRouting[] = [];
   setInputRouting(routing: WebKitInputRouting) {
     this.routing.push(routing);
@@ -1600,5 +1608,40 @@ describe("page parity with the Chromium host (ticket 113)", () => {
     );
     web.show();
     expect(couchScripts(views.at(-1)!)).not.toContain("scrollbar-width");
+  });
+});
+
+describe("the navigation guard for a Continue open", () => {
+  const title = "https://www.netflix.com/watch/80100172";
+
+  test("is off until a Continue open is pending, on while it is, and off once the page has loaded", () => {
+    const { web, view } = make();
+    web.show();
+    expect(view().guards).toEqual([]);
+    web.openAt(title);
+    expect(view().guards).toEqual([true]);
+    view().emit({ type: "loaded", url: title });
+    expect(view().guards).toEqual([true, false]);
+  });
+
+  test("an openAt before the view exists puts the guard on as the view is made", () => {
+    const { web, view } = make();
+    web.openAt(title);
+    web.show();
+    expect(view().guards).toEqual([true]);
+  });
+
+  test("a held navigation is answered by the host: own sites pass, others are cancelled once", () => {
+    const { web, view } = make();
+    web.show();
+    web.openAt(title);
+    view().emit({ type: "navigating", id: 1, url: "https://www.netflix.com/login" });
+    view().emit({ type: "navigating", id: 2, url: "https://phish.example/x" });
+    expect(view().navigationAnswers).toEqual([
+      [1, true],
+      [2, false],
+    ]);
+    expect(events.filter((e) => e.type === "blocked")).toHaveLength(1);
+    expect(view().guards).toEqual([true, false]);
   });
 });

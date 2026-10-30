@@ -297,6 +297,9 @@ export class FakeWebApp implements App {
   sendKey(key: AppKey) {
     this.#record("sendKey", key);
   }
+  openAt(url: string) {
+    this.#record("openAt", url);
+  }
   back() {
     this.#record("back");
     return this.atHome ? ("leave" as const) : ("handled" as const);

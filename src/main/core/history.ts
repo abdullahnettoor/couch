@@ -68,7 +68,7 @@ export class History {
 
   /** Drops where this video was left; true if it had a record. */
   forget(path: string): boolean {
-    if (!(path in this.#items)) return false;
+    if (!Object.hasOwn(this.#items, path)) return false;
     delete this.#items[path];
     this.#store.write("history", { items: this.#items });
     return true;

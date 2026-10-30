@@ -49,7 +49,7 @@ The user's local video folders as presented by the Screen. Every folder is treat
 _Avoid_: media, collection, files
 
 **Continue watching**:
-The single card on Home for the most recent unfinished Library video. Pressing it resumes from the saved position.
+Home's row (and the Remote's card for the newest) of unfinished titles, newest first: a mix of Library videos and App titles (Netflix, YouTube) that played for about 30 seconds. A Library entry resumes from Couch's saved position; an App entry reopens the App at the title's own address, with the App's badge, and finishes (95% or more) or is removed like any other. For YouTube Couch's own position goes in the address; for Netflix the resume position is controlled by Netflix (for the active profile), so Netflix has Resume only, no From start. App entries keep their picture as a small file Couch saved itself, never the App's address. Menu or a long press on a tile on the Screen, or holding the card on the phone, offers "Remove from Continue watching".
 _Avoid_: recents, history, up next
 
 **Now Playing**:

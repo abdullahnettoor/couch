@@ -6,6 +6,7 @@ import {
   ipcMain,
   Menu,
   screen,
+  session,
   WebContentsView,
 } from "electron";
 import { join } from "node:path";
@@ -355,6 +356,15 @@ async function createScreen(): Promise<void> {
       files: new WallpaperFilesOnDisk(join(app.getPath("userData"), "wallpapers")),
     },
     thumbnailDir: join(app.getPath("userData"), "thumbnails"),
+    continueArt: {
+      dir: join(app.getPath("userData"), "continue-art"),
+      // A session of its own that is never signed in: it holds no cookies, and the request sends none.
+      fetch: (url, init) => session.fromPartition("couch-continue-art").fetch(url, init),
+      hosts: {
+        youtube: youtubeDescription(app.getVersion()).artworkHosts ?? [],
+        netflix: netflixDescription().artworkHosts ?? [],
+      },
+    },
     iconDir: join(import.meta.dirname, "../renderer"),
     metadata: new TmdbMetadata(join(app.getPath("userData"), "thumbnails")),
     tmdbProjectKey: PROJECT_TMDB_KEY,

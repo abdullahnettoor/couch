@@ -16,6 +16,7 @@ export function playbackProbe(
   options: {
     tracks?: string;
     active?: string;
+    ad?: string;
     artwork?: string;
     title?: string;
     id?: string;
@@ -23,7 +24,7 @@ export function playbackProbe(
     prompt?: string;
   } = {},
 ): string {
-  const { tracks, active, artwork, title, id, speeds, prompt } = options;
+  const { tracks, active, ad, artwork, title, id, speeds, prompt } = options;
   return `(async () => {
   ${active ? `try { if (!(${active})) return undefined; } catch (e) { return undefined; }` : ""}
   var area = window.innerWidth * window.innerHeight;
@@ -56,6 +57,7 @@ export function playbackProbe(
       if (pic) report.artwork = pic;
     }
   } catch (e) {}
+  ${ad ? `try { if (${ad}) report.ad = true; } catch (e) {}` : ""}
   ${title ? `if (!report.title) { try { var named = ${title}; if (typeof named === "string" && named) report.title = named; } catch (e) {} }` : ""}
   ${id ? `try { var own_id = ${id}; if (typeof own_id === "string" && own_id) report.id = own_id; } catch (e) {}` : ""}
   ${artwork ? `if (!report.artwork) { try { var own = ${artwork}; if (typeof own === "string") report.artwork = own; } catch (e) {} }` : ""}

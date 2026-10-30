@@ -54,6 +54,8 @@ export type WebKitEvent =
   /** A main-frame load finished at this address. */
   | { type: "loaded"; url: string }
   | { type: "failed"; error: string }
+  /** While the navigation guard is on: the main frame is about to go to this address (a link, a script or a redirect), and is held until the host answers `id`. */
+  | { type: "navigating"; id: number; url: string }
   /** The main frame's address changed (including pushState). */
   | { type: "navigated"; url: string };
 
@@ -91,6 +93,10 @@ export interface WebKitView {
   setCookies(cookies: WebKitCookie[]): Promise<void>;
   /** Makes the view the window's first responder, so keys reach it. */
   focus(): void;
+  /** Turns the navigation guard on or off. On, every main-frame navigation (redirects included) is reported as `navigating` and held until `answerNavigation` (no answer within a couple of seconds cancels it). */
+  setNavigationGuard(on: boolean): void;
+  /** Lets a held navigation (`navigating`'s id) go ahead or cancels it. Once per id. */
+  answerNavigation(id: number, allow: boolean): void;
   /** Answers a held key (`WebKitKey.id`): `true` gives it to the view as the same NSEvent it came in as, `false` consumes it. Once per id. */
   answerKey(id: number, replay: boolean): void;
   /**

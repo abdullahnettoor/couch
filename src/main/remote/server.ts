@@ -1,4 +1,4 @@
-import { createReadStream, statSync } from "node:fs";
+import { createReadStream, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -28,10 +28,12 @@ const MAX_TEXT = 4096;
 
 type Field =
   | { kind: "number" | "integer" | "boolean" }
-  | { kind: "string"; max: number }
+  | { kind: "string"; max: number; pattern?: RegExp }
   | { kind: "enum"; values: readonly string[] };
 
-const text = (max = MAX_TEXT): Field => ({ kind: "string", max });
+const text = (max = MAX_TEXT, pattern?: RegExp): Field => ({ kind: "string", max, pattern });
+/** A Continue watching entry's id: a Library video's absolute path, or `app:<app>:<https address>` for an App title. */
+const CONTINUE_ENTRY = /^(?:\/[^\0]*|app:[a-z][a-z0-9-]{0,31}:https:\/\/[^\s\0]+)$/;
 const number: Field = { kind: "number" };
 
 /** The args each command takes from a Remote; any other field, or a command with none listed, is refused. */
@@ -48,7 +50,7 @@ const ARGS: Partial<Record<CommandName, Record<string, Field>>> = {
   openApp: { app: text(64) },
   pressPrompt: { id: { kind: "enum", values: ["skipIntro", "skipRecap", "nextEpisode"] } },
   setPictureOff: { on: { kind: "boolean" } },
-  forgetContinue: { entry: text() },
+  forgetContinue: { entry: text(2048, CONTINUE_ENTRY) },
   confirmAnswer: { index: { kind: "integer" }, text: text() },
 };
 
@@ -61,7 +63,11 @@ function valid(field: Field, value: unknown): boolean {
     case "boolean":
       return typeof value === "boolean";
     case "string":
-      return typeof value === "string" && Buffer.byteLength(value) <= field.max;
+      return (
+        typeof value === "string" &&
+        Buffer.byteLength(value) <= field.max &&
+        (!field.pattern || field.pattern.test(value))
+      );
     case "enum":
       return typeof value === "string" && field.values.includes(value);
   }
@@ -94,6 +100,7 @@ export function parseCommand(raw: string): Command | undefined {
 export async function startRemoteServer(
   core: Core,
   options: {
+    continueArt?: { dir: string };
     port: number;
     host?: string;
     thumbnailDir?: string;
@@ -104,7 +111,10 @@ export async function startRemoteServer(
   const serveThumbnail = (url: string, path: string, res: ServerResponse) => {
     const given = new URL(url, "http://localhost").searchParams.get("key");
     const name = /^\/thumb\/((?:tmdb-[a-z]+-)?[0-9a-f]{40})\.jpg$/.exec(path)?.[1];
-    const file = name && options.thumbnailDir ? join(options.thumbnailDir, `${name}.jpg`) : "";
+    const inDir = (dir: string | undefined) => (name && dir ? join(dir, `${name}.jpg`) : "");
+    // Library thumbnails first, then the pictures Continue watching saved for App titles.
+    const library = inDir(options.thumbnailDir);
+    const file = library && existsSync(library) ? library : inDir(options.continueArt?.dir);
     if (!core.acceptsKey(given)) return void res.writeHead(401).end();
     serveFile(file, "image/jpeg", "private, max-age=86400", res);
   };

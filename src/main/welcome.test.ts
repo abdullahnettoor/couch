@@ -275,3 +275,47 @@ describe("a hanging sign-in lookup", () => {
     expect(lookups).toBe(1);
   });
 });
+
+describe("Continue watching through the welcome", () => {
+  /** An App with two engines: what it is told goes to whichever is current, as a switching host does. */
+  class TwoEngines extends FakeWebApp {
+    engine = "webkit";
+    override openAt(url: string) {
+      this.calls.push({ call: "openAt", args: [this.engine, url] });
+    }
+    override show(note?: string) {
+      this.calls.push({ call: "show", args: [this.engine, note] });
+    }
+  }
+  const TITLE = "https://cinema.example/watch/1234";
+
+  test("the requested address waits for the answer and goes to the host the household ends on, just before it is shown", async () => {
+    const app: TwoEngines = new TwoEngines("cinema", "Cinema", {
+      welcome: {
+        question: async () => QUESTION,
+        answer: async () => {
+          // "Keep using Chromium": the App switches engine while answering.
+          app.engine = "chromium";
+          return undefined;
+        },
+      },
+    });
+    const phone = await start(app);
+    app.emit({
+      type: "playback",
+      playback: { position: 300, duration: 3000, paused: false, title: "Heat", resume: TITLE },
+    });
+    app.emit({ type: "playback", playback: undefined });
+    await phone.press("resume");
+    await settle(phone);
+    expect(h.screen.last.state.confirm?.title).toBe(QUESTION.title);
+    expect(app.calls.filter((c) => c.call === "openAt")).toEqual([]);
+    await open(phone);
+    expect(h.screen.last.state).toMatchObject({ view: "app", app: "cinema" });
+    const calls = app.calls.filter((c) => c.call === "openAt" || c.call === "show");
+    expect(calls.map((c) => [c.call, ...c.args.slice(0, 2)])).toEqual([
+      ["openAt", "chromium", TITLE],
+      ["show", "chromium", expect.anything()],
+    ]);
+  });
+});

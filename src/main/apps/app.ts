@@ -14,6 +14,8 @@ export interface NowPlayingHint {
   title: string;
   /** Must already be on the App's own artwork hosts. */
   artwork?: string;
+  /** The key of art Couch saved itself (Continue watching's local file); the phone fetches it from Couch. */
+  artKey?: string;
 }
 
 export type AppKey = "up" | "down" | "left" | "right" | "ok" | "back";
@@ -41,6 +43,8 @@ export interface PlaybackReport {
   ended?: boolean;
   /** The address that reopens this title at this position, built by the App's description; absent for any page it refuses (browse, search). */
   resume?: string;
+  /** An ad is playing (the App's adapter says so); it is not the title, so nothing is remembered from it. */
+  ad?: boolean;
 }
 
 /** What a web App tells core. Anything about its own pages (routes, Shorts...) stays inside the App. */
@@ -53,6 +57,8 @@ export type AppEvent =
   /** `note` says why, in words for the App's error screen; without it the screen blames the internet. */
   | { type: "failed"; note?: string }
   | { type: "searchOpened" }
+  /** A Continue open was cancelled for leaving the App's own sites; the App is back at its home. */
+  | { type: "blocked" }
   /** What the page is playing, or undefined when nothing is; sent whenever it changes. */
   | { type: "playback"; playback: PlaybackReport | undefined }
   /** The view found (ok) or still can't find the output it was asked for; sent whenever it looks again. */

@@ -50,6 +50,8 @@ export interface PlaybackAdapter {
   tracks?(): string;
   /** Toggles play and pause through the App's own control; absent, the host sends the media key. */
   playPause?(): string;
+  /** An expression that is true while the App plays an ad (not the title): nothing is remembered from it. */
+  ad?(): string;
   /** An expression giving the App's own id for what plays (or falsy), so a Now Playing hint can be matched to it. */
   titleId?(): string;
   /** An expression giving the title of what plays (or falsy), when the page's media session names none. */

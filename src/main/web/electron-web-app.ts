@@ -180,6 +180,7 @@ export class ElectronWebApp implements YouTube {
     wc.on("did-finish-load", () => {
       if (this.#failed || !wc.getURL().startsWith("https:")) return;
       this.#guard.loaded();
+      this.#core.openSettled();
       this.#emit({ type: "loaded" });
       this.#core.syncRoute(wc.getURL());
       this.#ready = true;
@@ -202,6 +203,12 @@ export class ElectronWebApp implements YouTube {
       if (isMainFrame) this.#fieldFocused = false;
     });
     wc.on("did-navigate", (_e, url) => this.#guard.navigated(url));
+    // While a Continue open is pending, the page may not leave the App's own sites (a redirect included): cancel and go home.
+    const police = (event: { url?: string; preventDefault(): void }, url?: string) => {
+      if (!this.#core.allowNavigation(url ?? event.url ?? "")) event.preventDefault();
+    };
+    wc.on("will-navigate", police);
+    wc.on("will-redirect", police);
     wc.on("render-process-gone", () => {
       this.#guard.crashed();
       if (this.#visible) void this.#guard.onShow();

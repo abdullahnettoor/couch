@@ -75,6 +75,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .cw.nx { margin:10px 0 0; }
   .cw b { display:block; font-size:16px; }
   .cw span.l { font-size:13px; color:var(--t3); }
+  .cw span.hold { display:block; margin-top:2px; font-size:11px; opacity:.7; }
   .cw .txt { min-width:0; flex:1; }
   .cw .txt b { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .cw .go { width:44px; height:44px; border-radius:22px; background:#fff; color:#000; display:grid; place-items:center; font-size:22px; flex:none; }
@@ -245,7 +246,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 </div>
 <main id="controls">
   <div class="bar" id="ibar">__BAR_ID__<button id="qs" data-cmd="quickSettings" aria-label="Quick settings" data-i="sliders"></button><button id="gear" data-cmd="openSettings" aria-label="Settings" data-i="gear" hidden></button></div>
-  <button class="cw" id="cw" data-cmd="resume" hidden><span class="pic" id="cw-pic"><span class="cwapp" id="cw-app" hidden></span></span><span class="txt"><b id="cw-title"></b><span class="l" id="cw-left"></span></span><span class="go" data-i="play"></span></button>
+  <button class="cw" id="cw" data-cmd="resume" hidden><span class="pic" id="cw-pic"><span class="cwapp" id="cw-app" hidden></span></span><span class="txt"><b id="cw-title"></b><span class="l" id="cw-left"></span><span class="l hold" id="cw-hint">Hold to remove</span></span><span class="go" data-i="play"></span></button>
   <div class="note-card" id="playback-note" role="status" hidden><b id="playback-title"></b><ol id="playback-steps"></ol></div>
   <button class="search" id="fixbtn" data-cmd="menu" hidden><span id="fix-label">Fix match</span></button>
   <button class="search" id="search" data-cmd="typeOpen" hidden><span data-i="search"></span><span id="search-label">Search</span></button>
@@ -474,7 +475,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       $("cw-title").textContent = s.continueCard.title;
       $("cw-left").textContent = s.continueCard.left;
       var cc = s.continueCard;
-      $("cw-pic").style.backgroundImage = cc.art ? "url(" + JSON.stringify(cc.art) + ")" : cc.thumbKey ? thumb(cc.thumbKey) : "none";
+      $("cw-pic").style.backgroundImage = cc.thumbKey ? thumb(cc.thumbKey) : "none";
       $("cw-app").innerHTML = cc.app ? cc.app.icon : "";
       $("cw-app").hidden = !cc.app;
     }

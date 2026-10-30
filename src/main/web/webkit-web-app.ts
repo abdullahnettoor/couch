@@ -111,6 +111,8 @@ export class WebKitWebApp implements YouTube {
   /** Something of Couch's own that takes the pointer and the keys is drawn over the page (Quick settings, a confirmation, Picture off). */
   #overlay = false;
   #disposed = false;
+  /** The native view holds main-frame navigations for `navigating` while a Continue open is pending. */
+  #guardOn = false;
   #stopResize: (() => void) | void = undefined;
 
   constructor(
@@ -141,7 +143,13 @@ export class WebKitWebApp implements YouTube {
         visible: () => this.#visible,
       },
       (event) => this.#emit(event),
-      { pollsRoute: false },
+      {
+        pollsRoute: false,
+        guard: (on) => {
+          this.#guardOn = on;
+          this.#view?.setNavigationGuard(on);
+        },
+      },
     );
     this.#keyboard = new WebKitKeyboard({
       emit: (event) => this.#emit(event),
@@ -163,6 +171,7 @@ export class WebKitWebApp implements YouTube {
     this.#view = view;
     this.#stopEvents = view.onEvent((event) => this.#onEvent(event));
     view.addMessageHandler(MESSAGE_HANDLER);
+    if (this.#guardOn) view.setNavigationGuard(true);
     const desc = this.#desc;
     view.addUserScript(
       userScriptSource([
@@ -218,12 +227,16 @@ export class WebKitWebApp implements YouTube {
         if (this.#failed || !this.#isOwnPage(event.url)) return;
         // Where the page is comes first, so a "loaded" screen never shows over a stale route.
         this.#url = event.url;
+        this.#core.openSettled();
         this.#core.syncRoute(event.url);
         this.#emit({ type: "loaded" });
         this.#loaded = true;
         if (!this.#visible) this.#run(hiddenScript(true));
         this.#applySound();
         this.#drawPendingNote();
+        return;
+      case "navigating":
+        this.#view?.answerNavigation(event.id, this.#core.allowNavigation(event.url));
         return;
       case "failed":
         this.#failed = true;

@@ -1,8 +1,18 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 import type { PlaybackReport } from "./apps/app.ts";
+import { ContinueApps } from "./core/continue-apps.ts";
+import { ContinueArt } from "./core/continue-art.ts";
 import { FileStore } from "./ports/store.ts";
 import type { FakeYouTube } from "./ports/fakes.ts";
 import { startHarness, type FakePhone, type Harness } from "./testing/harness.ts";
@@ -47,6 +57,8 @@ async function start(store?: FileStore) {
   h = await startHarness(store);
   phone = await h.connectPhone();
 }
+const artFiles = () => (existsSync(h.art.dir) ? readdirSync(h.art.dir) : []);
+const artKey = () => stored().items![0]!.art as string;
 const videos = () => h.screen.last.homeVideos ?? [];
 const stored = () => h.store.read<{ items?: Array<Record<string, unknown>> }>("continue-apps", {});
 
@@ -54,10 +66,11 @@ describe("remembering App titles", () => {
   test("a title that has played for 30 seconds is remembered, with its art, a progress bar and the App's badge", async () => {
     await start();
     play(h.netflix, { position: 30 });
+    await h.settle();
     expect(videos()).toHaveLength(1);
     expect(videos()[0]).toMatchObject({
       title: "Arcane · S1 E1",
-      thumb: NETFLIX_ART,
+      thumb: `file://${join(h.art.dir, `${artKey()}.jpg`)}`,
       app: { id: "netflix", label: "Netflix" },
       progress: { fraction: 30 / 3000 },
     });
@@ -105,12 +118,14 @@ describe("remembering App titles", () => {
   test("nothing is stored beyond App, title, art, URL and times", async () => {
     await start();
     play(h.netflix, { position: 120, tracks: { subtitles: [], audio: [] }, speed: 1 });
+    await h.settle();
     stop(h.netflix);
     const [item] = stored().items!;
     expect(Object.keys(item!).sort()).toEqual(
       ["app", "art", "at", "duration", "position", "title", "url"].sort(),
     );
-    expect(item).toMatchObject({ app: "netflix", url: watch("80100172"), art: NETFLIX_ART });
+    expect(item).toMatchObject({ app: "netflix", url: watch("80100172") });
+    expect(item!.art).toMatch(/^[0-9a-f]{40}$/);
   });
 
   test("entries survive a restart", async () => {
@@ -121,6 +136,150 @@ describe("remembering App titles", () => {
     await h.stop();
     await start(new FileStore(dir));
     expect(videos().map((v) => v.title)).toEqual(["Arcane · S1 E1"]);
+  });
+});
+
+describe("the art is saved locally", () => {
+  const TOKEN_ART = "https://occ-0-1.1.nflximg.net/dnm/api/v6/abc.jpg?token=SECRET&e=1700000000";
+
+  test("a picture URL with a token or a query is never stored: the Store, the Screen and the phone only see a local file", async () => {
+    const dir = tmp("couch-cont-store-");
+    await start(new FileStore(dir));
+    play(h.netflix, { position: 300, artwork: TOKEN_ART });
+    await h.settle();
+    stop(h.netflix);
+    expect(h.art.asked).toEqual([TOKEN_ART]);
+    expect(JSON.stringify(stored())).not.toMatch(/SECRET|nflximg/);
+    expect(readFileSync(join(dir, "continue-apps.json"), "utf8")).not.toMatch(/SECRET|nflximg/);
+    expect(JSON.stringify(h.screen.last)).not.toContain("SECRET");
+    expect(videos()[0]!.thumb).toMatch(/^file:\/\/.*\.jpg$/);
+    await phone.waitFor(() => phone.last?.continueCard?.thumbKey !== undefined);
+    expect(JSON.stringify(phone.last)).not.toContain("SECRET");
+  });
+
+  test("the file is downloaded once, and serves the Screen's file and the paired phone's /thumb/", async () => {
+    await start();
+    play(h.netflix, { position: 300 });
+    play(h.netflix, { position: 310 });
+    await h.settle();
+    play(h.netflix, { position: 320 });
+    await h.settle();
+    expect(h.art.asked).toHaveLength(1);
+    expect(artFiles()).toEqual([`${artKey()}.jpg`]);
+    const base = `http://127.0.0.1:${h.app.remote.port}/thumb/${artKey()}.jpg`;
+    const ok = await fetch(`${base}?key=${encodeURIComponent(h.pairingKey())}`);
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get("content-type")).toBe("image/jpeg");
+    expect((await fetch(`${base}?key=wrong`)).status).toBe(401);
+  });
+
+  test("art from a host that isn't the App's own is not downloaded", async () => {
+    await start();
+    play(h.netflix, { position: 300, artwork: "https://evil.example/pic.jpg" });
+    await h.settle();
+    expect(h.art.asked).toEqual([]);
+    expect(artFiles()).toEqual([]);
+    expect(videos()[0]!.thumb).toBeUndefined();
+  });
+
+  test("an image that is too big or not an image is dropped, and the entry shows no picture", async () => {
+    await start();
+    h.art.answer = () => new Response("<svg/>", { headers: { "content-type": "image/svg+xml" } });
+    play(h.netflix, { position: 300 });
+    await h.settle();
+    expect(artFiles()).toEqual([]);
+    expect(videos()[0]!.thumb).toBeUndefined();
+    expect(stored().items![0]!.art).toBeUndefined();
+  });
+
+  test("when the title's art changes the new one is downloaded and the old file deleted", async () => {
+    await start();
+    play(h.netflix, { position: 300 });
+    await h.settle();
+    const first = artKey();
+    play(h.netflix, { position: 310, artwork: NETFLIX_ART.replace("abc", "new") });
+    await h.settle();
+    expect(artKey()).not.toBe(first);
+    expect(artFiles()).toEqual([`${artKey()}.jpg`]);
+  });
+
+  test("removing, finishing, the cap and a restart's sweep clean the files up", async () => {
+    const dir = tmp("couch-cont-store-");
+    await start(new FileStore(dir));
+    play(h.netflix, { position: 300 });
+    await h.settle();
+    expect(artFiles()).toHaveLength(1);
+    await phone.press({ command: "forgetContinue" });
+    expect(artFiles()).toEqual([]);
+
+    play(h.netflix, { position: 300 });
+    await h.settle();
+    play(h.netflix, { position: 2990 });
+    expect(artFiles()).toEqual([]);
+
+    for (let i = 0; i < 11; i++) {
+      h.clock.advance(1000);
+      play(h.netflix, {
+        position: 300,
+        title: `T${i}`,
+        resume: watch(`${80000000 + i}`),
+        artwork: NETFLIX_ART.replace("abc", `p${i}`),
+      });
+      await h.settle();
+    }
+    expect(stored().items).toHaveLength(10);
+    expect(artFiles()).toHaveLength(10);
+  });
+
+  test("a restart deletes pictures no entry names", () => {
+    const store = new FileStore(tmp("couch-cont-store-"));
+    const art = new ContinueArt(join(tmp("couch-art-"), "continue-art"));
+    const orphan = join(art.dir, `${"a".repeat(40)}.jpg`);
+    mkdirSync(art.dir, { recursive: true });
+    writeFileSync(orphan, "orphan");
+    new ContinueApps(store, { art });
+    expect(existsSync(orphan)).toBe(false);
+  });
+});
+
+describe("ads", () => {
+  test("an ad playing on a valid watch URL is not remembered", async () => {
+    await start();
+    play(h.youtube, {
+      ad: true,
+      title: "Cat video",
+      artwork: undefined,
+      resume: "https://www.youtube.com/tv#/watch?v=dQw4w9WgXcQ&t=40",
+    });
+    expect(videos()).toEqual([]);
+    expect(stored().items ?? []).toEqual([]);
+  });
+
+  test("an ad does not move a remembered position or finish the title", async () => {
+    await start();
+    const resume = "https://www.youtube.com/tv#/watch?v=dQw4w9WgXcQ&t=300";
+    play(h.youtube, { position: 300, title: "Cat video", artwork: undefined, resume });
+    // The ad is 15 s long and at its end: 100% of its own length.
+    play(h.youtube, {
+      ad: true,
+      position: 15,
+      duration: 15,
+      ended: true,
+      title: "Cat video",
+      artwork: undefined,
+      resume,
+    });
+    play(h.youtube, {
+      ad: true,
+      position: 9,
+      duration: 15,
+      title: "Cat video",
+      artwork: undefined,
+      resume,
+    });
+    stop(h.youtube);
+    expect(stored().items).toHaveLength(1);
+    expect(stored().items![0]).toMatchObject({ position: 300, duration: 3000 });
   });
 });
 
@@ -210,12 +369,14 @@ describe("showing them", () => {
     await start();
     play(h.netflix, { position: 300 });
     stop(h.netflix);
-    await phone.waitFor(() => phone.last?.continueCard !== undefined);
+    await h.settle();
+    await phone.waitFor(() => phone.last?.continueCard?.thumbKey !== undefined);
     expect(phone.last!.continueCard).toMatchObject({
       title: "Arcane · S1 E1",
-      art: NETFLIX_ART,
+      thumbKey: artKey(),
       app: { id: "netflix", label: "Netflix" },
     });
+    expect(JSON.stringify(phone.last)).not.toContain(NETFLIX_ART);
   });
 });
 
@@ -283,6 +444,62 @@ describe("resuming", () => {
     h.app.screenCommand({ command: "focusAt", args: { r: tile.r, c: tile.c } });
     expect(h.screen.last.grid.some((i) => i.id === "fromstart")).toBe(false);
     expect(h.screen.last.grid.some((i) => i.id === "resume")).toBe(true);
+  });
+});
+
+describe("Now Playing after a Resume", () => {
+  test("the phone shows the entry's title and saved art for the deep-linked title, until the page names its own", async () => {
+    await start();
+    play(h.netflix, { position: 300, title: "Arcane · S1 E1" });
+    await h.settle();
+    const key = artKey();
+    stop(h.netflix);
+    await phone.press("resume");
+    // Netflix's page, opened by the deep link, names its id but has no title or art yet.
+    h.netflix.emit({
+      type: "playback",
+      playback: { position: 301, duration: 3000, paused: false, id: "80100172" },
+    });
+    await phone.waitFor(() => phone.last?.nowPlaying?.title === "Arcane · S1 E1");
+    expect(phone.last!.nowPlaying).toMatchObject({ title: "Arcane · S1 E1", artKey: key });
+    // Another title (autoplay) does not borrow it.
+    h.netflix.emit({
+      type: "playback",
+      playback: { position: 5, duration: 2000, paused: false, id: "70000001" },
+    });
+    await phone.waitFor(() => phone.last?.nowPlaying?.title === "Netflix");
+    expect(phone.last!.nowPlaying!.artKey).toBeUndefined();
+  });
+
+  test("a YouTube entry's id comes from its watch address", async () => {
+    await start();
+    play(h.youtube, {
+      title: "Cat video",
+      artwork: undefined,
+      resume: "https://www.youtube.com/tv#/watch?v=dQw4w9WgXcQ&t=300",
+    });
+    stop(h.youtube);
+    await phone.press("resume");
+    h.youtube.emit({
+      type: "playback",
+      playback: { position: 301, duration: 3000, paused: false, id: "dQw4w9WgXcQ" },
+    });
+    await phone.waitFor(() => phone.last?.nowPlaying?.title === "Cat video");
+  });
+});
+
+describe("an open that leaves the App's own sites", () => {
+  test("the App's host cancelling it sends the Screen Home with a toast", async () => {
+    await start();
+    play(h.netflix, { position: 300 });
+    stop(h.netflix);
+    await phone.press("resume");
+    expect(h.screen.last.state).toMatchObject({ view: "app", app: "netflix" });
+    h.netflix.emit({ type: "blocked" });
+    await h.settle();
+    expect(h.screen.last.state.view).toBe("home");
+    expect(h.screen.last.state.toast).toBe("Couldn't open that title");
+    expect(h.netflix.calls.some((c) => c.call === "hide")).toBe(true);
   });
 });
 

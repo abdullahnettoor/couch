@@ -173,19 +173,19 @@ describe("the idle Remote", () => {
     expect(hidden("search")).toBe(true);
   });
 
-  test("an App title's card shows its art and the App's badge", () => {
-    const art = "https://occ-0-1.1.nflximg.net/a.jpg";
+  test("an App title's card shows its saved art (fetched from Couch by key) and the App's badge", () => {
+    const art = "0123456789abcdef0123456789abcdef01234567";
     idle({
       layout: "home",
       where: "Home",
       continueCard: {
         ...card,
-        art,
+        thumbKey: art,
         app: { id: "netflix", label: "Netflix", icon: "<svg>n</svg>" },
       },
     });
     expect(hidden("cw")).toBe(false);
-    expect(page.els.get("cw-pic")!.style.backgroundImage).toBe(`url(${JSON.stringify(art)})`);
+    expect(page.els.get("cw-pic")!.style.backgroundImage).toBe(`url(/thumb/${art}.jpg?key=${"k"})`);
     expect(hidden("cw-app")).toBe(false);
     expect(page.els.get("cw-app")!.innerHTML).toBe("<svg>n</svg>");
     idle({ layout: "home", where: "Home", continueCard: card });

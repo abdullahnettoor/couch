@@ -27,6 +27,11 @@ export interface HostRig {
   navigate(url: string): void;
   /** Every address the host asked the page to load. */
   loads(): string[];
+  /**
+   * The page's top frame is about to go to `url` (a link or script: "navigate"; a server's redirect: "redirect").
+   * True when the host lets it proceed, false when it cancels it.
+   */
+  navigateTop(url: string, kind: "navigate" | "redirect"): boolean;
   /** The page finishes loading its home (the engine's load-completion event). */
   loaded(): void;
   /** Back by history has somewhere to go. */
@@ -428,12 +433,12 @@ export function describeWebHostContract(
     });
 
     describe("the resume address in the report", () => {
-      const report = async (url: string) => {
+      const report = async (url: string, answer: unknown = playing) => {
         vi.useFakeTimers();
         const rig = makeRig();
         await rig.show();
         rig.navigate(url);
-        rig.answer('querySelectorAll("video")', playing);
+        rig.answer('querySelectorAll("video")', answer);
         await vi.advanceTimersByTimeAsync(500);
         return rig.events.filter((e) => e.type === "playback").at(-1) as
           | { playback?: { resume?: string } }
@@ -443,6 +448,15 @@ export function describeWebHostContract(
       test("a watch page gets the address the description builds for it", async () => {
         const last = await report("https://www.netflix.com/watch/80100172?trackId=1");
         expect(last?.playback?.resume).toBe("https://www.netflix.com/watch/80100172");
+      });
+
+      test("an ad playing on a valid watch address gets none: the ad is not the title", async () => {
+        const last = await report("https://www.netflix.com/watch/80100172", {
+          ...playing,
+          ad: true,
+        });
+        expect(last?.playback).toMatchObject({ ad: true });
+        expect(last?.playback?.resume).toBeUndefined();
       });
 
       test("a page the description refuses gets none", async () => {
@@ -486,7 +500,15 @@ export function describeWebHostContract(
         ["a look-alike host", "https://www.netflix.com.evil.example/watch/1"],
         ["plain http", "http://www.netflix.com/watch/80100172"],
         ["a script", "javascript:alert(1)"],
+        ["data", "data:text/html,<script>1</script>"],
         ["not a URL", "nonsense"],
+        ["an own-origin page that is not a title", "https://www.netflix.com/browse"],
+        ["an own-origin account page", "https://www.netflix.com/YourAccount"],
+        ["a title's pop-up", "https://www.netflix.com/title/80100172"],
+        ["a watch address with extras", "https://www.netflix.com/watch/80100172?trackId=1"],
+        ["a watch address with a path after it", "https://www.netflix.com/watch/80100172/x"],
+        ["a malformed id", "https://www.netflix.com/watch/abc"],
+        ["a country prefix (not the canonical shape)", "https://www.netflix.com/gb/watch/80100172"],
       ])("refuses %s", async (_n, url) => {
         const rig = makeRig();
         await rig.show();
@@ -496,11 +518,86 @@ export function describeWebHostContract(
         expect(rig.loads()).toHaveLength(before);
       });
 
+      test("a site whose description has no resume address takes no openAt", async () => {
+        const rig = makeRig(demoflixDescription);
+        await rig.show();
+        rig.loaded();
+        const before = rig.loads().length;
+        rig.host.openAt(`${DEMOFLIX}/watch/1`);
+        expect(rig.loads()).toHaveLength(before);
+      });
+
       test("a refused address before the first load leaves the home as the first page", async () => {
         const rig = makeRig();
         rig.host.openAt("https://www.example.com/x");
         await rig.show();
         expect(pages(rig)).toEqual([netflix.url]);
+      });
+    });
+
+    describe("navigation while a Continue open is pending", () => {
+      const title = "https://www.netflix.com/watch/80100172";
+      const blocked = (rig: HostRig) => rig.events.filter((e) => e.type === "blocked").length;
+      const pending = async () => {
+        const rig = makeRig();
+        await rig.show();
+        rig.loaded();
+        rig.host.openAt(title);
+        return rig;
+      };
+
+      test("a redirect to another site is cancelled, the App goes home and says so", async () => {
+        const rig = await pending();
+        const before = rig.loads().length;
+        expect(rig.navigateTop("https://phish.example/netflix", "redirect")).toBe(false);
+        expect(blocked(rig)).toBe(1);
+        await vi.waitFor(() => expect(rig.loads().slice(before)).toEqual([netflix.url]));
+      });
+
+      test("so is a navigation to another site, a look-alike host, plain http, data: and javascript:", async () => {
+        for (const url of [
+          "https://phish.example/x",
+          "https://www.netflix.com.evil.example/x",
+          "http://www.netflix.com/watch/1",
+          "data:text/html,<script>alert(1)</script>",
+          "javascript:alert(1)",
+        ]) {
+          const rig = await pending();
+          expect(rig.navigateTop(url, "navigate"), url).toBe(false);
+          expect(blocked(rig), url).toBe(1);
+          disposeRigs();
+        }
+      });
+
+      test("the App's own pages are let through (a sign-in redirect, the title itself)", async () => {
+        const rig = await pending();
+        expect(rig.navigateTop(title, "navigate")).toBe(true);
+        expect(rig.navigateTop("https://www.netflix.com/login", "redirect")).toBe(true);
+        expect(rig.navigateTop("https://help.netflix.com/en", "navigate")).toBe(true);
+        expect(blocked(rig)).toBe(0);
+      });
+
+      test("once the page has loaded, nothing is held back any more", async () => {
+        const rig = await pending();
+        rig.loaded();
+        expect(rig.navigateTop("https://accounts.example/sso", "navigate")).toBe(true);
+        expect(blocked(rig)).toBe(0);
+      });
+
+      test("with no Continue open pending, the host does not police navigation at all", async () => {
+        const rig = makeRig();
+        await rig.show();
+        rig.loaded();
+        expect(rig.navigateTop("https://accounts.example/sso", "navigate")).toBe(true);
+        expect(blocked(rig)).toBe(0);
+      });
+
+      test("a refused openAt does not start the policy", async () => {
+        const rig = makeRig();
+        await rig.show();
+        rig.loaded();
+        rig.host.openAt("https://www.example.com/x");
+        expect(rig.navigateTop("https://accounts.example/sso", "navigate")).toBe(true);
       });
     });
 

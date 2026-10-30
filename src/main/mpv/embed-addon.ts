@@ -98,6 +98,9 @@ export interface WebKitAddon {
     fieldFocused: boolean,
     pointer: boolean,
   ): void;
+  /** On: every main-frame navigation (redirects included) is held and reported as `navigating` (a = URL, b = the id to answer) until `webkitAnswerNavigation`; none answered within a couple of seconds is cancelled. Off: they just proceed. */
+  webkitSetNavigationGuard(id: number, on: boolean): void;
+  webkitAnswerNavigation(id: number, navId: number, allow: boolean): void;
   webkitDestroy(id: number): void;
   /** Deletes a persistent data store; calls back with an error message, or null. */
   webkitRemoveStore(storeId: string, callback: (error: string | null) => void): void;
@@ -291,6 +294,10 @@ export function createWebKitBridge(
                 repeat: key.repeat === true,
               },
             });
+          } else if (kind === "navigating") {
+            const navId = Number(b);
+            if (Number.isInteger(navId) && navId > 0)
+              emit({ type: "navigating", id: navId, url: a });
           } else if (kind === "loaded" || kind === "navigated") emit({ type: kind, url: a });
           else if (kind === "failed") emit({ type: "failed", error: a });
         },
@@ -323,6 +330,8 @@ export function createWebKitBridge(
         sendKey: (key, down) => addon.webkitSendKey(id, key, down),
         answerKey: (keyId, replay) => addon.webkitAnswerKey(id, keyId, replay),
         wakePointer: (x, y) => addon.webkitWakePointer(id, x, y),
+        setNavigationGuard: (on) => addon.webkitSetNavigationGuard(id, on),
+        answerNavigation: (navId, allow) => addon.webkitAnswerNavigation(id, navId, allow),
         setInputRouting: (r) =>
           addon.webkitSetInput(id, r.keys, r.captureCommands, r.fieldFocused, r.pointer),
         onEvent: (listener) => {

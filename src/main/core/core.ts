@@ -54,7 +54,8 @@ import { applyEdit, type TextEdit } from "../../shared/keyboard.ts";
 import type { LibraryChip, TrackList, UpNextItem } from "../../shared/protocol.ts";
 import { PlayerControls } from "./player-controls.ts";
 import { History } from "./history.ts";
-import { ContinueApps, fromStartUrl, titleKey } from "./continue-apps.ts";
+import { ContinueApps, fromStartUrl, titleId, titleKey } from "./continue-apps.ts";
+import { ContinueArt, type ArtFetch } from "./continue-art.ts";
 import { ShowView } from "./show-view.ts";
 import { AddonsPage } from "./addons-page.ts";
 import { APPS_MENU_KEY, HomeApps, leavesOnHide } from "./home-apps.ts";
@@ -125,6 +126,11 @@ export interface Ports {
   clock: Clock;
   store: Store;
   thumbnails?: Thumbnails;
+  /**
+   * Where App titles' pictures are kept for Continue watching (`dir`), how they are downloaded (`fetch`, on a session with
+   * no cookies) and each App's own artwork hosts. Without it App entries have no picture.
+   */
+  continueArt?: { dir: string; fetch?: ArtFetch; hosts: Record<string, string[]> };
   /** The Mac's pictures as wallpapers (its desktop picture, a folder, Apple's); without it Home offers the built-ins only. */
   wallpapers?: WallpaperPorts;
   /** Show and film details (TMDB). Without it, everything uses frames. */
@@ -223,6 +229,7 @@ export class Core {
   #controls: PlayerControls;
   #history: History;
   #appTitles: ContinueApps;
+  #continueArt: ContinueArt | undefined;
   /** The Library index and its Shows and Films; scans run in the background. */
   readonly library: MediaLibrary;
   /** TMDB details for Shows and Films (saved matches, Fix match, key settings). */
@@ -261,7 +268,14 @@ export class Core {
     this.#ports = ports;
     const lib = ports.store.read<{ folders?: unknown }>("library", {});
     this.#history = new History(ports.store);
-    this.#appTitles = new ContinueApps(ports.store);
+    const art =
+      ports.continueArt && new ContinueArt(ports.continueArt.dir, ports.continueArt.fetch);
+    this.#continueArt = art;
+    this.#appTitles = new ContinueApps(ports.store, {
+      art,
+      hostsFor: (app) => ports.continueArt?.hosts[app] ?? [],
+      changed: () => this.#emit(),
+    });
     this.library = new MediaLibrary(ports.store, ports.clock);
     this.details = new MetadataService({
       store: ports.store,
@@ -682,7 +696,9 @@ export class Core {
             title: e.title,
             hue: hueFor(e.title),
             folder: app.label,
-            ...(e.art ? { thumb: e.art } : {}),
+            ...(e.art && this.#continueArt?.fileUrl(e.art)
+              ? { thumb: this.#continueArt.fileUrl(e.art) }
+              : {}),
             progress: { fraction, left: `${left} min left` },
             app: {
               id: e.app,
@@ -702,14 +718,27 @@ export class Core {
     return m ? { app: m[1]!, key: m[2]! } : undefined;
   }
 
+  /** The phone fetches an App entry's picture by key, like a Library thumbnail. */
+  #appArtKey(path: string): { thumbKey?: string } {
+    const id = this.#appTitleFor(path);
+    const art = id && this.#appTitles.find(id.app, id.key)?.art;
+    return art && this.#continueArt?.has(art) ? { thumbKey: art } : {};
+  }
+
   /** Opens the App at where the remembered title was left (`fromStart`: at its beginning, for an App whose address carries the time). */
   #resumeAppTitle(path: string, fromStart = false): void {
     const id = this.#appTitleFor(path);
     const entry = id && this.#appTitles.find(id.app, id.key);
     const app = id && this.#apps.get(id.app);
     if (!entry || !app || !this.#homeApps.isShown(entry.app)) return;
-    app.openAt?.(fromStart ? fromStartUrl(entry.url) : entry.url);
-    this.#openApp(entry.app);
+    const hintId = titleId(entry.url);
+    if (hintId)
+      this.setNowPlayingHint(entry.app, {
+        id: hintId,
+        title: entry.title,
+        ...(entry.art && this.#continueArt?.has(entry.art) ? { artKey: entry.art } : {}),
+      });
+    this.#openApp(entry.app, fromStart ? fromStartUrl(entry.url) : entry.url);
   }
 
   #libraryContinue(): Array<{ at: number; entry: LibraryEntry }> {
@@ -885,10 +914,38 @@ export class Core {
 
   /** Removes an entry from Continue watching: an App title for good, a Library video's saved position. */
   #forgetContinue(path: string | undefined): void {
-    if (!path) return;
+    // Only what Continue watching shows right now: not a stale or invented id, and never a finished Library video's watched record.
+    if (!path || !this.#continueEntries().some((e) => e.path === path)) return;
     const id = this.#appTitleFor(path);
     const done = id ? this.#appTitles.forget(id.app, id.key) : this.#history.forget(path);
     if (done) this.#toast("Removed from Continue watching");
+  }
+
+  /**
+   * Menu (or a long press) on Home's Continue watching: a small question with "Remove from Continue watching",
+   * and Fix match beside it for a Library film. False when the focus is not on a Continue tile.
+   */
+  #continueMenu(): boolean {
+    if (this.#state.view !== "home" || this.#state.confirm) return false;
+    const id = resolveFocus(this.#currentGrid(), this.#state.focus.home)?.id;
+    const shown = this.#continueEntries().slice(0, HOME_VIDEOS);
+    // The hero's Resume / From start pills belong to the hero's entry.
+    const entry = shown.find(
+      (v) =>
+        v.path === id || (v.path === this.#homeFilm && (id === "resume" || id === "fromstart")),
+    );
+    if (!entry) return false;
+    const fix = entry.app ? undefined : this.#show.fixTargetFor(entry);
+    this.#ask(
+      entry.title,
+      ["Remove from Continue watching", ...(fix ? ["Fix match"] : []), "Cancel"],
+      [
+        () => this.#forgetContinue(entry.path),
+        ...(fix ? [() => this.#show.openFixFromHome(fix)] : []),
+        () => {},
+      ],
+    );
+    return true;
   }
 
   /** A Continue watching entry: a Library video, or an App title that reopens its App. */
@@ -1370,7 +1427,7 @@ export class Core {
               left: card.progress?.left ?? "",
               ...(card.app
                 ? {
-                    ...(card.thumb ? { art: card.thumb } : {}),
+                    ...this.#appArtKey(card.path),
                     app: { id: card.app.id, label: card.app.label, icon: card.app.icon },
                   }
                 : this.#thumbKey(card.path)
@@ -1532,6 +1589,7 @@ export class Core {
         ? { speed: report.speed ?? 1, speeds: report.speeds }
         : {}),
       ...(artwork ? { artwork } : {}),
+      ...(!artwork && lent?.artKey ? { artKey: lent.artKey } : {}),
       ...(report.prompt && front.pressPrompt ? { prompt: report.prompt } : {}),
     };
   }
@@ -1614,7 +1672,7 @@ export class Core {
         this.#back();
         break;
       case "menu":
-        this.#show.menu();
+        if (!this.#continueMenu()) this.#show.menu();
         break;
       case "find":
         this.#find();
@@ -2234,18 +2292,19 @@ export class Core {
     if (action) action(this.#actionContext());
   }
 
-  #openApp(id: string): void {
+  /** `at`: an address to open the App at (a Continue entry's title), applied to the App just before it is shown. */
+  #openApp(id: string, at?: string): void {
     const app = this.#apps.get(id);
     if (!app || !this.#homeApps.isShown(id)) return;
     if (app.welcome && !this.#appsFailed.has(id)) {
-      void this.#welcomeThenOpen(app);
+      void this.#welcomeThenOpen(app, at);
       return;
     }
-    this.#enterApp(id);
+    this.#enterApp(id, at);
   }
 
   /** Asks the App's one-time question over the view we are on, and opens the App once it is answered. */
-  async #welcomeThenOpen(app: App): Promise<void> {
+  async #welcomeThenOpen(app: App, at?: string): Promise<void> {
     const welcome = app.welcome;
     if (!welcome) return;
     const looking = this.#lookups.has(app.id);
@@ -2267,7 +2326,7 @@ export class Core {
     if (this.#state.view !== view) return release();
     if (!question) {
       release();
-      this.#enterApp(app.id);
+      this.#enterApp(app.id, at);
       this.#emit();
       return;
     }
@@ -2279,7 +2338,7 @@ export class Core {
       );
       this.#welcoming.delete(app.id);
       if (this.#state.view !== view) return;
-      this.#enterApp(app.id);
+      this.#enterApp(app.id, at);
       if (toast) this.#toast(toast);
       this.#emit();
     };
@@ -2293,7 +2352,8 @@ export class Core {
     this.#emit();
   }
 
-  #enterApp(id: string): void {
+  /** Shows the App; with `at`, it goes to that address first, on whichever host it has by now (a welcome can switch engines). */
+  #enterApp(id: string, at?: string): void {
     const app = this.#apps.get(id);
     if (!app) return;
     this.#state.app = id;
@@ -2303,6 +2363,7 @@ export class Core {
       return;
     }
     this.#setView("app");
+    if (at) app.openAt?.(at);
     app.show(APP_NOTE);
   }
 
@@ -2428,6 +2489,13 @@ export class Core {
         } else {
           this.#playback.delete(app.id);
           this.#appTitles.flush();
+        }
+        break;
+      case "blocked":
+        // A Continue open was cancelled for leaving the App's own sites; the App is back at its home.
+        if (this.#state.view === "app" && this.#state.app === app.id) {
+          this.#setView("home");
+          this.#toast("Couldn't open that title");
         }
         break;
       case "searchOpened":

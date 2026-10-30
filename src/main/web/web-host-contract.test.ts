@@ -143,6 +143,16 @@ function electronRig(description: WebAppDescription): HostRig {
       contents.emit("did-navigate-in-page", {}, url);
     },
     loads: () => contents.loads,
+    navigateTop: (url, kind) => {
+      const event = {
+        defaultPrevented: false,
+        preventDefault() {
+          this.defaultPrevented = true;
+        },
+      };
+      contents.emit(kind === "redirect" ? "will-redirect" : "will-navigate", event, url);
+      return !event.defaultPrevented;
+    },
     loaded: () => {
       contents.emit("dom-ready");
       contents.emit("did-finish-load");
@@ -203,6 +213,21 @@ class FakeWebKitView implements WebKitView {
   answerKey() {}
   wakePointer() {}
   setInputRouting() {}
+  guard = false;
+  setNavigationGuard(on: boolean) {
+    this.guard = on;
+  }
+  decisions = new Map<number, boolean>();
+  answerNavigation(id: number, allow: boolean) {
+    this.decisions.set(id, allow);
+  }
+  /** What the native delegate does: with its guard on, it asks the host (event `navigating`) and waits for the answer. */
+  attempt(url: string): boolean {
+    if (!this.guard) return true;
+    const id = this.decisions.size + 1;
+    for (const l of Array.from(this.listeners)) l({ type: "navigating", id, url });
+    return this.decisions.get(id) ?? false;
+  }
   sendKey(key: string, down: boolean) {
     this.keys.push([key, down]);
   }
@@ -246,6 +271,7 @@ function webkitRig(description: WebAppDescription): HostRig {
       for (const l of Array.from(view.listeners)) l({ type: "navigated", url });
     },
     loads: () => view.loads,
+    navigateTop: (url) => view.attempt(url),
     loaded: () => {
       for (const l of Array.from(view.listeners))
         l({ type: "loaded", url: "https://www.netflix.com/browse" });

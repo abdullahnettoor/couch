@@ -9,6 +9,7 @@ import {
   type PlaybackReport,
   type TrackReport,
 } from "./playback.ts";
+import { titleKey } from "./resume-url.ts";
 import { seekPlan } from "./seek-plan.ts";
 import type { WebAppDescription } from "./web-app.ts";
 import { searchBarScript } from "./web-hud.ts";
@@ -55,14 +56,19 @@ export class WebHostCore {
   #lastSkipAt = 0;
   /** An address asked for before the page's first load: that load goes there instead of home. */
   #startUrl: string | undefined;
+  /** A Continue open is on its way: until the page has loaded, navigation off the App's own sites is cancelled. */
+  #pendingOpen = false;
+  #homeTimer: ReturnType<typeof setTimeout> | undefined;
+  #guard: (on: boolean) => void;
 
   /** `pollsRoute`: ask the page for its state every tick (otherwise the engine pushes it with `setPage`). */
   constructor(
     desc: WebAppDescription,
     engine: HostEngine,
     emit: (event: YouTubeEvent) => void,
-    options: { pollsRoute: boolean },
+    options: { pollsRoute: boolean; guard?: (on: boolean) => void },
   ) {
+    this.#guard = options.guard ?? (() => {});
     this.#desc = desc;
     this.#engine = engine;
     this.#emit = emit;
@@ -97,13 +103,49 @@ export class WebHostCore {
   }
 
   /**
-   * Opens the App at `url`, which must be an https address of the App's own origin (anything else is refused).
-   * With the page not loaded yet, its first load goes there (see `firstUrl`); otherwise the page navigates now.
+   * Opens the App at `url`, which must be one of the addresses the description's `resume` hook builds (its title's
+   * canonical address, with or without the time); anything else is refused. With the page not loaded yet, its first
+   * load goes there (see `firstUrl`); otherwise the page navigates now. Until the page has loaded, `allowNavigation`
+   * cancels any move off the App's own sites.
    */
   openAt(url: string, loadIssued: boolean): void {
-    if (!this.#isOwnPage(url)) return;
+    if (!this.#isResumeAddress(url)) return;
+    this.#setPending(true);
     if (loadIssued) this.#engine.load(url);
     else this.#startUrl = url;
+  }
+
+  #isResumeAddress(url: string): boolean {
+    if (!this.#isOwnPage(url)) return false;
+    const built = this.#desc.resume?.(url, 0);
+    return built !== undefined && titleKey(built) === titleKey(url);
+  }
+
+  #setPending(on: boolean): void {
+    if (this.#pendingOpen === on) return;
+    this.#pendingOpen = on;
+    this.#guard(on);
+  }
+
+  /** The page finished loading: a Continue open that was on its way has arrived. */
+  openSettled(): void {
+    this.#setPending(false);
+  }
+
+  /**
+   * The engine asks before the page's top frame goes to `url` (a link, a script or a redirect). While a Continue open is
+   * pending only the App's own https sites pass (never data:, javascript: or another host); anything else is cancelled,
+   * and the App is back at its home with a `blocked` event for core to say so. Otherwise everything passes.
+   */
+  allowNavigation(url: string): boolean {
+    if (!this.#pendingOpen || this.#isOwnPage(url)) return true;
+    this.#setPending(false);
+    this.#startUrl = undefined;
+    // After the engine has cancelled this navigation: loading in its middle could be cancelled with it.
+    clearTimeout(this.#homeTimer);
+    this.#homeTimer = setTimeout(() => this.#engine.load(this.#desc.url), 0);
+    this.#emit({ type: "blocked" });
+    return false;
   }
 
   #isOwnPage(url: string): boolean {
@@ -128,6 +170,7 @@ export class WebHostCore {
     this.#page = this.#desc.route.idle;
     this.#routes = this.#desc.route.tracker();
     this.#startUrl = undefined;
+    this.#setPending(false);
     this.#emit({ type: "route", home: true });
   }
 
@@ -138,6 +181,9 @@ export class WebHostCore {
     this.#skipTimer = undefined;
     clearTimeout(this.#searchTimer);
     this.#searchTimer = undefined;
+    clearTimeout(this.#homeTimer);
+    this.#homeTimer = undefined;
+    this.#setPending(false);
   }
 
   shown(): void {
@@ -176,6 +222,7 @@ export class WebHostCore {
         playbackProbe({
           tracks: askTracks ? adapter!.tracks!() : undefined,
           active: adapter?.active?.(),
+          ad: adapter?.ad?.(),
           speeds: adapter?.speeds,
           artwork: adapter?.artwork?.(),
           title: adapter?.title?.(),
@@ -191,7 +238,9 @@ export class WebHostCore {
           this.#tracks = found?.tracks as TrackReport | undefined;
         }
         const report = composeReport(found, this.#tracks, !!adapter?.seek, this.#desc.artworkHosts);
-        const resume = report && this.#desc.resume?.(this.#engine.url(), report.position);
+        // An ad is not the title: no address to resume.
+        const resume =
+          report && !report.ad && this.#desc.resume?.(this.#engine.url(), report.position);
         this.#reportPlayback(report && resume ? { ...report, resume } : report);
       })
       .catch(() => this.#reportPlayback(undefined))

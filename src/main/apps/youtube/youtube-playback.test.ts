@@ -136,3 +136,43 @@ describe("YouTube playback adapter", () => {
       expect(await probe(hash)).toBeUndefined();
   });
 });
+
+describe("YouTube ads", () => {
+  const probeWith = (adClasses: string[], hash = "#/watch?v=dQw4w9WgXcQ") => {
+    const video = {
+      currentTime: 5,
+      duration: 15,
+      paused: false,
+      readyState: 4,
+      getBoundingClientRect: () => ({ width: 1920, height: 1080 }),
+    };
+    const sandbox: any = {
+      innerWidth: 1920,
+      innerHeight: 1080,
+      location: { hash },
+      document: {
+        querySelectorAll: (sel: string) => (sel === "video" ? [video] : []),
+        // An element matches when the selector names one of the ad markers that are present.
+        querySelector: (sel: string) => (adClasses.some((c) => sel.includes(c)) ? {} : null),
+      },
+      navigator: {},
+    };
+    sandbox.window = sandbox;
+    vm.createContext(sandbox);
+    return vm.runInContext(
+      playbackProbe({ active: playback.active?.(), ad: playback.ad?.() }),
+      sandbox,
+    ) as Promise<{ ad?: boolean } | undefined>;
+  };
+
+  test.each([[".ad-showing"], [".ad-interrupting"], ["ytp-ad-"]])(
+    "a player carrying %s is reported as playing an ad, even on a valid watch page",
+    async (marker) => {
+      expect((await probeWith([marker]))?.ad).toBe(true);
+    },
+  );
+
+  test("no ad markers: the title is playing", async () => {
+    expect((await probeWith([]))?.ad).toBeUndefined();
+  });
+});

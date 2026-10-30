@@ -142,6 +142,8 @@ export interface Harness {
   metadata: FakeMetadata;
   /** Folder the Remote server serves thumbnails from. */
   thumbDir: string;
+  /** Continue watching's saved App art: its folder and every address the fake network was asked for. */
+  art: { dir: string; asked: string[]; answer: (url: string) => Response };
   phones: FakePhone[];
   store: Store;
   /** Whether the stand-in listener "answers" (flip it to simulate the listener coming or going). */
@@ -191,6 +193,15 @@ export async function startHarness(
   const metadata = new FakeMetadata();
   options.metadata?.(metadata);
   const thumbDir = mkdtempSync(join(tmpdir(), "couch-thumbs-"));
+  const artDir = join(mkdtempSync(join(tmpdir(), "couch-art-")), "continue-art");
+  const art: Harness["art"] = {
+    dir: artDir,
+    asked: [],
+    answer: () =>
+      new Response(Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0, 1]) as BodyInit, {
+        headers: { "content-type": "image/jpeg" },
+      }),
+  };
   const listenerUp = { alive: !!options.listener };
   if (options.listener) {
     store.write("listener", {
@@ -226,6 +237,14 @@ export async function startHarness(
     tmdbProjectKey: options.tmdbProjectKey,
     listener: options.listener,
     thumbnailDir: thumbDir,
+    continueArt: {
+      dir: artDir,
+      fetch: async (url) => {
+        art.asked.push(url);
+        return art.answer(url);
+      },
+      hosts: { youtube: ["ytimg.com"], netflix: ["nflximg.net", "nflxso.net", "nflxext.com"] },
+    },
     iconDir: join(import.meta.dirname, "../../renderer/public"),
     port: 0,
     host: "127.0.0.1",
@@ -250,6 +269,7 @@ export async function startHarness(
     },
     metadata,
     thumbDir,
+    art,
     phones,
     store,
     listenerUp,
@@ -263,6 +283,7 @@ export async function startHarness(
       for (const p of phones) p.close();
       await app.stop();
       rmSync(thumbDir, { recursive: true, force: true });
+      rmSync(join(artDir, ".."), { recursive: true, force: true });
       if (tmp) rmSync(tmp, { recursive: true, force: true });
     },
   };

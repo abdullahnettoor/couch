@@ -16,7 +16,7 @@
 #include "webkit_host.h"
 
 // ---- WebKit App views (ticket 110): a WKWebView under Chromium's compositor, kept there by the Keeper's app role. ----
-// Events reach JS as (kind, a, b): message(name, json), loaded(url), navigated(url), failed(error).
+// Events reach JS as (kind, a, b): message(name, json), loaded(url), navigated(url), failed(error), navigating(url, id).
 struct WkEvent { std::string kind, a, b; };
 static void CallWkEvent(napi_env env, napi_value jsCb, void *, void *data) {
   WkEvent *e = (WkEvent *)data;
@@ -79,6 +79,10 @@ struct WkPointerHost : inputpolicy::PointerHost {
 @property(nonatomic) WKWebView *web;
 @property(nonatomic) napi_threadsafe_function events;
 @property(nonatomic) NSWindow *offscreen;
+// The navigation guard: while on, main-frame navigations are held (their decision handlers kept by id) until the host answers.
+@property(nonatomic) BOOL guardOn;
+@property(nonatomic) int navSeq;
+@property(nonatomic) NSMutableDictionary<NSNumber *, void (^)(WKNavigationActionPolicy)> *heldNav;
 // Every user script in registration order: {slot (or NSNull), src, page}. A slot's script can be replaced, which rebuilds the controller's list.
 @property(nonatomic) NSMutableArray<NSDictionary *> *scripts;
 - (void)post:(const char *)kind a:(NSString *)a b:(NSString *)b;
@@ -102,6 +106,25 @@ struct WkPointerHost : inputpolicy::PointerHost {
   NSDictionary *envelope = @{@"body": body, @"frame": @{@"isMainFrame": @(m.frameInfo.isMainFrame), @"origin": origin}};
   NSData *d = [NSJSONSerialization dataWithJSONObject:envelope options:0 error:nil];
   [self post:"message" a:m.name b:d ? [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding] : @"{}"];
+}
+// With the guard on, a main-frame navigation (a link, a script or a server redirect) waits for the host's answer; none within
+// two seconds cancels it. With it off, everything proceeds untouched.
+- (void)webView:(WKWebView *)w decidePolicyForNavigationAction:(WKNavigationAction *)a decisionHandler:(void (^)(WKNavigationActionPolicy))handler {
+  if (!self.guardOn || (a.targetFrame && !a.targetFrame.isMainFrame)) return handler(WKNavigationActionPolicyAllow);
+  int nid = ++self.navSeq;
+  if (!self.heldNav) self.heldNav = [NSMutableDictionary new];
+  self.heldNav[@(nid)] = [handler copy];
+  NSString *url = a.request.URL.absoluteString ?: @"";
+  if (![self postChecked:"navigating" a:url b:[NSString stringWithFormat:@"%d", nid]]) {
+    [self.heldNav removeObjectForKey:@(nid)];
+    return handler(WKNavigationActionPolicyCancel);
+  }
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+    void (^held)(WKNavigationActionPolicy) = self.heldNav[@(nid)];
+    if (!held) return;
+    [self.heldNav removeObjectForKey:@(nid)];
+    held(WKNavigationActionPolicyCancel);
+  });
 }
 - (void)webView:(WKWebView *)w didFinishNavigation:(WKNavigation *)n { [self post:"loaded" a:w.URL.absoluteString b:nil]; }
 - (void)webView:(WKWebView *)w didFailNavigation:(WKNavigation *)n withError:(NSError *)e {
@@ -645,6 +668,29 @@ static napi_value WebkitSetInput(napi_env env, napi_callback_info info) {
 }
 
 // The host's answer for a held key: replay it to the view or consume it.
+static napi_value WebkitSetNavigationGuard(napi_env env, napi_callback_info info) {
+  size_t argc = 2; napi_value argv[2];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  CouchWebKit *wk = wkFor(env, argv[0]);
+  bool on = false; napi_get_value_bool(env, argv[1], &on);
+  if (wk) onMain(^{ wk.guardOn = on; });
+  return NULL;
+}
+// webkitAnswerNavigation(id, navId, allow): once per held navigation; an answer after the deadline finds nothing held.
+static napi_value WebkitAnswerNavigation(napi_env env, napi_callback_info info) {
+  size_t argc = 3; napi_value argv[3];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  CouchWebKit *wk = wkFor(env, argv[0]);
+  int32_t navId = 0; bool allow = false;
+  napi_get_value_int32(env, argv[1], &navId); napi_get_value_bool(env, argv[2], &allow);
+  if (wk) onMain(^{
+    void (^held)(WKNavigationActionPolicy) = wk.heldNav[@(navId)];
+    if (!held) return;
+    [wk.heldNav removeObjectForKey:@(navId)];
+    held(allow ? WKNavigationActionPolicyAllow : WKNavigationActionPolicyCancel);
+  });
+  return NULL;
+}
 static napi_value WebkitAnswerKey(napi_env env, napi_callback_info info) {
   size_t argc = 3; napi_value argv[3];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
@@ -857,6 +903,8 @@ void registerWebKit(napi_env env, napi_value exports) {
     {"webkitSendKey", 0, WebkitSendKey, 0, 0, 0, napi_default, 0},
     {"webkitSetInput", 0, WebkitSetInput, 0, 0, 0, napi_default, 0},
     {"webkitAnswerKey", 0, WebkitAnswerKey, 0, 0, 0, napi_default, 0},
+    {"webkitSetNavigationGuard", 0, WebkitSetNavigationGuard, 0, 0, 0, napi_default, 0},
+    {"webkitAnswerNavigation", 0, WebkitAnswerNavigation, 0, 0, 0, napi_default, 0},
     {"webkitWakePointer", 0, WebkitWakePointer, 0, 0, 0, napi_default, 0},
     {"webkitDestroy", 0, WebkitDestroy, 0, 0, 0, napi_default, 0},
     {"webkitRemoveStore", 0, WebkitRemoveStore, 0, 0, 0, napi_default, 0},

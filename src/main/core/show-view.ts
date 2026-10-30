@@ -6,6 +6,7 @@ import type {
   ShowEpisode,
   View,
 } from "../../shared/protocol.ts";
+import { VIEW_LABELS } from "../../shared/protocol.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
 import type { History } from "./history.ts";
 import { hueFor, presentation } from "./library.ts";
@@ -231,12 +232,17 @@ export class ShowView {
 
   /** Where Fix match was opened from, and for which show or film. */
   #fixId: string | undefined;
-  #fixBack: "show" | "library" = "show";
+  #fixBack: "show" | "library" | "home" = "show";
 
   /** The show or film under the focused Library tile, when its match can be fixed. */
   fixTarget(): string | undefined {
-    if (this.#state.view !== "library" || !this.canFix()) return undefined;
-    const entry = this.#h.focusedEntry();
+    if (this.#state.view !== "library") return undefined;
+    return this.fixTargetFor(this.#h.focusedEntry());
+  }
+
+  /** The id Fix match would fix for this entry (a show, or a film), if it applies. */
+  fixTargetFor(entry: LibraryEntry | undefined): string | undefined {
+    if (!this.canFix()) return undefined;
     if (!entry || entry.missing) return undefined;
     if (entry.kind === "show") return entry.path;
     if (entry.kind !== "video" || this.#h.library.showOf(entry.path)) return undefined;
@@ -256,7 +262,12 @@ export class ShowView {
     this.#state.view = this.#fixBack;
   }
 
-  #openFixMatch(id: string, back: "show" | "library" = "show"): void {
+  /** Fix match for a film on Home's Continue watching; Back returns to Home. */
+  openFixFromHome(id: string): void {
+    this.#openFixMatch(id, "home");
+  }
+
+  #openFixMatch(id: string, back: "show" | "library" | "home" = "show"): void {
     this.#fixId = id;
     this.#fixBack = back;
     this.#fixOptions = undefined;
@@ -359,7 +370,11 @@ export class ShowView {
 
   /** What Back from Fix match names: the Library, or the show it was opened from. */
   fixBackLabel(): string {
-    return this.#fixBack === "library" ? "Library" : this.#fixName();
+    return this.#fixBack === "library"
+      ? "Library"
+      : this.#fixBack === "home"
+        ? VIEW_LABELS.home
+        : this.#fixName();
   }
 
   fixPayload(): Pick<ScreenPayload, "fixMatch"> {
