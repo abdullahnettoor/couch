@@ -125,7 +125,8 @@ const TEXT_FIELD_SOURCE = `function (el) {
 
 /**
  * Page script source (an expression) that types `text` into the page's focused text field the way the
- * page's own framework notices (the native value setter, then input and change events). Evaluates to
+ * page's own framework notices (the native value setter, then input and change events). The text is the
+ * whole of what was typed, so it replaces what the field held (a site's search field keeps the last search). Evaluates to
  * false, having done nothing, when no text field has focus.
  */
 export function typeIntoFieldScript(text: string): string {
@@ -134,11 +135,14 @@ export function typeIntoFieldScript(text: string): string {
     var isField = (${TEXT_FIELD_SOURCE});
     var el = document.activeElement;
     if (!isField(el)) return false;
-    if (el.isContentEditable === true) return !!document.execCommand('insertText', false, text);
+    if (el.isContentEditable === true) {
+      document.execCommand('selectAll', false);
+      return !!document.execCommand('insertText', false, text);
+    }
     var proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
     var d = Object.getOwnPropertyDescriptor(proto, 'value');
     if (!d || !d.set) return false;
-    d.set.call(el, (el.value || '') + text);
+    d.set.call(el, text);
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
     return true;

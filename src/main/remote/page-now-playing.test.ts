@@ -57,9 +57,25 @@ function loadPage() {
   const proxies = new Map([...els].map(([k, v]) => [k, proxy(v)]));
   let docClick: ((e: unknown) => void) | undefined;
   const bodyClasses = new Set<string>();
+  const muteButtons = [0, 1, 2].map(() => ({
+    pressed: "",
+    innerHTML: "",
+    classes: new Set<string>(),
+    classList: {
+      toggle(this: { owner: { classes: Set<string> } }, c: string, on: boolean) {
+        if (on) this.owner.classes.add(c);
+        else this.owner.classes.delete(c);
+      },
+      owner: undefined as unknown as { classes: Set<string> },
+    },
+    setAttribute(n: string, v: string) {
+      if (n === "aria-pressed") this.pressed = v;
+    },
+  }));
+  for (const b of muteButtons) b.classList.owner = b;
   const document = {
     getElementById: (id: string) => proxies.get(id),
-    querySelectorAll: () => [],
+    querySelectorAll: (sel: string) => (sel === ".mutebtn" ? muteButtons : []),
     addEventListener: (n: string, f: (e: unknown) => void) => {
       if (n === "click") docClick = f;
     },
@@ -115,6 +131,7 @@ function loadPage() {
     });
   return {
     els,
+    muteButtons,
     sent,
     send,
     base,
@@ -295,8 +312,27 @@ describe("the idle Remote", () => {
   test("the volume pill shows the level and Muted, and Mute marks pressed", () => {
     idle({ volume: 30 });
     expect(page.els.get("id-vol-n")!.textContent).toBe("30");
+    idle({ volume: 30, muted: true });
+    expect(page.els.get("id-vol-n")!.textContent).toBe("0");
+    expect(page.els.get("id-vol")!.classes.has("muted")).toBe(true);
+    idle({ volume: 30, muted: false });
+    expect(page.els.get("id-vol-n")!.textContent).toBe("30");
+    expect(page.els.get("id-vol")!.classes.has("muted")).toBe(false);
+  });
+
+  test("Mute shows the muted icon and marks pressed, then the speaker again", () => {
     idle({ muted: true });
-    expect(page.els.get("id-vol-n")!.textContent).toBe("Muted");
+    for (const b of page.muteButtons) {
+      expect(b.innerHTML).toContain(ICON_PATHS.speakerMute);
+      expect(b.pressed).toBe("true");
+      expect(b.classes.has("on")).toBe(true);
+    }
+    idle({ muted: false });
+    for (const b of page.muteButtons) {
+      expect(b.innerHTML).toContain(ICON_PATHS.speaker);
+      expect(b.innerHTML).not.toContain(ICON_PATHS.speakerMute);
+      expect(b.pressed).toBe("false");
+    }
   });
 
   test("uses the fixed no-scroll layout", () => {
@@ -451,7 +487,9 @@ describe("Now Playing", () => {
 
   test("mute state shows in the volume pill", () => {
     page.playing({}, { muted: true });
-    expect(page.els.get("np-vol-n")!.textContent).toBe("Muted");
+    expect(page.els.get("np-vol-n")!.textContent).toBe("0");
+    expect(page.els.get("np-vol")!.classes.has("muted")).toBe(true);
+    for (const b of page.muteButtons) expect(b.innerHTML).toContain(ICON_PATHS.speakerMute);
     page.playing({}, { muted: false });
     expect(page.els.get("np-vol-n")!.textContent).toBe("42");
   });

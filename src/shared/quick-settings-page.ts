@@ -68,7 +68,7 @@ export function quickSettingsPage({ glass = false }: { glass?: boolean } = {}): 
     return '<span class="btn' + (on ? " on" : "") + '" data-id="' + id + '" aria-label="' + label + '">' + icon(name) + "</span>";
   }
   function volumeRow(q, i) {
-    var level = q.muted ? "Muted" : String(Math.round(Number(q.volume)) || 0);
+    var level = q.muted ? "0" : String(Math.round(Number(q.volume)) || 0);
     return '<div class="row vol' + focusClass(q, i.id) + '" data-id="' + esc(i.id) + '"><span class="l">' + esc(i.label) + '</span>' + volumeButton("vol:down", "Volume down", "minus") + '<b class="num">' + esc(level) + "</b>" + volumeButton("vol:up", "Volume up", "plus") + volumeButton("vol:mute", "Mute", q.muted ? "speakerMute" : "speaker", q.muted) + "</div>";
   }
   function actionRow(q, i, name) {

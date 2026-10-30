@@ -616,8 +616,35 @@ describe("typing into the page's focused field", () => {
     expect(input._v).toBe("dummy@example.invalid");
     expect(input.setViaNative).toBe(true);
     expect(input.events).toEqual(["input", "change"]);
-    type("!");
-    expect(input._v).toBe("dummy@example.invalid!");
+  });
+  test("a second search replaces the old text in the site's own search field instead of appending", () => {
+    const input: any = new Input();
+    input.type = "search";
+    const type = page(input);
+    expect(type("dark")).toBe(true);
+    expect(input._v).toBe("dark");
+    expect(type("bridgerton")).toBe(true);
+    expect(input._v).toBe("bridgerton");
+    expect(input.events).toEqual(["input", "change", "input", "change"]);
+  });
+  test("a text box that is editable content is selected whole before the text replaces it", () => {
+    const calls: string[] = [];
+    const box: any = { tagName: "DIV", isContentEditable: true };
+    const sandbox: any = {
+      document: {
+        activeElement: box,
+        execCommand: (name: string) => {
+          calls.push(name);
+          return true;
+        },
+      },
+      HTMLInputElement,
+      HTMLTextAreaElement: class {},
+      Event: class {},
+    };
+    vm.createContext(sandbox);
+    expect(vm.runInContext(typeIntoFieldScript("x"), sandbox)).toBe(true);
+    expect(calls).toEqual(["selectAll", "insertText"]);
   });
   test("with no field focused it does nothing and says so", () => {
     expect(page(null)(" x")).toBe(false);

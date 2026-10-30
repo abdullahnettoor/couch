@@ -158,6 +158,19 @@ describe("Netflix App", () => {
     expect(h.youtube.calls.filter((c) => c.call === "submitSearch")).toEqual([]);
   });
 
+  test("searching again starts with an empty query and no old text on the phone or the Screen's bar", async () => {
+    await openNetflix();
+    await phone.press({ command: "typeOpen" });
+    await phone.press({ command: "typeText", args: { text: "dark" } });
+    await phone.press("typeSubmit");
+    const s = await phone.press({ command: "typeOpen" });
+    expect(s.typing).toBe("you");
+    expect(s.typeSeed ?? "").toBe("");
+    await phone.press({ command: "typeText", args: { text: "bridgerton" } });
+    await phone.press("typeSubmit");
+    expect(calls("submitSearch").map((c) => c.args)).toEqual([["dark"], ["bridgerton"]]);
+  });
+
   test("Couch's volume and Sound output reach Netflix", async () => {
     await phone.press({ command: "volSet", args: { percent: 40 } });
     expect(h.netflix.volume).toBe(40);

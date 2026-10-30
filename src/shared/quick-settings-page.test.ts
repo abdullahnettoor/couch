@@ -4,6 +4,7 @@ import type { QuickPayload } from "./protocol.ts";
 import { readFileSync } from "node:fs";
 import { glassTokensCss } from "./glass-tokens.ts";
 import { drawerGlassRect, quickSettingsPage } from "./quick-settings-page.ts";
+import { ICON_PATHS } from "./icons.ts";
 
 /** Custom properties declared on the root element, with var() resolved; undefined where a var() has no value there (CSS makes that invalid). */
 function rootProps(css: string): Map<string, string | undefined> {
@@ -115,7 +116,7 @@ describe("the Quick settings page", () => {
     ]);
   });
 
-  test("the Volume row shows the level and has − + and mute; muted shows Muted", () => {
+  test("the Volume row shows the level and has − + and mute; muted shows 0 and the muted icon", () => {
     const { drawer, onQuick } = load();
     onQuick({ ...payload, focusedId: "vol" });
     expect(drawer.innerHTML).toContain('class="row vol focus" data-id="vol"');
@@ -124,7 +125,8 @@ describe("the Quick settings page", () => {
     expect(drawer.innerHTML).toContain('data-id="vol:mute"');
     expect(drawer.innerHTML).toContain(">Volume<");
     onQuick({ ...payload, muted: true });
-    expect(drawer.innerHTML).toContain(">Muted<");
+    expect(drawer.innerHTML).toContain('<b class="num">0</b>');
+    expect(drawer.innerHTML).toContain(ICON_PATHS.speakerMute);
   });
 
   test("uses the labels the core supplies, such as Picture on", () => {
