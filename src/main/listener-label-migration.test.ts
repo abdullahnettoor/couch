@@ -173,7 +173,7 @@ describe("listener label migration (fake launchctl, file system and port)", () =
     expect(w.marked()).toBeUndefined();
   };
 
-  test("success: bootout, bootstrap, kickstart, verify, delete old, marker; settings and port kept", async () => {
+  test("success: bootout, bootstrap, kickstart, verify, marker, delete old; settings and port kept", async () => {
     w.install({ loaded: true });
     expect(await w.run()).toBe("migrated");
     expect(w.order()).toEqual([
@@ -182,8 +182,8 @@ describe("listener label migration (fake launchctl, file system and port)", () =
       "bootstrap new",
       "kickstart new",
       "probe:up",
-      "delete old",
       "marker migrations",
+      "delete old",
     ]);
     expect(w.files.get(NEW)).toBe(OLD_PLIST.replace(LEGACY_LISTENER_LABEL, LISTENER_LABEL));
     expect(w.files.has(OLD)).toBe(false);
@@ -313,6 +313,17 @@ describe("listener label migration (fake launchctl, file system and port)", () =
     expect(await w.run()).toBe("rolled-back");
     rolledBack();
     expect(w.events.some((e) => e === "bootout old")).toBe(false);
+  });
+
+  test("the old plist can't be deleted after a verified handoff: still done, never rolled back later", async () => {
+    w.install({ loaded: true });
+    w.fsFailures.add(`remove ${OLD}`);
+    expect(await w.run()).toBe("migrated");
+    expect(w.marked()).toBeDefined();
+    expect(w.loaded.has(LISTENER_LABEL)).toBe(true);
+    w.events.length = 0;
+    expect(await w.run()).toBe("skipped");
+    expect(w.loaded.has(LISTENER_LABEL)).toBe(true);
   });
 
   test("print-disabled failing: nothing is touched, retried next start", async () => {

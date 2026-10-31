@@ -138,12 +138,12 @@ export async function migrateListenerLabel(o: ListenerLabelMigration): Promise<M
     return "rolled-back";
   }
 
+  // The new job is verified; mark it done even if the old plist can't be deleted, so a later start never rolls a working handoff back.
+  mark();
   try {
     fs.remove(oldPlist);
-    mark();
   } catch (e) {
-    log(`Listener label migration: cleanup failed, will retry: ${(e as Error).message}`);
-    return "migrated";
+    log(`Listener label migration: the old plist is left behind: ${(e as Error).message}`);
   }
   log(`Listener label migrated to ${LISTENER_LABEL}`);
   return "migrated";
