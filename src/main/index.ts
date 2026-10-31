@@ -9,7 +9,8 @@ import {
   session,
   WebContentsView,
 } from "electron";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { screenPointer } from "./pointer-position.ts";
 import { Channel, type GlassRect, type GridReport } from "../shared/ipc.ts";
@@ -61,7 +62,7 @@ import { WallpaperFilesOnDisk } from "./ports/pictures.ts";
 import { TmdbMetadata } from "./ports/tmdb-metadata.ts";
 import { PROJECT_TMDB_KEY } from "./ports/project-key.ts";
 import { detectListener } from "./frontdoor.ts";
-import { migrateListenerLabel } from "./ports/listener-label-migration.ts";
+import { MIGRATION_FAILED_TOAST, migrateListenerLabel } from "./ports/listener-label-migration.ts";
 import { chooseBinding } from "./listener.ts";
 import {
   createDrawerGlass,
@@ -334,16 +335,19 @@ async function createScreen(): Promise<void> {
   netflixReady = true;
   onAnswer(fairplay.current());
   mac.keepAwake(true);
-  await migrateListenerLabel({
+  const labelMigration = await migrateListenerLabel({
     home: homedir(),
     uid: process.getuid?.() ?? 0,
-    program: app.isPackaged ? join(process.resourcesPath, "couch-listener") : undefined,
-    launch: `open -a '${dirname(dirname(dirname(process.execPath))).replace(/'/g, "'\\''")}'`,
+    available: app.isPackaged && existsSync(join(process.resourcesPath, "couch-listener")),
     store,
-  }).catch(() => {});
+  }).catch((e) => {
+    console.warn(`[couch] Listener label migration crashed: ${(e as Error).message}`);
+    return "rolled-back" as const;
+  });
   const listener = await detectListener({
     store,
-    installed: async () => (await mac.listenerLoginItem()).on,
+    // After a rollback the old job is coming back up under its old label: wait for it too.
+    installed: async () => labelMigration === "rolled-back" || (await mac.listenerLoginItem()).on,
   });
   couch = await startApp({
     player,
@@ -471,6 +475,7 @@ async function createScreen(): Promise<void> {
     slide: (phase) => drawer.slideStart(phase),
   });
   let nativeFront = false;
+  if (labelMigration === "rolled-back") couch.toast(MIGRATION_FAILED_TOAST);
   couch.onScreen((payload) => {
     for (const listener of screenListeners) listener(payload.playing);
     // A native App view is under the window's web contents: Couch's own page goes transparent while it is in front.

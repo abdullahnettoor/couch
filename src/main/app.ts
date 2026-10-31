@@ -12,6 +12,8 @@ export interface CouchApp {
   reportGrid(viewKey: string, items: GridItem[]): void;
   /** What the Screen renderer would draw right now. */
   screen(): ScreenPayload;
+  /** A quiet toast on the Screen (and mirrored on the Remote). */
+  toast(text: string): void;
   /** Couch's own ⌘Q: asks "Quit Couch?". Other quits never ask. */
   askQuit(): void;
   /** Saves playback state and stops the player; called on ⌘Q. */
@@ -81,6 +83,7 @@ export async function startApp(options: AppOptions): Promise<CouchApp> {
     screenCommand: (command) => core.handle(command, screenSource),
     reportGrid: (viewKey, items) => core.reportGrid(viewKey, items),
     screen: () => core.screen(),
+    toast: (text) => core.showToast(text),
     askQuit: () => core.askQuit(),
     beforeQuit: () => core.beforeQuit(),
     onScreen(listener) {

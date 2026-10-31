@@ -10,10 +10,26 @@ export interface ListenerLoginItem {
   on: boolean;
 }
 
-export type Exec = (file: string, args: string[]) => Promise<{ ok: boolean }>;
+export interface ExecResult {
+  ok: boolean;
+  /** The exit code; undefined when the command could not run at all. */
+  code?: number;
+  output?: string;
+}
+
+export type Exec = (file: string, args: string[]) => Promise<ExecResult>;
 
 export const systemExec: Exec = (file, args) =>
-  new Promise((resolve) => execFile(file, args, (error) => resolve({ ok: !error })));
+  new Promise((resolve) =>
+    execFile(file, args, (error, stdout) => {
+      const code = (error as { code?: unknown } | null)?.code;
+      resolve({
+        ok: !error,
+        code: error ? (typeof code === "number" ? code : undefined) : 0,
+        output: String(stdout ?? ""),
+      });
+    }),
+  );
 
 const xml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 

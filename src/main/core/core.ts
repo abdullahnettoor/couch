@@ -2639,6 +2639,12 @@ export class Core {
     await this.refreshLoginItem();
   }
 
+  /** A toast from outside the core (start-up notices). */
+  showToast(text: string): void {
+    this.#toast(text);
+    this.#emit();
+  }
+
   #toast(text: string): void {
     this.#cancelToast?.();
     this.#toastId++;
