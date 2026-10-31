@@ -30,7 +30,7 @@ const [appPath] = await packager({
   platform: "darwin",
   arch: process.arch,
   icon: "build/icon",
-  appBundleId: "local.couch.app",
+  appBundleId: "com.abdullahnettoor.couch",
   appCategoryType: "public.app-category.entertainment",
   overwrite: true,
   // Electron for Content Security (Widevine) comes from castLabs' releases, not electron/electron.

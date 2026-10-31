@@ -48,13 +48,15 @@ describe("login item (real files, fake launchctl)", () => {
     await item.set(true);
     expect(loaded).toBeDefined();
     expect(readPlist(loaded!)).toEqual({
-      label: "local.couch.listener",
+      label: "com.abdullahnettoor.couch.listener",
       args: [PROGRAM, "--launch", LAUNCH],
       runAtLoad: true,
       keepAlive: true,
       log: join(home, "Library/Logs/Couch/listener.log"),
     });
-    expect(item.plistPath).toBe(join(home, "Library/LaunchAgents/local.couch.listener.plist"));
+    expect(item.plistPath).toBe(
+      join(home, "Library/LaunchAgents/com.abdullahnettoor.couch.listener.plist"),
+    );
     expect(existsSync(item.plistPath)).toBe(true);
     expect(await item.state()).toEqual({ available: true, on: true });
     await item.set(false);

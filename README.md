@@ -8,16 +8,16 @@ Contributing (set-up, tickets, adding a YouTube add-on or a web App): see `CONTR
 
 Tooling is [Vite+](https://viteplus.dev) (`vp`), run through pnpm.
 
-| Command          | What it does                                                                                     |
-| ---------------- | ------------------------------------------------------------------------------------------------ |
-| `pnpm install`   | Install dependencies (Electron's download is allowed in `pnpm-workspace.yaml`)                   |
-| `vp check`       | Format, lint and type-check (use `vp check --fix` to auto-fix)                                   |
-| `vp test run`    | Run the Vitest tests once                                                                        |
-| `vp run build`   | Build renderer (`vp build`) and main + preload (`vp pack`) into `dist/`                          |
-| `vp run start`   | Build, then start Couch in Electron                                                              |
-| `vp run package` | Build an unsigned `out/Couch-darwin-<arch>/Couch.app` (name, icon, bundle id `local.couch.app`)  |
-| `vp run sample`  | Generate `.dev/sample.mkv` (needs ffmpeg) used by the temporary play key                         |
-| `vp run icons`   | Rebuild `build/icon.icns` and the Remote/Credits PNGs from `build/icon.png` and `icon-touch.png` |
+| Command          | What it does                                                                                              |
+| ---------------- | --------------------------------------------------------------------------------------------------------- |
+| `pnpm install`   | Install dependencies (Electron's download is allowed in `pnpm-workspace.yaml`)                            |
+| `vp check`       | Format, lint and type-check (use `vp check --fix` to auto-fix)                                            |
+| `vp test run`    | Run the Vitest tests once                                                                                 |
+| `vp run build`   | Build renderer (`vp build`) and main + preload (`vp pack`) into `dist/`                                   |
+| `vp run start`   | Build, then start Couch in Electron                                                                       |
+| `vp run package` | Build an unsigned `out/Couch-darwin-<arch>/Couch.app` (name, icon, bundle id `com.abdullahnettoor.couch`) |
+| `vp run sample`  | Generate `.dev/sample.mkv` (needs ffmpeg) used by the temporary play key                                  |
+| `vp run icons`   | Rebuild `build/icon.icns` and the Remote/Credits PNGs from `build/icon.png` and `icon-touch.png`          |
 
 Run `vp` as `pnpm exec vp …` if it isn't installed globally. If `ELECTRON_RUN_AS_NODE` is set in your shell, unset it before `vp run start`.
 
@@ -88,7 +88,7 @@ The Couch Listener is a tiny background program inside `Couch.app`. It lets the 
 - **The Power button.** On the phone's Remote, Power starts Couch when it is off, and quits it (saving your place) when it is on.
 - **Sleep.** The Mac stays awake while the display sleeps, so the Remote keeps working with the TV off. It doesn't wake a Mac that is asleep.
 - **"Can't reach Couch".** With the listener on, this now means the Mac itself is asleep, off or on another network. If Couch is simply closed, the phone shows "Couch is off" with a Power button.
-- **Remove it.** Switch the item Off in Settings. Or run `launchctl bootout gui/$(id -u)/local.couch.listener` and delete `~/Library/LaunchAgents/local.couch.listener.plist`. Its log is `~/Library/Logs/Couch/listener.log`.
+- **Remove it.** Switch the item Off in Settings. Or run `launchctl bootout gui/$(id -u)/com.abdullahnettoor.couch.listener` and delete `~/Library/LaunchAgents/com.abdullahnettoor.couch.listener.plist`. Its log is `~/Library/Logs/Couch/listener.log`.
 
 ### Where Couch keeps its data
 

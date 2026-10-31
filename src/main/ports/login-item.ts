@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-export const LISTENER_LABEL = "local.couch.listener";
+export const LISTENER_LABEL = "com.abdullahnettoor.couch.listener";
 
 export interface ListenerLoginItem {
   /** False outside an installed Couch.app, or when its listener binary is missing (development). */

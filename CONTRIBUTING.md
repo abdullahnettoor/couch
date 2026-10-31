@@ -29,6 +29,10 @@ Only needed when working on DRM Apps (Netflix, Prime Video, Disney+, Hotstar): t
   - Neither can be notarised; they're only for your own installs.
 - castLabs' rules of conduct: no extra accounts (reset the password instead), don't force a re-sign while the signature is valid.
 
+## Identifiers
+
+Couch's bundle id is `com.abdullahnettoor.couch` (`scripts/package.mjs`) and its Listener's LaunchAgent label is `com.abdullahnettoor.couch.listener` (`LISTENER_LABEL`). The first placeholder ids (under a `local` prefix) appear only in the one-time migration on start (`src/main/ports/listener-label-migration.ts`) and its tests. The userData folder is named from `app.setName("Couch")`, not the bundle id, so changing the id leaves data in place.
+
 ## How work is tracked
 
 Work is tracked in a local `.issues/` folder of markdown files, kept out of git (see `.gitignore`; the maintainer keeps it): a spec (`NNN-slug.md`) and the tickets cut from it (`parent:` points at the spec). A ticket has `status`, `assignee`, `blocked_by` and acceptance criteria as checkboxes. To find work an agent or person can pick up, run the ready query from `.issues/README.md`, then check each ticket's `blocked_by`. Claim a ticket by setting `assignee` before you start, tick the criteria as you meet them, and set `status: closed` when done.

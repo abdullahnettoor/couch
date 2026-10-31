@@ -9,7 +9,8 @@ import {
   session,
   WebContentsView,
 } from "electron";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { homedir } from "node:os";
 import { screenPointer } from "./pointer-position.ts";
 import { Channel, type GlassRect, type GridReport } from "../shared/ipc.ts";
 import type { Command } from "../shared/protocol.ts";
@@ -60,6 +61,7 @@ import { WallpaperFilesOnDisk } from "./ports/pictures.ts";
 import { TmdbMetadata } from "./ports/tmdb-metadata.ts";
 import { PROJECT_TMDB_KEY } from "./ports/project-key.ts";
 import { detectListener } from "./frontdoor.ts";
+import { migrateListenerLabel } from "./ports/listener-label-migration.ts";
 import { chooseBinding } from "./listener.ts";
 import {
   createDrawerGlass,
@@ -332,6 +334,13 @@ async function createScreen(): Promise<void> {
   netflixReady = true;
   onAnswer(fairplay.current());
   mac.keepAwake(true);
+  await migrateListenerLabel({
+    home: homedir(),
+    uid: process.getuid?.() ?? 0,
+    program: app.isPackaged ? join(process.resourcesPath, "couch-listener") : undefined,
+    launch: `open -a '${dirname(dirname(dirname(process.execPath))).replace(/'/g, "'\\''")}'`,
+    store,
+  }).catch(() => {});
   const listener = await detectListener({
     store,
     installed: async () => (await mac.listenerLoginItem()).on,
