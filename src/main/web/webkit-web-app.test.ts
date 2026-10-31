@@ -48,6 +48,9 @@ class FakeView implements WebKitView {
   listeners = new Set<(e: WebKitEvent) => void>();
   /** Answers to `evaluate`, by a substring of the script. */
   answers: Array<[string, unknown]> = [];
+  /** With `deferred`, the field query waits for the test to answer it. */
+  deferred = false;
+  pending: Array<(on: unknown) => void> = [];
   /** The order things were done in. */
   log: string[] = [];
   constructor(options: WebKitViewOptions) {
@@ -60,6 +63,8 @@ class FakeView implements WebKitView {
   async evaluate(script: string, options: { kind: EvaluateKind }) {
     this.evaluated.push(script);
     this.kinds.push(options.kind);
+    if (this.deferred && script === FIELD_FOCUSED_QUERY)
+      return new Promise<unknown>((resolve) => this.pending.push(resolve));
     for (const [part, answer] of this.answers) if (script.includes(part)) return answer;
     return undefined;
   }
@@ -1273,6 +1278,89 @@ describe("input", () => {
       await Promise.resolve();
       await Promise.resolve();
       expect(view().routing.at(-1)).toEqual({ ...ON, fieldFocused: true });
+    });
+
+    test("a stale true from the old document is corrected when the new page has loaded", async () => {
+      const { web, view } = make();
+      web.show();
+      field(view(), "couch:field-focused");
+      view().answers.push([FIELD_FOCUSED_QUERY, true]);
+      view().emit({ type: "navigated", url: "https://www.netflix.com/title/1" });
+      await vi.waitFor(() => expect(view().evaluated).toContain(FIELD_FOCUSED_QUERY));
+      await Promise.resolve();
+      expect(view().routing.at(-1)).toEqual({ ...ON, fieldFocused: true });
+      view().answers.length = 0;
+      view().answers.push([FIELD_FOCUSED_QUERY, false]);
+      view().emit({ type: "loaded", url: "https://www.netflix.com/title/1" });
+      await vi.waitFor(() => expect(view().routing.at(-1)).toEqual(ON));
+      press(view(), key({ id: 42, keyCode: 4, characters: "h" }));
+      expect(events).toContainEqual({ type: "key", command: "home" });
+    });
+
+    test("a failed load leaves the old document, so the page is asked again", async () => {
+      const { web, view } = make();
+      web.show();
+      field(view(), "couch:field-focused");
+      view().answers.push([FIELD_FOCUSED_QUERY, false]);
+      view().emit({ type: "failed", error: "offline" });
+      await vi.waitFor(() => expect(view().routing.at(-1)).toEqual(ON));
+    });
+
+    describe("with the page's answer pending", () => {
+      const ask = async (view: FakeView) => {
+        view.deferred = true;
+        view.emit({ type: "navigated", url: "https://www.netflix.com/search?q=t" });
+        await vi.waitFor(() => expect(view.pending).toHaveLength(1));
+      };
+
+      test("a key typed before the answer settles still goes to the page", async () => {
+        const { web, view } = make();
+        web.show();
+        field(view(), "couch:field-focused");
+        await ask(view());
+        press(view(), key({ id: 51, keyCode: 4, characters: "h" }));
+        expect(events).not.toContainEqual({ type: "key", command: "home" });
+        expect(view().routing.at(-1)).toEqual({ ...ON, fieldFocused: true });
+      });
+
+      test("a later blur word wins over a pending true answer", async () => {
+        const { web, view } = make();
+        web.show();
+        field(view(), "couch:field-focused");
+        await ask(view());
+        field(view(), "couch:field-blurred");
+        view().pending[0]!(true);
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(view().routing.at(-1)).toEqual(ON);
+      });
+
+      test("hide then show with a pending true answer leaves the flag off", async () => {
+        const { web, view } = make();
+        web.show();
+        field(view(), "couch:field-focused");
+        await ask(view());
+        web.hide();
+        web.show();
+        view().pending[0]!(true);
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(view().routing.at(-1)).toEqual(ON);
+      });
+
+      test("unload with a pending answer drops it", async () => {
+        const { web, view } = make();
+        web.show();
+        field(view(), "couch:field-focused");
+        await ask(view());
+        const v = view();
+        web.hide();
+        web.unload();
+        v.pending[0]!(true);
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(v.routing.at(-1)).toMatchObject({ fieldFocused: false });
+      });
     });
 
     test("Couch's own search capture holds every key, as in Electron, even with a field focused", () => {

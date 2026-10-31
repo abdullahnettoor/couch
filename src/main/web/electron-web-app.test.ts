@@ -471,6 +471,52 @@ describe("page input (the household using the page itself)", () => {
   });
 });
 
+describe("the field flag across navigations (ticket 129)", () => {
+  function focused() {
+    const web = new ElectronWebApp(netflix, win);
+    const wc = fake.views.at(-1)!;
+    const out: unknown[] = [];
+    web.onEvent((e) => out.push(e));
+    wc.emit("console-message", { message: "couch:field-focused" });
+    const typeH = () => {
+      const event = { preventDefault: vi.fn() };
+      wc.emit("before-input-event", event, { type: "keyDown", key: "h" });
+      return event.preventDefault.mock.calls.length === 0;
+    };
+    const navigate = (inPlace: boolean, isMainFrame: boolean) =>
+      wc.emit(
+        "did-start-navigation",
+        {},
+        "https://www.netflix.com/search?q=t",
+        inPlace,
+        isMainFrame,
+      );
+    return { out, typeH, navigate };
+  }
+  const homeKey = (out: unknown[]) => out.some((e) => JSON.stringify(e).includes("home"));
+
+  test("a main-frame in-place navigation keeps the field: h goes to the page", () => {
+    const { out, typeH, navigate } = focused();
+    navigate(true, true);
+    expect(typeH()).toBe(true);
+    expect(homeKey(out)).toBe(false);
+  });
+
+  test("a main-frame cross-document navigation clears it: h is Home", () => {
+    const { out, typeH, navigate } = focused();
+    navigate(false, true);
+    expect(typeH()).toBe(false);
+    expect(homeKey(out)).toBe(true);
+  });
+
+  test("a subframe navigation leaves it", () => {
+    const { out, typeH, navigate } = focused();
+    navigate(false, false);
+    expect(typeH()).toBe(true);
+    expect(homeKey(out)).toBe(false);
+  });
+});
+
 describe("the shared keyboard rules, through the Electron adapter", () => {
   test.each(KEY_CASES)("$name", ({ input, state, events, page }) => {
     const web = new ElectronWebApp(netflix, win);

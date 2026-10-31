@@ -226,6 +226,8 @@ export class WebKitWebApp implements YouTube {
   #onEvent(event: WebKitEvent): void {
     switch (event.type) {
       case "loaded":
+        // The address change may have been answered by the old document; the new one is asked once it is there.
+        this.#recheckField();
         if (this.#failed || !this.#isOwnPage(event.url)) return;
         // Where the page is comes first, so a "loaded" screen never shows over a stale route.
         this.#url = event.url;
@@ -242,6 +244,7 @@ export class WebKitWebApp implements YouTube {
         return;
       case "failed":
         this.#failed = true;
+        this.#recheckField();
         this.#emit({ type: "failed" });
         return;
       case "key":
