@@ -1,7 +1,7 @@
 import { MEDIA_TOGGLE_SCRIPT } from "./media-toggle.ts";
 import type { Confirmation, PromptId, TrackKind } from "../../shared/protocol.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
-import { FIELD_BLURRED, FIELD_FOCUSED } from "./page-focus.ts";
+import { FIELD_BLURRED, FIELD_FOCUSED, FIELD_FOCUSED_QUERY } from "./page-focus.ts";
 import { hiddenScript } from "./hidden-audio.ts";
 import { pageFocusFunction } from "./page-focus.ts";
 import type { KeyGate } from "./keyboard-policy.ts";
@@ -108,6 +108,8 @@ export class WebKitWebApp implements YouTube {
   #capturing = false;
   /** A text field in the page has focus: the Mac keyboard is its, not Couch's. */
   #fieldFocused = false;
+  /** Counts what last said whether a field has focus: a page answer older than a later word is dropped. */
+  #fieldSeq = 0;
   /** Something of Couch's own that takes the pointer and the keys is drawn over the page (Quick settings, a confirmation, Picture off). */
   #overlay = false;
   #disposed = false;
@@ -246,7 +248,7 @@ export class WebKitWebApp implements YouTube {
         this.#onKey(event.key);
         return;
       case "navigated":
-        this.#setFieldFocused(false);
+        this.#recheckField();
         this.#url = event.url;
         this.#core.navigated(event.url);
         return;
@@ -285,7 +287,25 @@ export class WebKitWebApp implements YouTube {
     }
   }
 
+  /**
+   * The address changed: a new document has no field focused, but a pushState (Netflix's search after each letter)
+   * leaves the field focused with no new focus event, so the page is asked instead of the flag being dropped.
+   */
+  #recheckField(): void {
+    const view = this.#view;
+    if (!view) return;
+    const seq = ++this.#fieldSeq;
+    const settle = (on: boolean) => {
+      if (seq === this.#fieldSeq && this.#view === view) this.#setFieldFocused(on);
+    };
+    view.evaluate(FIELD_FOCUSED_QUERY, { kind: "expression" }).then(
+      (on) => settle(on === true),
+      () => settle(false),
+    );
+  }
+
   #setFieldFocused(on: boolean): void {
+    this.#fieldSeq++;
     if (on === this.#fieldFocused) return;
     this.#fieldFocused = on;
     this.#route();
@@ -376,6 +396,7 @@ export class WebKitWebApp implements YouTube {
     this.#pendingNote = undefined;
     this.#confirmButtons = 0;
     this.#fieldFocused = false;
+    this.#fieldSeq++;
     this.#core.hidden();
     this.#view?.setInputRouting({
       keys: false,
@@ -402,6 +423,7 @@ export class WebKitWebApp implements YouTube {
     this.#loaded = false;
     this.#confirmButtons = 0;
     this.#fieldFocused = false;
+    this.#fieldSeq++;
     this.#core.reset();
   }
 

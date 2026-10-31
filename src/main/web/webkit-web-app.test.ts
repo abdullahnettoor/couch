@@ -25,6 +25,7 @@ import { noteScript, searchBarScript } from "./web-hud.ts";
 import { testPageDescription } from "./webkit-test-page.ts";
 import { webkitStoreId } from "./webkit-stores.ts";
 import { KEY_CLAIM_ATTRIBUTE, KEY_CLAIM_FUNCTION, PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
+import { FIELD_FOCUSED_QUERY } from "./page-focus.ts";
 import { WebKitWebApp, type WebKitHostWindow } from "./webkit-web-app.ts";
 import { WEBKIT_KEY_NAMES } from "./webkit-bridge.ts";
 import { CursorHider } from "../cursor-hider.ts";
@@ -1128,11 +1129,12 @@ describe("input", () => {
       expect(events).toContainEqual({ type: "key", command: "home" });
     });
 
-    test("a new page forgets the field's focus", () => {
+    test("a new page forgets the field's focus once the page says none has it", async () => {
       const { web, view } = make();
       web.show();
       field(view(), "couch:field-focused");
       view().emit({ type: "navigated", url: "https://www.netflix.com/browse" });
+      await vi.waitFor(() => expect(view().routing.at(-1)).toMatchObject({ fieldFocused: false }));
       press(view(), key({ keyCode: 4, characters: "h" }));
       expect(events).toContainEqual({ type: "key", command: "home" });
     });
@@ -1237,16 +1239,40 @@ describe("input", () => {
       expect(view().routing.at(-1)).toEqual(ON);
     });
 
-    test("a new page, hide and unload clear the field flag in the routing", () => {
+    test("a new page, hide and unload clear the field flag in the routing", async () => {
       const { web, view } = make();
       web.show();
       field(view(), "couch:field-focused");
       view().emit({ type: "navigated", url: "https://www.netflix.com/browse" });
-      expect(view().routing.at(-1)).toEqual(ON);
+      await vi.waitFor(() => expect(view().routing.at(-1)).toEqual(ON));
       field(view(), "couch:field-focused");
       web.hide();
       web.show();
       expect(view().routing.at(-1)).toEqual(ON);
+    });
+
+    test("an address change that keeps the field focused (Netflix's search pushState) keeps typing the page's", async () => {
+      const { web, view } = make();
+      web.show();
+      field(view(), "couch:field-focused");
+      view().answers.push([FIELD_FOCUSED_QUERY, true]);
+      view().emit({ type: "navigated", url: "https://www.netflix.com/search?q=t" });
+      await vi.waitFor(() => expect(view().evaluated).toContain(FIELD_FOCUSED_QUERY));
+      await Promise.resolve();
+      expect(view().routing.at(-1)).toEqual({ ...ON, fieldFocused: true });
+      press(view(), key({ id: 41, keyCode: 4, characters: "h" }));
+      expect(events).not.toContainEqual({ type: "key", command: "home" });
+    });
+
+    test("a page answer older than the page's own focus word is dropped", async () => {
+      const { web, view } = make();
+      web.show();
+      field(view(), "couch:field-focused");
+      view().emit({ type: "navigated", url: "https://www.netflix.com/browse" });
+      field(view(), "couch:field-focused");
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(view().routing.at(-1)).toEqual({ ...ON, fieldFocused: true });
     });
 
     test("Couch's own search capture holds every key, as in Electron, even with a field focused", () => {

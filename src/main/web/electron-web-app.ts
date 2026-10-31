@@ -199,8 +199,9 @@ export class ElectronWebApp implements YouTube {
       void this.#applySound();
       if (!this.#visible) this.#silence.hide();
     });
-    wc.on("did-start-navigation", (_e, _url, _inPlace, isMainFrame) => {
-      if (isMainFrame) this.#fieldFocused = false;
+    wc.on("did-start-navigation", (_e, _url, inPlace, isMainFrame) => {
+      // A pushState (Netflix's search writes each letter into the address) keeps the field focused.
+      if (isMainFrame && !inPlace) this.#fieldFocused = false;
     });
     wc.on("did-navigate", (_e, url) => this.#guard.navigated(url));
     // While a Continue open is pending, the page may not leave the App's own sites (a redirect included): cancel and go home.

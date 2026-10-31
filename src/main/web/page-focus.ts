@@ -124,6 +124,18 @@ const TEXT_FIELD_SOURCE = `function (el) {
 }`;
 
 /**
+ * Page script expression: whether a text field (or a select) of the page has focus now. An address change can be
+ * the page's own pushState (Netflix's search writes each typed letter into the address), which keeps the field focused.
+ */
+export const FIELD_FOCUSED_QUERY = `(function () {
+  try {
+    var isField = (${TEXT_FIELD_SOURCE});
+    var el = document.activeElement;
+    return !!el && (isField(el) || el.tagName === 'SELECT');
+  } catch (e) { return false; }
+})()`;
+
+/**
  * Page script source (an expression) that types `text` into the page's focused text field the way the
  * page's own framework notices (the native value setter, then input and change events). The text is the
  * whole of what was typed, so it replaces what the field held (a site's search field keeps the last search). Evaluates to
