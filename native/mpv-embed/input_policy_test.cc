@@ -255,6 +255,20 @@ static void pointer_title_bar_and_inactive() {
   CHECK(p.route(Kind::Down, 0, true, true, Where::Content) == Route::View);
 }
 
+static void focus_restore_after_activation() {
+  CHECK(pageOwnsContentInput(true, true, true, true, true));
+  CHECK(!pageOwnsContentInput(true, false, true, true, true));  // an overlay holds the pointer
+  CHECK(!pageOwnsContentInput(false, true, true, true, true));
+  CHECK(!pageOwnsContentInput(true, true, false, true, true));
+  CHECK(!pageOwnsContentInput(true, true, true, false, true));
+  CHECK(!pageOwnsContentInput(true, true, true, true, false));
+  CHECK(shouldRestoreFocus(true, true, true, 3, 3));
+  CHECK(!shouldRestoreFocus(true, true, true, 3, 4));  // routing changed before the callback
+  CHECK(!shouldRestoreFocus(false, true, true, 3, 3));  // an overlay opened meanwhile
+  CHECK(!shouldRestoreFocus(true, false, true, 3, 3));
+  CHECK(!shouldRestoreFocus(true, true, false, 3, 3));
+}
+
 int main() {
   acknowledgement();
   ids_are_distinct_and_bounded();
@@ -269,5 +283,6 @@ int main() {
   pointer_drags_the_view_does_not_own_are_moves();
   pointer_title_bar_and_inactive();
   pointer_cancel_on_hide_destroy_or_routing_change();
+  focus_restore_after_activation();
   std::printf("ok\n");
 }

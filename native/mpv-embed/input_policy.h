@@ -147,7 +147,9 @@ class KeyHold {
 
 enum class Kind { Move, Down, Drag, Up, Wheel };
 // Where a mouse event is: the content, the title bar strip (the traffic lights, under a hiddenInset window), or any place while
-// Couch is not the active app or its window is not key. The last two belong to the window, never the view.
+// Couch is not the active app or its window is not key. The title bar excludes fresh input (moves, wheel, new downs, drags the
+// view does not own); inactive excludes new downs only. A press the view already owns keeps going to it over the title bar and
+// after Couch goes inactive.
 enum class Where { Content, TitleBar, Inactive };
 enum class Route { Chromium, View, ViewAndChromium };
 
@@ -164,25 +166,26 @@ class PointerOwner {
   explicit PointerOwner(PointerHost &host) : host_(host) {}
 
   Route route(Kind kind, int button, bool inside, bool routing, Where where = Where::Content) {
-    bool mine = routing && inside && where == Where::Content;
+    bool overContent = routing && inside && where != Where::TitleBar;
+    bool canStartPress = overContent && where == Where::Content;
     unsigned bit = 1u << (button & 7);
     switch (kind) {
       case Kind::Move:
-        if (!(routing && inside && where != Where::TitleBar)) return Route::Chromium;
+        if (!overContent) return Route::Chromium;
         host_.deliver(kind, button);
         return Route::ViewAndChromium;
       case Kind::Wheel:
-        if (!(routing && inside && where != Where::TitleBar)) return Route::Chromium;
+        if (!overContent) return Route::Chromium;
         host_.deliver(kind, button);
         return Route::View;
       case Kind::Down:
-        if (!mine) return Route::Chromium;
+        if (!canStartPress) return Route::Chromium;
         pressed_ |= bit;
         host_.deliver(kind, button);
         return Route::View;
       case Kind::Drag:
         if (!(pressed_ & bit)) {
-          if (!(routing && inside && where != Where::TitleBar)) return Route::Chromium;
+          if (!overContent) return Route::Chromium;
           host_.deliver(Kind::Move, button);
           return Route::ViewAndChromium;
         }
@@ -210,5 +213,16 @@ class PointerOwner {
   PointerHost &host_;
   unsigned pressed_ = 0;
 };
+
+// After the click that activates Couch, the page gets the first responder back only if it owns content input: keys and pointer
+// both routed to it, visible, in its window. An overlay (Quick settings, Picture off) takes the pointer and keeps its own focus.
+inline bool pageOwnsContentInput(bool routeKeys, bool routePointer, bool routed, bool visible, bool inWindow) {
+  return routeKeys && routePointer && routed && visible && inWindow;
+}
+
+// In the deferred callback: still owned, Couch active with its window key, and no routing change (generation) since scheduling.
+inline bool shouldRestoreFocus(bool ownsNow, bool active, bool windowKey, unsigned scheduledGeneration, unsigned generationNow) {
+  return ownsNow && active && windowKey && scheduledGeneration == generationNow;
+}
 
 }  // namespace inputpolicy

@@ -210,6 +210,7 @@ static void destroyWebKit(CouchWebKit *wk) {
 
 static CouchWebKit *routedWk = nil;
 static bool routeKeys = false, routePointer = false;
+static unsigned routingGeneration = 0;
 static id inputMonitor = nil;
 
 static void stopInputMonitor() {
@@ -217,12 +218,13 @@ static void stopInputMonitor() {
 }
 
 static void releaseInput(CouchWebKit *wk) {
+  routingGeneration++;
   if (wk->pointer) wk->pointer->cancel();
   if (wk->keys) wk->keys->clear();
 }
 
 void disposeWebKits() {
-  routedWk = nil; routeKeys = routePointer = false; stopInputMonitor();
+  routingGeneration++; routedWk = nil; routeKeys = routePointer = false; stopInputMonitor();
   for (auto &kv : webkits) { releaseInput(kv.second); destroyWebKit(kv.second); }
   webkits.clear();
 }
@@ -451,6 +453,7 @@ static napi_value WebkitSetVisible(napi_env env, napi_callback_info info) {
   bool v; napi_get_value_bool(env, argv[1], &v);
   if (wk) onMain(^{
     if (!v) releaseInput(wk);
+    routingGeneration++;
     wk.web.hidden = !v;
   });
   return NULL;
@@ -624,8 +627,9 @@ static NSEvent *routeInput(NSEvent *e) {
         case NSEventTypeOtherMouseUp: kind = Kind::Up; button = 2; break;
         default: break;
       }
-      // Only over the view itself, and never the title bar (the traffic lights sit under it with hiddenInset) or while Couch
-      // is not the active app and key window (that click is the window's, so macOS brings Couch forward; it does not reach the page).
+      // Only over the view itself. The title bar (the traffic lights sit under it with hiddenInset) gets no fresh input; while Couch
+      // is not the active app and key window a new down is the window's (macOS brings Couch forward) and does not reach the page.
+      // A press the view already owns still ends in it.
       bool inside = NSPointInRect([web convertPoint:e.locationInWindow fromView:nil], web.bounds);
       NSPoint p = e.locationInWindow;
       bool titleBar = p.y > NSMaxY(window.contentLayoutRect);
@@ -638,10 +642,14 @@ static NSEvent *routeInput(NSEvent *e) {
       wk->pointerHost->event = e;
       inputpolicy::Route route = wk->pointer->route(kind, button, inside, routePointer, where);
       wk->pointerHost->event = nil;
-      // Chromium's view below may take the first responder from the activating click; give it back to the page.
-      if (kind == Kind::Down && where == inputpolicy::Where::Inactive && inside && routeKeys) {
+      // Chromium's view below may take the first responder from the activating click; give it back, unless an overlay owns the pointer.
+      if (kind == Kind::Down && where == inputpolicy::Where::Inactive && inside &&
+          inputpolicy::pageOwnsContentInput(routeKeys, routePointer, routedWk == wk, !web.hidden, web.window != nil)) {
+        unsigned scheduled = routingGeneration;
         dispatch_async(dispatch_get_main_queue(), ^{
-          if (routedWk == wk && !web.hidden && web.window) [web.window makeFirstResponder:web];
+          bool owns = inputpolicy::pageOwnsContentInput(routeKeys, routePointer, routedWk == wk, !web.hidden, web.window != nil);
+          if (inputpolicy::shouldRestoreFocus(owns, NSApp.isActive, web.window.isKeyWindow, scheduled, routingGeneration))
+            [web.window makeFirstResponder:web];
         });
       }
       return route == inputpolicy::Route::View ? nil : e;
@@ -670,12 +678,13 @@ static napi_value WebkitSetInput(napi_env env, napi_callback_info info) {
   if (!wk) return NULL;
   onMain(^{
     if (!(keys || pointer)) {
-      if (routedWk == wk) { releaseInput(wk); routedWk = nil; routeKeys = routePointer = false; stopInputMonitor(); }
+      if (routedWk == wk) { releaseInput(wk); routingGeneration++; routedWk = nil; routeKeys = routePointer = false; stopInputMonitor(); }
       return;
     }
     if (routedWk && routedWk != wk) releaseInput(routedWk);
     inputpolicy::Policy p; p.keys = keys; p.holdAll = hold; p.fieldFocused = field;
     wk->keys->configure(p);
+    routingGeneration++;
     routedWk = wk; routeKeys = keys; routePointer = pointer;
     startInputMonitor();
   });
@@ -757,7 +766,7 @@ static napi_value WebkitDestroy(napi_env env, napi_callback_info info) {
   webkits.erase(it);
   onMain(^{
     releaseInput(wk);
-    if (routedWk == wk) { routedWk = nil; routeKeys = routePointer = false; stopInputMonitor(); }
+    if (routedWk == wk) { routingGeneration++; routedWk = nil; routeKeys = routePointer = false; stopInputMonitor(); }
     windowOrderRemoveApp(wk.web);
     destroyWebKit(wk);
   });
