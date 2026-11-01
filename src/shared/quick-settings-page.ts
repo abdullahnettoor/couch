@@ -1,3 +1,4 @@
+import { CONFIRM_LAYOUT } from "./confirm-layout.ts";
 import { glassTokensCss } from "./glass-tokens.ts";
 import { ICON_PATHS } from "./icons.ts";
 import { rowCss } from "./row-style.ts";
@@ -28,8 +29,9 @@ const css = (glass: boolean) => `
 ${glassTokensCss({ unit: "var(--u)" })}
 html,body { margin:0; height:100%; background:transparent; overflow:hidden; font-family:-apple-system,"SF Pro Display",system-ui,sans-serif; color:var(--t1); user-select:none; cursor:default; }
 :root { --u: calc(100vw / 1920); }
-#scrim { position:fixed; inset:0; }
-#drawer { position:fixed; right:0; top:0; bottom:0; width:${DRAWER.widthPercent}vw; box-sizing:border-box; padding:calc(56*var(--u)) calc(36*var(--u)); display:flex; flex-direction:column; gap:calc(12*var(--u)); ${glass ? "background:transparent;" : "background:var(--glass-strong);"} border-radius:calc(${DRAWER.radius}*var(--u)) 0 0 calc(${DRAWER.radius}*var(--u)); ${glass ? "" : "box-shadow:var(--glass-edge), 0 0 calc(90*var(--u)) rgba(0,0,0,.45); backdrop-filter:blur(40px) saturate(1.8);"} transform:translateX(100%); transition:transform ${QUICK_SLIDE_MS}ms var(--ease); }
+#scrim { position:fixed; inset:0; background:${CONFIRM_LAYOUT.scrim}; opacity:0; transition:opacity ${QUICK_SLIDE_MS}ms var(--ease); }
+#scrim.in { opacity:1; }
+#drawer { position:fixed; right:0; top:0; bottom:0; width:${DRAWER.widthPercent}vw; box-sizing:border-box; padding:calc(56*var(--u)) calc(36*var(--u)); display:flex; flex-direction:column; gap:calc(12*var(--u)); ${glass ? "background:transparent;" : "background:var(--glass-solid);"} border-radius:calc(${DRAWER.radius}*var(--u)) 0 0 calc(${DRAWER.radius}*var(--u)); ${glass ? "" : "box-shadow:var(--glass-edge), 0 0 calc(90*var(--u)) rgba(0,0,0,.45); backdrop-filter:blur(40px) saturate(1.8);"} transform:translateX(100%); transition:transform ${QUICK_SLIDE_MS}ms var(--ease); }
 #drawer.in { transform:none; }
 h2 { margin:calc(14*var(--u)) calc(10*var(--u)) calc(4*var(--u)); font-size:calc(24*var(--u)); font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--t3); }
 h1 { margin:0 calc(10*var(--u)) calc(8*var(--u)); font-size:calc(44*var(--u)); font-weight:700; }
@@ -50,12 +52,13 @@ ${rowCss(".row", "var(--u)")}
 /**
  * The Quick settings drawer as one page for the view that sits above everything. The core decides
  * what is shown and highlighted; this page only draws the payload and reports clicks. With `glass`, a
- * native glass panel sits right under this view, so the panel drops its tint and blur and shows it.
+ * native glass panel sits right under this view, so the panel drops its tint and blur and shows it. Without it the panel is nearly solid, since
+ * the blur cannot see the video below. The scrim dims the Screen like the confirm question does.
  */
 export function quickSettingsPage({ glass = false }: { glass?: boolean } = {}): string {
   return `<!doctype html><meta charset="utf-8"><title>Quick settings</title><style>${css(glass)}</style><body><div id="scrim"></div><div id="drawer"></div><script>
 (function () {
-  var ICONS = ${ICONS}, drawer = document.getElementById("drawer");
+  var ICONS = ${ICONS}, drawer = document.getElementById("drawer"), scrim = document.getElementById("scrim");
   var ESC = { "&": "&#38;", "<": "&#60;", ">": "&#62;", '"': "&#34;", "'": "&#39;", "\\x60": "&#96;" };
   function esc(t) { return String(t).replace(/[&<>"'\\x60]/g, function (c) { return ESC[c]; }); }
   function icon(n) { return '<svg viewBox="0 0 256 256" aria-hidden="true">' + ICONS[n] + "</svg>"; }
@@ -88,7 +91,7 @@ export function quickSettingsPage({ glass = false }: { glass?: boolean } = {}): 
   window.couchQuick.onQuick(function (q) {
     if (!q) {
       open = false;
-      if (shown) { shown = false; drawer.className = ""; window.couchQuick.slideStart("out"); }
+      if (shown) { shown = false; drawer.className = ""; scrim.className = ""; window.couchQuick.slideStart("out"); }
       return;
     }
     draw(q);
@@ -97,6 +100,7 @@ export function quickSettingsPage({ glass = false }: { glass?: boolean } = {}): 
     requestAnimationFrame(function () {
       if (!open) return;
       drawer.className = "in";
+      scrim.className = "in";
       shown = true;
       window.couchQuick.slideStart("in");
     });

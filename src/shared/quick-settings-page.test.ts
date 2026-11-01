@@ -2,8 +2,9 @@ import { runInNewContext } from "node:vm";
 import { describe, expect, test } from "vite-plus/test";
 import type { QuickPayload } from "./protocol.ts";
 import { readFileSync } from "node:fs";
-import { glassTokensCss } from "./glass-tokens.ts";
-import { drawerGlassRect, quickSettingsPage } from "./quick-settings-page.ts";
+import { CONFIRM_LAYOUT } from "./confirm-layout.ts";
+import { COLORS, glassTokensCss } from "./glass-tokens.ts";
+import { QUICK_SLIDE_MS, drawerGlassRect, quickSettingsPage } from "./quick-settings-page.ts";
 import { ICON_PATHS } from "./icons.ts";
 
 /** Custom properties declared on the root element, with var() resolved; undefined where a var() has no value there (CSS makes that invalid). */
@@ -37,13 +38,14 @@ const rule = (css: string, selector: string) =>
 function load() {
   const script = /<script>([\s\S]*)<\/script>/.exec(quickSettingsPage({ glass: false }))![1]!;
   const drawer = { innerHTML: "", className: "", contains: (t: unknown) => t === drawer };
+  const scrim = { className: "" };
   const sent: unknown[] = [];
   const slides: unknown[] = [];
   const listeners: Record<string, (e: unknown) => void> = {};
   let onQuick!: (q: QuickPayload | undefined) => void;
   runInNewContext(script, {
     document: {
-      getElementById: () => drawer,
+      getElementById: (id: string) => (id === "scrim" ? scrim : drawer),
       addEventListener: (n: string, f: (e: unknown) => void) => (listeners[n] = f),
     },
     window: {
@@ -56,7 +58,7 @@ function load() {
     },
     requestAnimationFrame: (f: () => void) => f(),
   });
-  return { drawer, sent, slides, listeners, onQuick };
+  return { drawer, scrim, sent, slides, listeners, onQuick };
 }
 
 const payload: QuickPayload = {
@@ -262,11 +264,32 @@ describe("the drawer page's design tokens", () => {
 });
 
 describe("the drawer's material", () => {
-  test("without native glass it keeps the strong tint and the blur", () => {
+  test("without native glass the panel is nearly solid, with the blur", () => {
     for (const css of [pageCss(false), pageCss(undefined)]) {
-      expect(rule(css, "#drawer")).toContain("background:var(--glass-strong)");
+      expect(rule(css, "#drawer")).toContain("background:var(--glass-solid)");
       expect(rule(css, "#drawer")).toContain("backdrop-filter");
     }
+    expect(Number(/rgba\([^)]*,\s*([\d.]+)\)/.exec(COLORS["glass-solid"])![1])).toBeGreaterThan(
+      Number(/rgba\([^)]*,\s*([\d.]+)\)/.exec(COLORS["glass-strong"])![1]),
+    );
+  });
+
+  test("the scrim dims the Screen like the confirm question and fades over the slide", () => {
+    for (const glass of [false, true]) {
+      const css = pageCss(glass);
+      expect(rule(css, "#scrim")).toContain(`background:${CONFIRM_LAYOUT.scrim}`);
+      expect(rule(css, "#scrim")).toContain("opacity:0");
+      expect(rule(css, "#scrim")).toContain(`transition:opacity ${QUICK_SLIDE_MS}ms`);
+      expect(rule(css, "#scrim.in")).toContain("opacity:1");
+    }
+  });
+
+  test("the scrim is shown with the drawer and hidden when it closes", () => {
+    const { scrim, drawer, onQuick } = load();
+    onQuick(payload);
+    expect([drawer.className, scrim.className]).toEqual(["in", "in"]);
+    onQuick(undefined);
+    expect([drawer.className, scrim.className]).toEqual(["", ""]);
   });
 
   test("with native glass the page has no tint and no backdrop-filter, so the glass shows through", () => {

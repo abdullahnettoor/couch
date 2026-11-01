@@ -9,6 +9,7 @@ export const COLORS = {
   t3: "rgba(235, 235, 245, 0.52)",
   glass: "rgba(44, 44, 48, 0.46)",
   "glass-strong": "rgba(36, 36, 40, 0.72)",
+  "glass-solid": "rgba(30, 30, 34, 0.92)",
   "glass-edge": "inset 0 1px 0 rgba(255, 255, 255, 0.14)",
   card: "#2c2c2e",
   "card-2": "#48484a",
