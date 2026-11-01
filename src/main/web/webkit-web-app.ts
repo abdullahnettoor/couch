@@ -384,7 +384,9 @@ export class WebKitWebApp implements YouTube {
       this.#pendingNote = note;
       if (this.#loaded) this.#drawPendingNote();
     }
-    void this.#win.reveal().then(() => view.focus());
+    void this.#win.reveal().then(() => {
+      if (this.#visible && this.#view === view) view.focus();
+    });
   }
 
   /** The note is drawn in the page, over whatever Netflix shows, like the search bar; it removes itself. */

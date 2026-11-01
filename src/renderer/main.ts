@@ -1,5 +1,6 @@
 import type { GridItem, ScreenPayload } from "../shared/protocol.ts";
 import type { CouchApi } from "../shared/ipc.ts";
+import { wheelScrolls, wheelSteps } from "./wheel-steps.ts";
 import { keyCommand } from "./picture-off-keys.ts";
 import { VIEWS } from "./views/index.ts";
 import { showing } from "./views/glass.ts";
@@ -39,6 +40,20 @@ window.addEventListener("keydown", (event) => {
 });
 
 let current: ScreenPayload | undefined;
+
+// The Library and its pages scroll like the keys do: the wheel moves the highlight and the page follows.
+const wheelStep = wheelSteps();
+window.addEventListener(
+  "wheel",
+  (event) => {
+    if (!current || !wheelScrolls(current)) return;
+    if (isTypingTarget(event.target)) return;
+    event.preventDefault();
+    const command = wheelStep(event, event.timeStamp);
+    if (command) window.couch.send(command);
+  },
+  { passive: false },
+);
 const itemAt = (event: MouseEvent) => {
   const id = (event.target as Element | null)?.closest<HTMLElement>("[data-id]")?.dataset.id;
   return current?.grid.find((i) => i.id === id);

@@ -203,6 +203,21 @@ describe("showing and hiding", () => {
     await vi.waitFor(() => expect(view().focused).toBeGreaterThan(0));
   });
 
+  test("leaving before the window is revealed never hands the hidden view the keyboard", async () => {
+    let revealed!: () => void;
+    const slow: WebKitHostWindow = {
+      ...win,
+      reveal: () => new Promise<void>((resolve) => (revealed = resolve)),
+    };
+    const web = new WebKitWebApp(netflix, bridge, slow, STORE);
+    web.show();
+    web.hide();
+    revealed();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(views.at(-1)!.focused).toBe(0);
+  });
+
   test("under COUCH_WEBKIT_EPHEMERAL the view gets the non-persistent store", () => {
     const { web, view } = make({ ephemeral: true });
     web.show();
