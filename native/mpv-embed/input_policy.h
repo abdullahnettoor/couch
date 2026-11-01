@@ -146,6 +146,9 @@ class KeyHold {
 // ---- the mouse ----
 
 enum class Kind { Move, Down, Drag, Up, Wheel };
+// Where a mouse event is: the content, the title bar strip (the traffic lights, under a hiddenInset window), or any place while
+// Couch is not the active app or its window is not key. The last two belong to the window, never the view.
+enum class Where { Content, TitleBar, Inactive };
 enum class Route { Chromium, View, ViewAndChromium };
 
 struct PointerHost {
@@ -160,25 +163,26 @@ class PointerOwner {
  public:
   explicit PointerOwner(PointerHost &host) : host_(host) {}
 
-  Route route(Kind kind, int button, bool inside, bool routing) {
+  Route route(Kind kind, int button, bool inside, bool routing, Where where = Where::Content) {
+    bool mine = routing && inside && where == Where::Content;
     unsigned bit = 1u << (button & 7);
     switch (kind) {
       case Kind::Move:
-        if (!(routing && inside)) return Route::Chromium;
+        if (!(routing && inside && where != Where::TitleBar)) return Route::Chromium;
         host_.deliver(kind, button);
         return Route::ViewAndChromium;
       case Kind::Wheel:
-        if (!(routing && inside)) return Route::Chromium;
+        if (!(routing && inside && where != Where::TitleBar)) return Route::Chromium;
         host_.deliver(kind, button);
         return Route::View;
       case Kind::Down:
-        if (!(routing && inside)) return Route::Chromium;
+        if (!mine) return Route::Chromium;
         pressed_ |= bit;
         host_.deliver(kind, button);
         return Route::View;
       case Kind::Drag:
         if (!(pressed_ & bit)) {
-          if (!(routing && inside)) return Route::Chromium;
+          if (!(routing && inside && where != Where::TitleBar)) return Route::Chromium;
           host_.deliver(Kind::Move, button);
           return Route::ViewAndChromium;
         }

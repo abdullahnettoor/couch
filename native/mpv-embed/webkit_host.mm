@@ -624,11 +624,26 @@ static NSEvent *routeInput(NSEvent *e) {
         case NSEventTypeOtherMouseUp: kind = Kind::Up; button = 2; break;
         default: break;
       }
-      // Only over the view itself (not the title bar's buttons).
+      // Only over the view itself, and never the title bar (the traffic lights sit under it with hiddenInset) or while Couch
+      // is not the active app and key window (that click is the window's, so macOS brings Couch forward; it does not reach the page).
       bool inside = NSPointInRect([web convertPoint:e.locationInWindow fromView:nil], web.bounds);
+      NSPoint p = e.locationInWindow;
+      bool titleBar = p.y > NSMaxY(window.contentLayoutRect);
+      for (NSWindowButton b : {NSWindowCloseButton, NSWindowMiniaturizeButton, NSWindowZoomButton}) {
+        NSView *btn = [window standardWindowButton:b];
+        if (btn && !btn.hidden && NSPointInRect([btn convertPoint:p fromView:nil], btn.bounds)) titleBar = true;
+      }
+      bool active = NSApp.isActive && window.isKeyWindow;
+      inputpolicy::Where where = titleBar ? inputpolicy::Where::TitleBar : active ? inputpolicy::Where::Content : inputpolicy::Where::Inactive;
       wk->pointerHost->event = e;
-      inputpolicy::Route route = wk->pointer->route(kind, button, inside, routePointer);
+      inputpolicy::Route route = wk->pointer->route(kind, button, inside, routePointer, where);
       wk->pointerHost->event = nil;
+      // Chromium's view below may take the first responder from the activating click; give it back to the page.
+      if (kind == Kind::Down && where == inputpolicy::Where::Inactive && inside && routeKeys) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+          if (routedWk == wk && !web.hidden && web.window) [web.window makeFirstResponder:web];
+        });
+      }
       return route == inputpolicy::Route::View ? nil : e;
     }
     default: return e;

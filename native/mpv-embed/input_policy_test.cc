@@ -232,6 +232,29 @@ static void pointer_cancel_on_hide_destroy_or_routing_change() {
   CHECK(!other.anyPressed() && other.route(Kind::Drag, 0, true, true) != Route::View);
 }
 
+static void pointer_title_bar_and_inactive() {
+  FakePointer h; PointerOwner p(h);
+  // Over the title bar (traffic lights) or while Couch is not the active, key window, a down is Chromium's: the window gets it.
+  CHECK(p.route(Kind::Down, 0, true, true, Where::TitleBar) == Route::Chromium);
+  CHECK(p.route(Kind::Down, 0, true, true, Where::Inactive) == Route::Chromium);
+  CHECK(!p.anyPressed() && h.log.empty());
+  CHECK(p.route(Kind::Up, 0, true, true, Where::TitleBar) == Route::Chromium);
+  // Moves and wheel over the title bar are not the view's.
+  CHECK(p.route(Kind::Move, 0, true, true, Where::TitleBar) == Route::Chromium);
+  CHECK(p.route(Kind::Wheel, 0, true, true, Where::TitleBar) == Route::Chromium);
+  CHECK(p.route(Kind::Drag, 0, true, true, Where::TitleBar) == Route::Chromium);
+  CHECK(h.log.empty());
+  // A press that started in the view still ends in it, over the title bar or after Couch went inactive.
+  CHECK(p.route(Kind::Down, 0, true, true) == Route::View);
+  CHECK(p.route(Kind::Drag, 0, true, true, Where::TitleBar) == Route::View);
+  CHECK(p.route(Kind::Up, 0, true, true, Where::TitleBar) == Route::View);
+  CHECK(!p.anyPressed());
+  CHECK(p.route(Kind::Down, 0, true, true) == Route::View);
+  CHECK(p.route(Kind::Up, 0, true, true, Where::Inactive) == Route::View);
+  // Active and in the content, as before.
+  CHECK(p.route(Kind::Down, 0, true, true, Where::Content) == Route::View);
+}
+
 int main() {
   acknowledgement();
   ids_are_distinct_and_bounded();
@@ -244,6 +267,7 @@ int main() {
   pointer_buttons_are_separate();
   pointer_move_and_wheel();
   pointer_drags_the_view_does_not_own_are_moves();
+  pointer_title_bar_and_inactive();
   pointer_cancel_on_hide_destroy_or_routing_change();
   std::printf("ok\n");
 }
