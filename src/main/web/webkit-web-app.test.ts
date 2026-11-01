@@ -218,6 +218,26 @@ describe("showing and hiding", () => {
     expect(views.at(-1)!.focused).toBe(0);
   });
 
+  test("show, hide, show: only the latest show's reveal focuses", async () => {
+    const resolvers: (() => void)[] = [];
+    const slow: WebKitHostWindow = {
+      ...win,
+      reveal: () => new Promise<void>((resolve) => resolvers.push(resolve)),
+    };
+    const web = new WebKitWebApp(netflix, bridge, slow, STORE);
+    web.show();
+    web.hide();
+    web.show();
+    resolvers[0]!();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(views.at(-1)!.focused).toBe(0);
+    resolvers[1]!();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(views.at(-1)!.focused).toBe(1);
+  });
+
   test("under COUCH_WEBKIT_EPHEMERAL the view gets the non-persistent store", () => {
     const { web, view } = make({ ephemeral: true });
     web.show();

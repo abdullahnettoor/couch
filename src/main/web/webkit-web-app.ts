@@ -95,6 +95,7 @@ export class WebKitWebApp implements YouTube {
   #stopEvents: (() => void) | undefined;
   #listeners = new Set<(event: YouTubeEvent) => void>();
   #visible = false;
+  #showGeneration = 0;
   #failed = false;
   #url = "";
   #volume = 60;
@@ -370,6 +371,7 @@ export class WebKitWebApp implements YouTube {
   show(note?: string): void {
     if (this.#disposed) return;
     this.#visible = true;
+    const generation = ++this.#showGeneration;
     if (!this.#view) this.start();
     const view = this.#view!;
     this.#lifecycle?.shown();
@@ -385,7 +387,7 @@ export class WebKitWebApp implements YouTube {
       if (this.#loaded) this.#drawPendingNote();
     }
     void this.#win.reveal().then(() => {
-      if (this.#visible && this.#view === view) view.focus();
+      if (this.#showGeneration === generation && this.#view === view) view.focus();
     });
   }
 
@@ -398,6 +400,7 @@ export class WebKitWebApp implements YouTube {
 
   hide(): void {
     this.#visible = false;
+    this.#showGeneration++;
     this.#pendingNote = undefined;
     this.#confirmButtons = 0;
     this.#fieldFocused = false;

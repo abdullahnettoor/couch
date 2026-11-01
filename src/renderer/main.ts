@@ -49,8 +49,7 @@ window.addEventListener(
     if (!current || !wheelScrolls(current)) return;
     if (isTypingTarget(event.target)) return;
     event.preventDefault();
-    const command = wheelStep(event, event.timeStamp);
-    if (command) window.couch.send(command);
+    for (const command of wheelStep(event, event.timeStamp)) window.couch.send(command);
   },
   { passive: false },
 );
