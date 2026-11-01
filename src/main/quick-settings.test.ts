@@ -57,6 +57,18 @@ describe("Quick settings", () => {
     expect(phone.last?.quickSettings).toBe(false);
   });
 
+  test("over Home the drawer is not over media", async () => {
+    const { phone } = await start();
+    await open(phone);
+    expect(quick()?.overMedia).toBe(false);
+  });
+
+  test("over an App the drawer is over media", async () => {
+    const { phone } = await playing();
+    await open(phone);
+    expect(quick()?.overMedia).toBe(true);
+  });
+
   test("lists the Sound output devices, the current one ticked, then volume and All settings", async () => {
     const { phone } = await start();
     await open(phone);

@@ -344,6 +344,9 @@ export class Core {
       clock: ports.clock,
       sound: this.#sound,
       playing: () => this.#pictureScope() !== undefined,
+      overMedia: () =>
+        (this.#state.view === "player" && !!this.#state.player) ||
+        (this.#state.view === "app" && !!this.#state.app),
       stepVolume: (delta) => this.#setVolume(this.#state.volume + delta),
       toggleMute: () => this.#toggleMute(),
       pictureIsOff: () => this.#state.pictureOff,

@@ -41,6 +41,7 @@ const quick = (focusedId = "out:default"): QuickPayload => ({
   focusedId,
   volume: 60,
   muted: false,
+  overMedia: false,
 });
 
 function setup(glass = false) {

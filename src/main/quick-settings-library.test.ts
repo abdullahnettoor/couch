@@ -53,6 +53,7 @@ describe("Quick settings → All settings during Library playback", () => {
     h.player.calls.length = 0;
 
     press("quickSettings");
+    expect(screen().quick?.overMedia).toBe(true);
     while (screen().quick?.focusedId !== "settings") press("down");
     press("ok");
 

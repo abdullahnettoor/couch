@@ -22,6 +22,8 @@ export interface QuickSettingsHost {
   };
   /** Something plays in the front, so Picture off makes sense. */
   playing(): boolean;
+  /** The Screen shows the Library's player or a web App, not one of Couch's own views. */
+  overMedia(): boolean;
   stepVolume(delta: number): void;
   toggleMute(): void;
   /** Whether Picture off is on right now. */
@@ -122,6 +124,7 @@ export class QuickSettings {
       focusedId,
       volume: this.#h.sound.volume,
       muted: this.#h.sound.muted,
+      overMedia: this.#h.overMedia(),
       ...(notes ? { notes } : {}),
     };
   }

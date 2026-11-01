@@ -356,6 +356,8 @@ export interface QuickPayload {
   focusedId: string;
   volume: number;
   muted: boolean;
+  /** The drawer is over video or an App (not one of Couch's own views), so its panel is more solid. */
+  overMedia: boolean;
   /** The Sound output rows for Apps that follow the Mac (see `SoundPayload.notes`). */
   notes?: string[];
 }

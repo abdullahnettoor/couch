@@ -170,7 +170,7 @@ describe("tearing things down when Couch leaves the front", () => {
       wireTeardown({ on: (e, cb) => events.set(e, [...(events.get(e) ?? []), cb]) }, () =>
         drawer.teardown(),
       );
-      drawer.set({ items: [], focusedId: "", volume: 0, muted: false });
+      drawer.set({ items: [], focusedId: "", volume: 0, muted: false, overMedia: false });
       drawer.slideStart("in");
       events.get(event)!.forEach((cb) => cb());
       expect(children).toEqual([]);

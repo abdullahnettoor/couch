@@ -37,6 +37,7 @@ const rule = (css: string, selector: string) =>
 
 function load() {
   const script = /<script>([\s\S]*)<\/script>/.exec(quickSettingsPage({ glass: false }))![1]!;
+  const frames: (() => void)[] = [];
   const drawer = { innerHTML: "", className: "", contains: (t: unknown) => t === drawer };
   const scrim = { className: "" };
   const sent: unknown[] = [];
@@ -56,9 +57,10 @@ function load() {
         slideStart: (phase: string) => slides.push({ slide: phase }),
       },
     },
-    requestAnimationFrame: (f: () => void) => f(),
+    requestAnimationFrame: (f: () => void) => void frames.push(f),
   });
-  return { drawer, scrim, sent, slides, listeners, onQuick };
+  const frame = () => frames.splice(0).forEach((f) => f());
+  return { drawer, scrim, sent, slides, listeners, onQuick, frame };
 }
 
 const payload: QuickPayload = {
@@ -72,12 +74,14 @@ const payload: QuickPayload = {
   focusedId: "out:x",
   volume: 60,
   muted: false,
+  overMedia: false,
 };
 
 describe("the Quick settings page", () => {
   test("draws the outputs, volume, Picture off and All settings, with the highlight", () => {
-    const { drawer, onQuick } = load();
+    const { drawer, onQuick, frame } = load();
     onQuick(payload);
+    frame();
     expect(drawer.className).toBe("in");
     expect(drawer.innerHTML).toContain("System default");
     expect(drawer.innerHTML).toContain('class="row focus" data-id="out:x"');
@@ -181,10 +185,11 @@ describe("the Quick settings page", () => {
   });
 
   test("reports the slide start only when it applies the transform, once per direction", () => {
-    const { onQuick, drawer, slides: sent } = load();
+    const { onQuick, drawer, slides: sent, frame } = load();
     onQuick(undefined);
     expect(sent).toEqual([]);
     onQuick(payload);
+    frame();
     expect(drawer.className).toBe("in");
     expect(sent).toEqual([{ slide: "in" }]);
     onQuick({ ...payload, focusedId: "vol" });
@@ -264,14 +269,27 @@ describe("the drawer page's design tokens", () => {
 });
 
 describe("the drawer's material", () => {
-  test("without native glass the panel is nearly solid, with the blur", () => {
+  test("without native glass the panel keeps the strong tint, and is nearly solid only over media", () => {
     for (const css of [pageCss(false), pageCss(undefined)]) {
-      expect(rule(css, "#drawer")).toContain("background:var(--glass-solid)");
+      expect(rule(css, "#drawer")).toContain("background:var(--glass-strong)");
       expect(rule(css, "#drawer")).toContain("backdrop-filter");
+      expect(rule(css, "#drawer.media")).toContain("background:var(--glass-solid)");
     }
     expect(Number(/rgba\([^)]*,\s*([\d.]+)\)/.exec(COLORS["glass-solid"])![1])).toBeGreaterThan(
       Number(/rgba\([^)]*,\s*([\d.]+)\)/.exec(COLORS["glass-strong"])![1]),
     );
+  });
+
+  test("the page marks the panel as over media only when the payload says so", () => {
+    const { drawer, onQuick, frame } = load();
+    onQuick({ ...payload, overMedia: true });
+    frame();
+    expect(drawer.className).toBe("in media");
+    onQuick(undefined);
+    expect(drawer.className).toBe("media");
+    onQuick({ ...payload, overMedia: false });
+    frame();
+    expect(drawer.className).toBe("in");
   });
 
   test("the scrim dims the Screen like the confirm question and fades over the slide", () => {
@@ -284,12 +302,55 @@ describe("the drawer's material", () => {
     }
   });
 
-  test("the scrim is shown with the drawer and hidden when it closes", () => {
-    const { scrim, drawer, onQuick } = load();
+  test("with native glass the dim stops at the panel; without it the dim covers the whole window", () => {
+    expect(rule(pageCss(true), "#scrim")).toContain("inset:0 33vw 0 0");
+    expect(rule(pageCss(false), "#scrim")).toContain("inset:0 0");
+    expect(rule(pageCss(false), "#scrim")).not.toContain("33vw");
+  });
+
+  test("a click anywhere outside the panel closes it, with or without glass", () => {
+    const { listeners, sent, onQuick, frame } = load();
     onQuick(payload);
-    expect([drawer.className, scrim.className]).toEqual(["in", "in"]);
+    frame();
+    listeners.click!({ target: {} });
+    expect(sent).toEqual([{ command: "quickClose" }]);
+  });
+
+  test("before its first frame the scrim is transparent and the drawer off-screen", () => {
+    const { scrim, drawer, slides, onQuick, frame } = load();
+    onQuick(payload);
+    expect([drawer.className, scrim.className, slides]).toEqual(["", "", []]);
+    frame();
+    expect([drawer.className, scrim.className, slides]).toEqual(["in", "in", [{ slide: "in" }]]);
+  });
+
+  test("closing before the frame cancels the pending open: nothing slides", () => {
+    const { scrim, drawer, slides, onQuick, frame } = load();
+    onQuick(payload);
+    onQuick(undefined);
+    frame();
+    expect([drawer.className, scrim.className, slides]).toEqual(["", "", []]);
+  });
+
+  test("open, close, open before a frame slides in once", () => {
+    const { scrim, drawer, slides, onQuick, frame } = load();
+    onQuick(payload);
+    onQuick(undefined);
+    onQuick(payload);
+    frame();
+    expect([drawer.className, scrim.className, slides]).toEqual(["in", "in", [{ slide: "in" }]]);
+  });
+
+  test("a reversal while open reports one out and then one in per actual transition", () => {
+    const { scrim, drawer, slides, onQuick, frame } = load();
+    onQuick(payload);
+    frame();
     onQuick(undefined);
     expect([drawer.className, scrim.className]).toEqual(["", ""]);
+    onQuick(payload);
+    frame();
+    expect(slides).toEqual([{ slide: "in" }, { slide: "out" }, { slide: "in" }]);
+    expect([drawer.className, scrim.className]).toEqual(["in", "in"]);
   });
 
   test("with native glass the page has no tint and no backdrop-filter, so the glass shows through", () => {
