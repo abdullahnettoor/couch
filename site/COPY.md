@@ -46,11 +46,27 @@ Ticket 137 was a copy pass, not a redesign; ticket 138 redesigned the page aroun
 - Meta strip (ticket 143): **macOS 14+** / **Apple silicon** / **Open source** / **No account**, set in sentence case (no capitals or mono), so "macOS" reads as Apple writes it. Until ticket 143 it was "Mac today · macOS 14+ / Apple silicon / GPL-3.0-or-later / No Couch account"; the licence stays named in the footer, the FAQ and the README.
 - Meta strip accessible name: **Requirements**
 - Link under the meta strip (ticket 138), to the Windows card: **On Windows? Tell us you'd use it**
-- First-look section under the hero (ticket 138), accessible name: **Couch Home on the Screen** (was "Couch on the Screen, with the Remote" until the 138 review removed the phone from the first look; the Remote has its own section)
+- First-look section under the hero (ticket 138), accessible name: **Couch Home on the Screen, and the launch video** (ticket 145; was "Couch Home on the Screen", and before the 138 review "Couch on the Screen, with the Remote")
 - Decorative icon alt: empty.
 - Product picture alts: see §12.
 
 The Mac requirement is visible here, but is not the headline or the proposition.
+
+### The launch video in the first-look TV (ticket 145)
+
+Once the TV is mostly in view, the Home screenshot comes alive: the highlight moves left to **YouTube**, it is pressed, opens and fills the Screen, and the TV ends on the launch video. The Screen's own text in the moving part is the shoot's: **3:36 PM**, **Good afternoon · Monday 2 November**, **1 phone connected**, **YouTube**, **Netflix**, **Library**, **Big Buck Bunny (2008)**, **7 min left** (decorative, hidden from screen readers like the screenshot it continues).
+
+Placeholder mode (today: `LAUNCH_VIDEO.id` is empty):
+- On the Screen, a Couch-made poster (the icon's sofa-and-Screen light in a dark, warm room): **Launch video** / **Coming soon to YouTube**. No play button.
+- Under the TV, one link to the channel (`YOUTUBE_CHANNEL`): **Subscribe on YouTube** (Phosphor's YouTube mark).
+- No privacy line under the TV (nothing plays), and the privacy fact keeps its old wording (below).
+
+With a video (`LAUNCH_VIDEO.id` set):
+- On the Screen: the video's thumbnail (saved into the build), its title (`LAUNCH_VIDEO.title`) and a play button, accessible name **Play the launch video: {title}**. The player's frame is titled **{title} (YouTube video)**.
+- Under the TV: **Watch on YouTube** (the video's page) and **Subscribe** (the channel), then the line: **The launch video plays from YouTube and loads only when you press play.**
+- Privacy fact **No Couch analytics** becomes: This site uses no cookies or analytics, and loads nothing from YouTube until you press play on the launch video. Services opened in Couch have their own sign-ins, cookies and privacy policies.
+
+Rejected: "Launch video coming soon" as a kicker over a title (the page bans kickers over headings; the two lines read as one sentence); a Subscribe pill drawn inside the poster (it would look pressable on a picture that is not); stating the site's privacy change while there is no video (it would describe something that does not happen yet). No FAQ answer said the site makes no third-party requests, so the FAQ is unchanged.
 
 ## 3. The Remote (`#how`)
 
@@ -140,7 +156,7 @@ No “plays every format”, codec guarantee or promise that the household's vid
 - Facts:
   - **One household, one Screen** — No Couch sign-up and no Couch profiles. Pair a phone and join in.
   - **Kept on your Mac** — Your Library, Couch's saved viewing positions and your settings stay on the Mac. There is no Couch cloud.
-  - **No Couch analytics** — This site uses no cookies or analytics. Services opened in Couch have their own sign-ins, cookies and privacy policies.
+  - **No Couch analytics** — This site uses no cookies or analytics. Services opened in Couch have their own sign-ins, cookies and privacy policies. (With a launch video, ticket 145: This site uses no cookies or analytics, and loads nothing from YouTube until you press play on the launch video. Services opened in Couch have their own sign-ins, cookies and privacy policies.)
   - **Open to a closer look** — Couch is free and open source under GPL-3.0-or-later. Read the code or build it yourself.
 
 ### Connection-list headline options
@@ -296,11 +312,11 @@ Windows is being considered, not promised. If you'd use it, tap Couch for Window
 - Layout (ticket 143): two columns from 900 px. Left: the brand, the links, the social links, the trademark note and the copyright line. Right: Credits. One column on phones, Credits last.
 - Brand: the **COUCH** wordmark (20 px tall, accessible name **Couch**; until ticket 143 the icon and the word "Couch")
 - Navigation accessible name: **Footer**
-- Links: **GitHub** / **Releases** / **GPL-3.0-or-later** / **Third-party licences**
+- Links: **GitHub** / **Releases** / **Licence (GPL-3.0)** / **Third-party licences** (ticket 145: the licence link was labelled "GPL-3.0-or-later"; it still opens LICENSE, and the exact "or later" wording stays in LICENSE, the README, package.json and the privacy facts)
 - Social links (ticket 143), icons only, list name **Elsewhere**: one per entry in `SOCIAL` (`src/config.ts`), nothing when it is empty. Each link's accessible name (and tooltip): **Couch on GitHub**, **Abdullah Nettoor on X**, **Abdullah Nettoor on LinkedIn**, **Abdullah Nettoor on YouTube** (Phosphor's brand marks).
 - Trademark note: Netflix and YouTube are trademarks of their owners. Couch is not affiliated with or endorsed by them.
 - Credits (ticket 142; a small "Credits" heading in the footer): The films on the Screen are Blender's open films *Big Buck Bunny*, *Sintel* and *Tears of Steel*, © Blender Foundation, CC BY 3.0. Film imagery shown within Couch screenshots; cropped and resized for this site. Then TMDB's approved logo (`public/tmdb.svg`, "Primary short (blue)" from themoviedb.org/about/logos-attribution, self-hosted, 12 px tall, smaller and quieter than Couch's footer wordmark) beside: Posters and backdrops come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB. (Each film links to its Blender project page, "CC BY 3.0" to the licence and the TMDB logo, alt "TMDB", to themoviedb.org. The TMDB sentence is TMDB's required notice, word for word. The changes note is the CC BY "indicate if changes were made" line.)
-- Copyright and site privacy: © **2026** Abdullah Nettoor. No cookies. No analytics.
+- Copyright and site privacy: © **2026** Abdullah Nettoor. No cookies. No analytics. (Still true with a launch video: the site sets neither; the YouTube player, a third party, loads only when pressed, and the privacy fact says so.)
 - The year remains dynamic, with 2026 as the HTML fallback.
 
 Since ticket 142 the screenshots show TMDB artwork (the Blender films' posters and backdrops, fetched by Couch's optional online details), so the footer and the licences page carry TMDB's notice and the films' CC BY credit. Keep both whenever a screenshot shows a film.
