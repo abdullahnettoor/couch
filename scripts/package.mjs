@@ -45,7 +45,7 @@ const [appPath] = await packager({
   // Signing happens below, after VMP signing: packager's own osxSign would run first.
   ignore: [
     /^\/\.(?!$)/,
-    /^\/(node_modules|src|scripts|build|out|site|\.issues|\.wayfinder|\.notes)(\/|$)/,
+    /^\/(node_modules|src|scripts|build|out|site|graft|\.issues|\.wayfinder|\.notes)(\/|$)/,
     /^\/(README|GLOSSARY)\.md$/,
     /^\/(tsconfig|vite\.config)\./,
     /^\/pnpm-/,
