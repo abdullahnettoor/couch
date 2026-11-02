@@ -34,7 +34,8 @@ async function run(w, h, steps, name, video) {
   for (const at of steps) {
     while ((await t()) < at) await wait(5);
     const file = video ? `${videoDir}/${name}-${String(i).padStart(3, "0")}.png` : `${out}/${name}-${String(i + 1).padStart(2, "0")}-${at}ms.png`;
-    await page.screenshot({ path: file, clip: { x: 0, y: 0, width: w, height: Math.min(h, w > 600 ? 720 : 760) } });
+    // captureBeyondViewport would resize the page, and a resize skips the intro
+    await page.screenshot({ path: file, clip: { x: 0, y: 0, width: w, height: Math.min(h, w > 600 ? 720 : 760) }, captureBeyondViewport: false });
     i++;
   }
   await page.close();
