@@ -19,6 +19,18 @@ export const SOCIAL: readonly SocialLink[] = [
   { label: "Abdullah Nettoor on YouTube", href: "https://www.youtube.com/@abdullahnettoor", icon: "youtube" },
 ];
 
+/** The channel the launch video lives on: "Subscribe" under the first-look TV links here (ticket 145). */
+export const YOUTUBE_CHANNEL = "https://www.youtube.com/@abdullahnettoor";
+
+/**
+ * The launch video in the first-look TV (ticket 145). Empty `id`: placeholder mode (a Couch-made poster, "Launch
+ * video, coming soon", and Subscribe; nothing is fetched from YouTube, at build time or ever). With an `id` (the part
+ * after watch?v=): the TV ends on the video's thumbnail, saved into the build by scripts/launch-thumb.mjs (pnpm build
+ * runs it), and YouTube loads only when the visitor presses play. `title` is the video's title, as on YouTube.
+ * COUCH_LAUNCH_ID (and COUCH_LAUNCH_THUMB, a local picture) override both for a build; the tests use them.
+ */
+export const LAUNCH_VIDEO: { id: string; title: string } = { id: "", title: "Couch, a calm home screen for your TV" };
+
 /**
  * The hero intro (ticket 139). "sequence": the logo plays first, then the headline, text and buttons arrive.
  * "logo-only": the copy is there from the first paint and the morph plays only in the logo area; the glowing

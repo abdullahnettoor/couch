@@ -3,6 +3,7 @@ import "./couch-ui/remote.css";
 import "./style.css";
 import { intro } from "./intro.ts";
 import { headline } from "./headline.ts";
+import { launch } from "./launch.ts";
 
 const motionQuery = matchMedia("(prefers-reduced-motion: reduce)");
 const reduced = () => motionQuery.matches;
@@ -13,6 +14,7 @@ const onMotionChange = (fn: () => void) => {
 
 intro(reduced, onMotionChange);
 headline(reduced, onMotionChange);
+launch(reduced, onMotionChange);
 
 document.getElementById("year")!.textContent = String(new Date().getFullYear());
 
@@ -357,8 +359,9 @@ const rollable = (host: Element | null | undefined): HTMLElement | undefined => 
 
 // First look: Home on its own, alive for one moment: the clock ticks over a minute (8:42 → 8:43), once.
 // The Remote and the travelling highlight are left to "The Remote is already in your pocket" and its sequence.
+// The launch video's live Home (src/launch.ts) keeps the screenshot's 3:36: its clock is not one of these.
 if (stage) {
-  const clocks = [...stage.querySelectorAll(".cu .h-clock .t, .cu .topbar .clock")].map(rollable).filter((x): x is HTMLElement => !!x);
+  const clocks = [...stage.querySelectorAll(".cu:not(.lv-home) .h-clock .t, .cu:not(.lv-home) .topbar .clock")].map(rollable).filter((x): x is HTMLElement => !!x);
   let ran = false;
   new IntersectionObserver((entries, io) => {
     if (!entries.some((e) => e.isIntersecting) || ran) return;

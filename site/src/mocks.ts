@@ -14,7 +14,8 @@ const icons = data.icons as Record<string, string>;
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 const icon = (name: string) => `<svg class="i" viewBox="0 0 256 256" aria-hidden="true">${icons[name]}</svg>`;
-const mark = (a: App) => (a.symbol ? `<svg class="i" aria-hidden="true"><use href="#${a.symbol}"/></svg>` : a.svg!);
+export const mark = (a: App) => (a.symbol ? `<svg class="i" aria-hidden="true"><use href="#${a.symbol}"/></svg>` : a.svg!);
+export const appById = (id: string) => apps.find((a) => a.id === id)!;
 
 /** The App marks, once: every tile and Remote button refers to them with <use>. */
 export function sprite(): string {
@@ -83,6 +84,21 @@ export function home(o: HomeOptions): string {
     ? `<div class="h-qr"><div class="qr">${qrSvg}</div><div class="c">Scan to use your phone as a remote</div></div>`
     : "";
   return `<div class="cu" role="img" aria-label="${esc(o.alt)}" inert><div class="screen-glass home ${film ? "film" : "empty"}${o.drift ? "" : " still"}" style="${vars}"><div class="h-drift"></div><div class="h-scrim"></div><div class="h-bg${film ? " on" : ""}">${frames}</div><div class="h-clock${film ? "" : " on"}"><div class="t num">${CLOCK.time}<small>${CLOCK.suffix}</small></div><div class="d">${DATE}</div></div><div class="h-hero${film ? " on" : ""}">${heroHtml}</div><div class="h-chrome">${topbar}<div class="h-row">${row}</div>${qr}</div></div></div>`;
+}
+
+/**
+ * The first look's live Home (ticket 145), laid exactly over the hero-screen screenshot (src/shots/home.webp): the
+ * same Home at the moment the highlight leaves Big Buck Bunny, as Couch draws it then (home.ts: no .film, so the
+ * hero picture gives way to the wallpaper, the clock and the greeting). The row (the three App tiles, the divider
+ * and the Continue tile, the shoot's own picture of it) starts on the Continue tile, where the screenshot's
+ * highlight is; src/launch.ts moves it to YouTube. The clock and greeting are the shoot's (3:36 PM, Monday 2 November).
+ */
+export function launchHome(): string {
+  const film = `<div class="h-app h-film focused" data-id="continue"><div class="g-tile h-film-art"><img src="/src/shots/launch-continue.webp" width="420" height="238" alt="" loading="lazy" decoding="async" /></div><div class="g-cap">Big Buck Bunny (2008)<small class="num">7 min left</small></div></div>`;
+  const row = apps.map((a) => appTile(a, false)).join("") + `<div class="h-divider"></div>${film}`;
+  const topbar = `<div class="topbar"><div class="phones"><i></i>1 phone connected</div><div class="tb-gear">${icon("gear")}</div></div>`;
+  const clock = `<div class="h-clock on"><div class="t num">3:36<small>PM</small></div><div class="d">Good afternoon · Monday 2 November</div></div>`;
+  return `<div class="cu lv-home" aria-hidden="true" inert><div class="screen-glass home still" style="${vars}"><div class="lv-wall"><div class="h-drift"></div><div class="h-scrim"></div></div>${clock}<div class="h-chrome">${topbar}<div class="h-row">${row}</div></div></div></div>`;
 }
 
 /** The Library shelf as Couch's own cards draw it: a folder card, then the videos. */

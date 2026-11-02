@@ -1,8 +1,9 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
-import { GUMROAD_URL, GITHUB_URL, RELEASES_URL, SITE_URL, ADD_APP_URL, INTRO_MODE, SOCIAL, type IntroMode, type SocialLink } from "./src/config.ts";
+import { GUMROAD_URL, GITHUB_URL, RELEASES_URL, SITE_URL, ADD_APP_URL, INTRO_MODE, SOCIAL, LAUNCH_VIDEO, YOUTUBE_CHANNEL, type IntroMode, type SocialLink } from "./src/config.ts";
 import { home, install, remote, shelf, sprite } from "./src/mocks.ts";
+import { launchScreen, launchUnder, type LaunchOptions } from "./src/launch-markup.ts";
 import { introHead, introSvg, wordmarkSvg } from "./src/brand/wordmark.ts";
 import { slots, type Slot, type SlotName } from "./src/slots.ts";
 
@@ -10,6 +11,24 @@ const values: Record<string, string> = { GUMROAD_URL, GITHUB_URL, RELEASES_URL, 
 const introMode = (process.env.COUCH_INTRO_MODE || INTRO_MODE) as IntroMode;
 if (introMode !== "sequence" && introMode !== "logo-only") throw new Error(`Unknown intro mode "${introMode}" (sequence or logo-only)`);
 const shots = resolve(import.meta.dirname, "src/shots");
+
+/**
+ * The launch video (ticket 145, src/config.ts LAUNCH_VIDEO). COUCH_LAUNCH_ID overrides the id for a build and
+ * COUCH_LAUNCH_THUMB names a local picture to use as its thumbnail (the tests use a fake id and a fixture, so a
+ * test build never needs YouTube). Otherwise the thumbnail is src/shots/launch/<id>.webp (and -640), which
+ * scripts/launch-thumb.mjs saves before every `pnpm build`.
+ */
+const launchId = process.env.COUCH_LAUNCH_ID ?? LAUNCH_VIDEO.id;
+if (launchId && !/^[\w-]{11}$/.test(launchId)) throw new Error(`LAUNCH_VIDEO.id "${launchId}" is not a YouTube video id (11 letters, digits, - or _)`);
+function launchThumb(): LaunchOptions["thumb"] {
+  if (!launchId) return undefined;
+  const given = process.env.COUCH_LAUNCH_THUMB;
+  const file = given ? resolve(import.meta.dirname, given) : resolve(shots, "launch", `${launchId}.webp`);
+  if (!existsSync(file)) throw new Error(`No thumbnail for the launch video at ${file}: run pnpm launch:thumb (it saves YouTube's thumbnail into src/shots/launch/)`);
+  const rel = "/" + file.slice(import.meta.dirname.length + 1).split("\\").join("/");
+  const small = file.replace(/\.webp$/, "-640.webp");
+  return { src: rel, small: !given && existsSync(small) ? rel.replace(/\.webp$/, "-640.webp") : undefined };
+}
 
 /** The file a slot shows: a dropped-in slot-<name>.* replacement wins over the manifest's interim file. */
 function fileFor(name: string, slot: Slot): string | null {
@@ -74,6 +93,11 @@ const sitePlugin = (): Plugin => ({
     order: "pre",
     handler(html) {
       const used = new Set<string>();
+      const launch: LaunchOptions = { id: launchId, title: LAUNCH_VIDEO.title, channel: YOUTUBE_CHANNEL, thumb: launchThumb(), youtubeMark: SOCIAL_ICONS.youtube };
+      // the site's own privacy line: with a video, it says what changes when the visitor presses play
+      const privacy = launchId
+        ? "This site uses no cookies or analytics, and loads nothing from YouTube until you press play on the launch video. Services opened in Couch have their own sign-ins, cookies and privacy policies."
+        : "This site uses no cookies or analytics. Services opened in Couch have their own sign-ins, cookies and privacy policies.";
       const out = html
         .replace(/<!--mock:([\w-]+)-->([\s\S]*?)<!--\/mock-->/g, (_m, name: string) => {
           used.add(name);
@@ -92,6 +116,9 @@ const sitePlugin = (): Plugin => ({
         .replace("{{intro:svg}}", introSvg())
         .replace("{{intro:head}}", `<script>${introHead(introMode)}</script>`)
         .replace("{{mock:shelf}}", shelf())
+        .replace("{{launch:screen}}", launchScreen(launch))
+        .replace("{{launch:under}}", launchUnder(launch))
+        .replace("{{launch:privacy}}", privacy)
         .replace(/\{\{slot:([\w-]+)\}\}/g, (_m, name: string) => {
           used.add(name);
           const slot = slotOf(name);

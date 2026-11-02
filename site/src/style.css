@@ -468,6 +468,65 @@ details p a { color: var(--amber-3); }
 }
 
 
+/* The launch video (ticket 145), over the first look's screenshot (src/launch-markup.ts; src/launch.ts plays it).
+   data-step: none (the screenshot alone) → row (Couch's live Home takes over, drawn in the same place) → .lit (the
+   hero picture gives way to the wallpaper and clock: home.css's .7s) → open (YouTube's tile grows to fill the
+   Screen) → end (the thumbnail or the poster). Couch's ease throughout. */
+.lv { position: absolute; inset: 0; z-index: 1; pointer-events: none; --u: calc(100cqw / 1920); }
+.tv-screen .lv-home { z-index: 0; isolation: isolate; opacity: 0; transition: opacity .25s linear; }
+.lv[data-step] .lv-home { opacity: 1; }
+/* the shoot's 16:10 crop trimmed 5 px (2.67u) off the window's top and bottom; the live Home sits where Couch drew it */
+.lv .cu .home { inset: calc(-8 / 3 * var(--u)) 0; background: none; }
+.lv-wall { position: absolute; inset: 0; background: var(--wp-base); }
+.lv-wall, .lv-home .topbar { opacity: 0; transition: opacity .7s var(--ease); }
+.lv:not(.lit) .lv-home .h-clock { opacity: 0; }
+.lv.lit .lv-wall, .lv.lit .lv-home .topbar { opacity: 1; }
+/* the captions are text: the screenshot's own show until the wallpaper covers them, then the live ones come in */
+.lv .cu .h-app .g-cap { overflow: visible; transition: transform .38s var(--ease), color .3s, opacity .45s var(--ease) .3s; }
+.lv:not(.lit) .cu .h-app .g-cap { opacity: 0; }
+.lv .h-film-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* the press: the Remote's key press (.12s, scale .95) on the lifted tile */
+.lv .cu .h-app.focused.lv-pressed > .g-tile { transform: scale(1.0355) translateY(calc(-6 * var(--u))); transition-duration: .12s; }
+/* YouTube opening: its tile's face (Couch's .youtube-face), grown from the tile to the Screen by a clip */
+.lv-open { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; visibility: hidden; background: linear-gradient(160deg, #3a3a3e, #17171a); }
+.lv[data-step="open"] .lv-open, .lv[data-step="end"] .lv-open { visibility: visible; }
+.lv-open-mark { display: block; width: calc(220 * var(--u)); height: calc(220 * 164 / 192 * var(--u)); }
+.lv-open-mark svg { display: block; width: 100%; height: 100%; }
+/* the end: the thumbnail and play button, or the poster */
+.lv-end { position: absolute; inset: 0; z-index: 2; overflow: hidden; opacity: 0; visibility: hidden; transition: opacity .7s var(--ease), visibility .7s; }
+.lv[data-step="end"] .lv-end { opacity: 1; visibility: visible; pointer-events: auto; }
+.lv-text { position: absolute; left: calc(110 * var(--u)); right: calc(110 * var(--u)); bottom: calc(132 * var(--u)); z-index: 1; transform: translateY(calc(18 * var(--u))); transition: transform 1s var(--ease) .08s; }
+.lv[data-step="end"] .lv-text { transform: none; }
+.lv-title { margin: 0; max-width: 12em; font-size: max(20px, calc(116 * var(--u))); line-height: 1.02; letter-spacing: -.035em; font-weight: 600; color: #fff; text-wrap: balance; }
+.lv-meta { margin: max(6px, calc(20 * var(--u))) 0 0; font-size: max(12px, calc(34 * var(--u))); line-height: 1.3; font-weight: 500; color: var(--t2); }
+.lv-poster { background: radial-gradient(60% 80% at 70% 42%, #2b1d13 0%, #140e0a 52%, #070505 100%); }
+.lv-poster::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .14; mix-blend-mode: overlay; background: url("./shots/grain.png") 0 0 / 64px 64px; }
+.lv-light { position: absolute; right: calc(90 * var(--u)); top: 50%; width: calc(940 * var(--u)); translate: 0 -56%; mix-blend-mode: screen;
+  -webkit-mask: radial-gradient(farthest-side at 50% 56%, #000 78%, transparent 99%); mask: radial-gradient(farthest-side at 50% 56%, #000 78%, transparent 99%); }
+.lv-light img { width: 100%; height: auto; }
+.lv-thumb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.lv-facade::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(0deg, rgba(0, 0, 0, .78) 0%, rgba(0, 0, 0, .3) 34%, rgba(0, 0, 0, 0) 56%), linear-gradient(90deg, rgba(0, 0, 0, .45) 0%, rgba(0, 0, 0, 0) 55%); }
+.lv-facade .lv-title { font-size: max(18px, calc(84 * var(--u))); max-width: 14em; }
+/* the play button: a dark glass disc (any thumbnail stays behind it legibly), white when it has the highlight
+   (hover or focus), like Couch's focused pill (glass.css .g-pill.focused: white, scale 1.06, .3s) */
+.lv-play { all: unset; box-sizing: border-box; position: absolute; left: 50%; top: 50%; z-index: 2; width: max(56px, calc(176 * var(--u))); aspect-ratio: 1; margin: calc(max(56px, calc(176 * var(--u))) / -2) 0 0 calc(max(56px, calc(176 * var(--u))) / -2);
+  display: grid; place-items: center; border-radius: 50%; cursor: pointer; color: #fff; background: rgba(22, 22, 26, .46); -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .2), inset 0 0 0 1px rgba(255, 255, 255, .1), 0 calc(20 * var(--u)) calc(40 * var(--u)) rgba(0, 0, 0, .4); transition: transform .3s var(--ease), background .25s, color .25s; }
+.lv-play svg { width: 36%; height: 36%; margin-left: 6%; fill: currentColor; }
+.lv-play:hover, .lv-play:focus-visible { background: #fff; color: #000; transform: scale(1.06); }
+.lv-play:focus-visible { outline: 2px solid var(--amber-3); outline-offset: 4px; border-radius: 50%; }
+.lv-play:active { transform: scale(.95); transition-duration: .12s; }
+.lv-frame { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; border: 0; background: #000; pointer-events: auto; }
+.lv[data-playing] .lv-end { visibility: hidden; }
+/* under the TV: Watch and Subscribe (always there, so they work without script) and the privacy line */
+.lv-under { display: grid; justify-items: center; gap: 12px; margin-top: 16px; text-align: center; }
+.lv-links { margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 10px; }
+.lv-links a { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding: 0 18px 0 15px; border-radius: 999px; font-size: 15px; font-weight: 500; color: var(--t2); text-decoration: none; border: 1px solid var(--line); transition: color .2s, background .2s, border-color .2s; }
+.lv-links a:hover { color: #fff; background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .18); }
+.lv-links .i { width: 18px; height: 18px; flex: none; }
+.lv-note { margin: 0; max-width: 36em; font-size: 13.5px; color: var(--t3); }
+
 /* micro: cursor spotlight on cards (a transformed light, nothing repaints), lift on hover like a focused tile (0.38s); the shadow stays put */
 .spot::before { content: ""; position: absolute; left: 0; top: 0; width: 420px; height: 420px; margin: -210px 0 0 -210px; z-index: -1; border-radius: 50%; pointer-events: none;
   background: radial-gradient(closest-side, rgba(255, 190, 120, .10), transparent); opacity: 0; transform: translate(var(--mx, 50%), var(--my, 50%)); transition: opacity .4s var(--ease); }
@@ -540,6 +599,6 @@ summary { transition: color .2s; } summary:active { transform: scale(.99); }
   /* no decorative movement on hover or press: buttons, links, cards, step numbers and their icons stay where they are */
   .btn:hover, .btn:active, .btn.is-pressed, .pill:active, .pill:hover .i, .win-chip:hover .i,
   .nav nav a:active, .link-quiet:active, .seq-steps button:active, summary:active,
-  .step:hover, .step:hover .n { transform: none !important; }
+  .step:hover, .step:hover .n, .lv-play:hover, .lv-play:focus-visible, .lv-play:active { transform: none !important; }
   .step:hover .inst-drag { translate: none !important; }
 }

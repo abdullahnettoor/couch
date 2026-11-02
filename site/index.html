@@ -90,17 +90,21 @@
       </div>
     </section>
 
-    <!-- The product, as it looks today: Couch's real Home (src/couch-ui/). The Remote follows in its own section. -->
-    <section class="first-look" aria-label="Couch Home on the Screen">
+    <!-- The product, as it looks today: Couch's real Home (src/couch-ui/). The Remote follows in its own section.
+         Ticket 145: once the TV is mostly in view, the highlight moves to YouTube, it opens and fills the Screen,
+         and the TV ends on the launch video (src/launch.ts; the poster while LAUNCH_VIDEO has no id). -->
+    <section class="first-look" aria-label="Couch Home on the Screen, and the launch video">
       <div class="wrap stage" data-stage-scroll>
         <div class="stage-glow" aria-hidden="true"></div>
         <div class="device tv">
           <div class="tv-screen slot" data-slot="hero-screen">
             <!--mock:hero-screen--><!--/mock-->
+            {{launch:screen}}
           </div>
           <div class="tv-stand" aria-hidden="true"></div>
         </div>
       </div>
+      <div class="wrap">{{launch:under}}</div>
     </section>
 
     <!-- 3. Phone is the remote. From 900 px (with motion) the stage pins while the track scrolls past and the
@@ -206,7 +210,7 @@
           <ul class="facts">
             <li><strong>One household, one Screen</strong><span>No Couch sign-up and no Couch profiles. Pair a phone and join in.</span></li>
             <li><strong>Kept on your Mac</strong><span>Your Library, Couch's saved viewing positions and your settings stay on the Mac. There is no Couch cloud.</span></li>
-            <li><strong>No Couch analytics</strong><span>This site uses no cookies or analytics. Services opened in Couch have their own sign-ins, cookies and privacy policies.</span></li>
+            <li><strong>No Couch analytics</strong><span>{{launch:privacy}}</span></li>
             <li><strong>Open to a closer look</strong><span>Couch is free and open source under GPL-3.0-or-later. Read the code or build it yourself.</span></li>
           </ul>
           <div class="panel-shot device tv small"><div class="tv-screen slot" data-slot="privacy-screen">
@@ -339,7 +343,7 @@
         <nav aria-label="Footer">
           <a href="{{GITHUB_URL}}" rel="noopener">GitHub</a>
           <a href="{{RELEASES_URL}}" rel="noopener">Releases</a>
-          <a href="{{GITHUB_URL}}/blob/main/LICENSE" rel="noopener">GPL-3.0-or-later</a>
+          <a href="{{GITHUB_URL}}/blob/main/LICENSE" rel="noopener">Licence (GPL-3.0)</a>
           <a href="/licenses/">Third-party licences</a>
         </nav>
         <!-- Social links: icons only, one per entry in SOCIAL (src/config.ts), nothing when it is empty. -->

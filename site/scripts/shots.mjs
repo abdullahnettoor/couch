@@ -27,6 +27,9 @@ const SHOTS = {
   // the App row with YouTube focused (its label in white). Both cut only through empty background.
   "home-qr": { src: "home-qr.png", x: 2124, w: 1476, h: 830, top: 18, widths: [1280, 640] },
   "home-youtube": { src: "hero-home-youtube-focus.png", x: 90, w: 2020, h: 1136, top: 1020, widths: [1280, 640] },
+  // the launch video's sequence (ticket 145): the Big Buck Bunny card's picture, exactly its tile (unfocused, with
+  // its progress line), drawn as the Continue tile's art in the live Home row over the hero-screen screenshot
+  "launch-continue": { src: "hero-home-youtube-focus.png", x: 2228, w: 562, h: 318, top: 1644, widths: [420] },
 };
 
 for (const [name, { src, h, top, x = 0, w: cw = SRC_W, widths = [1920, 1280, 640] }] of Object.entries(SHOTS)) {
