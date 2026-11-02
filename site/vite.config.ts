@@ -94,10 +94,11 @@ const sitePlugin = (): Plugin => ({
     handler(html) {
       const used = new Set<string>();
       const launch: LaunchOptions = { id: launchId, title: LAUNCH_VIDEO.title, channel: YOUTUBE_CHANNEL, thumb: launchThumb(), youtubeMark: SOCIAL_ICONS.youtube };
-      // the site's own privacy line: with a video, it says what changes when the visitor presses play
+      // the site's own privacy lines: with a video, they say what is Couch's and what YouTube may do once played
       const privacy = launchId
-        ? "This site uses no cookies or analytics, and loads nothing from YouTube until you press play on the launch video. Services opened in Couch have their own sign-ins, cookies and privacy policies."
+        ? "Couch adds no analytics or cookies. YouTube loads only when you press play and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies."
         : "This site uses no cookies or analytics. Services opened in Couch have their own sign-ins, cookies and privacy policies.";
+      const legal = launchId ? "No cookies or analytics from Couch." : "No cookies. No analytics.";
       const out = html
         .replace(/<!--mock:([\w-]+)-->([\s\S]*?)<!--\/mock-->/g, (_m, name: string) => {
           used.add(name);
@@ -119,6 +120,7 @@ const sitePlugin = (): Plugin => ({
         .replace("{{launch:screen}}", launchScreen(launch))
         .replace("{{launch:under}}", launchUnder(launch))
         .replace("{{launch:privacy}}", privacy)
+        .replace("{{launch:legal}}", legal)
         .replace(/\{\{slot:([\w-]+)\}\}/g, (_m, name: string) => {
           used.add(name);
           const slot = slotOf(name);

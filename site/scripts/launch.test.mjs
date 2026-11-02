@@ -175,6 +175,7 @@ describe("placeholder (no video id)", { skip }, () => {
     assert.equal(await page.$(".lv-note"), null);
     const fact = await page.$eval("#privacy .facts li:nth-child(3) span", (e) => e.textContent);
     assert.equal(fact, "This site uses no cookies or analytics. Services opened in Couch have their own sign-ins, cookies and privacy policies.");
+    assert.match(await page.$eval(".legal", (e) => e.textContent), /Abdullah Nettoor\. No cookies\. No analytics\.$/);
     await page.close();
   });
 
@@ -228,7 +229,9 @@ describe("with a video (a fake id and a local thumbnail)", { skip }, () => {
       { text: "Subscribe", href: CHANNEL, rel: "noopener" },
     ]);
     assert.equal(await page.$eval(".lv-note", (e) => e.textContent), "The launch video plays from YouTube and loads only when you press play.");
-    assert.match(await page.$eval("#privacy .facts li:nth-child(3) span", (e) => e.textContent), /loads nothing from YouTube until you press play on the launch video/);
+    assert.equal(await page.$eval("#privacy .facts li:nth-child(3) span", (e) => e.textContent),
+      "Couch adds no analytics or cookies. YouTube loads only when you press play and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies.");
+    assert.match(await page.$eval(".legal", (e) => e.textContent), /Abdullah Nettoor\. No cookies or analytics from Couch\.$/);
     assert.equal((await lv(page)).cls, 0, "no layout shift");
     await page.hover(".lv-under a"); // hovering a link fetches nothing either
     await wait(600);
@@ -236,11 +239,13 @@ describe("with a video (a fake id and a local thumbnail)", { skip }, () => {
 
     await page.click(".lv-play");
     await page.waitForSelector("[data-launch] iframe");
-    const fr = await page.$eval("[data-launch] iframe", (e) => ({ src: e.src, title: e.title, allow: e.allow, fs: e.allowFullscreen, focused: document.activeElement === e, w: e.offsetWidth, sw: e.parentElement.offsetWidth }));
+    const fr = await page.$eval("[data-launch] iframe", (e) => ({ src: e.src, title: e.title, allow: e.allow, fs: e.allowFullscreen, referrer: e.referrerPolicy, referrerAttr: e.getAttribute("referrerpolicy"), focused: document.activeElement === e, w: e.offsetWidth, sw: e.parentElement.offsetWidth }));
     assert.equal(fr.src, `https://www.youtube-nocookie.com/embed/${FAKE_ID}?autoplay=1&rel=0&playsinline=1`);
     assert.match(fr.title, /\(YouTube video\)$/);
     for (const a of ["autoplay", "encrypted-media", "picture-in-picture"]) assert.ok(fr.allow.includes(a), `allow ${a}`);
     assert.ok(fr.fs, "fullscreen allowed");
+    assert.equal(fr.referrer, "strict-origin-when-cross-origin");
+    assert.equal(fr.referrerAttr, "strict-origin-when-cross-origin", "set on the element, not just the default");
     assert.ok(fr.focused, "the player has the focus");
     assert.equal(fr.w, fr.sw, "it fills the Screen");
     await wait(300);
