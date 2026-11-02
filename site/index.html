@@ -101,35 +101,50 @@
       </div>
     </section>
 
-    <!-- 3. Phone is the remote -->
-    <section class="story" id="how" aria-labelledby="how-h">
-      <div class="wrap split">
-        <div class="copy reveal">
+    <!-- 3. Phone is the remote. From 900 px (with motion) the stage pins while the track scrolls past and the
+         scroll moves the four steps forward and back (main.ts, "The Remote stage"); phones and reduced motion
+         play it once in view, with Replay. -->
+    <section class="story how" id="how" aria-labelledby="how-h">
+      <div class="wrap how-head reveal">
+        <div>
           <p class="eyebrow">The Remote</p>
           <h2 id="how-h">The Remote is already in your <em class="grad">pocket.</em></h2>
-          <p>Scan the QR code on the Screen to pair your phone. Move the highlight, choose what to watch and turn the volume down without leaving the sofa. Guests can pair a phone too.</p>
-          <ol class="seq-steps" aria-label="How pairing works">
-            <li><button type="button" data-go="1"><b>1</b><span>The Screen shows a QR code</span></button></li>
-            <li><button type="button" data-go="2"><b>2</b><span>Scan it to pair your phone</span></button></li>
-            <li><button type="button" data-go="3"><b>3</b><span>Press right on the phone's D-pad</span></button></li>
-            <li><button type="button" data-go="4" aria-current="step"><b>4</b><span>The highlight moves on the Screen</span></button></li>
-          </ol>
-          <button class="replay" type="button" data-replay hidden><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.6-5.9M4 4v4.5h4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Replay</button>
-          <ul class="ticks">
-            <li>The Remote opens in your phone's browser. No phone app to install.</li>
-            <li>Now Playing puts playback controls on your phone.</li>
-            <li>At the Mac, the keyboard and trackpad work too.</li>
-          </ul>
         </div>
-        <div class="demo seq reveal" data-seq data-stage="4">
-          <div class="device tv"><div class="tv-screen slot" data-slot="remote-screen">
-            <!--mock:remote-screen--><!--/mock-->
-          </div><div class="tv-stand" aria-hidden="true"></div></div>
-          <div class="device phone"><div class="phone-screen slot" data-slot="remote-phone">
-            <!--mock:remote-phone--><!--/mock-->
-          </div></div>
-          <p class="note seq-note">Pairing illustration. This QR code will not connect.</p>
+        <p>Scan the QR code on the Screen to pair your phone. Move the highlight, choose what to watch and turn the volume down without leaving the sofa. Guests can pair a phone too.</p>
+      </div>
+      <div class="how-track" data-how-track>
+        <div class="how-pin">
+          <div class="wrap how-stage">
+            <div class="how-side">
+              <ol class="seq-steps" aria-label="How pairing works">
+                <li><button type="button" data-go="1"><b>1</b><span>The Screen shows a QR code</span></button></li>
+                <li><button type="button" data-go="2"><b>2</b><span>Scan it to pair your phone</span></button></li>
+                <li><button type="button" data-go="3"><b>3</b><span>Press right on the phone's <span class="nw">D-pad</span></span></button></li>
+                <li><button type="button" data-go="4" aria-current="step"><b>4</b><span>The highlight moves on the Screen</span></button></li>
+              </ol>
+              <span class="seq-rail" aria-hidden="true"><span data-rail></span></span>
+              <button class="replay" type="button" data-replay hidden><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.6-5.9M4 4v4.5h4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Replay</button>
+            </div>
+            <div class="demo seq" data-seq data-stage="4">
+              <div class="seq-devices">
+                <div class="device tv"><div class="tv-screen slot" data-slot="remote-screen">
+                  <!--mock:remote-screen--><!--/mock-->
+                </div><div class="tv-stand" aria-hidden="true"></div></div>
+                <div class="device phone"><div class="phone-screen slot" data-slot="remote-phone">
+                  <!--mock:remote-phone--><!--/mock-->
+                </div></div>
+              </div>
+              <p class="note seq-note">Pairing illustration. This QR code will not connect.</p>
+            </div>
+          </div>
         </div>
+      </div>
+      <div class="wrap">
+        <ul class="ticks how-ticks reveal">
+          <li>The Remote opens in your phone's browser. No phone app to install.</li>
+          <li>Now Playing puts playback controls on your phone.</li>
+          <li>At the Mac, the keyboard and trackpad work too.</li>
+        </ul>
       </div>
     </section>
 

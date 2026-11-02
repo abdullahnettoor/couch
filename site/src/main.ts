@@ -63,24 +63,44 @@ document.addEventListener("click", (ev) => {
 });
 settleTarget(location.hash);
 
-// The Remote sequence: finite, ends connected. data-stage drives the visuals (see style.css).
+// The Remote stage (#how): four steps, ending connected. data-stage drives the visuals (see style.css).
+// From 900 px with motion (PIN, the same query as style.css) the stage is pinned and the scroll is the control:
+// the track's progress picks the step, forward and back, and a step's button scrolls to it. Native scroll only.
+// Otherwise (phones, short windows, reduced motion) it plays once when it comes into view, with Replay;
+// reduced motion shows the end at once.
 const seq = document.querySelector<HTMLElement>("[data-seq]");
 const seqHasMock = !!seq?.querySelector(".h-qr");
 const seqSteps = [...document.querySelectorAll<HTMLButtonElement>("[data-go]")];
 const replay = document.querySelector<HTMLButtonElement>("[data-replay]");
+const track = document.querySelector<HTMLElement>("[data-how-track]");
+const pin = track?.firstElementChild as HTMLElement | null | undefined;
+const rail = document.querySelector<HTMLElement>(".seq-rail");
+const railFill = rail?.querySelector<HTMLElement>("[data-rail]");
+const seqPhone = seq?.querySelector<HTMLElement>(".phone");
+const pinQuery = matchMedia("(min-width: 900px) and (min-height: 620px) and (prefers-reduced-motion: no-preference) and (scripting: enabled)");
 const stageTimes = [0, 2200, 1900, 700]; // wait before stages 2..4 (index n-1); the press is held a beat so it reads
 let seqTimers: number[] = [];
 let seqStarted = false;
+let pinned = false;
 
 const clearSeq = () => { seqTimers.forEach(clearTimeout); seqTimers = []; };
 const seqTiles = seq ? [...seq.querySelectorAll<HTMLElement>(".cu .h-app")] : [];
 const seqRight = seq?.querySelector<HTMLElement>(".cr .dir.r");
-const setStage = (n: number) => {
+let seqStage = 4;
+const setRail = (f: number) => railFill?.style.setProperty("--fill", f.toFixed(4));
+const setStage = (n: number, force = false) => {
+  if (!pinned) setRail((n - 1) / 3);
+  if (n === seqStage && !force) return;
+  seqStage = n;
   seq?.setAttribute("data-stage", String(n));
   // Couch's own states: the highlight is the .focused class (its transition does the move), the press is .is-active on the D-pad's Right.
   seqTiles.forEach((t) => t.classList.toggle("focused", t.dataset.id === (n === 4 ? "netflix" : "youtube")));
   seqRight?.classList.toggle("is-active", n === 3);
-  seqSteps.forEach((b) => (Number(b.dataset.go) === n ? b.setAttribute("aria-current", "step") : b.removeAttribute("aria-current")));
+  seqSteps.forEach((b) => {
+    const k = Number(b.dataset.go);
+    if (k === n) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
+    b.classList.toggle("done", k < n);
+  });
 };
 const playSeq = () => {
   clearSeq();
@@ -88,18 +108,77 @@ const playSeq = () => {
   let at = 0;
   for (const n of [2, 3, 4]) { at += stageTimes[n - 1] || 1600; const t = n; seqTimers.push(window.setTimeout(() => setStage(t), at)); }
 };
-const endSeq = () => { clearSeq(); setStage(4); };
+const endSeq = () => { clearSeq(); setStage(4, true); };
+
+/** The rail runs from the first step's number to the last one's, wherever the labels wrap. */
+const placeRail = () => {
+  if (!rail || seqSteps.length < 2) return;
+  const box = rail.parentElement!.getBoundingClientRect();
+  const mid = (b: HTMLButtonElement) => { const r = b.querySelector("b")!.getBoundingClientRect(); return r.top + r.height / 2 - box.top; };
+  const top = mid(seqSteps[0]!), end = mid(seqSteps[seqSteps.length - 1]!);
+  rail.style.top = `${top.toFixed(1)}px`;
+  rail.style.height = `${(end - top).toFixed(1)}px`;
+};
+
+/** How far the pinned stage is through its track: 0 as it pins, 1 as it lets go. */
+const trackSpan = () => {
+  const r = track!.getBoundingClientRect();
+  const top = parseFloat(getComputedStyle(pin!).top) || 0;
+  return { r, top, len: Math.max(1, track!.offsetHeight - pin!.offsetHeight) };
+};
+const STEP_AT = [0, 0.25, 0.5, 0.75]; // where each step starts along the track
+let stageQueued = false;
+const stageScroll = () => {
+  stageQueued = false;
+  if (!pinned) return;
+  const { r, top, len } = trackSpan();
+  const p = Math.max(0, Math.min(1, (top - r.top) / len));
+  let n = 1;
+  STEP_AT.forEach((at, i) => { if (p >= at) n = i + 1; });
+  setStage(n);
+  setRail(Math.min(1, p / STEP_AT[3]!));
+  // the phone comes forward a little as the steps advance (depth only, transform only)
+  if (seqPhone) seqPhone.style.transform = `translate3d(0, ${((1 - p) * 26).toFixed(1)}px, 0)`;
+};
+const queueStage = () => { if (pinned && !stageQueued) { stageQueued = true; requestAnimationFrame(stageScroll); } };
+
+/** Pinned (scroll-linked) or not (plays once in view): set from PIN at load and whenever it changes. */
+const setPinned = () => {
+  if (!seq || !seqHasMock) return;
+  pinned = pinQuery.matches && !!track && !!pin;
+  clearSeq();
+  if (replay) replay.hidden = pinned;
+  rail?.classList.toggle("eased", !pinned);
+  if (seqPhone) seqPhone.style.transform = "";
+  placeRail();
+  if (pinned) stageScroll();
+  else endSeq();
+};
 
 if (seq && seqHasMock) {
-  if (replay) replay.hidden = false;
-  seqSteps.forEach((b) => b.addEventListener("click", () => { seqStarted = true; clearSeq(); setStage(Number(b.dataset.go)); }));
+  seqSteps.forEach((b) => b.addEventListener("click", () => {
+    const n = Number(b.dataset.go);
+    if (pinned) {
+      // scroll to the middle of that step's stretch of the track; the scroll sets the step
+      const { r, top, len } = trackSpan();
+      const at = STEP_AT[n - 1]! + 0.125;
+      scrollTo({ top: scrollY + r.top - top + at * len });
+      return;
+    }
+    seqStarted = true; clearSeq(); setStage(n);
+  }));
   replay?.addEventListener("click", () => { if (reduced()) { clearSeq(); setStage(1); } else playSeq(); });
   new IntersectionObserver((entries, io) => {
     if (!entries.some((e) => e.isIntersecting) || seqStarted) return;
     seqStarted = true;
     io.disconnect();
-    if (!reduced()) playSeq();
+    if (!pinned && !reduced()) playSeq();
   }, { threshold: 0.5 }).observe(seq);
+  addEventListener("scroll", queueStage, { passive: true });
+  addEventListener("resize", () => { placeRail(); queueStage(); }, { passive: true });
+  pinQuery.addEventListener("change", setPinned);
+  document.fonts?.ready.then(placeRail);
+  setPinned();
 }
 
 // Focus passes: the highlight moves across a row once, as Couch's D-pad would move it, then rests on the first.

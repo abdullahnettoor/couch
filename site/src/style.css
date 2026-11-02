@@ -253,27 +253,60 @@ html.intro.intro-now .lamp, html.intro.intro-now .hero-copy > :not(.mark) { anim
 .ticks li::before { content: ""; position: absolute; left: 2px; top: .5em; width: 12px; height: 7px; border-left: 2px solid var(--amber); border-bottom: 2px solid var(--amber); transform: rotate(-45deg); }
 .demo { position: relative; padding-bottom: 20px; }
 .demo .tv { width: 100%; }
-.seq { padding-bottom: 36px; }
-.seq .tv { width: 76%; margin-inline: 0; }
-.seq .phone { position: absolute; right: -2%; bottom: 0; width: clamp(150px, 27%, 200px); z-index: 3; }
+
+/* The Remote (#how, ticket 143): a head, then the stage (the steps beside a big Screen with the phone in front of
+   its lower-right corner), then the ticks. From 900 px with motion and script the stage pins (sticky) while
+   .how-track scrolls past, and main.ts turns the scroll into the four steps; otherwise it plays once in view. */
+.how-head { display: grid; gap: var(--head-gap); margin-bottom: var(--intro-gap); }
+.how-head > p { margin: 0; color: var(--t2); font-size: 19px; max-width: 34em; }
+.how-stage { display: grid; gap: 28px; }
+.how-side { position: relative; }
+.how-ticks { margin-top: var(--intro-gap); }
+.seq { container-type: inline-size; padding-bottom: 0; }
+.seq-devices { --ph: clamp(104px, 32cqw, 176px); --over: .3; --drop: .55; position: relative; padding-right: calc(var(--ph) * var(--over)); margin-bottom: calc(var(--ph) * 19 / 9 * var(--drop)); }
+.seq .tv { width: 100%; margin: 0; }
+.seq .phone { position: absolute; right: 0; bottom: calc(var(--ph) * 19 / 9 * var(--drop) * -1); width: var(--ph); z-index: 3; }
 .seq .phone-screen { border-width: 5px; border-radius: 26px; }
-.seq-note { margin: 14px 0 0; text-align: left; }
+.seq .seq-note { margin: 14px 0 0; text-align: left; }
+.seq-steps .nw { white-space: nowrap; }
+@media (max-width: 899px) {
+  .how-side { order: 2; }
+  .seq .phone-screen { border-width: 4px; border-radius: 20px; }
+}
+@media (min-width: 900px) {
+  .how-head { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: end; column-gap: clamp(40px, 6vw, 96px); }
+  .how-head > p { padding-bottom: .35em; }
+  .how-stage { grid-template-columns: minmax(232px, 288px) minmax(0, 1fr); gap: clamp(28px, 3.4vw, 48px); align-items: center; }
+  .seq-devices { --ph: clamp(150px, 22cqw, 188px); --over: .3; --drop: .36; }
+  .how-ticks { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px clamp(24px, 4vw, 56px); }
+}
+/* the pinned stage: about 3.4 screens of scroll, the stage held under the nav and sized to the window's height */
+@media (min-width: 900px) and (min-height: 620px) and (prefers-reduced-motion: no-preference) and (scripting: enabled) {
+  .how-track { height: 340vh; }
+  .how-pin { position: sticky; top: 76px; height: calc(100vh - 76px); display: grid; align-content: center; }
+  .seq { justify-self: center; width: 100%; max-width: calc((100vh - 314px) * 1.88); }
+  .seq .phone { will-change: transform; }
+}
 
 /* the Remote sequence: data-stage (1 QR, 2 paired, 3 press, 4 highlight moved) is read by "couch ui" below */
 
-.seq-steps { list-style: none; margin: 28px 0 0; padding: 0; display: grid; gap: 4px; }
+.seq-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .seq-steps button { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: 14px; padding: 10px 14px 10px 10px; border-radius: 14px; cursor: pointer; color: var(--t2); font-size: 16px; line-height: 1.35; transition: background .25s, color .25s; }
 .seq-steps button:hover { background: rgba(255,255,255,.05); color: #fff; }
 .seq-steps button:focus-visible { outline: 2px solid var(--amber-3); outline-offset: 2px; }
-.seq-steps button b { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line); font: 500 13px var(--mono); color: var(--t3); transition: background .25s, color .25s, border-color .25s; }
+.seq-steps button b { position: relative; z-index: 1; flex: none; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line); background: #0e0e11; font: 500 13px var(--mono); color: var(--t3); transition: background .25s, color .25s, border-color .25s; }
+.seq-steps button.done b { border-color: rgba(255, 216, 154, .45); color: var(--amber-3); }
 .seq-steps button[aria-current="step"] { background: rgba(255,255,255,.07); color: #fff; }
 .seq-steps button[aria-current="step"] b { background: #fff; color: #000; border-color: #fff; }
 .seq-steps button[aria-current="step"] b { animation: step-pop .38s var(--ease); }
 @keyframes step-pop { from { transform: scale(.8); } }
 .seq-steps button:active { transform: scale(.98); transition: transform .12s; }
+/* the rail between the step numbers: placed by main.ts from the numbers' centres, filled as the steps advance */
+.seq-rail { position: absolute; left: 23px; top: 0; width: 2px; height: 0; border-radius: 2px; background: var(--line); overflow: hidden; pointer-events: none; }
+.seq-rail > span { display: block; height: 100%; background: linear-gradient(var(--amber-3), var(--amber-2)); transform-origin: 50% 0; transform: scaleY(var(--fill, 0)); }
+.seq-rail.eased > span { transition: transform .7s var(--ease); }
 .replay { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 8px; margin: 14px 0 0 10px; padding: 9px 16px 9px 12px; border-radius: 999px; cursor: pointer; font-size: 14.5px; color: var(--t2); border: 1px solid var(--line); background: var(--glass); box-shadow: var(--edge); }
 .replay[hidden] { display: none; } .replay:hover { color: #fff; background: rgba(60,60,66,.6); } .replay:focus-visible { outline: 2px solid var(--amber-3); outline-offset: 3px; } .replay .i { width: 16px; height: 16px; }
-.seq + * { margin-top: 0; }
 .note { margin: 28px 0 0; font-size: 13.5px; color: var(--t3); text-align: center; }
 .center { text-align: center; margin-bottom: var(--intro-gap); } .center h2 { max-width: 14em; margin-inline: auto; }
 
@@ -464,10 +497,6 @@ summary { transition: color .2s; } summary:active { transform: scale(.99); }
   .steps { grid-template-columns: 1fr; max-width: 480px; margin-inline: auto; }
   .step-art-wide { display: none; }
   summary { font-size: 18px; }
-  /* phones sit in normal flow, centred under the Screen, wide enough to read */
-  .seq .phone { position: static; width: min(200px, 56vw); margin: 22px auto 0; }
-  .seq .tv { width: 100%; }
-  .seq { padding-bottom: 0; } .seq-note { text-align: center; }
 }
 @media (max-width: 400px) { .btn-lg { font-size: 15px; padding: 0 16px; } }
 @media (prefers-reduced-motion: reduce) {
