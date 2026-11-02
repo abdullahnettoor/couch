@@ -22,7 +22,9 @@
       "migrations_dir": "migrations"
     }
   ],
-  // A site-wide burst cap on counting, keyed by the platform name (never by the visitor).
+  // A burst cap on counting, keyed by the platform name (never by the visitor). Workers rate limits
+  // are approximate and counted per Cloudflare location, not globally:
+  // https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/
   "ratelimits": [{ "name": "DEMAND_LIMIT", "namespace_id": "1138", "simple": { "limit": 60, "period": 60 } }],
   // No Workers Logs and no invocation logs: request details are not kept.
   "observability": { "enabled": false, "logs": { "enabled": false, "invocation_logs": false } },

@@ -5,10 +5,13 @@
  *   POST /api/demand/windows  adds one to an anonymous counter, 204
  *   GET  /api/demand          the counts as JSON, for the site owner
  *
- * Nothing about the request is stored or logged: no IP, no user agent, no body (it is never read),
- * no cookie. The only stored data is one row per platform: its name and a number.
- * The checks are sanity checks, not identity: POST only, a same-site browser Origin, an optional
- * site-wide burst cap (a Workers rate limit keyed by the platform name, never by the visitor).
+ * This Worker stores and logs nothing about the request: no IP, no user agent, no body (it is never
+ * read), no cookie. The only stored data is one row per platform: its name and a number. Cloudflare,
+ * which hosts the site, processes request data under its own policies.
+ * The Origin and Fetch-Metadata checks are sanity checks against other sites triggering the count,
+ * not anti-abuse: POST only, from a browser on this site. The optional burst cap is a Workers rate
+ * limit keyed by the platform name (never by the visitor); it is approximate and counted per
+ * Cloudflare location, not globally.
  */
 
 /** The parts of Cloudflare's bindings this Worker uses (kept local so the site needs no extra types package). */
@@ -64,7 +67,12 @@ export async function count(request: Request, env: Env, platform: string): Promi
   if (!isPlatform(platform)) return json({ error: "unknown" }, 404);
   if (!fromSite(request, env)) return json({ error: "forbidden" }, 403);
   if (env.DEMAND_LIMIT) {
-    const { success } = await env.DEMAND_LIMIT.limit({ key: `demand:${platform}` });
+    let success: boolean;
+    try {
+      ({ success } = await env.DEMAND_LIMIT.limit({ key: `demand:${platform}` }));
+    } catch {
+      return json({ error: "unavailable" }, 503);
+    }
     if (!success) return json({ error: "busy" }, 429, { "retry-after": "60" });
   }
   try {

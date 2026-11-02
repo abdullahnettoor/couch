@@ -129,7 +129,7 @@ test("GET /api/demand returns every platform's count as JSON, zero when none", a
   assert.equal((await worker.fetch(new Request(`${SITE}/api/demand`, { method: "POST", headers: { origin: SITE } }), e)).status, 405);
 });
 
-test("a site-wide burst cap answers 429 without counting, keyed by platform only", async () => {
+test("an approximate, per-location burst cap answers 429 without counting, keyed by platform only", async () => {
   const keys: string[] = [];
   const { e, db } = env({ DEMAND_LIMIT: { async limit({ key }) { keys.push(key); return { success: keys.length <= 1 }; } } });
   assert.equal((await worker.fetch(post("/api/demand/windows"), e)).status, 204);
@@ -138,6 +138,15 @@ test("a site-wide burst cap answers 429 without counting, keyed by platform only
   assert.equal(res.headers.get("retry-after"), "60");
   assert.deepEqual(keys, ["demand:windows", "demand:windows"]);
   assert.equal(db.rows.get("windows"), 1);
+});
+
+test("a failing rate limit binding is a 503 with no-store, and nothing is counted", async () => {
+  const { e, db } = env({ DEMAND_LIMIT: { async limit() { throw new Error("limiter down"); } } });
+  const res = await worker.fetch(post("/api/demand/windows"), e);
+  assert.equal(res.status, 503);
+  assert.equal(res.headers.get("cache-control"), "no-store");
+  assert.equal(db.rows.size, 0);
+  assert.deepEqual(db.seen, []);
 });
 
 test("a database failure is a 503, not a false success", async () => {
