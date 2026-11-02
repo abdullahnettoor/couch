@@ -12,7 +12,10 @@
       "src/shared/glass-tokens.ts": "a0cd89cec2a5",
       "src/shared/icons.ts": "b1f3bd165a2e",
       "src/main/apps/index.ts": "7b4c135c152d",
-      "src/shared/wallpapers.ts": "4bbd09ca83b1"
+      "src/shared/wallpapers.ts": "4bbd09ca83b1",
+      "src/shared/track-code.ts": "fcc247b6b34f",
+      "src/main/apps/youtube/icon.ts": "717c2510aea5",
+      "src/main/apps/netflix/icon.ts": "16fb686da561"
     }
   },
   "icons": {
