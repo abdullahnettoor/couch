@@ -1,8 +1,9 @@
-// Unit tests for the site's Worker (worker/index.ts), with a fake D1 database and rate limit.
+// Unit tests for the site's Worker (worker/index.ts, worker/demand.ts), with a fake D1 database and rate limit.
 // Run: pnpm test (node --test strips the types).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import worker, { INCREMENT, READ, type Database, type Env, type Statement } from "./index.ts";
+import worker from "./index.ts";
+import { INCREMENT, READ, type Database, type Env, type Statement } from "./demand.ts";
 
 const SITE = "https://couch.abdullahnettoor.com";
 
@@ -152,4 +153,10 @@ test("other /api paths are 404; everything else is a static asset", async () => 
   const res = await worker.fetch(new Request(`${SITE}/licenses/`), e);
   assert.equal(await res.text(), "asset");
   assert.equal(assets.length, 1);
+});
+
+test("the entry module exports only a default handler (workerd rejects other named exports)", async () => {
+  const entry = await import("./index.ts");
+  assert.deepEqual(Object.keys(entry), ["default"]);
+  assert.equal(typeof entry.default.fetch, "function");
 });
