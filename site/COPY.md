@@ -22,7 +22,7 @@ Ticket 137 was a copy pass, not a redesign; ticket 138 redesigned the page aroun
 | Main navigation accessible name | Main |
 | Navigation, desktop and mobile | How it works / Apps / Library / Privacy / FAQ |
 | Source link, desktop and mobile | Source |
-| Navigation CTA | Get Couch |
+| Navigation CTA, all widths | Download (ticket 145 addendum: was "Get Couch", which repeated the COUCH wordmark beside it; same link, #download. The hero button stays "Get Couch, pay what you want") |
 | Compact menu accessible name | Menu |
 | Scroll progress | Decorative; no spoken label |
 
