@@ -1,27 +1,7 @@
 import "./style.css";
 
-/*
- * Screenshot slots: drop a file named slot-<name>.(png|jpg|webp) into src/shots/ and it replaces
- * the mock (or the interim picture) in the element marked data-slot="<name>". See README.
- */
-const slotFiles = import.meta.glob("./shots/slot-*.{png,jpg,jpeg,webp}", {
-  eager: true,
-  query: "?url",
-  import: "default",
-}) as Record<string, string>;
-
-const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-for (const [path, url] of Object.entries(slotFiles)) {
-  const name = path.match(/slot-(.+)\.\w+$/)?.[1];
-  const el = name && document.querySelector<HTMLElement>(`[data-slot="${name}"]`);
-  if (!el) continue;
-  const img = new Image();
-  img.src = url;
-  img.alt = el.getAttribute("data-alt") ?? `Couch ${name.replace(/-/g, " ")}`;
-  img.decoding = "async";
-  el.replaceChildren(img);
-}
+const motionQuery = matchMedia("(prefers-reduced-motion: reduce)");
+const reduced = () => motionQuery.matches;
 
 document.getElementById("year")!.textContent = String(new Date().getFullYear());
 
@@ -36,66 +16,108 @@ const paint = () => {
 addEventListener("scroll", () => { if (!ticking) { ticking = true; requestAnimationFrame(paint); } }, { passive: true });
 paint();
 
-// Reveals: anything already on screen shows at once; the rest eases in as it arrives.
-const io = new IntersectionObserver(
-  (entries) => {
-    for (const e of entries) if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
-  },
-  { rootMargin: "0px 0px -8% 0px", threshold: 0.08 },
-);
-document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+/*
+ * Reveals. Everything is visible without this. Once an IntersectionObserver exists, blocks that start
+ * below the fold get a slightly shifted "pre" state and settle as they arrive. A block is never dimmed or invisible,
+ * and jumping to a section (nav, hash) settles that section at once.
+ */
+const revealEls = [...document.querySelectorAll<HTMLElement>(".reveal, .shelf")];
+const settle = (el: Element) => { el.classList.remove("pre"); el.classList.add("in"); };
+const settleAll = () => revealEls.forEach(settle);
+let revealObserver: IntersectionObserver | undefined;
 
-// Home + Remote mock: a D-pad press moves the highlight on the Screen.
-type Step = { key: "left" | "right" | "up" | "down" | "ok"; focus: number };
-const script: Step[] = [
-  { key: "right", focus: 1 }, { key: "right", focus: 2 }, { key: "left", focus: 1 },
-  { key: "left", focus: 0 }, { key: "ok", focus: 0 },
-];
-
-function runHome(home: HTMLElement, dpad: HTMLElement | null, animate: boolean) {
-  const tiles = [...home.querySelectorAll<HTMLElement>(".m-tile")];
-  const chip = home.querySelector<HTMLElement>(".m-chip")!;
-  const label = home.querySelector<HTMLElement>("[data-conn]")!;
-  const setFocus = (i: number) => tiles.forEach((t, n) => t.classList.toggle("focus", n === i));
-  const connect = (on: boolean) => { chip.classList.toggle("on", on); label.textContent = on ? "Phone connected" : "No phone connected"; };
-  setFocus(0);
-  if (!animate) { connect(true); return; }
-  let i = 0, timer = 0, visible = false;
-  const tick = () => {
-    if (i === 0) connect(true);
-    const s = script[i % script.length];
-    const k = dpad?.querySelector<HTMLElement>(`.${s.key}`);
-    k?.classList.add("press");
-    setTimeout(() => k?.classList.remove("press"), 280);
-    setFocus(s.focus);
-    i = (i + 1) % script.length;
-    if (i === 0) setTimeout(() => connect(false), 1100);
-  };
-  const start = () => { if (!timer) { timer = window.setInterval(tick, 1500); setTimeout(tick, 400); } };
-  const stop = () => { clearInterval(timer); timer = 0; };
-  new IntersectionObserver(([e]) => { visible = e.isIntersecting; visible ? start() : stop(); }, { threshold: 0.35 }).observe(home);
+if ("IntersectionObserver" in window) {
+  revealObserver = new IntersectionObserver((entries) => {
+    for (const e of entries) if (e.isIntersecting) { settle(e.target); revealObserver!.unobserve(e.target); }
+  }, { rootMargin: "0px 0px -6% 0px", threshold: 0.05 });
+  if (!reduced()) {
+    document.documentElement.classList.add("reveal-ready");
+    for (const el of revealEls) {
+      if (el.getBoundingClientRect().top > innerHeight) el.classList.add("pre");
+      revealObserver.observe(el);
+    }
+  }
 }
 
-document.querySelectorAll<HTMLElement>("[data-home]").forEach((home) => {
-  const demo = home.closest("[data-demo]");
-  runHome(home, demo?.querySelector<HTMLElement>("[data-dpad]") ?? null, !reduced && !!demo);
+const settleTarget = (hash: string) => {
+  const target = hash.length > 1 ? document.getElementById(decodeURIComponent(hash.slice(1))) : null;
+  if (target) revealEls.filter((el) => target.contains(el) || el.contains(target)).forEach(settle);
+};
+addEventListener("hashchange", () => settleTarget(location.hash));
+document.addEventListener("click", (ev) => {
+  const a = (ev.target as Element).closest<HTMLAnchorElement>('a[href^="#"]');
+  if (!a) return;
+  settleTarget(a.getAttribute("href")!);
+  a.closest("details.menu")?.removeAttribute("open");
 });
+settleTarget(location.hash);
 
-// Apps mock: focus drifts across the App tiles.
-document.querySelectorAll<HTMLElement>(".mock-apps").forEach((m) => {
-  const tiles = [...m.querySelectorAll<HTMLElement>(".a-tile")];
-  const set = (i: number) => tiles.forEach((t, n) => t.classList.toggle("focus", n === i));
-  set(0);
-  if (reduced) return;
-  let i = 0, timer = 0;
-  new IntersectionObserver(([e]) => {
-    if (e.isIntersecting && !timer) timer = window.setInterval(() => set(++i % tiles.length), 1800);
-    else if (!e.isIntersecting) { clearInterval(timer); timer = 0; }
-  }, { threshold: 0.35 }).observe(m);
-});
+// The Remote sequence: finite, ends connected. data-stage drives the visuals (see style.css).
+const seq = document.querySelector<HTMLElement>("[data-seq]");
+const seqHasMock = !!seq?.querySelector(".mock-pair");
+const seqSteps = [...document.querySelectorAll<HTMLButtonElement>("[data-go]")];
+const replay = document.querySelector<HTMLButtonElement>("[data-replay]");
+const stageTimes = [0, 2200, 1900, 1500]; // wait before stages 1..4 (index 0 unused)
+let seqTimers: number[] = [];
+let seqStarted = false;
+
+const clearSeq = () => { seqTimers.forEach(clearTimeout); seqTimers = []; };
+const setStage = (n: number) => {
+  seq?.setAttribute("data-stage", String(n));
+  seqSteps.forEach((b) => (Number(b.dataset.go) === n ? b.setAttribute("aria-current", "step") : b.removeAttribute("aria-current")));
+};
+const playSeq = () => {
+  clearSeq();
+  setStage(1);
+  let at = 0;
+  for (const n of [2, 3, 4]) { at += stageTimes[n - 1] || 1600; const t = n; seqTimers.push(window.setTimeout(() => setStage(t), at)); }
+};
+const endSeq = () => { clearSeq(); setStage(4); };
+
+if (seq && seqHasMock) {
+  if (replay) replay.hidden = false;
+  seqSteps.forEach((b) => b.addEventListener("click", () => { clearSeq(); setStage(Number(b.dataset.go)); }));
+  replay?.addEventListener("click", () => { if (reduced()) { clearSeq(); setStage(1); } else playSeq(); });
+  new IntersectionObserver((entries, io) => {
+    if (!entries.some((e) => e.isIntersecting) || seqStarted) return;
+    seqStarted = true;
+    io.disconnect();
+    if (!reduced()) playSeq();
+  }, { threshold: 0.5 }).observe(seq);
+}
+
+// Apps mock: one pass of the focus across the tiles, then it rests on the first.
+const apps = document.querySelector<HTMLElement>(".mock-apps");
+let appsTimers: number[] = [];
+if (apps) {
+  const tiles = [...apps.querySelectorAll<HTMLElement>(".a-tile")];
+  const focus = (i: number) => tiles.forEach((t, n) => t.classList.toggle("focus", n === i));
+  const stopApps = () => { appsTimers.forEach(clearTimeout); appsTimers = []; focus(0); };
+  const runApps = () => [1, 2, 0].forEach((i, k) => appsTimers.push(window.setTimeout(() => focus(i), 1400 * (k + 1))));
+  let ran = false;
+  new IntersectionObserver((entries, io) => {
+    if (!entries.some((e) => e.isIntersecting) || ran) return;
+    ran = true;
+    io.disconnect();
+    if (!reduced()) runApps();
+  }, { threshold: 0.5 }).observe(apps);
+  motionQuery.addEventListener("change", () => { if (reduced()) stopApps(); });
+}
 
 // Hero phone: a light parallax against the TV.
 const ph = document.querySelector<HTMLElement>("[data-parallax]");
-if (ph && !reduced) {
-  addEventListener("scroll", () => { ph.style.translate = `0 ${Math.min(60, scrollY * -0.05)}px`; }, { passive: true });
-}
+const parallax = () => { ph!.style.translate = reduced() ? "" : `0 ${Math.min(60, scrollY * -0.05)}px`; };
+if (ph) addEventListener("scroll", parallax, { passive: true });
+
+// Reduced motion can change at any time: settle everything now; going back to motion needs no reset.
+motionQuery.addEventListener("change", () => {
+  if (reduced()) {
+    revealObserver?.disconnect();
+    settleAll();
+    document.documentElement.classList.remove("reveal-ready");
+    if (seq && seqHasMock) endSeq();
+    if (ph) parallax();
+  } else if (revealObserver) {
+    document.documentElement.classList.add("reveal-ready");
+  }
+});

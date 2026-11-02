@@ -1,15 +1,64 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
-import { GUMROAD_URL, GITHUB_URL, RELEASES_URL, SITE_URL } from "./src/config";
+import { GUMROAD_URL, GITHUB_URL, RELEASES_URL, SITE_URL } from "./src/config.ts";
+import { slots, type Slot, type SlotName } from "./src/slots.ts";
 
 const values: Record<string, string> = { GUMROAD_URL, GITHUB_URL, RELEASES_URL, SITE_URL };
+const shots = resolve(import.meta.dirname, "src/shots");
 
-/** Fills {{NAME}} placeholders in HTML from src/config.ts so links work without JavaScript. */
-const configPlaceholders = (): Plugin => ({
-  name: "config-placeholders",
-  transformIndexHtml: (html) => html.replace(/\{\{(\w+)\}\}/g, (m, k) => values[k] ?? m),
+/** The file a slot shows: a dropped-in slot-<name>.* replacement wins over the manifest's interim file. */
+function fileFor(name: string, slot: Slot): string | null {
+  for (const ext of ["png", "jpg", "jpeg", "webp"]) {
+    if (existsSync(resolve(shots, `slot-${name}.${ext}`))) return `slot-${name}.${ext}`;
+  }
+  return slot.file;
+}
+
+const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+
+function img(name: string, slot: Slot, file: string): string {
+  const hint = slot.loading === "eager" ? ' fetchpriority="high"' : "";
+  return `<img src="/src/shots/${file}" width="${slot.width}" height="${slot.height}" alt="${esc(slot.alt)}" loading="${slot.loading}" decoding="async"${hint} />`;
+}
+
+const slotOf = (name: string): Slot => {
+  const slot = (slots as Record<string, Slot>)[name];
+  if (!slot) throw new Error(`index.html uses unknown slot "${name}"; add it to src/slots.ts`);
+  return slot;
+};
+
+/** Fills {{NAME}} placeholders from src/config.ts and writes every product image from src/slots.ts. */
+const sitePlugin = (): Plugin => ({
+  name: "couch-site",
+  transformIndexHtml: {
+    order: "pre",
+    handler(html) {
+      const used = new Set<string>();
+      const out = html
+        .replace(/<!--mock:([\w-]+)-->([\s\S]*?)<!--\/mock-->/g, (_m, name: string, mock: string) => {
+          used.add(name);
+          const slot = slotOf(name);
+          const file = fileFor(name, slot);
+          return file ? img(name, slot, file) : mock;
+        })
+        .replace(/\{\{slot:([\w-]+)\}\}/g, (_m, name: string) => {
+          used.add(name);
+          const slot = slotOf(name);
+          const file = fileFor(name, slot);
+          if (!file) throw new Error(`Slot "${name}" has no file and no mock`);
+          return img(name, slot, file);
+        })
+        .replace(/\{\{(\w+)\}\}/g, (m, k: string) => values[k] ?? m);
+      for (const name of Object.keys(slots) as SlotName[]) {
+        if (!used.has(name)) throw new Error(`Slot "${name}" is in src/slots.ts but not used in index.html`);
+      }
+      return out;
+    },
+  },
 });
 
 export default defineConfig({
-  plugins: [configPlaceholders()],
+  plugins: [sitePlugin()],
   build: { assetsInlineLimit: 0, target: "es2022" },
 });
