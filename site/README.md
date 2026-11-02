@@ -1,6 +1,6 @@
 # couch-site
 
-The landing page for [Couch](https://github.com/abdullahnettoor/couch), planned for `couch.abdullahnettoor.com`. A static site: plain HTML, CSS and TypeScript built with Vite. No framework, no analytics, no cookies, no third-party requests (Geist and Geist Mono are self-hosted, SIL OFL).
+The landing page for [Couch](https://github.com/abdullahnettoor/couch), planned for `couch.abdullahnettoor.com`. A static site: plain HTML, CSS and TypeScript built with Vite, plus one small Cloudflare Worker for the anonymous Couch for Windows count (`worker/`). No framework, no analytics, no cookies, no third-party requests (Geist and Geist Mono are self-hosted, SIL OFL).
 
 ## Run it
 
@@ -8,18 +8,35 @@ The landing page for [Couch](https://github.com/abdullahnettoor/couch), planned 
 pnpm install
 pnpm dev          # http://localhost:5173
 pnpm build        # type-check, then build to dist/
-pnpm preview      # serve dist/ at http://localhost:4173
+pnpm preview      # serve dist/ at http://localhost:4173 (static only: the Windows button shows its error line here)
+pnpm test         # CSS-scope fixtures and the Worker's unit tests (node --test)
+pnpm dev:worker   # build, apply the D1 migration to a local database, then wrangler dev --local at http://127.0.0.1:8790
 ```
+
+`pnpm dev:worker` runs everything locally (Miniflare): the site, `/api/*` and a local D1 file in `.wrangler/`. It never touches the Cloudflare account.
 
 ## Settings in one place
 
 `src/config.ts` holds `GUMROAD_URL` (a **placeholder** until the Gumroad product exists), `GITHUB_URL`, `RELEASES_URL` and `SITE_URL`. They are filled into `index.html` at build time (`{{GUMROAD_URL}}` and so on), so every link works without JavaScript.
 
-## Copy and Windows interest
+## Copy
 
-`COPY.md` is the ticket 137 copy deck: every page string, headline alternatives, picks and factual evidence. Keep it in step with text changes, including screenshot alternatives and social-card text.
+`COPY.md` is the copy deck (tickets 137 and 138): every page string, headline alternatives, picks and factual evidence. Keep it in step with text changes, including screenshot alternatives and social-card text.
 
-The Windows card is an explicit stub. Its plain `button[data-demand="windows"]` has no handler, counter, network request or storage. The success copy is hidden in `[data-demand-confirmation]`; do not show it until a real count succeeds. `COPY.md` includes the enabled-state wording for a future implementation. Before enabling counting, verify the anonymous-count promise (no email, cookies or IP stored, including infrastructure logs) and update the card, FAQ and privacy copy together. Nothing here promises a Windows release.
+## The Couch for Windows count
+
+A demand button, not a waitlist. `button[data-demand="windows"]` in the download section (`#windows`; the hero links to it) sends one `POST /api/demand/windows` with no body and `credentials: "omit"`. On success the card shows "Counted. Thank you." and `localStorage` (`couch:demand:windows`) remembers the tap, so the same browser counts once; on failure an error line shows and the button stays. No cookies.
+
+The Worker (`worker/index.ts` is the entry and exports only its default handler, because workerd treats named exports as entrypoints; the logic is `worker/demand.ts`):
+
+| Route | Does |
+| --- | --- |
+| `POST /api/demand/windows` | Adds one to the `windows` row in D1 (`migrations/0001_demand.sql`: `platform`, `count`, nothing else). 204. Refuses other methods (405), unknown platforms (404), requests whose `Origin` is not the site (or the request's own origin, for local dev and previews) or whose `Sec-Fetch-Site` is not `same-origin` (403). A site-wide burst cap (Workers rate limit `DEMAND_LIMIT`, 60 a minute, keyed by the platform name, never by the visitor) answers 429. A database failure is a 503, never a false success. The body is never read. |
+| `GET /api/demand` | The counts as JSON, e.g. `{"windows": 12}`, `no-store`. For the site owner; the numbers are not secret. |
+| any other `/api/*` | 404 |
+| everything else | Static assets, as before (`run_worker_first: ["/api/*"]`, so the Worker never sees page requests). |
+
+Nothing about the visitor is stored: no IP, no user agent, no body, no cookie. Workers Logs and invocation logs are off in `wrangler.jsonc`. `pnpm test` covers all of this with a fake D1 and rate limit (`worker/demand.test.ts`).
 
 ## Screenshot slots
 
@@ -40,6 +57,14 @@ To replace a picture after the real shoot, drop a file named `src/shots/slot-<na
 | `setup-player` | Setup step 3 | `player.jpg` | A Library video playing |
 
 The four JPEGs are copies of `docs/screenshots/` in the Couch repo. The two Remote-section slots (`remote-screen`, `remote-phone`) carry the finite pairing sequence (QR, pair, D-pad press, highlight moves); replacing either with a still turns that part into a plain picture, so replace both or neither. The sequence's end state is the connected state, which is also what visitors with reduced motion or no JavaScript see.
+
+The hero's light is `src/shots/couch-glow.webp` (and `-480`): Couch's own icon art, `build/icon.png` in the Couch repo, cropped to the sofa and its tile darkened so it can be added to the page as light (`mix-blend-mode: screen`). Regenerate:
+
+```sh
+ffmpeg -i ../couch/build/icon.png -vf "crop=832:688:96:115,curves=all='0/0 0.25/0.05 0.6/0.6 1/1'" /tmp/glow.png
+cwebp -q 80 /tmp/glow.png -o src/shots/couch-glow.webp
+cwebp -q 80 -resize 480 397 /tmp/glow.png -o src/shots/couch-glow-480.webp
+```
 
 Other assets: `public/icon.png`, `favicon.png` and `apple-touch-icon.png` come from `build/icon.png` in the Couch repo. `public/og.png` (the social card) is generated by `node scripts/og.mjs` from `scripts/og.html`; edit that file and rerun to change it.
 
@@ -90,6 +115,15 @@ The site goes live only when all of these are true. The page links to the GitHub
 - [ ] A first release exists on GitHub Releases.
 - [ ] The Gumroad product exists, and `GUMROAD_URL` in `src/config.ts` points at it (it is a placeholder today).
 - [ ] The first-open steps on the page (open once, then System Settings → Privacy & Security → Open Anyway) are verified on the release build.
+
+- [ ] The Windows count's database exists and is bound (once, from this folder, logged in to the right account):
+  ```sh
+  pnpm wrangler d1 create couch-site-demand        # paste the printed database_id into wrangler.jsonc (d1_databases[0].database_id)
+  pnpm wrangler d1 migrations apply couch-site-demand --remote
+  ```
+  The rate limit (`ratelimits`, `namespace_id` 1138) needs no setup; pick another integer if 1138 is taken on the account. `SITE_ORIGIN` in `wrangler.jsonc` must be the public origin.
+- [ ] Nothing at the hosting layer keeps visitors' IP addresses for `/api/demand/*`: Workers Logs stay off (`observability` in `wrangler.jsonc`), no Logpush job or Tail Worker covers this Worker, and no WAF/security rule that logs requests is aimed at the path. The page promises "no IP stored".
+- [ ] After the first deploy: `curl -X POST https://couch.abdullahnettoor.com/api/demand/windows` answers 403 (no Origin), the button on the live page shows "Counted. Thank you.", and `curl https://couch.abdullahnettoor.com/api/demand` shows the count.
 
 Also re-read the "What Couch connects to" list on the page against the release build (the TMDB key, Widevine, and any updater added since).
 

@@ -136,13 +136,14 @@ const scrollScene = () => {
     return;
   }
   const y = scrollY;
+  // read before writing, so a scroll frame never forces a second layout
+  const top = stage ? stage.parentElement!.getBoundingClientRect().top : 0;
   if (y < innerHeight * 1.5) {
     if (room) room.style.transform = `translate3d(0, ${(y * 0.35).toFixed(1)}px, 0)`;
     if (lamp) lamp.style.transform = `translate3d(0, ${(y * 0.16).toFixed(1)}px, 0) scale(${(1 - Math.min(y, 600) / 6000).toFixed(4)})`;
   }
-  if (stage) {
-    // 0 when the stage's top meets the bottom of the window, 1 when it reaches 35% from the top
-    const top = stage.getBoundingClientRect().top;
+  if (stage && top < innerHeight * 1.2 && top > -innerHeight) {
+    // 0 when the first look's top meets the bottom of the window, 1 when it reaches 35% from the top
     const p = Math.max(0, Math.min(1, (innerHeight - top) / (innerHeight * 0.65)));
     const e = 1 - Math.pow(1 - p, 3);
     stage.style.transform = `rotateX(${((1 - e) * 14).toFixed(2)}deg) translate3d(0, ${((1 - e) * 36).toFixed(1)}px, 0) scale(${(0.94 + e * 0.06).toFixed(4)})`;

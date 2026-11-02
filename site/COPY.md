@@ -1,16 +1,16 @@
 # Couch — landing page copy
 
-Ticket 137 · 2 November 2026 · picked copy applied on `ticket/137`.
+Ticket 137 · 2 November 2026 · picked copy applied on `ticket/137`. Updated in ticket 138 (design upgrade): the two accepted copy-review edits, the hero's new layout, the working Windows count and the strings it needs. Changes are marked “ticket 138”.
 
 ## Direction and implementation boundaries
 
 For someone on the sofa, not someone shopping for a computer. Lead with the evening and the phone already in their pocket; explain the Screen, Apps and Library as they appear. Warm, calm and confident. Short sentences, British spelling, no hype or exclamation marks. Product terms follow Couch's `GLOSSARY.md`: Screen, Remote, Home, Apps, Library, Continue watching, Now Playing, Settings and Quick settings.
 
-This is a copy pass, not a redesign. Keep the existing section order, IDs, classes, screenshot slots, mocks and motion. The Windows card uses existing classes only. No changes to the copied `src/couch-ui/` files. No future look-picker claim: it is not available today.
+Ticket 137 was a copy pass, not a redesign; ticket 138 redesigned the page around this copy and kept its IDs, screenshot slots and mocks. No changes to the copied `src/couch-ui/` files. No future look-picker claim: it is not available today.
 
 **Publication gates still apply.** The app README says Couch is not distributed yet. The page's Gumroad, Releases and source links are the planned distribution routes, not evidence that a public release exists. The Gumroad URL remains a placeholder. Do not publish until the README's existing release, source, Gumroad and first-open checks are complete.
 
-**Windows is copy and markup only.** A plain `button[data-demand="windows"]` is in the download section. It has no click handler, endpoint, storage or counting. The visible stub notice tells the truth. The confirmation is present but hidden; show it only after a real count succeeds in a later ticket. Do not fake a successful count. The anonymous-count wording is a requirement for that future implementation, including its access logs, not a claim that a counting backend has been audited here.
+**Windows counting (ticket 138).** `button[data-demand="windows"]` sends one `POST /api/demand/windows` with no body to the site's Worker (`worker/`), which adds one to a per-platform number in D1 and stores nothing else (no IP, user agent, body or cookie; Workers logs off). The confirmation shows only after the Worker answers with success; `localStorage` remembers the tap so the same browser counts once. If the request fails, the error line shows and the button stays. Before publishing, check that nothing at the hosting layer keeps IP addresses for these requests (README, “Before publishing”).
 
 ## 1. Navigation and shared controls
 
@@ -37,12 +37,14 @@ This is a copy pass, not a redesign. Keep the existing section order, IDs, class
 ### Picked copy
 
 - Badge: **Early release · Free and open source**
-- Headline: **Settle in with Couch.**
+- Headline: **Settle in with Couch.** (ticket 138: set as a small line “Settle in with” above the wordmark “Couch.”; one `h1`, read as one sentence)
 - Body: A calm home screen for your TV, with YouTube, Netflix and your own videos. Your phone is the Remote.
 - Primary button: **Get Couch, pay what you want**
 - Secondary link: **or download free from GitHub**
 - Meta strip: **Mac today · macOS 14+** / **Apple silicon** / **GPL-3.0-or-later** / **No Couch account**
 - Meta strip accessible name: **Requirements**
+- Link under the meta strip (ticket 138), to the Windows card: **On Windows? Tell us you'd use it**
+- First-look section under the hero (ticket 138), accessible name: **Couch on the Screen, with the Remote**
 - Decorative icon alt: empty.
 - Product picture alts: see §12.
 
@@ -150,7 +152,7 @@ No “plays every format”, codec guarantee or promise that the household's vid
   - **TMDB, for optional online details.** Couch searches video titles and fetches posters and stills. Online details are on when a TMDB key is set. A release build can include a key, or you can add your own. Turn Online details off in Settings if you prefer.
   - **Your phone, over home Wi-Fi.** The Remote page is served by your Mac on the local network, not by an internet service.
 - Closing line: Couch does not check for updates or send data to a Couch server.
-- Windows privacy line: The Windows button is not connected yet. When enabled, it will record only an anonymous count: no email, no cookies and no IP stored.
+- Windows privacy line (ticket 138, counting connected): The Couch for Windows button adds one anonymous count on this site: no email, no cookies and no IP stored. Your browser keeps a note of the tap, so the same browser counts once.
 
 Do not shorten this to “nothing leaves your Mac”, “fully offline” or “no cookies” for the whole app. Services can track and keep cookies. Library title searches and online artwork make requests. The Windows count is a website feature, not an app connection.
 
@@ -223,14 +225,16 @@ Do not name an installer format. Requirements and first-open security steps rema
 3. **Windows, perhaps next.** — Signals uncertainty, but is less useful as a card label.
 
 - Card heading: **Couch for Windows**
-- Body: **Not yet. Would you use it? Help us decide what to build next.**
+- Body (ticket 138, the enabled-state copy below, now applied): **Not yet. Tap if you'd use it, so we know what to build next.**
 - Button: **I'd use Couch for Windows**
-- Current stub notice: **Demand counting is not connected yet.**
-- Short privacy line: **Anonymous count when enabled. No email, no cookies, no IP stored.**
-- Confirmation, hidden and reserved for a real successful count: **Counted. Thank you.**
-- Markup contract: `type="button" data-demand="windows"`; described by the stub notice and privacy line. Confirmation: `role="status" data-demand-confirmation hidden`.
+- Short privacy line: **An anonymous count. No email, no cookies, no IP stored.**
+- Confirmation, shown only after the Worker confirms the count (or when this browser already counted): **Counted. Thank you.**
+- Error line (ticket 138), shown if the count did not go through: **That did not go through. Please try again in a moment.**
+- Decorative, not read: a check mark drawn in the confirmation.
+- Markup contract: `type="button" data-demand="windows"`, described by the privacy line; confirmation `[data-demand-confirmation]`, error `[data-demand-error]`, both announced through a visually hidden `role="status"` (`[data-demand-live]`).
+- Before ticket 138 (stub, retired): body “Not yet. Would you use it? Help us decide what to build next.”, notice “Demand counting is not connected yet.”, privacy line “Anonymous count when enabled. No email, no cookies, no IP stored.”
 
-**When counting is implemented:** remove the stub notice and the “when enabled” qualification together, update the privacy paragraph and FAQ, and show the confirmation only after success. Recommended enabled body: **Not yet. Tap if you'd use it, so we know what to build next.** Recommended enabled privacy line: **An anonymous count. No email, no cookies, no IP stored.** These enabled-state strings are hand-off copy, not applied as current facts. No email waitlist, promise of a Windows release or false success message.
+**Applied in ticket 138.** The 137 hand-off note, kept for the record: remove the stub notice and the “when enabled” qualification together, update the privacy paragraph and FAQ, and show the confirmation only after success. Recommended enabled body: **Not yet. Tap if you'd use it, so we know what to build next.** Recommended enabled privacy line: **An anonymous count. No email, no cookies, no IP stored.** These enabled-state strings are hand-off copy, not applied as current facts. No email waitlist, promise of a Windows release or false success message.
 
 ## 9. FAQ (`#faq`)
 
@@ -267,7 +271,7 @@ Yes. Couch is licensed under GPL-3.0-or-later. Read the code on GitHub, change i
 
 **Will Couch come to Windows?**
 
-Windows is being considered, not promised. The Couch for Windows button above is a place to register interest once counting is connected. Linux is not supported. Today, Couch needs Apple silicon and macOS 14 or later. The Remote runs in a phone browser; Android with Chrome is what we test.
+Windows is being considered, not promised. If you'd use it, tap Couch for Windows above: it adds one anonymous count. Linux is not supported. Today, Couch needs Apple silicon and macOS 14 or later. The Remote runs in a phone browser; Android with Chrome is what we test.
 
 ## 10. Footer
 
@@ -380,9 +384,9 @@ All app paths below are in the read-only `/Users/abdullahnettoor/Projects/couch`
 | No Couch analytics, crash reporting or automatic update checks | No matches for `analytics`, `telemetry`, `sentry`, `crashReporter` or `autoUpdater` in app `src`; `SHIPPING.md` Updates says an updater is still needed. This is a source review, not a guarantee about third-party services. |
 | Not yet notarised | `SHIPPING.md` Signing and notarisation; `scripts/package.mjs` ad-hoc default. Existing README first-open advice is older; preserve ticket 135's macOS 15+ correction. Apple's current “Open apps safely” instructions at https://support.apple.com/en-gb/102445 support try opening → Privacy & Security → Open Anyway → confirm Open. Verify again on the release build before publishing. |
 | Free/open source vs planned downloads | App `LICENSE` and `README.md` Licence: GPL-3.0-or-later. Gumroad/$0 and GitHub Releases are ticket 135 distribution decisions. `SHIPPING.md` and the site README make clear that publishing is still gated. |
-| Windows interest, not a delivery promise | Ticket 137 permits demand markup only. `SHIPPING.md` Other platforms explains native work and a separate Netflix trial would be needed. No counter exists in this change, so the copy says when counting will apply. |
+| Windows interest, not a delivery promise | Ticket 137 permits demand markup only. `SHIPPING.md` Other platforms explains native work and a separate Netflix trial would be needed. Ticket 138 connected the counter (`worker/demand.ts`, unit tests in `worker/demand.test.ts`): only a platform name and a number are stored. |
 | Site cookies/analytics and licence notices | Local site source and request/storage check; self-hosted fonts; `public/licenses/` full legal notices; `LICENSE` and `package.json`. Future counting must honour no-IP-storage at the hosting/logging layer as well as in code. |
 
 ### Checks for this pass
 
-Run the build, drift check and existing tests; inspect picked copy against this deck and the built HTML; check local renders at the existing desktop/phone widths and 200% zoom, no overflow, reduced motion and keyboard access. Confirm the Windows button makes no requests, changes no storage and does not reveal the success message. No deployment, no remote, no live Couch, no service sign-in.
+Run the build, drift check and existing tests; inspect picked copy against this deck and the built HTML; check local renders at the existing desktop/phone widths and 200% zoom, no overflow, reduced motion and keyboard access. (Ticket 138: the Windows button now makes exactly one same-origin POST, sets one `localStorage` key and shows the confirmation only after success.) No deployment, no remote, no live Couch, no service sign-in.
