@@ -99,13 +99,30 @@ The mocks move with Couch's own CSS, so these are Couch's values, not look-alike
 
 Home has no focus ring: Couch's focus is the lift-and-sheen above (and solid white for pills and the gear). The site's pairing sequence and focus passes only toggle the classes Couch itself toggles (`.focused`, `.is-active`); the time between steps (2.2s, 1.9s, a 0.7s held press, 1.4s per tile on the Apps pass) is the site's own pacing. The QR card fades out with Couch's 0.7s hero fade (Couch removes it without a fade).
 
+## The site's own motion (ticket 138)
+
+Everything uses Couch's `--ease` and its durations (0.38s for moves and lifts, .12s and scale(.95) for presses, 0.7s for fades); only `transform` and `opacity` animate (the hero light is blended once, not animated). `prefers-reduced-motion: reduce` turns all of it off at any time (no transitions, no animations, no parallax, no pointer light); the content and every end state are complete without it.
+
+| Where | What | How |
+| --- | --- | --- |
+| Hero | The Screen in the Couch mark switches on (0.7s), the room's light comes up (1.6s), then a slow colour flicker plays on the Screen and in the room (12s loop, paused when the hero is off screen or the tab is hidden) | `.lamp-on`, `.lamp-film`, `.room-glow`; `main.ts` toggles `.playing` / `.paused` |
+| Hero | A soft light follows the pointer, eased each frame; on scroll the room's light and the mark move slower than the page (parallax) | `[data-cursor-glow]`, `scrollScene()` |
+| Badge | The dot sends out three rings, then rests; the arrow nudges on hover | `.pill .dot::after` |
+| Buttons and links | Hover lift with a warm sheen across primary buttons; press is Couch's Remote press (.12s, scale .95) | `.btn`, `.btn-primary::after` |
+| Nav | A small light slides under the link you point at and rests under the section you are reading | `.nav-ind`, IntersectionObserver |
+| First look (under the hero) | Tilts up and settles as it scrolls in; then one finite pass: the phone's D-pad keys press (`.is-active`), Couch's focus lift travels YouTube → Netflix → Library and back, the clock ticks 8:42 → 8:43, the volume goes up twice | `[data-stage-scroll]`; the classes are Couch's own |
+| Remote section | Step numbers pop when current; the existing finite pairing sequence | `.seq-steps` |
+| Cards | A light under the pointer (a transformed layer) and a lift on the setup cards | `.spot::before`, `.step:hover` |
+| FAQ | Answers settle in on open and fade out before the row closes | `details p`, `details.closing` |
+| Couch for Windows | Confirmation scales in with a drawn check and a one-off warm glow | `.win-done`, `.win.counted::after` |
+
 ## Licence
 
 The site is licensed **GPL-3.0-or-later**, the same as Couch (`LICENSE`, `package.json`). It copies Couch's own UI code (the files above; same author) and GPL-3.0-or-later code should not sit inside a more permissive site. Other things in the repo keep their own terms: Geist and Geist Mono are SIL OFL 1.1 (full text with copyright: `public/licenses/geist-OFL-1.1.txt`); the icons in `data.json` and `remote.html` are Phosphor Icons (MIT, Copyright (c) 2023 Phosphor Icons, via `src/shared/icons.ts` in Couch; full text: `public/licenses/phosphor-icons-MIT.txt`); the YouTube and Netflix marks are the ones Couch ships on its App tiles, trademarks of their owners, shown only as App tiles. The licence texts live in `public/licenses/`, ship with every build at `/licenses/` and are linked from the footer ("Third-party licences").
 
 ## Checks
 
-`node scripts/shoot.mjs <dir>` writes, at 1440, 1024, 768 and 390 px from `pnpm preview`, a full-page shot, the hero viewport and the Remote sequence's end state (needs Google Chrome). Lighthouse on the local build: performance, accessibility, best practices and SEO all score 100 (mobile and desktop) after ticket 136.
+`node scripts/shoot.mjs <dir>` writes, at 1440, 1024, 768 and 390 px from `pnpm preview`, a full-page shot, the hero viewport and the Remote sequence's end state (needs Google Chrome). Lighthouse on the local build after ticket 138: performance 98–99 mobile (the hero light is now the LCP image) and 100 desktop; accessibility, best practices and SEO 100.
 
 ## Before publishing
 
