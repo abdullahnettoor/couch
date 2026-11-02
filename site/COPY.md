@@ -42,7 +42,7 @@ Ticket 137 was a copy pass, not a redesign; ticket 138 redesigned the page aroun
 - Body: A calm home screen for your TV, with YouTube, Netflix and your own videos. Your phone is the Remote.
 - Primary button: **Get Couch, pay what you want**
 - Secondary link: **or download free from GitHub**
-- Meta strip: **Mac today · macOS 14+** / **Apple silicon** / **GPL-3.0-or-later** / **No Couch account**
+- Meta strip (ticket 143): **macOS 14+** / **Apple silicon** / **Open source** / **No account**, set in sentence case (no capitals or mono), so "macOS" reads as Apple writes it. Until ticket 143 it was "Mac today · macOS 14+ / Apple silicon / GPL-3.0-or-later / No Couch account"; the licence stays named in the footer, the FAQ and the README.
 - Meta strip accessible name: **Requirements**
 - Link under the meta strip (ticket 138), to the Windows card: **On Windows? Tell us you'd use it**
 - First-look section under the hero (ticket 138), accessible name: **Couch Home on the Screen** (was "Couch on the Screen, with the Remote" until the 138 review removed the phone from the first look; the Remote has its own section)
@@ -126,14 +126,15 @@ No “plays every format”, codec guarantee or promise that the household's vid
 
 ### Headline options
 
-1. **PICK — No Couch account. No Couch tracking.** Deliberately scopes both promises to Couch, not the services it opens.
-2. **One household. No Couch account.** Leads with sharing, rather than a blanket privacy claim.
-3. **Your Library stays close to home.** Emphasises local storage; the connection list still explains online details.
+1. **PICK (ticket 143) — No account. No tracking.** The user's review (2 Nov): the old pick said "Couch" twice in one line. The section is about Couch, and the facts and "What Couch connects to" below still scope both promises to Couch, not the services it opens. "No tracking." carries the gradient.
+2. **No Couch account. No Couch tracking.** The pick until ticket 143: deliberately scoped to Couch in the headline itself, but repetitive.
+3. **One household. No Couch account.** Leads with sharing, rather than a blanket privacy claim.
+4. **Your Library stays close to home.** Emphasises local storage; the connection list still explains online details.
 
 ### Picked copy
 
 - Eyebrow: **Privacy**
-- Headline: **No Couch account. No Couch tracking.**
+- Headline: **No account. No tracking.** (gradient on "No tracking.")
 - Facts:
   - **One household, one Screen** — No Couch sign-up and no Couch profiles. Pair a phone and join in.
   - **Kept on your Mac** — Your Library, Couch's saved viewing positions and your settings stay on the Mac. There is no Couch cloud.
