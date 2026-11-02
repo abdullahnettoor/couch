@@ -31,7 +31,14 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").repl
 
 function img(name: string, slot: Slot, file: string): string {
   const hint = slot.loading === "eager" ? ' fetchpriority="high"' : "";
-  return `<img src="/src/shots/${file}" width="${slot.width}" height="${slot.height}" alt="${esc(slot.alt)}" loading="${slot.loading}" decoding="async"${hint} />`;
+  // the manifest's own picture has smaller copies (scripts/shots.mjs); a dropped-in slot-<name>.* file does not
+  let set = "";
+  if (slot.srcset && file === slot.file) {
+    const stem = file.replace(/\.\w+$/, "");
+    const list = slot.srcset.widths.map((w) => `/src/shots/${stem}-${w}.webp ${w}w`).concat(`/src/shots/${file} ${slot.width}w`);
+    set = ` srcset="${list.join(", ")}" sizes="${slot.srcset.sizes}"`;
+  }
+  return `<img src="/src/shots/${file}"${set} width="${slot.width}" height="${slot.height}" alt="${esc(slot.alt)}" loading="${slot.loading}" decoding="async"${hint} />`;
 }
 
 const slotOf = (name: string): Slot => {
