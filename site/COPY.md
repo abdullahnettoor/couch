@@ -17,7 +17,7 @@ Ticket 137 was a copy pass, not a redesign; ticket 138 redesigned the page aroun
 | Location | Picked string |
 | --- | --- |
 | Skip link | Skip to content |
-| Brand | Couch (ticket 139: drawn as the COUCH wordmark, an SVG with no text; the link's accessible name below carries it) |
+| Brand | Couch (ticket 142: the COUCH wordmark from Korataki ExtraBold's outlines, an SVG with no text; the link's accessible name below carries it) |
 | Brand accessible name | Couch, back to top |
 | Main navigation accessible name | Main |
 | Navigation, desktop and mobile | How it works / Apps / Library / Privacy / FAQ |
@@ -30,14 +30,15 @@ Ticket 137 was a copy pass, not a redesign; ticket 138 redesigned the page aroun
 
 ### Headline options
 
-1. **PICK — Settle in with Couch.** Leads with the feeling, names the brand and leaves platform detail to the meta line.
-2. **Your evening, on the big screen.** Puts the living-room moment first, with less emphasis on the brand.
-3. **A calmer way to watch.** Says what changes about the evening without promising new content.
+1. **PICK (ticket 142) — Settle in.** The nav's COUCH wordmark and the logo the intro draws already say Couch, so the headline only has to say how the evening feels. Approved by the user with the ticket 141 storyboard (2 Nov), over "Settle in / with Couch."
+2. **Settle in with Couch.** The pick from tickets 137 to 141: leads with the feeling and names the brand.
+3. **Your evening, on the big screen.** Puts the living-room moment first, with less emphasis on the brand.
+4. **A calmer way to watch.** Says what changes about the evening without promising new content.
 
 ### Picked copy
 
 - Badge: **Early release · Free and open source**
-- Headline: **Settle in with Couch.** (ticket 138: set as a small line “Settle in with” above the wordmark “Couch.”; one `h1`, read as one sentence)
+- Headline: **Settle in.** (ticket 142; one `h1`, set large in the warm white gradient. Until ticket 142 it was "Settle in with" above a large "Couch.")
 - Body: A calm home screen for your TV, with YouTube, Netflix and your own videos. Your phone is the Remote.
 - Primary button: **Get Couch, pay what you want**
 - Secondary link: **or download free from GitHub**
@@ -279,11 +280,12 @@ Windows is being considered, not promised. If you'd use it, tap Couch for Window
 - Navigation accessible name: **Footer**
 - Links: **GitHub** / **Releases** / **GPL-3.0-or-later** / **Third-party licences**
 - Trademark note: Netflix and YouTube are trademarks of their owners. Couch is not affiliated with or endorsed by them.
+- Film and TMDB credits (ticket 142): The films on the Screen are Blender's open films *Big Buck Bunny*, *Sintel* and *Tears of Steel*, © Blender Foundation, CC BY 3.0. Posters and backdrops come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB. (Each film links to its Blender project page, "CC BY 3.0" to the licence and "TMDB" to themoviedb.org. The TMDB sentence is TMDB's required notice, word for word.)
 - Copyright and site privacy: © **2026** Abdullah Nettoor. No cookies. No analytics.
 - The year remains dynamic, with 2026 as the HTML fallback.
 - Brand icon alt: empty.
 
-No TMDB artwork is shown on this site; the existing mock and screenshot assets remain. Do not silently add online posters without revisiting attribution.
+Since ticket 142 the screenshots show TMDB artwork (the Blender films' posters and backdrops, fetched by Couch's optional online details), so the footer and the licences page carry TMDB's notice and the films' CC BY credit. Keep both whenever a screenshot shows a film.
 
 ## 11. Metadata and social card
 
@@ -292,11 +294,11 @@ No TMDB artwork is shown on this site; the existing mock and screenshot assets r
 | HTML title | Couch · A calm home screen for your TV |
 | Description | A calm home screen for your TV, with YouTube, Netflix and your own videos. Your phone is the Remote. Free and open source. For Mac today. |
 | OG site name | Couch |
-| OG and Twitter title | Settle in with Couch |
+| OG and Twitter title | Couch · Settle in. (ticket 142; was "Settle in with Couch") |
 | OG and Twitter description | Your TV. Your evening. Your phone as the Remote. A calm home for YouTube, Netflix and your own videos. For Mac today. |
-| OG image alt | Settle in with Couch. Your phone is the Remote. A TV and phone illustration. |
-| Social image brand | Couch |
-| Social image headline | Settle in with Couch. |
+| OG image alt | Couch. Settle in. Your phone is the Remote. A TV and phone illustration. |
+| Social image brand | The COUCH wordmark (`src/brand/wordmark.svg`) |
+| Social image headline | Settle in. |
 | Social image supporting line | Your phone is the Remote. |
 | Social illustration text, unchanged | Phone connected / Good evening |
 
@@ -308,14 +310,14 @@ Source of truth for slot alts: `src/slots.ts`. These descriptions also name the 
 
 | Slot | Picked alt |
 | --- | --- |
-| `hero-screen` | Couch Home on the Screen, with a clock and the YouTube, Netflix and Library Apps |
+| `hero-screen` | Couch Home on the Screen: Big Buck Bunny under Continue watching, its picture filling the Screen with Resume and From start, and the YouTube, Netflix and Library Apps below (ticket 142 screenshot; was the Home mock) |
 | `remote-screen` | Couch Home during phone pairing, with a QR code or a connected phone and a highlighted App |
 | `remote-phone` | A phone pairing with Couch, then showing the Remote and its D-pad |
 | `apps-screen` | Couch Home with the YouTube, Netflix and Library Apps and unfinished videos |
-| `library-screen` | The Library on the Screen, with a highlighted test video and its picture |
-| `privacy-screen` | Couch Settings, with Remotes and Devices, Library, Sound output, Apps and Home |
-| `setup-remotes` | Remotes and Devices in Settings, with Add a phone highlighted |
-| `setup-player` | A test video playing in the Library, with playback, subtitle and volume controls |
+| `library-screen` | The Library on the Screen: a Films shelf with the posters of Big Buck Bunny, Sintel and Tears of Steel, and the highlighted film's details above |
+| `privacy-screen` | Couch Settings: Remotes and Devices with one phone connected, Library, Sound output, Apps, Home and Quit Couch |
+| `setup-remotes` | Remotes and Devices in Settings, with Add a phone highlighted to show the QR code |
+| `setup-player` | Big Buck Bunny playing in Couch's player, with pause, skip, subtitle and volume controls |
 | Library shelf mock (`src/mocks.ts`), unchanged | A folder named Movies becomes a shelf of videos: Summer Trip and Cooking Show part-watched, Home Videos watched |
 
 Decorative brand/app icons have empty alt text. Decorative SVGs, highlights and device frames do not need prose. Product mocks are image-like and inert, not working controls.
@@ -330,7 +332,7 @@ The app's words are part of the faithful UI illustration, not opportunities for 
 - Phone camera overlay: **Point the camera at the code on the Screen**.
 - Copied Remote: **On the Screen**, **Home**, **Connected**, **· 1 phone**, **YouTube**, **Netflix**, **Library**, **OK**, **35**.
 - Copied Remote accessible labels, unchanged and inside the inert illustration: **Power**, **Home**, **Mute**, **Quick settings**, **Settings**, **Apps**, **Open YouTube**, **Open Netflix**, **Open Library**, **Up**, **Down**, **Left**, **Right**, **Volume down**, **Volume**, **Volume up**.
-- Existing screenshot pixels are not rewritten. Library shows **Test Movie**, **FILM · 2020**, **All**, **Films**, **No phone connected**, **2:03 AM**. Settings shows **Remotes and Devices**, **Library**, **Sound output**, **System default**, **Apps**, **Home**, **Quit Couch**. Remotes and Devices shows **Add a phone**, **Show the QR code**, **Forget all phones**, **1 connected**, **Start Couch Listener at login**, **Off**, **Listener off**. Player shows the test **Clip**, its timeline and playback controls. These are test content and UI, not claims about the visitor's Library.
+- Existing screenshot pixels are not rewritten. Since ticket 142 they are the real Couch from the ticket 140 shoot (a temporary profile, privacy-checked): Home shows **Big Buck Bunny (2008)**, **Animation / Comedy / Family**, its TMDB synopsis, **films · 7 min left**, **Resume**, **From start**, **YouTube**, **Netflix**, **Library**, **1 phone connected**, **3:36 PM**. Library shows **FILM · 2008**, **Big Buck Bunny**, **All / Films / English / Animation**, **Films** with **Big Buck Bunny**, **Sintel**, **Tears of Steel**, **‹ Home**. Settings shows **Remotes and Devices** (**1 connected**), **Library**, **Sound output** (**System default**), **Apps**, **Home**, **Quit Couch**. Remotes and Devices shows **Add a phone** (**Show the QR code**), **Forget all phones** (**1 connected**), **Start Couch Listener at login** (**On**), **Listener off**. The player shows **Big Buck Bunny (2008)** at **2:04 / -7:52** with **More episodes** and its controls. "films" is the shoot's folder name. These are Blender's open films and Couch's own UI, not claims about the visitor's Library.
 
 ## 13. Not-found page (`public/404.html`)
 
@@ -358,6 +360,7 @@ The app's words are part of the faithful UI illustration, not opportunities for 
 - Body: Couch's website uses these fonts and icons. Each has its own licence. Follow the links for the full texts.
 - First item: **Geist and Geist Mono** fonts: SIL Open Font License 1.1, Copyright (c) 2023 Vercel, in collaboration with basement.studio.
 - Second item: **Phosphor Icons**: MIT, Copyright (c) 2023 Phosphor Icons.
+- Section (ticket 142): **Films and pictures in the screenshots**. The screenshots show Couch playing Blender's open films. They are shared under the Creative Commons Attribution 3.0 licence: *Big Buck Bunny* (2008), *Sintel* (2010) and *Tears of Steel* (2012), each © Blender Foundation, CC BY 3.0. The posters, backdrops and film details come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.
 - Closing: The site itself is GPL-3.0-or-later, like Couch. Netflix and YouTube are trademarks of their owners; Couch is not affiliated with or endorsed by them.
 - Recovery link: **Back to Couch**
 
