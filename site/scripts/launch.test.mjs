@@ -175,7 +175,7 @@ describe("placeholder (no video id)", { skip }, () => {
     assert.equal(await page.$(".lv-note"), null);
     const fact = await page.$eval("#privacy .facts li:nth-child(3) span", (e) => e.textContent);
     assert.equal(fact, "This site uses no cookies or analytics. Services opened in Couch have their own sign-ins, cookies and privacy policies.");
-    assert.match(await page.$eval(".legal", (e) => e.textContent), /Abdullah Nettoor\. No cookies\. No analytics\.$/);
+    assert.match(await page.$eval("#year", (e) => e.parentElement.textContent), /Abdullah Nettoor\. No cookies\. No analytics\.$/);
     await page.close();
   });
 
@@ -231,7 +231,7 @@ describe("with a video (a fake id and a local thumbnail)", { skip }, () => {
     assert.equal(await page.$eval(".lv-note", (e) => e.textContent), "The launch video plays from YouTube and loads only when you press play.");
     assert.equal(await page.$eval("#privacy .facts li:nth-child(3) span", (e) => e.textContent),
       "Couch adds no analytics or cookies. YouTube loads only when you press play and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies.");
-    assert.match(await page.$eval(".legal", (e) => e.textContent), /Abdullah Nettoor\. No cookies or analytics from Couch\.$/);
+    assert.match(await page.$eval("#year", (e) => e.parentElement.textContent), /Abdullah Nettoor\. No cookies or analytics from Couch\.$/);
     assert.equal((await lv(page)).cls, 0, "no layout shift");
     await page.hover(".lv-under a"); // hovering a link fetches nothing either
     await wait(600);
