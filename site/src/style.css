@@ -1,0 +1,617 @@
+@font-face { font-family: "Geist"; src: url("./fonts/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Geist Mono"; src: url("./fonts/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+/* Until Geist arrives (it is preloaded, index.html), Arial drawn to Geist's metrics: its ascent and descent
+   (1005 / 295 per 1000) and its width, so the swap moves nothing. Measured in Chrome per weight against the
+   hero's own text (the regular body, the medium buttons and chips, the semibold headline). */
+@font-face { font-family: "Geist Fallback"; src: local("Arial"), local("ArialMT"); font-weight: 100 450; size-adjust: 100.94%; ascent-override: 99.57%; descent-override: 29.23%; line-gap-override: 0%; }
+@font-face { font-family: "Geist Fallback"; src: local("Arial"), local("ArialMT"); font-weight: 451 550; size-adjust: 103.04%; ascent-override: 97.53%; descent-override: 28.63%; line-gap-override: 0%; }
+@font-face { font-family: "Geist Fallback"; src: local("Arial Bold"), local("Arial-BoldMT"); font-weight: 551 900; size-adjust: 103.04%; ascent-override: 97.53%; descent-override: 28.63%; line-gap-override: 0%; }
+
+:root {
+  --bg: #060608;
+  --t1: #fff;
+  --t2: rgba(235, 235, 245, 0.74);
+  --t3: rgba(235, 235, 245, 0.6);
+  --glass: rgba(44, 44, 48, 0.46);
+  --glass-strong: rgba(36, 36, 40, 0.72);
+  --edge: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --line: rgba(255, 255, 255, 0.09);
+  --card: #2c2c2e;
+  --amber: #ffb04a;
+  --amber-2: #ff8a3d;
+  --amber-3: #ffd89a;
+  --navy: #1c2540;
+  --live: #30d158;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --sans: "Geist", "Geist Fallback", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --wrap: 1180px;
+  /* section rhythm (ticket 143): section top → eyebrow → headline → body, the same in every section */
+  --section-pad: clamp(72px, 9vw, 128px);
+  --eyebrow-gap: 20px;
+  --head-gap: 24px;
+  --intro-gap: 56px;
+  /* the fixed nav's pill ends 66 px down (12 px + 38 px controls + 2 × 8 px); pinned things sit below it */
+  --nav-h: 66px;
+  --pin-top: calc(var(--nav-h) + 12px);
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 84px; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--t1);
+  font: 400 17px/1.55 var(--sans); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+img { max-width: 100%; display: block; }
+[hidden] { display: none !important; }
+a { color: inherit; }
+::selection { background: rgba(255, 176, 74, 0.35); color: #fff; }
+:focus-visible { outline: 2px solid var(--amber-3); outline-offset: 3px; border-radius: 6px; }
+html { scrollbar-color: #3a3a3e var(--bg); }
+::-webkit-scrollbar { width: 10px; } ::-webkit-scrollbar-thumb { background: #3a3a3e; border-radius: 10px; border: 2px solid var(--bg); } ::-webkit-scrollbar-track { background: var(--bg); }
+.wrap { width: min(100% - 48px, var(--wrap)); margin-inline: auto; }
+.narrow { width: min(100% - 48px, 760px); }
+.skip { position: absolute; left: 12px; top: 12px; background: #fff; color: #000; padding: 10px 16px; border-radius: 12px; font-weight: 600; z-index: 100; transform: translateY(-80px); transition: transform .2s var(--ease); }
+.skip:focus { transform: none; }
+
+/* progress + nav */
+.progress { position: fixed; inset: 0 0 auto 0; height: 2px; z-index: 60; }
+.progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--amber-2), var(--amber-3)); transform: scaleX(0); transform-origin: left; }
+.nav { position: fixed; inset: 0 0 auto 0; z-index: 50; padding: 12px 0; }
+.nav-in {
+  width: min(100% - 32px, 1100px); margin-inline: auto; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 8px 10px 8px 16px; border-radius: 999px; background: rgba(14, 14, 16, 0.62);
+  backdrop-filter: blur(24px) saturate(1.6); -webkit-backdrop-filter: blur(24px) saturate(1.6); box-shadow: var(--edge), 0 12px 40px rgba(0,0,0,.35);
+}
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; padding: 6px 4px; border-radius: 8px; }
+.brand .wm { display: block; width: auto; height: 20px; }
+.nav nav { display: flex; gap: 2px; position: relative; }
+.nav-ind { position: absolute; left: 0; bottom: 2px; width: 18px; height: 2px; margin-left: -9px; border-radius: 2px; background: var(--amber); opacity: 0; pointer-events: none; transition: transform .38s var(--ease), opacity .25s; }
+.nav nav a.is-current { color: #fff; }
+.nav nav a:active, .link-quiet:active { transform: scale(.96); }
+.nav nav a { text-decoration: none; font-size: 14px; color: var(--t2); padding: 8px 14px; border-radius: 999px; transition: background .2s, color .2s, transform .12s; }
+.nav nav a:hover { background: rgba(255,255,255,.08); color: #fff; }
+.nav-cta { display: flex; align-items: center; gap: 6px; }
+.menu { display: none; position: relative; border: 0; }
+.menu summary { list-style: none; cursor: pointer; width: 38px; height: 38px; padding: 0; display: grid; place-items: center; border-radius: 999px; color: var(--t2); font-size: 0; }
+.menu summary::after { display: none; }
+.menu summary:hover, .menu[open] summary { background: rgba(255,255,255,.08); color: #fff; }
+.menu .i { width: 22px; height: 22px; }
+.menu-list { position: absolute; right: 0; top: calc(100% + 14px); min-width: 220px; display: grid; padding: 8px; border-radius: 18px; background: rgba(20,20,22,.94); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); box-shadow: var(--edge), 0 24px 60px rgba(0,0,0,.55); border: 1px solid var(--line); }
+.menu-list a { text-decoration: none; padding: 12px 14px; border-radius: 12px; font-size: 16px; color: var(--t2); }
+.menu-list a:hover { background: rgba(255,255,255,.08); color: #fff; }
+.link-quiet { font-size: 14px; color: var(--t2); text-decoration: none; padding: 8px 12px; border-radius: 999px; }
+.link-quiet:hover { color: #fff; background: rgba(255,255,255,.08); }
+
+/* buttons: shadows are static; only transform (lift, press, sheen) and short colour fades move */
+.btn { position: relative; overflow: hidden; isolation: isolate; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; font: inherit; font-weight: 500; border: 0; cursor: pointer; text-decoration: none; transition: transform .38s var(--ease), background .25s, color .25s; white-space: nowrap; }
+.btn-primary { background: #fff; color: #0a0a0c; box-shadow: 0 10px 36px rgba(255, 176, 74, 0.24); }
+.btn-primary::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(105deg, transparent 30%, rgba(255, 200, 130, .55) 50%, transparent 70%); transform: translateX(-110%); }
+.btn-primary:hover { transform: translateY(-2px); }
+.btn-primary:hover::after { transform: translateX(110%); transition: transform .9s var(--ease); }
+.btn-ghost { background: rgba(255,255,255,.06); color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.2), var(--edge); }
+.btn-ghost:hover { transform: translateY(-2px); background: rgba(255,255,255,.12); }
+/* press: Couch's Remote key press (page.ts: transform .12s, :active scale(.95)) */
+.btn:active, .btn.is-pressed { transform: scale(.95); transition-duration: .12s; }
+.btn:disabled { cursor: default; }
+.btn[aria-busy="true"] > span { opacity: .55; }
+.btn-sm { height: 38px; padding: 0 18px; font-size: 14px; }
+.btn-lg { height: 56px; padding: 0 30px; font-size: 17px; }
+.sub { color: var(--t2); font-size: 15px; text-underline-offset: 4px; text-decoration-color: rgba(255,255,255,.3); }
+.sub:hover { color: #fff; text-decoration-color: #fff; }
+.cta { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+
+/* type */
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(46px, 8.4vw, 96px); line-height: 1; letter-spacing: -0.04em; font-weight: 600; }
+h2 { font-size: clamp(36px, 5.2vw, 64px); line-height: 1.04; letter-spacing: -0.035em; font-weight: 600; }
+h3 { font-size: 22px; letter-spacing: -0.02em; font-weight: 500; }
+em { font-style: normal; }
+.grad { background: linear-gradient(100deg, var(--amber-3) 0%, var(--amber) 45%, var(--amber-2) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; padding-bottom: .08em; }
+.lead { font-size: clamp(18px, 2vw, 21px); color: var(--t2); max-width: 36em; margin: 0; text-wrap: pretty; }
+.eyebrow { font: 500 12px/16px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--amber); margin: 0 0 var(--eyebrow-gap); }
+p { text-wrap: pretty; }
+
+/* hero: the Couch mark, lit. The icon's own sofa-and-Screen art is the room's only light source. */
+.hero { position: relative; padding: 112px 0 64px; text-align: center; overflow: clip; isolation: isolate;
+  background: radial-gradient(60% 70% at 50% 24%, #141826 0%, #0b0d14 46%, var(--bg) 78%); }
+.room { position: absolute; inset: 0; z-index: -1; pointer-events: none; will-change: transform; }
+.room-glow { position: absolute; left: 50%; top: max(-260px, -18vw); width: min(1500px, 170vw); aspect-ratio: 1.5; margin-left: calc(min(1500px, 170vw) / -2);
+  background:
+    radial-gradient(26% 24% at 50% 40%, rgba(255, 196, 120, .30), transparent 72%),
+    radial-gradient(48% 40% at 50% 42%, rgba(255, 138, 61, .17), transparent 72%),
+    radial-gradient(36% 34% at 22% 58%, rgba(70, 96, 190, .14), transparent 70%),
+    radial-gradient(34% 32% at 80% 54%, rgba(150, 110, 150, .10), transparent 70%);
+  animation: lights-up 1.6s var(--ease) both; }
+@keyframes lights-up { from { opacity: .25; transform: scale(.82); } }
+.room-cursor { position: absolute; left: 0; top: 0; width: 560px; height: 560px; margin: -280px 0 0 -280px; border-radius: 50%; opacity: 0;
+  background: radial-gradient(closest-side, rgba(255, 190, 120, .11), transparent); transition: opacity .6s var(--ease); will-change: transform; }
+.hero.pointing .room-cursor { opacity: 1; }
+.hero-copy { display: flex; flex-direction: column; align-items: center; gap: 24px; }
+/* The icon's art is added to the room as light (screen blend): its dark tile disappears into the night, only the glow stays.
+   The mask keeps the tile's edge out. */
+.mark { --lamp: min(320px, 62vw, 33vh); position: relative; width: var(--lamp); aspect-ratio: 832 / 688; margin: 0 0 calc(var(--lamp) * -.16); }
+.lamp { position: relative; width: 100%; height: 100%; z-index: -1; mix-blend-mode: screen;
+  -webkit-mask: radial-gradient(farthest-side at 50% 56%, #000 78%, transparent 99%); mask: radial-gradient(farthest-side at 50% 56%, #000 78%, transparent 99%); }
+.lamp img { width: 100%; height: 100%; }
+/* the Screen inside the mark: it switches on, then plays something (colour only, nothing to read) */
+.lamp i { position: absolute; left: 29.9%; top: 31.1%; width: 40.3%; height: 32.6%; border-radius: 7% / 9%; pointer-events: none; }
+.lamp-on { background: #241a12; opacity: 0; animation: screen-on .7s var(--ease) .25s backwards; }
+@keyframes screen-on { from { opacity: 1; } }
+.lamp-film { mix-blend-mode: soft-light; opacity: 0; background: radial-gradient(90% 90% at 30% 35%, #7fa8ff, transparent 70%), radial-gradient(80% 80% at 75% 70%, #ff7a8a, transparent 70%); }
+.hero.playing .lamp-film { animation: film 12s ease-in-out 1.2s infinite; }
+.hero.playing .room-glow { animation: lights-up 1.6s var(--ease) both, room-film 12s ease-in-out 1.2s infinite; }
+@keyframes film { 0%, 100% { opacity: 0; } 22% { opacity: .55; } 38% { opacity: .2; } 55% { opacity: .7; } 78% { opacity: .1; } }
+@keyframes room-film { 0%, 100% { opacity: 1; } 22% { opacity: .82; } 55% { opacity: .9; } 78% { opacity: 1.05; } }
+.hero.paused .lamp-film, .hero.paused .room-glow { animation-play-state: paused; }
+h1 { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+/* "Settle in." The nav's wordmark and the logo already say Couch; the headline only has to say how it feels.
+   Its gradient is drawn on each phrase (stops in em, so every phrase gets the same light); after the intro the
+   phrases turn once (src/headline.ts), laid over the real text so the h1 never changes size. */
+.hero h1 { position: relative; font-size: clamp(60px, min(13vw, 14.5vh), 144px); line-height: .96; letter-spacing: -.04em; font-weight: 600; }
+.hero h1 > span { display: block; padding: 0 .04em .06em; color: transparent; -webkit-background-clip: text; background-clip: text;
+  background-image: linear-gradient(180deg, #ffd9a6 0, #fff4e6 .347em, #fff .592em, #cfc9c3 1.02em); }
+.hero h1 > .h1-alt { position: absolute; left: 50%; top: 0; translate: -50% 0; width: max-content; padding-bottom: .2em; white-space: nowrap; opacity: 0; pointer-events: none; }
+.h1-alt::before { content: attr(data-text); }
+/* fine film grain over the hero: a small tile of static noise, blended so it lives in the light and nearly vanishes in the blacks */
+.hero::after { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: .15; mix-blend-mode: overlay;
+  background: url("./shots/grain.png") 0 0 / 64px 64px; }
+.pill { display: inline-flex; align-items: center; gap: 10px; padding: 7px 14px 7px 12px; border-radius: 999px; font-size: 13.5px; color: var(--t2); text-decoration: none; background: var(--glass); box-shadow: var(--edge); border: 1px solid var(--line); transition: color .2s, background .2s, transform .38s var(--ease); }
+.pill:hover { color: #fff; background: rgba(60,60,66,.6); }
+.pill:active { transform: scale(.97); transition-duration: .12s; }
+.pill .dot { position: relative; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 10px var(--amber); }
+.pill .dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 1px solid var(--amber); animation: ping 1.8s var(--ease) 1.4s 3 backwards; opacity: 0; }
+@keyframes ping { from { transform: scale(1); opacity: .9; } to { transform: scale(3.2); opacity: 0; } }
+.pill .i { width: 14px; height: 14px; opacity: .7; transition: transform .38s var(--ease); }
+.pill:hover .i { transform: translateX(3px); }
+.meta { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 10px; font: 500 13.5px/1 var(--sans); letter-spacing: -.005em; color: var(--t3); }
+.meta li { padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; }
+.win-chip { display: inline-flex; align-items: center; gap: 8px; margin-top: -8px; font-size: 14px; color: var(--t3); text-decoration: none; padding: 6px 10px; border-radius: 999px; transition: color .2s, background .2s; }
+.win-chip:hover { color: #fff; background: rgba(255,255,255,.06); }
+.win-chip .i { width: 14px; height: 14px; transition: transform .38s var(--ease); }
+.win-chip:hover .i { transform: translateY(2px); }
+
+/* Hero intro (tickets 139, 142 and 143), once per visit: COUCH rises in and holds a beat, the C, C and H dissolve
+   into soft warm dust that drifts into the Screen, the O glides in behind the U's arm and settles as the frame
+   while the U widens into the sofa, the sofa's back rises, the Screen comes up like an exposure with a warm bloom,
+   the icon's own light takes over, and the copy arrives over the last moments of the morph.
+   0–0.76s rise · hold · 1.25–2.25s dissolve · 1.35–2.6s O and U · 2.05s back · 2.3–3.35s Screen and bloom ·
+   2.6s copy · 2.8–3.5s icon · 3–3.55s the drawing fades.
+   Timing is here; src/intro.ts (TIMES) runs the dust and the U and O on the same clock and ends or skips the intro.
+   html.intro is set before the first paint by the <head> script (src/brand/wordmark.ts, introHead). */
+.wm-intro { display: none; position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+html.intro .wm-intro { display: block; animation: intro-out .55s ease-in-out 3s forwards; }
+html.intro-done .wm-intro { display: none; }
+.wm-dust { position: absolute; pointer-events: none; }
+.i-wm { transform: translate(417px, 620px) scale(var(--wm-s, 2.4)); }
+.wm-intro .l { animation: wm-in .6s var(--ease) calc(var(--i) * 40ms) backwards; }
+/* without the dust (no script, or a script too late for it) the C, C and H fade where they stand */
+.wm-intro .l-c1, .wm-intro .l-c2, .wm-intro .l-h { animation: wm-in .6s var(--ease) calc(var(--i) * 40ms) backwards, wm-fade .8s ease-in-out 1.25s forwards; }
+.wm-intro.dust .l-c1, .wm-intro.dust .l-c2, .wm-intro.dust .l-h { animation: wm-in .6s var(--ease) calc(var(--i) * 40ms) backwards; }
+.wm-intro.dusting .l-c1, .wm-intro.dusting .l-c2, .wm-intro.dusting .l-h { visibility: hidden; }
+.wm-intro .l-o-frame { opacity: 0; animation: frame-on .7s ease-in-out 1.9s forwards; }
+.i-halo { opacity: 0; transform-box: fill-box; transform-origin: 50% 50%; animation: bloom 1.25s cubic-bezier(.4, 0, .2, 1) 2.3s forwards; }
+.i-back { transform-box: fill-box; transform-origin: 50% 100%; animation: back-up .8s var(--ease) 2.05s backwards; }
+.i-screen { animation: expose 1s cubic-bezier(.45, 0, .3, 1) 2.35s backwards; }
+@keyframes wm-in { from { opacity: 0; transform: translateY(16px); } }
+@keyframes wm-fade { to { opacity: 0; } }
+@keyframes back-up { from { opacity: 0; transform: translateY(10%) scaleY(.55); } }
+/* the Screen comes up like a slow exposure, no flicker; its warm bloom swells a little past full, then settles */
+@keyframes expose { from { opacity: 0; } 35% { opacity: .22; } }
+@keyframes bloom { 0% { opacity: 0; transform: scale(.82); } 70% { opacity: 1; transform: scale(1.05); } 100% { opacity: .9; transform: scale(1); } }
+@keyframes intro-fade { from { opacity: 0; } }
+@keyframes intro-out { to { opacity: 0; } }
+@keyframes intro-gone { to { opacity: 0; } }
+@keyframes frame-on { to { opacity: 1; } }
+@keyframes intro-copy { from { opacity: 0; transform: translateY(14px); } }
+html.intro .lamp { animation: intro-fade .7s ease-in-out 2.8s backwards; }
+html.intro .lamp-on { animation: none; }
+html.intro .hero .room-glow, html.intro .hero.playing .room-glow { animation-delay: 2.3s, 3.8s; animation-duration: 2s, 12s; }
+html.intro .hero.playing .lamp-film { animation-delay: 3.8s; }
+/* the copy may arrive over the morph's last 0.6s, so the page is readable as the logo completes */
+html.intro:not(.intro-logo) .hero-copy > :not(.mark) { animation: intro-copy .9s var(--ease) calc(2.6s + var(--d, 0s)) backwards; }
+html.intro .hero-copy > h1 { --d: .02s; } html.intro .hero-copy > .lead { --d: .12s; } html.intro .hero-copy > .cta { --d: .2s; }
+html.intro .hero-copy > .meta { --d: .26s; } html.intro .hero-copy > .win-chip { --d: .3s; }
+/* skipped (any scroll, click, tap, key, focus or resize): everything arrives at once. In the logo-only mode
+   (html.intro-logo, src/config.ts) the copy is there from the first paint and only the logo area plays. */
+html.intro-skip .wm-intro { animation: intro-gone .2s ease forwards; }
+html.intro-skip .lamp, html.intro-skip:not(.intro-logo) .hero-copy > :not(.mark) { animation: intro-fade .3s ease-out backwards; }
+html.intro-skip .hero .room-glow, html.intro-skip .hero.playing .room-glow { animation-delay: 0s, 1.2s; }
+html.intro-skip .hero.playing .lamp-film { animation-delay: 1.2s; }
+/* back from the back/forward cache mid-intro: the end state at once, no fades */
+html.intro.intro-now .wm-intro { display: none; }
+html.intro.intro-now .lamp, html.intro.intro-now .hero-copy > :not(.mark) { animation: none; }
+
+.aurora { position: absolute; z-index: -1; pointer-events: none; inset: -40% 0 auto 0; height: 100%; opacity: .8; filter: blur(24px);
+  background: radial-gradient(40% 50% at 28% 22%, rgba(255, 150, 60, .30), transparent 70%), radial-gradient(38% 46% at 74% 18%, rgba(70, 96, 190, .34), transparent 70%); }
+
+/* first look: Couch's real Home, settling into place as it scrolls in (the Remote has its own section) */
+.first-look { position: relative; padding: 8px 0 clamp(40px, 6vw, 80px); perspective: 1600px; }
+.stage-glow { position: absolute; left: 6%; right: 6%; top: 18%; bottom: 0; z-index: -1; pointer-events: none; opacity: .35;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(255, 150, 60, .22), transparent 70%); filter: blur(10px); }
+
+/* devices */
+.stage { position: relative; padding-bottom: 20px; transform-origin: 50% 0; }
+.device { position: relative; }
+.tv { width: min(100%, 1000px); margin-inline: auto; }
+.tv::before { content: ""; position: absolute; inset: -1px; border-radius: 22px; padding: 1px; background: linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,.04) 40%); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; z-index: 2; }
+.tv-screen { box-sizing: content-box; aspect-ratio: 16 / 9; border-radius: 20px; background: #000; overflow: hidden; border: 9px solid #121214; box-shadow: 0 50px 120px rgba(0,0,0,.6), 0 0 120px rgba(255,150,60,.10); container-type: inline-size; position: relative; text-align: left; }
+.tv-screen > img { width: 100%; height: 100%; object-fit: cover; }
+/* a real screenshot sets its frame's shape from its own width/height (16:10 Home and Library, 16:9 the others); mocks stay 16:9 */
+.tv-screen:has(> img) { aspect-ratio: auto; } .tv-screen > img { display: block; height: auto; }
+.tv-stand { width: 24%; height: 14px; margin: 0 auto; background: linear-gradient(#1b1b1e, #0c0c0e); border-radius: 0 0 14px 14px; }
+.tv.small .tv-screen { border-width: 6px; border-radius: 14px; }
+.phone { width: 230px; }
+.phone-screen { aspect-ratio: 9 / 19; border-radius: 34px; background: #0b0b0d; border: 7px solid #17171a; overflow: hidden; container-type: inline-size; box-shadow: 0 30px 80px rgba(0,0,0,.65), inset 0 0 0 1px rgba(255,255,255,.08); position: relative; text-align: left; }
+.phone-screen > img { width: 100%; height: 100%; object-fit: cover; }
+
+/* mocks: the Couch UI itself lives in src/couch-ui/ (copied by scripts/sync-couch-ui.mjs); this file only frames it. See "couch ui" below. */
+
+/* stories */
+.story { padding: var(--section-pad) 0; position: relative; }
+/* the copy starts at the section's top padding, like the centred sections; the picture centres against it */
+.split { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 13fr); gap: clamp(40px, 6vw, 96px); align-items: start; }
+.split > .demo { align-self: center; }
+.split.flip { grid-template-columns: minmax(0, 13fr) minmax(0, 11fr); } .split.flip .copy { order: 2; } .split.flip .demo { order: 1; }
+.copy > p:not(.eyebrow) { color: var(--t2); margin: var(--head-gap) 0 0; max-width: 34em; }
+.copy h2 + p { font-size: 19px; }
+.ticks { list-style: none; margin: 28px 0 0; padding: 0; display: grid; gap: 14px; color: var(--t2); font-size: 16px; }
+.ticks li { position: relative; padding-left: 28px; }
+.ticks li::before { content: ""; position: absolute; left: 2px; top: .5em; width: 12px; height: 7px; border-left: 2px solid var(--amber); border-bottom: 2px solid var(--amber); transform: rotate(-45deg); }
+.demo { position: relative; padding-bottom: 20px; }
+.demo .tv { width: 100%; }
+.copy > .more-apps { margin-top: 28px; font-size: 16px; }
+.more-apps a, .why-letter a { color: var(--amber-3); text-decoration: underline; text-decoration-color: rgba(255, 216, 154, .35); text-underline-offset: 4px; transition: color .2s, text-decoration-color .2s; }
+.more-apps a { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; font-weight: 500; }
+.more-apps a .i { width: 15px; height: 15px; transition: transform .38s var(--ease); }
+.more-apps a:hover { color: #fff; } .more-apps a:hover .i { transform: translateX(3px); }
+.why-letter a:hover { color: #fff; text-decoration-color: #fff; }
+
+/* Why I made Couch (ticket 143): a short letter in the maker's voice, signed, between Setup and Download */
+.why-in { max-width: 680px; }
+.why .eyebrow { text-wrap: wrap; margin-bottom: var(--head-gap); }
+.why-letter { display: grid; gap: 1.05em; font-size: clamp(19px, 1.7vw, 22px); line-height: 1.6; letter-spacing: -.008em; color: var(--t2); }
+.why-letter p { margin: 0; }
+.why-letter p:first-child { color: var(--t1); }
+.why-sign { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 24px; margin-top: var(--head-gap); padding-top: var(--head-gap); border-top: 1px solid var(--line); }
+.why-sign > p { margin: 0; font-size: 18px; font-weight: 500; letter-spacing: -.01em; }
+.why-sign .social { margin: 0; }
+
+/* The Remote (#how, ticket 143): a head, then the stage (the steps beside a big Screen with the phone in front of
+   its lower-right corner), then the ticks. From 900 × 740 px with motion and script the head and the stage pin
+   together (sticky, under the nav) while .how-track scrolls past, and main.ts turns the scroll into the four steps;
+   otherwise it plays once in view. */
+.how-head { display: grid; gap: var(--head-gap); margin-bottom: var(--intro-gap); }
+.how-head > p { margin: 0; color: var(--t2); font-size: 19px; max-width: 34em; }
+.how-stage { display: grid; gap: 28px; }
+.how-side { position: relative; }
+.how-ticks { margin-top: var(--intro-gap); }
+.seq { --ph: clamp(104px, 32cqw, 176px); --over: .3; --drop: .55; container-type: inline-size; padding-bottom: 0; }
+.seq-devices { position: relative; padding-right: calc(var(--ph) * var(--over)); margin-bottom: calc(var(--ph) * 19 / 9 * var(--drop)); }
+.seq .tv { width: 100%; margin: 0; }
+.seq .phone { position: absolute; right: 0; bottom: calc(var(--ph) * 19 / 9 * var(--drop) * -1); width: var(--ph); z-index: 3; }
+.seq .phone-screen { border-width: 5px; border-radius: 26px; }
+.seq .seq-note { margin: 14px 0 0; text-align: left; }
+.seq-steps .nw { white-space: nowrap; }
+@media (max-width: 899px) {
+  .how-side { order: 2; }
+  .seq .phone-screen { border-width: 4px; border-radius: 20px; }
+}
+@media (min-width: 900px) {
+  .how-head { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: end; column-gap: clamp(40px, 6vw, 96px); }
+  .how-head > p { padding-bottom: .35em; }
+  .how-stage { grid-template-columns: minmax(232px, 288px) minmax(0, 1fr); gap: clamp(28px, 3.4vw, 48px); align-items: center; }
+  .seq { --ph: clamp(150px, 22cqw, 188px); --over: .3; --drop: .36; }
+  /* the note sits under the Screen, beside the phone, rather than below everything */
+  .seq .seq-note { position: absolute; left: 0; top: calc(100% - var(--ph) * 19 / 9 * var(--drop) + 14px); margin: 0; padding-right: calc(var(--ph) * 1.15); }
+  .how-ticks { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px clamp(24px, 4vw, 56px); }
+}
+/* the pinned stage: about 3.4 screens of scroll. The head and the stage are held together under the nav (so the
+   headline is never under it) and the devices are sized to the height that is left. */
+@media (min-width: 900px) and (min-height: 740px) and (prefers-reduced-motion: no-preference) and (scripting: enabled) {
+  .how-track { height: 340vh; }
+  .how-pin { position: sticky; top: var(--pin-top); height: calc(100vh - var(--pin-top)); display: flex; flex-direction: column; justify-content: center; padding: 10px 0 12px; }
+  .how-pin > .how-head { flex: none; margin-bottom: 32px; }
+  /* never taller than the devices need at this width, so a tall, narrow window doesn't leave empty bands around them */
+  .how-pin > .how-stage { flex: 1 1 0; min-height: 0; max-height: calc((min(100vw - 48px, var(--wrap)) - 288px - clamp(28px, 3.4vw, 48px)) / 1.77 + 140px); container-type: size; }
+  .seq { justify-self: center; width: 100%; max-width: calc((100cqh - 140px) * 1.77); }
+  .seq .phone { will-change: transform; }
+}
+
+/* the Remote sequence: data-stage (1 QR, 2 paired, 3 press, 4 highlight moved) is read by "couch ui" below */
+
+.seq-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.seq-steps button { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: 14px; padding: 10px 14px 10px 10px; border-radius: 14px; cursor: pointer; color: var(--t2); font-size: 16px; line-height: 1.35; transition: background .25s, color .25s; }
+.seq-steps button:hover { background: rgba(255,255,255,.05); color: #fff; }
+.seq-steps button:focus-visible { outline: 2px solid var(--amber-3); outline-offset: 2px; }
+.seq-steps button b { position: relative; z-index: 1; flex: none; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line); background: #0e0e11; font: 500 13px var(--mono); color: var(--t3); transition: background .25s, color .25s, border-color .25s; }
+.seq-steps button.done b { border-color: rgba(255, 216, 154, .45); color: var(--amber-3); }
+.seq-steps button[aria-current="step"] { background: rgba(255,255,255,.07); color: #fff; }
+.seq-steps button[aria-current="step"] b { background: #fff; color: #000; border-color: #fff; }
+.seq-steps button[aria-current="step"] b { animation: step-pop .38s var(--ease); }
+@keyframes step-pop { from { transform: scale(.8); } }
+.seq-steps button:active { transform: scale(.98); transition: transform .12s; }
+/* the rail between the step numbers: placed by main.ts from the numbers' centres, filled as the steps advance */
+.seq-rail { position: absolute; left: 23px; top: 0; width: 2px; height: 0; border-radius: 2px; background: var(--line); overflow: hidden; pointer-events: none; }
+.seq-rail > span { display: block; height: 100%; background: linear-gradient(var(--amber-3), var(--amber-2)); transform-origin: 50% 0; transform: scaleY(var(--fill, 0)); }
+.seq-rail.eased > span { transition: transform .7s var(--ease); }
+.replay { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 8px; margin: 14px 0 0 10px; padding: 9px 16px 9px 12px; border-radius: 999px; cursor: pointer; font-size: 14.5px; color: var(--t2); border: 1px solid var(--line); background: var(--glass); box-shadow: var(--edge); }
+.replay[hidden] { display: none; } .replay:hover { color: #fff; background: rgba(60,60,66,.6); } .replay:focus-visible { outline: 2px solid var(--amber-3); outline-offset: 3px; } .replay .i { width: 16px; height: 16px; }
+.note { margin: 28px 0 0; font-size: 13.5px; color: var(--t3); text-align: center; }
+.center { text-align: center; margin-bottom: var(--intro-gap); } .center h2 { max-width: 14em; margin-inline: auto; }
+
+/* library shelf: see "couch ui" below */
+
+/* privacy */
+.panel { position: relative; overflow: hidden; isolation: isolate; display: grid; grid-template-columns: 1.1fr .9fr; gap: 40px; align-items: center; padding: clamp(24px, 4vw, 48px); border-radius: 24px; background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)); border: 1px solid var(--line); box-shadow: var(--edge); }
+.facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 22px; }
+.facts li { display: grid; gap: 4px; } .facts strong { font-size: 19px; font-weight: 600; letter-spacing: -.015em; } .facts span { color: var(--t2); font-size: 16px; }
+.connects { max-width: 760px; margin: 48px auto 0; }
+.connects h3 { font-size: 20px; margin-bottom: 18px; }
+.connects ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.connects li { color: var(--t2); font-size: 16px; padding-left: 20px; position: relative; } .connects li::before { content: ""; position: absolute; left: 0; top: .62em; width: 6px; height: 6px; border-radius: 50%; background: var(--amber); }
+.connects li strong { color: #fff; font-weight: 600; }
+.connects p { color: var(--t3); font-size: 15px; margin: 20px 0 0; }
+
+/* steps: on wider screens the three cards share one height and their pictures line up along the bottom */
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: stretch; }
+.step { position: relative; overflow: hidden; isolation: isolate; transition: transform .38s var(--ease); display: flex; flex-direction: column; padding: 24px; border-radius: 20px; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); border: 1px solid var(--line); box-shadow: var(--edge); }
+.step-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; } .step-icon { border-radius: 10px; }
+.step .n { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: #fff; color: #000; font: 600 15px var(--mono); }
+.step p { margin: 8px 0 0; color: var(--t2); font-size: 16px; } .step p:last-child { margin: 8px 0 0; }
+.step-art { margin-top: 18px; border-radius: 12px; overflow: hidden; background: #0c0c0e; border: 1px solid var(--line); aspect-ratio: 16 / 9; }
+.step-art img { width: 100%; height: 100%; object-fit: cover; }
+@media (min-width: 701px) {
+  .step > p { margin-bottom: 18px; }
+  .step-art { margin-top: auto; }
+  .step-icon { display: none; }
+}
+/* setup install: the Couch icon lifted over its empty place in an Applications row (src/mocks.ts install()) */
+.inst { position: relative; width: 100%; height: 100%; container-type: inline-size; overflow: hidden; background: radial-gradient(90% 90% at 60% 10%, #1a1b22, #0c0c0e 72%); }
+.inst-bar { position: absolute; inset: 0 0 auto; height: 11cqw; display: flex; align-items: center; padding: 0 5cqw; font: 500 3.6cqw/1 var(--sans); letter-spacing: -.01em; color: var(--t3); border-bottom: 1px solid var(--line); }
+.inst-row { position: absolute; left: 7cqw; top: 21cqw; display: flex; gap: 6cqw; }
+.inst-app, .inst-slot { flex: none; width: 17cqw; aspect-ratio: 1; border-radius: 23%; }
+.inst-app { background: linear-gradient(160deg, hsl(var(--h) 16% 28%), hsl(var(--h) 20% 15%)); box-shadow: inset 0 1px 0 rgba(255,255,255,.08); opacity: .5; }
+.inst-slot { position: relative; border: max(1px, .45cqw) dashed rgba(255, 216, 154, .55); background: rgba(255, 176, 74, .06); box-shadow: 0 0 7cqw rgba(255, 150, 60, .16); }
+.inst-slot b { position: absolute; top: 100%; left: 50%; translate: -50% 0; margin-top: 3cqw; font: 500 3.4cqw/1 var(--sans); color: var(--t2); }
+.inst-drag { position: absolute; left: 47cqw; top: 9cqw; width: 21cqw; rotate: -7deg; filter: drop-shadow(0 3cqw 3.5cqw rgba(0, 0, 0, .65)); transition: translate .5s var(--ease); }
+.inst-drag img { display: block; width: 100%; height: auto; }
+.inst-ptr { position: absolute; right: -3cqw; bottom: -4.5cqw; width: 7.5cqw; rotate: 7deg; }
+@media (hover: hover) { .step:hover .inst-drag { translate: 0 1.6cqw; } }
+
+/* download */
+.dl-card { position: relative; overflow: hidden; isolation: isolate; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 26px; padding: clamp(40px, 6vw, 80px) clamp(24px, 5vw, 64px); border-radius: 28px; background: rgba(255,255,255,.03); border: 1px solid var(--line); box-shadow: var(--edge); }
+.dl-icon { border-radius: 24px; box-shadow: 0 20px 50px rgba(0,0,0,.5); }
+.req { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 40px; margin: 8px 0 0; }
+.req div { display: grid; gap: 4px; } .req dt { font: 500 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--amber); } .req dd { margin: 0; color: var(--t2); font-size: 15.5px; }
+.gate { max-width: 640px; text-align: left; padding: 20px 24px; border-radius: 16px; background: rgba(255, 176, 74, .07); border: 1px solid rgba(255, 176, 74, .22); }
+.gate strong { font-weight: 600; } .gate p { margin: 8px 0 0; color: var(--t2); font-size: 15.5px; }
+
+/* faq */
+.acc { border-top: 1px solid var(--line); }
+details { border-bottom: 1px solid var(--line); }
+summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 24px 4px; font-size: 20px; font-weight: 500; letter-spacing: -.015em; border-radius: 8px; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: ""; width: 12px; height: 12px; flex: none; border-right: 2px solid var(--t2); border-bottom: 2px solid var(--t2); transform: rotate(45deg) translateY(-3px); transition: transform .35s var(--ease); }
+details[open] summary::after { transform: rotate(-135deg); }
+summary:hover { color: var(--amber-3); }
+details p { margin: 0; padding: 0 4px 26px; color: var(--t2); max-width: 40em; animation: open .45s var(--ease); }
+details p a { color: var(--amber-3); }
+@keyframes open { from { opacity: 0; transform: translateY(-6px); } }
+
+/* footer: one column on phones; from 900 px the brand, links, social and legal on the left, the credits on the right */
+.foot { border-top: 1px solid var(--line); padding: 56px 0 64px; }
+.foot-in { display: grid; gap: 32px; }
+.foot-main { display: grid; gap: 22px; justify-items: start; align-content: start; }
+.foot-brand { display: flex; } .foot-brand .wm { display: block; width: auto; height: 20px; }
+.foot nav { display: flex; flex-wrap: wrap; gap: 8px 28px; } .foot nav a { color: var(--t2); text-decoration: none; font-size: 15px; } .foot nav a:hover { color: #fff; text-decoration: underline; text-underline-offset: 4px; }
+.social { list-style: none; margin: -6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.social a { display: inline-grid; place-items: center; min-width: 44px; height: 44px; padding: 0 12px; border-radius: 999px; font-size: 14px; color: var(--t2); text-decoration: none; border: 1px solid var(--line); transition: color .2s, background .2s, border-color .2s; }
+.social a:has(> svg) { padding: 0; }
+.social a:hover { color: #fff; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.18); }
+.social .i { width: 19px; height: 19px; }
+.legal { margin: 0; font-size: 13.5px; color: var(--t3); max-width: 62em; }
+.legal a { text-underline-offset: 3px; text-decoration-color: rgba(235, 235, 245, .3); } .legal a:hover { color: #fff; text-decoration-color: #fff; }
+.credits { display: grid; gap: 10px; align-content: start; max-width: 62em; padding-top: 24px; border-top: 1px solid var(--line); }
+.credits h2 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--t3); }
+.legal.tmdb { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; } .legal.tmdb a { display: inline-flex; padding: 4px 0; } .legal.tmdb img { display: block; width: 92px; height: 12px; }
+.foot-main .legal + .legal { margin-top: -12px; }
+@media (min-width: 900px) {
+  .foot-in { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: clamp(48px, 7vw, 112px); }
+  .credits { padding-top: 0; border-top: 0; }
+  .legal.tmdb { align-items: flex-start; flex-direction: column; }
+}
+
+/* reveal: content is visible by default. main.ts adds .reveal-ready (once observers exist) and
+   .pre to blocks below the fold; the pre state is a small shift only: never dim, never invisible. */
+.reveal-ready .reveal.pre { transform: translateY(22px); }
+.reveal-ready .reveal { transition: transform .8s var(--ease); }
+.reveal-ready .step.reveal:nth-child(2) { transition-delay: .08s; } .reveal-ready .step.reveal:nth-child(3) { transition-delay: .16s; }
+.reveal-ready .shelf.pre { transform: translateY(14px); }
+.reveal-ready .shelf { transition: transform .6s var(--ease); }
+
+/* couch ui: frames, scale and states for the copied Couch UI (src/couch-ui/, see README).
+   The copied files are never edited; everything the site changes about them is here. */
+.cu, .cr { line-height: normal; font-weight: 400; letter-spacing: normal; text-align: left; }
+.tv-screen .cu { position: absolute; inset: 0; overflow: hidden; --u: calc(100cqw / 1920); }
+.cu .screen-glass { position: absolute; }
+.cu .h-frame { background: radial-gradient(70% 90% at 72% 30%, hsl(var(--hue) 26% 30%), hsl(var(--hue) 18% 22%)); }
+.cu .h-app { pointer-events: none; }
+/* the Remote is drawn at the size of a phone (390 px wide) and scaled to the frame */
+.phone-screen .cr { position: absolute; left: 0; top: 0; width: 390px; height: 858px; min-height: 0; max-width: none; margin: 0; transform-origin: 0 0; scale: tan(atan2(100cqw, 390px)); }
+.phone-screen .cr.idle { width: 390px; height: 858px; }
+.phone-screen .cr.idle .pad { width: 320px; }
+.mock-scan { position: absolute; inset: 0; display: grid; align-content: center; justify-items: center; gap: 7cqw; padding: 10cqw; background: #09090b; text-align: center; font-size: 6.4cqw; color: var(--t2); z-index: 2; line-height: 1.3; opacity: 0; visibility: hidden; transition: opacity .5s var(--ease), visibility .5s; }
+.s-frame { position: relative; width: 52cqw; aspect-ratio: 1; } .s-frame i { position: absolute; width: 22%; height: 22%; border: .9cqw solid var(--amber); }
+.s-frame i:nth-child(1) { top: 0; left: 0; border-right: 0; border-bottom: 0; border-top-left-radius: 3cqw; } .s-frame i:nth-child(2) { top: 0; right: 0; border-left: 0; border-bottom: 0; border-top-right-radius: 3cqw; }
+.s-frame i:nth-child(3) { bottom: 0; left: 0; border-right: 0; border-top: 0; border-bottom-left-radius: 3cqw; } .s-frame i:nth-child(4) { bottom: 0; right: 0; border-left: 0; border-top: 0; border-bottom-right-radius: 3cqw; }
+/* the pairing sequence */
+.seq .ph-on { display: none; }
+.seq:not([data-stage="1"]) .ph-off { display: none; }
+.seq:not([data-stage="1"]) .ph-on { display: inline; }
+.seq:not([data-stage="1"]) .cu .topbar .phones.none i { background: var(--live); }
+.seq .cu .h-qr { transition: opacity .7s var(--ease), visibility .7s; }
+.seq:not([data-stage="1"]) .cu .h-qr { opacity: 0; visibility: hidden; }
+.seq[data-stage="1"] .mock-scan { opacity: 1; visibility: visible; }
+.seq-note { transition: opacity .4s var(--ease), visibility .4s; }
+.seq:not([data-stage="1"]) .seq-note { opacity: 0; visibility: hidden; }
+/* the Library shelf, drawn with Couch's own cards */
+.shelf { container-type: inline-size; margin-top: 28px; padding: 14px 24px 0; border-radius: 18px; background: radial-gradient(80% 90% at 20% 30%, #2c2c2e, #000 70%); border: 1px solid var(--line); box-shadow: var(--edge); overflow: hidden; }
+.shelf-cu { --u: calc(100cqw / 1780); display: flex; align-items: center; gap: calc(40 * var(--u)); padding: calc(40 * var(--u)) 0 calc(80 * var(--u)); color: var(--t1); }
+.shelf-cu .shelf-arrow { width: calc(64 * var(--u)); height: calc(64 * var(--u)); flex: none; color: var(--t3); }
+.shelf-cu .lib-card { pointer-events: none; }
+@container (max-width: 520px) {
+  .shelf-cu { --u: calc(100cqw / 830); display: grid; grid-template-columns: repeat(2, calc(384 * var(--u))); gap: calc(40 * var(--u)); padding-bottom: calc(60 * var(--u)); }
+  .cu.shelf-cu svg.shelf-arrow { display: none; }
+}
+
+
+/* The launch video (ticket 145), over the first look's screenshot (src/launch-markup.ts; src/launch.ts plays it).
+   data-step: none (the screenshot alone) → row (Couch's live Home takes over, drawn in the same place) → .lit (the
+   hero copy goes, the picture gives way to the wallpaper (home.css's .7s), then the clock comes in) → open (YouTube's tile grows to fill the
+   Screen) → end (the thumbnail or the poster). Couch's ease throughout. */
+.lv { position: absolute; inset: 0; z-index: 1; pointer-events: none; --u: calc(100cqw / 1920); }
+/* its pictures load only once the TV is near (src/launch.ts adds .armed), never with the page's first pictures */
+.lv:not(.armed) img { display: none; }
+/* reduced motion: the end at once, with no transitions at all (not even reduced motion's .01ms ones) */
+.lv-now, .lv-now * { transition: none !important; }
+.tv-screen .lv-home { z-index: 0; isolation: isolate; opacity: 0; transition: opacity .25s linear; }
+.lv[data-step] .lv-home { opacity: 1; }
+/* the shoot's 16:10 crop trimmed 5 px (2.67u) off the window's top and bottom; the live Home sits where Couch drew it */
+.lv .cu .home { inset: calc(-8 / 3 * var(--u)) 0; background: none; }
+.lv-wall { position: absolute; inset: 0; background: var(--wp-base); }
+.lv-wall, .lv-home .topbar { opacity: 0; transition: opacity .7s var(--ease); }
+.lv.lit .lv-wall, .lv.lit .lv-home .topbar { opacity: 1; }
+/* one type at a time: the screenshot's hero copy (genres, title, blurb, meta, Resume and From start) goes first,
+   under its own soft-edged mask (.3s), while the picture keeps its longer dissolve; the clock comes in only once the
+   copy has gone */
+.lv-hush { position: absolute; inset: 0; opacity: 0; background: var(--wp-base); transition: opacity .3s var(--ease);
+  -webkit-mask-image: linear-gradient(90deg, #000 55%, transparent 74%), linear-gradient(180deg, transparent 10%, #000 20%, #000 69%, transparent 73%); -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(90deg, #000 55%, transparent 74%), linear-gradient(180deg, transparent 10%, #000 20%, #000 69%, transparent 73%); mask-composite: intersect; }
+.lv.lit .lv-hush { opacity: 1; }
+.lv .cu .h-clock { transition: opacity .6s var(--ease) .3s; }
+.lv:not(.lit) .lv-home .h-clock { opacity: 0; transition-delay: 0s; }
+/* the captions are text: the screenshot's own show until the wallpaper covers them, then the live ones come in */
+.lv .cu .h-app .g-cap { overflow: visible; transition: transform .38s var(--ease), color .3s, opacity .45s var(--ease) .3s; }
+.lv:not(.lit) .cu .h-app .g-cap { opacity: 0; }
+.lv .h-film-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* the press: the Remote's key press (.12s, scale .95) on the lifted tile */
+.lv .cu .h-app.focused.lv-pressed > .g-tile { transform: scale(1.0355) translateY(calc(-6 * var(--u))); transition-duration: .12s; }
+/* YouTube opening: its tile's face (Couch's .youtube-face), grown from the tile to the Screen by a clip */
+.lv-open { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; visibility: hidden; background: linear-gradient(160deg, #3a3a3e, #17171a); }
+.lv[data-step="open"] .lv-open, .lv[data-step="end"] .lv-open { visibility: visible; }
+.lv-open-mark { display: block; width: calc(220 * var(--u)); height: calc(220 * 164 / 192 * var(--u)); }
+.lv-open-mark svg { display: block; width: 100%; height: 100%; }
+.lv[data-step="end"] .lv-open-mark { opacity: 0; transition: opacity .35s var(--ease); }
+/* the end: the thumbnail and play button, or the poster */
+.lv-end { position: absolute; inset: 0; z-index: 2; overflow: hidden; opacity: 0; visibility: hidden; transition: opacity .7s var(--ease), visibility .7s; }
+.lv[data-step="end"] .lv-end { opacity: 1; visibility: visible; pointer-events: auto; }
+.lv-text { position: absolute; left: calc(110 * var(--u)); right: calc(110 * var(--u)); bottom: calc(132 * var(--u)); z-index: 1; transform: translateY(calc(18 * var(--u))); transition: transform 1s var(--ease) .08s; }
+.lv[data-step="end"] .lv-text { transform: none; }
+.lv-title { margin: 0; max-width: 12em; font-size: max(20px, calc(116 * var(--u))); line-height: 1.02; letter-spacing: -.035em; font-weight: 600; color: #fff; text-wrap: balance; }
+.lv-meta { margin: max(6px, calc(20 * var(--u))) 0 0; font-size: max(12px, calc(34 * var(--u))); line-height: 1.3; font-weight: 500; color: var(--t2); }
+.lv-poster { background: radial-gradient(60% 80% at 70% 42%, #2b1d13 0%, #140e0a 52%, #070505 100%); }
+.lv-poster::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .14; mix-blend-mode: overlay; background: url("./shots/grain.png") 0 0 / 64px 64px; }
+.lv-light { position: absolute; right: calc(90 * var(--u)); top: 50%; width: calc(940 * var(--u)); translate: 0 -56%; mix-blend-mode: screen;
+  -webkit-mask: radial-gradient(farthest-side at 50% 56%, #000 78%, transparent 99%); mask: radial-gradient(farthest-side at 50% 56%, #000 78%, transparent 99%); }
+.lv-light img { width: 100%; height: auto; }
+.lv-thumb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.lv-facade::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(0deg, rgba(0, 0, 0, .78) 0%, rgba(0, 0, 0, .3) 34%, rgba(0, 0, 0, 0) 56%), linear-gradient(90deg, rgba(0, 0, 0, .45) 0%, rgba(0, 0, 0, 0) 55%); }
+.lv-facade .lv-title { font-size: max(18px, calc(84 * var(--u))); max-width: 14em; }
+/* the play button: a dark glass disc (any thumbnail stays behind it legibly), white when it has the highlight
+   (hover or focus), like Couch's focused pill (glass.css .g-pill.focused: white, scale 1.06, .3s) */
+.lv-play { all: unset; box-sizing: border-box; position: absolute; left: 50%; top: 50%; z-index: 2; width: max(56px, calc(176 * var(--u))); aspect-ratio: 1; margin: calc(max(56px, calc(176 * var(--u))) / -2) 0 0 calc(max(56px, calc(176 * var(--u))) / -2);
+  display: grid; place-items: center; border-radius: 50%; cursor: pointer; color: #fff; background: rgba(22, 22, 26, .46); -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .2), inset 0 0 0 1px rgba(255, 255, 255, .1), 0 calc(20 * var(--u)) calc(40 * var(--u)) rgba(0, 0, 0, .4); transition: transform .3s var(--ease), background .25s, color .25s; }
+.lv-play svg { width: 36%; height: 36%; margin-left: 6%; fill: currentColor; }
+.lv-play:hover, .lv-play:focus-visible { background: #fff; color: #000; transform: scale(1.06); }
+.lv-play:focus-visible { outline: 2px solid var(--amber-3); outline-offset: 4px; border-radius: 50%; }
+.lv-play:active { transform: scale(.95); transition-duration: .12s; }
+.lv-frame { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; border: 0; background: #000; pointer-events: auto; }
+.lv[data-playing] .lv-end { visibility: hidden; }
+/* under the TV: Watch and Subscribe (always there, so they work without script) and the privacy line */
+.lv-under { display: grid; justify-items: center; gap: 12px; margin-top: 16px; text-align: center; }
+.lv-links { margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 10px; }
+.lv-links a { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding: 0 18px 0 15px; border-radius: 999px; font-size: 15px; font-weight: 500; color: var(--t2); text-decoration: none; border: 1px solid var(--line); transition: color .2s, background .2s, border-color .2s; }
+.lv-links a:hover { color: #fff; background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .18); }
+.lv-links .i { width: 18px; height: 18px; flex: none; }
+.lv-note { margin: 0; max-width: 36em; font-size: 13.5px; color: var(--t3); }
+
+/* micro: cursor spotlight on cards (a transformed light, nothing repaints), lift on hover like a focused tile (0.38s); the shadow stays put */
+.spot::before { content: ""; position: absolute; left: 0; top: 0; width: 420px; height: 420px; margin: -210px 0 0 -210px; z-index: -1; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(255, 190, 120, .10), transparent); opacity: 0; transform: translate(var(--mx, 50%), var(--my, 50%)); transition: opacity .4s var(--ease); }
+.spot:hover::before { opacity: 1; }
+@media (hover: hover) { .step:hover { transform: translateY(-4px); } }
+.step .n { transition: transform .38s var(--ease); } .step:hover .n { transform: scale(1.09); }
+/* FAQ: opens with a short settle, closes with a quicker fade (main.ts holds the close for it) */
+details.closing p { animation: close .2s var(--ease) forwards; }
+@keyframes close { to { opacity: 0; transform: translateY(-4px); } }
+summary { transition: color .2s; } summary:active { transform: scale(.99); }
+/* digits that tick (the Screen's clock, the Remote's volume) */
+.roll { display: inline-block; }
+/* Windows card */
+.win { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 24px 40px; margin-top: 20px; padding: clamp(24px, 3.4vw, 40px) clamp(24px, 4vw, 48px); border-radius: 24px; background: rgba(255,255,255,.03); border: 1px solid var(--line); box-shadow: var(--edge); position: relative; overflow: hidden; isolation: isolate; scroll-margin-top: 120px; }
+.win h3 { font-size: clamp(22px, 2.4vw, 28px); font-weight: 600; }
+.win-copy p { margin: 8px 0 0; color: var(--t2); max-width: 34em; }
+.win-copy .win-fine { font-size: 14px; color: var(--t3); margin-top: 12px; }
+.win-act { display: grid; justify-items: end; gap: 10px; min-width: 0; }
+.win-act > * { grid-area: 1 / 1; }
+.win-done { margin: 0; display: inline-flex; align-items: center; gap: 10px; height: 56px; padding: 0 24px; border-radius: 999px; font-weight: 500; color: #0a0a0c; background: var(--amber-3); outline: none; }
+.win-done .i { width: 20px; height: 20px; }
+.win-done:not([hidden]) { animation: counted .5s var(--ease); }
+.win-done:not([hidden]) .i path { stroke-dasharray: 24; animation: tick-draw .45s var(--ease) .12s backwards; }
+@keyframes counted { from { opacity: 0; transform: scale(.9); } }
+@keyframes tick-draw { from { stroke-dashoffset: 24; } }
+.win.counted::after { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(50% 120% at 85% 50%, rgba(255, 176, 74, .16), transparent 70%); animation: glow-once 1.4s var(--ease) both; }
+@keyframes glow-once { from { opacity: 0; } 30% { opacity: 1; } to { opacity: .5; } }
+.win-err { grid-area: 2 / 1 !important; margin: 0; font-size: 14px; color: var(--amber-3); text-align: right; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* responsive */
+@media (max-width: 1024px) {
+  .wrap { width: min(100% - 40px, var(--wrap)); }
+  .split { gap: 40px; }
+  .nav nav a { padding: 8px 10px; font-size: 13.5px; }
+  h2 { font-size: clamp(34px, 4.6vw, 52px); }
+  .copy h2 + p { font-size: 17.5px; }
+  .ticks { font-size: 15.5px; }
+  .seq-steps button { font-size: 15px; }
+  .panel { gap: 28px; }
+  .steps { gap: 14px; } .step { padding: 20px; } .step h3 { font-size: 20px; } .step p { font-size: 15px; }
+}
+@media (max-width: 880px) {
+  .split, .split.flip { grid-template-columns: 1fr; } .split.flip .copy, .split.flip .demo { order: initial; }
+  .copy > p:not(.eyebrow) { max-width: 40em; }
+  .demo { max-width: 680px; width: 100%; margin-inline: auto; }
+  .nav .link-quiet { display: none; }
+}
+@media (max-width: 700px) {
+  :root { --eyebrow-gap: 16px; --head-gap: 20px; --intro-gap: 40px; }
+  body { font-size: 16px; }
+  .wrap, .narrow { width: min(100% - 32px, var(--wrap)); }
+  .nav nav { display: none; } .menu { display: block; }
+  .stage { padding-bottom: 0; }
+  .btn-lg { height: 54px; padding: 0 22px; font-size: 16px; max-width: 100%; }
+  .panel { grid-template-columns: 1fr; }
+  .hero { padding: 104px 0 40px; }
+  .win { grid-template-columns: 1fr; text-align: center; } .win-copy p { margin-inline: auto; } .win-act { justify-items: center; } .win-err { text-align: center; }
+  .steps { grid-template-columns: 1fr; max-width: 480px; margin-inline: auto; }
+  .step-art-wide { display: none; }
+  summary { font-size: 18px; }
+}
+@media (max-width: 400px) { .btn-lg { font-size: 15px; padding: 0 16px; } }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; transition-delay: 0s !important; }
+  .reveal-ready .reveal.pre, .reveal-ready .shelf.pre { transform: none; }
+  .stage, .room, .room-cursor { transform: none !important; }
+  .room-cursor, .lamp-film, .spot::before, .btn-primary::after, html.intro .wm-intro, .wm-dust { display: none; }
+  /* no decorative movement on hover or press: buttons, links, cards, step numbers and their icons stay where they are */
+  .btn:hover, .btn:active, .btn.is-pressed, .pill:active, .pill:hover .i, .win-chip:hover .i,
+  .nav nav a:active, .link-quiet:active, .seq-steps button:active, summary:active,
+  .step:hover, .step:hover .n, .lv-play:hover, .lv-play:focus-visible, .lv-play:active { transform: none !important; }
+  .step:hover .inst-drag { translate: none !important; }
+}
