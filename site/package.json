@@ -1,0 +1,21 @@
+{
+  "name": "couch-site",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5173",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173",
+    "deploy": "pnpm build && wrangler deploy"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "geist": "^1.9.0",
+    "lighthouse": "^13.6.0",
+    "puppeteer-core": "^25.16.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "wrangler": "^4.156.0"
+  }
+}

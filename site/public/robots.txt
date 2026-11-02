@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://couch.abdullahnettoor.com/sitemap.xml

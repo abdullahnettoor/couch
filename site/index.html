@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Couch: your Mac, on the couch</title>
+  <meta name="description" content="Couch turns a Mac on your TV into a calm home screen for YouTube, Netflix and your own videos. Your phone is the remote. Free and open source." />
+  <meta name="theme-color" content="#060608" />
+  <meta name="color-scheme" content="dark" />
+  <link rel="canonical" href="{{SITE_URL}}/" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Couch" />
+  <meta property="og:title" content="Couch: your Mac, on the couch" />
+  <meta property="og:description" content="A calm TV home screen on your Mac. Your phone is the remote. Free and open source." />
+  <meta property="og:url" content="{{SITE_URL}}/" />
+  <meta property="og:image" content="{{SITE_URL}}/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Couch on a TV, with a phone as the remote" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Couch: your Mac, on the couch" />
+  <meta name="twitter:description" content="A calm TV home screen on your Mac. Your phone is the remote. Free and open source." />
+  <meta name="twitter:image" content="{{SITE_URL}}/og.png" />
+  
+  <script>document.documentElement.classList.add("js");</script>
+  <script type="module" src="/src/main.ts"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="progress" aria-hidden="true"><i id="progress"></i></div>
+
+  <header class="nav">
+    <div class="nav-in">
+      <a class="brand" href="#top" aria-label="Couch, back to top">
+        <img src="/icon.png" width="28" height="28" alt="" />
+        <span>Couch</span>
+      </a>
+      <nav aria-label="Main">
+        <a href="#how">How it works</a>
+        <a href="#apps">Apps</a>
+        <a href="#library">Library</a>
+        <a href="#privacy">Privacy</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <div class="nav-cta">
+        <a class="link-quiet" href="{{GITHUB_URL}}" rel="noopener">Source</a>
+        <a class="btn btn-sm btn-primary" href="#download">Get Couch</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- 2. Hero -->
+    <section class="hero" id="top">
+      <div class="aurora" aria-hidden="true"></div>
+      <div class="wrap hero-copy">
+        <a class="pill" href="#download"><span class="dot"></span>Early release · Free and open source<svg class="i" viewBox="0 0 16 16"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        <h1>Your Mac, on the <em class="grad">couch.</em></h1>
+        <p class="lead">Put a Mac on your TV and your phone becomes the remote. One calm home screen for YouTube, Netflix and your own videos.</p>
+        <div class="cta">
+          <a class="btn btn-primary btn-lg" href="{{GUMROAD_URL}}" rel="noopener">Get Couch, pay what you want</a>
+          <a class="sub" href="{{RELEASES_URL}}" rel="noopener">or download free from GitHub</a>
+        </div>
+        <ul class="meta" aria-label="Requirements">
+          <li>macOS 14+</li><li>Apple silicon</li><li>GPL-3.0</li><li>No account</li>
+        </ul>
+      </div>
+
+      <div class="wrap stage">
+        <div class="device tv" data-tilt>
+          <div class="tv-screen slot" data-slot="hero-screen">
+            <div class="mock-home" data-home="hero">
+              <div class="m-top"><span class="m-chip"><i></i><b data-conn>Phone connected</b></span><span class="m-clock">8:42<small>PM</small></span></div>
+              <div class="m-greet"><small>Wednesday</small><strong>Good evening</strong></div>
+              <div class="m-row">
+                <span class="m-tile t-yt"><b>YouTube</b></span>
+                <span class="m-tile t-nf"><b>Netflix</b></span>
+                <span class="m-tile t-lib"><b>Library</b></span>
+              </div>
+            </div>
+          </div>
+          <div class="tv-stand" aria-hidden="true"></div>
+        </div>
+        <div class="device phone phone-hero" data-parallax>
+          <div class="phone-screen slot" data-slot="hero-remote">
+            <div class="mock-remote"><div class="r-head">Couch Remote</div><div class="r-np"><i></i><span>Now Playing<b>Nothing yet</b></span></div><div class="r-dpad"><span class="k up"></span><span class="k left"></span><span class="k ok">OK</span><span class="k right"></span><span class="k down"></span></div><div class="r-row"><span>Back</span><span>Home</span><span>Play</span></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Phone is the remote -->
+    <section class="story" id="how" aria-labelledby="how-h">
+      <div class="wrap split">
+        <div class="copy reveal">
+          <p class="eyebrow">The Remote</p>
+          <h2 id="how-h">Your phone is the <em class="grad">remote.</em></h2>
+          <p>Scan the QR code on the Screen once. After that your phone is a D-pad, volume and Now Playing, and every press moves the highlight on the TV. Pair as many phones as you like; guests can join in.</p>
+          <ul class="ticks">
+            <li>No app to install on the phone. The Remote is a web page.</li>
+            <li>Mac keyboard and trackpad work too, for when you are at the Mac.</li>
+            <li>The Screen and every Remote always agree on where you are.</li>
+          </ul>
+        </div>
+        <div class="demo reveal" data-demo="remote">
+          <div class="device tv"><div class="tv-screen slot" data-slot="remote-screen">
+            <div class="mock-home" data-home="demo">
+              <div class="m-top"><span class="m-chip"><i></i><b data-conn>No phone connected</b></span><span class="m-clock">8:42<small>PM</small></span></div>
+              <div class="m-greet"><small>Wednesday</small><strong>Good evening</strong></div>
+              <div class="m-row">
+                <span class="m-tile t-yt"><b>YouTube</b></span>
+                <span class="m-tile t-nf"><b>Netflix</b></span>
+                <span class="m-tile t-lib"><b>Library</b></span>
+              </div>
+            </div>
+          </div><div class="tv-stand" aria-hidden="true"></div></div>
+          <div class="device phone"><div class="phone-screen slot" data-slot="remote-phone">
+            <div class="mock-remote"><div class="r-head">Couch Remote</div><div class="r-np"><i></i><span>Now Playing<b>Nothing yet</b></span></div><div class="r-dpad" data-dpad><span class="k up"></span><span class="k left"></span><span class="k ok">OK</span><span class="k right"></span><span class="k down"></span></div><div class="r-row"><span>Back</span><span>Home</span><span>Play</span></div></div>
+          </div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Apps -->
+    <section class="story" id="apps" aria-labelledby="apps-h">
+      <div class="wrap split flip">
+        <div class="copy reveal">
+          <p class="eyebrow">Apps</p>
+          <h2 id="apps-h">The Apps you <em class="grad">already use.</em></h2>
+          <p>YouTube opens as its own TV experience, and Netflix opens on Netflix's own website. You sign in on the Screen with your own accounts. Couch gives no access to anything you could not open in a browser.</p>
+          <ul class="ticks">
+            <li>YouTube looks and behaves like the YouTube app on a smart TV.</li>
+            <li>Netflix is driven from the Remote with a clear focus ring.</li>
+            <li>More Apps can join the list later.</li>
+          </ul>
+        </div>
+        <div class="demo reveal" data-demo="apps">
+          <div class="device tv"><div class="tv-screen slot" data-slot="apps-screen">
+            <div class="mock-apps">
+              <div class="a-head"><strong>Apps</strong><span class="m-clock">8:42<small>PM</small></span></div>
+              <div class="a-grid">
+                <span class="a-tile a-yt"><i class="a-play"></i><b>YouTube</b><small>Search, subscriptions, playlists</small></span>
+                <span class="a-tile a-nf"><i class="a-n">N</i><b>Netflix</b><small>Your own account</small></span>
+                <span class="a-tile a-lib"><i class="a-folder"></i><b>Library</b><small>Folders on this Mac</small></span>
+              </div>
+            </div>
+          </div><div class="tv-stand" aria-hidden="true"></div></div>
+          <p class="note">Tiles show App names only. Netflix and YouTube are trademarks of their owners.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. Library -->
+    <section class="story" id="library" aria-labelledby="lib-h">
+      <div class="wrap split">
+        <div class="copy reveal">
+          <p class="eyebrow">The Library</p>
+          <h2 id="lib-h">A folder of videos becomes a <em class="grad">shelf.</em></h2>
+          <p>Point Couch at the folders where your videos live. They appear as a tidy shelf with a frame from each video, a cleaned-up title and where you stopped. Press play and it resumes from there.</p>
+          <ul class="ticks">
+            <li>Plays through its own built-in player, with subtitles and volume from the Remote.</li>
+            <li>Continue watching sits on Home, one press away.</li>
+            <li>Film and show details are optional, and the Library works fully without them.</li>
+          </ul>
+        </div>
+        <div class="demo reveal" data-demo="library">
+          <div class="device tv"><div class="tv-screen slot" data-slot="library-screen">
+            <img src="/src/shots/library.jpg" width="1400" height="787" alt="The Library: a shelf of videos on the Screen, with one film highlighted" loading="lazy" decoding="async" />
+          </div><div class="tv-stand" aria-hidden="true"></div></div>
+          <div class="shelf" aria-label="How a folder becomes a shelf">
+            <div class="folder"><svg class="i" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="currentColor"/></svg><span>Movies<small>on this Mac</small></span></div>
+            <svg class="arrow i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div class="cards">
+              <figure class="vcard c1"><span class="vc-art"></span><figcaption>Test Movie<em>Watched</em></figcaption></figure>
+              <figure class="vcard c2"><span class="vc-art"></span><figcaption>Summer Trip<i class="bar"><b style="width:62%"></b></i></figcaption></figure>
+              <figure class="vcard c3"><span class="vc-art"></span><figcaption>Cooking Show<i class="bar"><b style="width:18%"></b></i></figcaption></figure>
+              <figure class="vcard c4"><span class="vc-art"></span><figcaption>Home Videos<em>New</em></figcaption></figure>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. Privacy -->
+    <section class="story privacy" id="privacy" aria-labelledby="priv-h">
+      <div class="wrap">
+        <div class="center reveal">
+          <p class="eyebrow">Calm by design</p>
+          <h2 id="priv-h">Nothing leaves your Mac <em class="grad">but what you open.</em></h2>
+        </div>
+        <div class="panel reveal">
+          <ul class="facts">
+            <li><strong>No Couch account</strong><span>There is nothing to sign up for, and no profiles. The household shares one Screen.</span></li>
+            <li><strong>No cloud</strong><span>Your Library, your place in each video and your settings stay on the Mac.</span></li>
+            <li><strong>No tracking</strong><span>No analytics in the app and none on this site. No cookies.</span></li>
+            <li><strong>Open source</strong><span>Read every line, or build it yourself, under GPL-3.0-or-later.</span></li>
+          </ul>
+          <div class="panel-shot device tv small"><div class="tv-screen slot" data-slot="privacy-screen">
+            <img src="/src/shots/settings.jpg" width="1400" height="787" alt="Couch Settings on the Screen, with Library folders and Remotes" loading="lazy" decoding="async" />
+          </div><div class="tv-stand" aria-hidden="true"></div></div>
+        </div>
+        <p class="fine reveal">Couch talks to the services you open (YouTube, Netflix) and, if you allow it, to TMDB for film details. Nothing else.</p>
+      </div>
+    </section>
+
+    <!-- 7. Setup -->
+    <section class="story" id="setup" aria-labelledby="setup-h">
+      <div class="wrap">
+        <div class="center reveal">
+          <p class="eyebrow">Setup</p>
+          <h2 id="setup-h">Ready in <em class="grad">two minutes.</em></h2>
+        </div>
+        <ol class="steps">
+          <li class="step reveal">
+            <span class="n">1</span>
+            <h3>Install</h3>
+            <p>Download Couch, drag it to Applications, and open it on the Mac that is plugged into your TV.</p>
+            <div class="step-art"><img src="/icon.png" width="96" height="96" alt="The Couch app icon" loading="lazy" decoding="async" /></div>
+          </li>
+          <li class="step reveal">
+            <span class="n">2</span>
+            <h3>Scan the QR code</h3>
+            <p>In Settings choose Add a phone. Scan the code with your phone's camera, once.</p>
+            <div class="step-art shot"><img src="/src/shots/remotes.jpg" width="1400" height="787" alt="Remotes and Devices in Settings, with Add a phone highlighted" loading="lazy" decoding="async" /></div>
+          </li>
+          <li class="step reveal">
+            <span class="n">3</span>
+            <h3>Open an App</h3>
+            <p>Press OK on YouTube, Netflix or the Library. Sit back.</p>
+            <div class="step-art shot"><img src="/src/shots/player.jpg" width="1400" height="909" alt="A Library video playing full screen with the player controls" loading="lazy" decoding="async" /></div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- 8. Download -->
+    <section class="story download" id="download" aria-labelledby="dl-h">
+      <div class="wrap">
+        <div class="dl-card reveal">
+          <div class="aurora small" aria-hidden="true"></div>
+          <img class="dl-icon" src="/icon.png" width="96" height="96" alt="" />
+          <h2 id="dl-h">Get Couch. Pay what you <em class="grad">want.</em></h2>
+          <p class="lead">Free and open source. Pay on Gumroad if you would like to support it ($0 is fine), or take it straight from GitHub.</p>
+          <div class="cta">
+            <a class="btn btn-primary btn-lg" href="{{GUMROAD_URL}}" rel="noopener">Get Couch, pay what you want</a>
+            <a class="sub" href="{{RELEASES_URL}}" rel="noopener">or download free from GitHub</a>
+          </div>
+          <dl class="req">
+            <div><dt>Mac</dt><dd>macOS 14 or later, Apple silicon</dd></div>
+            <div><dt>Screen</dt><dd>A TV or monitor on the Mac</dd></div>
+            <div><dt>Remote</dt><dd>A phone on the same Wi-Fi</dd></div>
+          </dl>
+          <div class="gate">
+            <strong>Couch is early and not yet notarised by Apple.</strong>
+            <p>macOS asks once before the first open. In Applications, right-click Couch, choose Open, then Open again. If it still refuses, open System Settings, Privacy and Security, and choose Open Anyway.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9. FAQ -->
+    <section class="story faq" id="faq" aria-labelledby="faq-h">
+      <div class="wrap narrow">
+        <div class="center reveal">
+          <p class="eyebrow">FAQ</p>
+          <h2 id="faq-h">Questions, <em class="grad">answered.</em></h2>
+        </div>
+        <div class="acc reveal">
+          <details><summary>Is it free?</summary><p>Yes. Couch is free and open source. On Gumroad you choose what to pay, including nothing, and you can also download it from GitHub Releases at no cost.</p></details>
+          <details><summary>Do I need accounts?</summary><p>Not for Couch: there is no Couch account and no profiles. YouTube and Netflix use your own accounts, which you sign in to on the Screen.</p></details>
+          <details><summary>Does it work with Netflix?</summary><p>Couch shows Netflix's own website inside the Screen and lets you drive it from the Remote. You need your own Netflix account, and playback follows what Netflix's website allows on a Mac.</p></details>
+          <details><summary>Why does macOS warn me?</summary><p>Couch is an early release and Apple has not notarised it yet, so macOS checks with you before the first open. Right-click Couch in Applications, choose Open, then Open. You only do this once.</p></details>
+          <details><summary>Is it open source?</summary><p>Yes, under GPL-3.0-or-later. The code is on <a href="{{GITHUB_URL}}" rel="noopener">GitHub</a>.</p></details>
+          <details><summary>What about Windows or Linux?</summary><p>Not for now. Couch is built for a Mac on Apple silicon running macOS 14 or later. Any phone with a browser can be the Remote; it is tested on Android.</p></details>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 10. Footer -->
+  <footer class="foot">
+    <div class="wrap foot-in">
+      <div class="foot-brand"><img src="/icon.png" width="32" height="32" alt="" /><span>Couch</span></div>
+      <nav aria-label="Footer">
+        <a href="{{GITHUB_URL}}" rel="noopener">GitHub</a>
+        <a href="{{RELEASES_URL}}" rel="noopener">Releases</a>
+        <a href="{{GITHUB_URL}}/blob/main/LICENSE" rel="noopener">GPL-3.0-or-later</a>
+      </nav>
+      <p class="legal">Netflix and YouTube are trademarks of their owners. Couch is not affiliated with or endorsed by them. Film details in the app come from TMDB; this product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+      <p class="legal">© <span id="year">2026</span> Abdullah Nettoor. No cookies, no tracking.</p>
+    </div>
+  </footer>
+</body>
+</html>
