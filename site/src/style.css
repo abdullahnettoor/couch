@@ -1,5 +1,11 @@
 @font-face { font-family: "Geist"; src: url("./fonts/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
 @font-face { font-family: "Geist Mono"; src: url("./fonts/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+/* Until Geist arrives (it is preloaded, index.html), Arial drawn to Geist's metrics: its ascent and descent
+   (1005 / 295 per 1000) and its width, so the swap moves nothing. Measured in Chrome per weight against the
+   hero's own text (the regular body, the medium buttons and chips, the semibold headline). */
+@font-face { font-family: "Geist Fallback"; src: local("Arial"), local("ArialMT"); font-weight: 100 450; size-adjust: 100.94%; ascent-override: 99.57%; descent-override: 29.23%; line-gap-override: 0%; }
+@font-face { font-family: "Geist Fallback"; src: local("Arial"), local("ArialMT"); font-weight: 451 550; size-adjust: 103.04%; ascent-override: 97.53%; descent-override: 28.63%; line-gap-override: 0%; }
+@font-face { font-family: "Geist Fallback"; src: local("Arial Bold"), local("Arial-BoldMT"); font-weight: 551 900; size-adjust: 103.04%; ascent-override: 97.53%; descent-override: 28.63%; line-gap-override: 0%; }
 
 :root {
   --bg: #060608;
@@ -17,7 +23,7 @@
   --navy: #1c2540;
   --live: #30d158;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
-  --sans: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --sans: "Geist", "Geist Fallback", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --wrap: 1180px;
   /* section rhythm (ticket 143): section top → eyebrow → headline → body, the same in every section */
@@ -25,15 +31,15 @@
   --eyebrow-gap: 20px;
   --head-gap: 24px;
   --intro-gap: 56px;
+  /* the fixed nav's pill ends 66 px down (12 px + 38 px controls + 2 × 8 px); pinned things sit below it */
+  --nav-h: 66px;
+  --pin-top: calc(var(--nav-h) + 12px);
   color-scheme: dark;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 84px; -webkit-text-size-adjust: 100%; }
 body {
-  /* the fixed nav's pill ends 66 px down (12 px + 38 px controls + 2 × 8 px); pinned things sit below it */
-  --nav-h: 66px;
-  --pin-top: calc(var(--nav-h) + 12px);
   margin: 0; background: var(--bg); color: var(--t1);
   font: 400 17px/1.55 var(--sans); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
   overflow-x: hidden;

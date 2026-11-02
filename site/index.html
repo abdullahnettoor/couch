@@ -24,6 +24,8 @@
   <meta name="twitter:description" content="Your TV. Your evening. Your phone as the Remote. A calm home for YouTube, Netflix and your own videos. For Mac today." />
   <meta name="twitter:image" content="{{SITE_URL}}/og.png" />
   {{intro:head}}
+  <!-- Geist, early: the same hashed file style.css asks for (Vite rewrites this href), so the text never swaps late -->
+  <link rel="preload" href="/src/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin />
   <script type="module" src="/src/main.ts"></script>
 </head>
 <body>
@@ -107,8 +109,6 @@
     <section class="story how" id="how" aria-labelledby="how-h">
       <div class="how-track" data-how-track>
         <div class="how-pin">
-          <div class="wrap how-stage">
-            <div class="how-side">
           <div class="wrap how-head reveal">
             <div>
               <p class="eyebrow">The Remote</p>
@@ -116,6 +116,8 @@
             </div>
             <p>Scan the QR code on the Screen to pair your phone. Move the highlight, choose what to watch and turn the volume down without leaving the sofa. Guests can pair a phone too.</p>
           </div>
+          <div class="wrap how-stage">
+            <div class="how-side">
               <ol class="seq-steps" aria-label="How pairing works">
                 <li><button type="button" data-go="1"><b>1</b><span>The Screen shows a QR code</span></button></li>
                 <li><button type="button" data-go="2"><b>2</b><span>Scan it to pair your phone</span></button></li>
