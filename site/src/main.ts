@@ -2,14 +2,17 @@ import "./couch-ui/screen.css";
 import "./couch-ui/remote.css";
 import "./style.css";
 import { intro } from "./intro.ts";
+import { headline } from "./headline.ts";
 
 const motionQuery = matchMedia("(prefers-reduced-motion: reduce)");
 const reduced = () => motionQuery.matches;
-
-intro(reduced, (fn) => {
+const onMotionChange = (fn: () => void) => {
   motionQuery.addEventListener("change", fn);
   return () => motionQuery.removeEventListener("change", fn);
-});
+};
+
+intro(reduced, onMotionChange);
+headline(reduced, onMotionChange);
 
 document.getElementById("year")!.textContent = String(new Date().getFullYear());
 

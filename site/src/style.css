@@ -138,9 +138,14 @@ p { text-wrap: pretty; }
 @keyframes room-film { 0%, 100% { opacity: 1; } 22% { opacity: .82; } 55% { opacity: .9; } 78% { opacity: 1.05; } }
 .hero.paused .lamp-film, .hero.paused .room-glow { animation-play-state: paused; }
 h1 { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-/* "Settle in." The nav's wordmark and the logo already say Couch; the headline only has to say how it feels. */
-.hero h1 { font-size: clamp(60px, min(13vw, 14.5vh), 144px); line-height: .96; letter-spacing: -.04em; font-weight: 600; padding: 0 .04em .06em;
-  background: linear-gradient(180deg, #ffd9a6 0%, #fff4e6 34%, #fff 58%, #cfc9c3 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+/* "Settle in." The nav's wordmark and the logo already say Couch; the headline only has to say how it feels.
+   Its gradient is drawn on each phrase (stops in em, so every phrase gets the same light); after the intro the
+   phrases turn once (src/headline.ts), laid over the real text so the h1 never changes size. */
+.hero h1 { position: relative; font-size: clamp(60px, min(13vw, 14.5vh), 144px); line-height: .96; letter-spacing: -.04em; font-weight: 600; }
+.hero h1 > span { display: block; padding: 0 .04em .06em; color: transparent; -webkit-background-clip: text; background-clip: text;
+  background-image: linear-gradient(180deg, #ffd9a6 0, #fff4e6 .347em, #fff .592em, #cfc9c3 1.02em); }
+.hero h1 > .h1-alt { position: absolute; left: 50%; top: 0; translate: -50% 0; width: max-content; padding-bottom: .2em; white-space: nowrap; opacity: 0; pointer-events: none; }
+.h1-alt::before { content: attr(data-text); }
 /* fine film grain over the hero: a small tile of static noise, blended so it lives in the light and nearly vanishes in the blacks */
 .hero::after { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: .15; mix-blend-mode: overlay;
   background: url("./shots/grain.png") 0 0 / 64px 64px; }
