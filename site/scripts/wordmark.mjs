@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { wordmarkSvg } from "../src/brand/wordmark.ts";
 
 const file = new URL("../src/brand/wordmark.svg", import.meta.url);
-const svg = wordmarkSvg({ id: "couch-wordmark", attrs: 'width="734" height="100"', title: "Couch" }) + "\n";
+const svg = wordmarkSvg({ id: "couch-wordmark", attrs: 'width="785" height="100"', title: "Couch" }) + "\n";
 if (process.argv.includes("--check")) {
   let current = "";
   try { current = readFileSync(file, "utf8"); } catch { /* missing */ }

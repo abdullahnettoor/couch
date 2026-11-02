@@ -2,3 +2,6 @@ node_modules
 dist
 .wrangler
 .DS_Store
+# Paid fonts (Korataki) are never committed; keep them outside the repo and pass their path to scripts/korataki.mjs
+*.ttf
+*.otf

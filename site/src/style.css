@@ -133,9 +133,12 @@ p { text-wrap: pretty; }
 @keyframes room-film { 0%, 100% { opacity: 1; } 22% { opacity: .82; } 55% { opacity: .9; } 78% { opacity: 1.05; } }
 .hero.paused .lamp-film, .hero.paused .room-glow { animation-play-state: paused; }
 h1 { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.h1-lead { font-size: clamp(22px, 2.6vw, 34px); font-weight: 500; letter-spacing: -.02em; line-height: 1.2; color: var(--t2); }
-.hero h1 .wordmark { display: block; font-size: clamp(88px, min(15.5vw, 23vh), 224px); line-height: .92; letter-spacing: -.04em; font-weight: 600; padding: 0 .04em .06em;
+/* "Settle in." The nav's wordmark and the logo already say Couch; the headline only has to say how it feels. */
+.hero h1 { font-size: clamp(60px, min(13vw, 14.5vh), 144px); line-height: .96; letter-spacing: -.04em; font-weight: 600; padding: 0 .04em .06em;
   background: linear-gradient(180deg, #ffd9a6 0%, #fff4e6 34%, #fff 58%, #cfc9c3 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+/* fine film grain over the hero: a small tile of static noise, blended so it lives in the light and nearly vanishes in the blacks */
+.hero::after { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: .15; mix-blend-mode: overlay;
+  background: url("./shots/grain.png") 0 0 / 64px 64px; }
 .pill { display: inline-flex; align-items: center; gap: 10px; padding: 7px 14px 7px 12px; border-radius: 999px; font-size: 13.5px; color: var(--t2); text-decoration: none; background: var(--glass); box-shadow: var(--edge); border: 1px solid var(--line); transition: color .2s, background .2s, transform .38s var(--ease); }
 .pill:hover { color: #fff; background: rgba(60,60,66,.6); }
 .pill:active { transform: scale(.97); transition-duration: .12s; }
@@ -151,26 +154,29 @@ h1 { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .win-chip .i { width: 14px; height: 14px; transition: transform .38s var(--ease); }
 .win-chip:hover .i { transform: translateY(2px); }
 
-/* Hero intro (ticket 139), once per visit: COUCH arrives, the C, C and H leave, the U becomes the sofa, the O drops
-   in and becomes the Screen, the Screen switches on, the icon's own light takes over, then the copy arrives.
-   Timing is here; src/intro.ts morphs the U and the O on the same clock and ends or skips the intro.
+/* Hero intro (tickets 139 and 142), once per visit: COUCH rises in, the C, C and H dissolve into soft warm dust
+   that drifts into the Screen, the O glides in behind the U's arm and settles as the frame while the U widens into
+   the sofa, the sofa's back rises, the Screen lights, the icon's own light takes over, then the copy arrives.
+   Timing is here; src/intro.ts (TIMES) runs the dust and the U and O on the same clock and ends or skips the intro.
    html.intro is set before the first paint by the <head> script (src/brand/wordmark.ts, introHead). */
 .wm-intro { display: none; position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-html.intro .wm-intro { display: block; animation: intro-out .4s ease 1.66s forwards; }
+html.intro .wm-intro { display: block; animation: intro-out .4s ease 1.62s forwards; }
 html.intro-done .wm-intro { display: none; }
+.wm-dust { position: absolute; pointer-events: none; }
 .i-wm { transform: translate(417px, 620px) scale(var(--wm-s, 2.4)); }
-.wm-intro .l { animation: wm-in .6s var(--ease) calc(var(--i) * 60ms) backwards; }
-.wm-intro .l-c1 { animation: wm-in .6s var(--ease) backwards, wm-out-l .4s cubic-bezier(.5, 0, .75, 0) .66s forwards; }
-.wm-intro .l-c2 { animation: wm-in .6s var(--ease) .18s backwards, wm-out-r .4s cubic-bezier(.5, 0, .75, 0) .66s forwards; }
-.wm-intro .l-h { animation: wm-in .6s var(--ease) .24s backwards, wm-out-r .4s cubic-bezier(.5, 0, .75, 0) .7s forwards; }
-.wm-intro .l-o-frame { fill: #3e322c; opacity: 0; animation: frame-on .45s ease .95s forwards; }
-.i-back { transform-box: fill-box; transform-origin: 50% 100%; animation: back-up .65s var(--ease) 1s backwards; }
-.i-screen { animation: tv-on .6s linear 1.38s backwards; }
-@keyframes wm-in { from { opacity: 0; transform: translateY(22px); } }
-@keyframes wm-out-l { 70%, to { opacity: 0; } to { transform: translateX(-150px); } }
-@keyframes wm-out-r { 70%, to { opacity: 0; } to { transform: translateX(150px); } }
-@keyframes back-up { from { opacity: 0; transform: scaleY(.2); } }
-@keyframes tv-on { 0% { opacity: 0; } 16% { opacity: 1; } 28% { opacity: .5; } 44%, 100% { opacity: 1; } }
+.wm-intro .l { animation: wm-in .4s var(--ease) calc(var(--i) * 30ms) backwards; }
+/* without the dust (no script, or a script too late for it) the C, C and H fade where they stand */
+.wm-intro .l-c1, .wm-intro .l-c2, .wm-intro .l-h { animation: wm-in .4s var(--ease) calc(var(--i) * 30ms) backwards, wm-fade .5s ease-in .5s forwards; }
+.wm-intro.dust .l-c1, .wm-intro.dust .l-c2, .wm-intro.dust .l-h { animation: wm-in .4s var(--ease) calc(var(--i) * 30ms) backwards; }
+.wm-intro.dusting .l-c1, .wm-intro.dusting .l-c2, .wm-intro.dusting .l-h { visibility: hidden; }
+.wm-intro .l-o-frame { opacity: 0; animation: frame-on .4s ease .88s forwards; }
+.i-halo { opacity: 0; animation: frame-on .6s ease-out 1.24s forwards; }
+.i-back { transform-box: fill-box; transform-origin: 50% 100%; animation: back-up .5s var(--ease) 1s backwards; }
+.i-screen { animation: tv-on .5s ease-out 1.28s backwards; }
+@keyframes wm-in { from { opacity: 0; transform: translateY(16px); } }
+@keyframes wm-fade { to { opacity: 0; } }
+@keyframes back-up { from { opacity: 0; transform: translateY(10%) scaleY(.55); } }
+@keyframes tv-on { 0% { opacity: 0; } 40% { opacity: .8; } 55% { opacity: .62; } 100% { opacity: 1; } }
 @keyframes intro-fade { from { opacity: 0; } }
 @keyframes intro-out { to { opacity: 0; } }
 @keyframes intro-gone { to { opacity: 0; } }
@@ -414,7 +420,7 @@ summary { transition: color .2s; } summary:active { transform: scale(.99); }
   *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; transition-delay: 0s !important; }
   .reveal-ready .reveal.pre, .reveal-ready .shelf.pre { transform: none; }
   .stage, .room, .room-cursor { transform: none !important; }
-  .room-cursor, .lamp-film, .spot::before, .btn-primary::after, html.intro .wm-intro { display: none; }
+  .room-cursor, .lamp-film, .spot::before, .btn-primary::after, html.intro .wm-intro, .wm-dust { display: none; }
   /* no decorative movement on hover or press: buttons, links, cards, step numbers and their icons stay where they are */
   .btn:hover, .btn:active, .btn.is-pressed, .pill:active, .pill:hover .i, .win-chip:hover .i,
   .nav nav a:active, .link-quiet:active, .seq-steps button:active, summary:active,

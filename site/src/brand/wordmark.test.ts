@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { CAP, LEFT, WIDTH, introHead, letters, logo, mix, path, toEm, type Poly } from "./wordmark.ts";
+import { CAP, LEFT, WIDTH, introHead, letters } from "./wordmark.ts";
+import { logo, mix, path, toEm, type Poly } from "./logo.ts";
+import * as korataki from "./korataki.ts";
 
 const xs = (polys: Poly[]) => polys.flat().map(([x]) => x);
-const ys = (polys: Poly[]) => polys.flat().map(([, y]) => y);
+/** Every coordinate pair in an outline path. */
+const pts = (d: string) => [...d.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
 
 test("the morphing letters have the logo's corners, one for one", () => {
   assert.equal(letters.u.length, 1);
@@ -13,13 +17,27 @@ test("the morphing letters have the logo's corners, one for one", () => {
   letters.o.forEach((p, i) => assert.equal(p.length, logo.frame[i].length));
 });
 
-test("the wordmark spans WIDTH, sits on the baseline and is centred on the U", () => {
-  const all = Object.values(letters).flat();
-  assert.equal(Math.min(...xs(all)), LEFT);
-  assert.equal(Math.max(...xs(all)), LEFT + WIDTH);
-  assert.equal(Math.min(...ys(all)), -CAP);
-  assert.equal(Math.max(...ys(all)), 0);
-  assert.equal(Math.min(...xs(letters.u)) + Math.max(...xs(letters.u)), 0);
+test("the U and O keep the font's shapes: sharp arm tops, round base, a slot for the Screen", () => {
+  const [u] = letters.u;
+  // arm tops (outer, inner, inner, outer) are the font's square ends; the base is round
+  for (const i of [0, 1, 4, 5]) assert.equal(u[i][2], 0);
+  for (const i of [6, 7]) assert.ok(u[i][2] > 20);
+  // the U sits on the baseline at cap height, its counter open at the top
+  assert.equal(Math.min(...u.map((c) => c[1])), -CAP);
+  assert.equal(Math.max(...u.map((c) => c[1])), 0);
+  // the O's slot is wider than tall, like the Screen
+  const [, slot] = letters.o, w = Math.max(...xs([slot])) - Math.min(...xs([slot]));
+  const h = Math.max(...slot.map((c) => c[1])) - Math.min(...slot.map((c) => c[1]));
+  assert.ok(w / h > 1.6 && w / h < 2.4, `slot ${w} × ${h}`);
+});
+
+test("the wordmark spans LEFT … LEFT + WIDTH, sits on the baseline and is centred on the U", () => {
+  const all = [...pts(letters.c1), ...pts(letters.c2), ...pts(letters.h), ...letters.o.flat(), ...letters.u.flat()];
+  assert.ok(Math.abs(Math.min(...all.map(([x]) => x)) - LEFT) < 0.01);
+  assert.ok(Math.abs(Math.max(...all.map(([x]) => x)) - (LEFT + WIDTH)) < 0.01);
+  assert.equal(Math.min(...all.map(([, y]) => y)), -CAP);
+  assert.equal(Math.max(...all.map(([, y]) => y)), 0);
+  assert.ok(Math.abs(Math.min(...xs(letters.u)) + Math.max(...xs(letters.u))) < 0.5);
 });
 
 test("the sofa lands on the U: same baseline and centre at any scale", () => {
@@ -41,6 +59,14 @@ test("a morph starts and ends on its shapes, and every frame is a closed path of
     assert.equal(d.match(/C/g)!.length, a.length);
     assert.doesNotMatch(d, /NaN/);
   }
+});
+
+test("the outlines are generated from Korataki, and no font file is in the repository", () => {
+  assert.equal(korataki.SOURCE.font, "Korataki ExtraBold");
+  assert.match(korataki.SOURCE.sha256, /^[0-9a-f]{64}$/);
+  const files = execFileSync("git", ["ls-files"], { cwd: new URL("../..", import.meta.url), encoding: "utf8" }).split("\n");
+  const fonts = files.filter((f) => /\.(ttf|otf|woff2?)$/i.test(f));
+  assert.deepEqual(fonts.filter((f) => !/^src\/fonts\/Geist(Mono)?-Variable\.woff2$/.test(f)), [], "only the Geist web fonts are committed");
 });
 
 test("the <head> script sizes the mark exactly as the CSS does, in both intro modes", () => {
