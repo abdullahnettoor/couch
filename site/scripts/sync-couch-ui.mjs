@@ -2,7 +2,7 @@
 /**
  * Copies Couch's real UI into src/couch-ui/ so the landing page's mocks stay faithful to the app.
  *
- *   pnpm sync:couch            (reads ~/Projects/couch, or COUCH_REPO=/path/to/couch)
+ *   pnpm sync:couch            (reads the app repo this site lives in, or COUCH_REPO=/path/to/couch)
  *   pnpm sync:couch --check    (writes nothing; regenerates every output in memory and exits 1 if any committed
  *                               file differs or is missing; only the recorded Couch commit hash is ignored)
  *
@@ -16,13 +16,12 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { namespace, scope } from "./css-scope.mjs";
 
 const site = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const couch = resolve(process.env.COUCH_REPO ?? join(homedir(), "Projects/couch"));
+const couch = resolve(process.env.COUCH_REPO ?? join(site, ".."));
 const out = join(site, "src/couch-ui");
 
 const checkOnly = process.argv.includes("--check");

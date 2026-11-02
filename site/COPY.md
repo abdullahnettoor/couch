@@ -404,7 +404,7 @@ Font, icon and licence proper names retain their legal spelling. Copyright notic
 
 ## 15. Factual evidence and hand-off cautions
 
-All app paths below are in the read-only `/Users/abdullahnettoor/Projects/couch` repo.
+All app paths below are in the app repo (the folder above `site/`).
 
 | Claim or risk | Evidence / limit |
 | --- | --- |

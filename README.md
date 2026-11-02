@@ -76,7 +76,10 @@ src/
   preload/     contextBridge API exposed to the Screen renderer (built as CJS)
   renderer/    The Screen's UI (Vite root); draws state, forwards keys as commands
 scripts/       Dev helpers
+site/          The website (couch.abdullahnettoor.com): its own pnpm project; see site/README.md
 ```
+
+The website in `site/` is separate from the app: the app's `vp check`, `vp test run` and `vp run package` leave it out. Work on it from that folder (`cd site && pnpm install && pnpm dev`).
 
 Build outputs: `dist/renderer` (Vite), `dist/main/index.mjs` (ESM), `dist/preload/index.cjs` (CJS, required for sandboxed preload). `vite.config.ts` holds all three configs: Vite (root `src/renderer`), `pack` (tsdown) for main and preload, and `test` (root forced to the repo).
 

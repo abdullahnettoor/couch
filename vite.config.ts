@@ -31,8 +31,10 @@ export default defineConfig({
       clean: true,
     },
   ],
-  fmt: {},
+  // The landing page in site/ is its own project (own package.json, checks and tests): the app's checks leave it out.
+  fmt: { ignorePatterns: ["site/**"] },
   lint: {
+    ignorePatterns: ["site/**"],
     jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
     rules: { "vite-plus/prefer-vite-plus-imports": "error" },
     options: { typeAware: true, typeCheck: true },

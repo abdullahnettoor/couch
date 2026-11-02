@@ -4,16 +4,15 @@
 // (whole frame), Settings loses only empty black above and below, and the setup cards' details of Home cut only
 // through empty background. The slot's width and height in src/slots.ts match each output, and a frame holding a
 // picture takes its aspect.
-//   node scripts/shots.mjs [shootDir]   (default ~/Projects/couch-notes/shots/140; needs cwebp)
+//   node scripts/shots.mjs [shootDir]   (default <repo>/.notes/shots/140; needs cwebp)
 // The pictures show Blender's open films (Big Buck Bunny, Sintel, Tears of Steel: © Blender Foundation, CC BY 3.0)
 // with posters and backdrops from TMDB; the page credits both. Every source was privacy-checked in ticket 140.
 import { execFileSync } from "node:child_process";
 import { statSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const dir = process.argv[2] ?? join(homedir(), "Projects/couch-notes/shots/140");
+const dir = process.argv[2] ?? fileURLToPath(new URL("../../.notes/shots/140", import.meta.url));
 const out = fileURLToPath(new URL("../src/shots/", import.meta.url));
 const SRC_W = 3600, SRC_H = 2260;
 const H16x9 = Math.round((SRC_W * 9) / 16), H16x10 = Math.round((SRC_W * 10) / 16); // 16:10 trims 5 px of edge

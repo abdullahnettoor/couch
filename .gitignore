@@ -34,3 +34,6 @@ native/mpv-embed/*.node
 
 # Cache from the maintainer's own graft CLI
 graft/
+
+# Local notes, screenshots and scratch (never pushed)
+.notes/

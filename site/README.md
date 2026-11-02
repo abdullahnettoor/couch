@@ -1,10 +1,13 @@
-# couch-site
+# Couch website (`site/`)
 
 The landing page for [Couch](https://github.com/abdullahnettoor/couch), planned for `couch.abdullahnettoor.com`. A static site: plain HTML, CSS and TypeScript built with Vite, plus one small Cloudflare Worker for the anonymous Couch for Windows count (`worker/`). No framework, no analytics, no cookies, no third-party requests (Geist and Geist Mono are self-hosted, SIL OFL); the only exception is the launch video's YouTube player, once there is a video and only after the visitor presses play (see "The launch video").
 
 ## Run it
 
+The site lives in `site/` of the Couch app repo and is its own pnpm project (own `package.json`, lockfile and `pnpm-workspace.yaml`); the app's `vp check` and `vp test run` leave it out. Run everything from this folder:
+
 ```sh
+cd site
 pnpm install
 pnpm dev          # http://localhost:5173
 pnpm build        # type-check, then build to dist/
@@ -59,14 +62,14 @@ To replace a picture, drop a file named `src/shots/slot-<name>.png` (or `.jpg`, 
 | `setup-qr` | Setup step 2 | `home-qr.webp` (16:9 detail, 1280/640): Home's QR card and "No phone connected" | `home-qr.png` |
 | `setup-app` | Setup step 3 | `home-youtube.webp` (16:9 detail, 1280/640): Home's App row with YouTube highlighted | `hero-home-youtube-focus.png` |
 
-**The screenshots (ticket 142)** are the real Couch from the ticket 140 shoot (`~/Projects/couch-notes/shots/140/`): a temporary profile, no household data, YouTube and Netflix only as App tiles, each picture privacy-checked there and again here. `pnpm shots [dir]` (`scripts/shots.mjs`, needs `cwebp`) crops each window capture without cutting through its UI (Home and the Library whole at the display's 16:10; Settings to 16:9 by trimming empty black; the setup cards' two 16:9 details of Home, ticket 143, cut only through empty background) and writes WebP at 1920 (`<name>.webp`), 1280 and 640 px (`<name>-1280.webp`, `<name>-640.webp`; the setup details at 1280 and 640 only); `vite.config.ts` writes them as a `srcset` with the slot's `sizes`. The films are Blender's open films *Big Buck Bunny*, *Sintel* and *Tears of Steel* (© Blender Foundation, CC BY 3.0) and the posters, backdrops and synopses come from TMDB, so the footer's "Credits" block and the Credits section of `/licenses/` credit both: the films with the CC BY changes note ("Film imagery shown within Couch screenshots; cropped and resized for this site."), and TMDB with its approved logo (`public/tmdb.svg`, "Primary short (blue)" from TMDB's Logos & Attribution page, self-hosted and unaltered, linking to themoviedb.org, smaller than Couch's own mark) beside its notice ("This product uses the TMDB API but is not endorsed or certified by TMDB"). Keep those credits whenever a picture shows a film. The two Remote-section slots (`remote-screen`, `remote-phone`) carry the finite pairing sequence (QR, pair, D-pad press, highlight moves); replacing either with a still turns that part into a plain picture, so replace both or neither. The sequence's end state is the connected state, which is also what visitors with reduced motion or no JavaScript see.
+**The screenshots (ticket 142)** are the real Couch from the ticket 140 shoot (`.notes/shots/140/` in the app repo, git-ignored): a temporary profile, no household data, YouTube and Netflix only as App tiles, each picture privacy-checked there and again here. `pnpm shots [dir]` (`scripts/shots.mjs`, needs `cwebp`) crops each window capture without cutting through its UI (Home and the Library whole at the display's 16:10; Settings to 16:9 by trimming empty black; the setup cards' two 16:9 details of Home, ticket 143, cut only through empty background) and writes WebP at 1920 (`<name>.webp`), 1280 and 640 px (`<name>-1280.webp`, `<name>-640.webp`; the setup details at 1280 and 640 only); `vite.config.ts` writes them as a `srcset` with the slot's `sizes`. The films are Blender's open films *Big Buck Bunny*, *Sintel* and *Tears of Steel* (© Blender Foundation, CC BY 3.0) and the posters, backdrops and synopses come from TMDB, so the footer's "Credits" block and the Credits section of `/licenses/` credit both: the films with the CC BY changes note ("Film imagery shown within Couch screenshots; cropped and resized for this site."), and TMDB with its approved logo (`public/tmdb.svg`, "Primary short (blue)" from TMDB's Logos & Attribution page, self-hosted and unaltered, linking to themoviedb.org, smaller than Couch's own mark) beside its notice ("This product uses the TMDB API but is not endorsed or certified by TMDB"). Keep those credits whenever a picture shows a film. The two Remote-section slots (`remote-screen`, `remote-phone`) carry the finite pairing sequence (QR, pair, D-pad press, highlight moves); replacing either with a still turns that part into a plain picture, so replace both or neither. The sequence's end state is the connected state, which is also what visitors with reduced motion or no JavaScript see.
 
 **Next shoot: shoot in the evening.** The ticket 140 shoot was taken in the afternoon, so the real screenshots show 3:36 PM while the mocks (`src/mocks.ts`) show 8:42 PM and "Good evening". Left as is for now; the next shoot should happen in the evening so the clock and the greeting match the mocks.
 
 The hero's light is `src/shots/couch-glow.webp` (and `-480`): Couch's own icon art, `build/icon.png` in the Couch repo, cropped to the sofa and its tile darkened so it can be added to the page as light (`mix-blend-mode: screen`). Regenerate:
 
 ```sh
-ffmpeg -i ../couch/build/icon.png -vf "crop=832:688:96:115,curves=all='0/0 0.25/0.05 0.6/0.6 1/1'" /tmp/glow.png
+ffmpeg -i ../build/icon.png -vf "crop=832:688:96:115,curves=all='0/0 0.25/0.05 0.6/0.6 1/1'" /tmp/glow.png
 cwebp -q 80 /tmp/glow.png -o src/shots/couch-glow.webp
 cwebp -q 80 -resize 480 397 /tmp/glow.png -o src/shots/couch-glow-480.webp
 ```
@@ -122,7 +125,7 @@ A fine, static film grain lies over the hero (`.hero::after`): `src/shots/grain.
 
 ## The mocks use Couch's real UI
 
-Every drawn (non-screenshot) mock is Couch's own UI, not a re-drawing. `scripts/sync-couch-ui.mjs` (`pnpm sync:couch`) reads the Couch repo (`~/Projects/couch`, or `COUCH_REPO=`; read only) and writes `src/couch-ui/`, which is committed so the site builds without the Couch repo:
+Every drawn (non-screenshot) mock is Couch's own UI, not a re-drawing. `scripts/sync-couch-ui.mjs` (`pnpm sync:couch`) reads the app repo this site lives in (the parent folder, or `COUCH_REPO=`; read only) and writes `src/couch-ui/`, which is committed so the site builds without the Couch repo:
 
 | File | Copied from (Couch repo) | What it is |
 | --- | --- | --- |
@@ -232,3 +235,21 @@ Also re-read the "What Couch connects to" list on the page against the release b
 ## Deploy (not done yet)
 
 `wrangler.jsonc` serves `dist/` with Workers static assets on the custom domain `couch.abdullahnettoor.com`. `pnpm deploy` builds and runs `wrangler deploy`, which creates the subdomain and its certificate. Do not run it until every item in "Before publishing" is ticked and the screenshots are in.
+
+The site is a **Worker with static assets**, not a Cloudflare Pages project: the Windows count needs the Worker (`worker/index.ts`) and its D1 database, which Pages' static hosting doesn't run. Two ways to deploy, both from `site/`:
+
+- **From this Mac:** `cd site && pnpm deploy` (needs `wrangler login` with the account that owns the `abdullahnettoor.com` zone).
+- **From GitHub (Workers Builds),** if the repo is connected in the Cloudflare dashboard (Workers & Pages → the `couch-site` Worker → Settings → Build):
+
+  | Setting | Value |
+  | --- | --- |
+  | Root directory | `site` |
+  | Build command | `pnpm install --frozen-lockfile && pnpm build` |
+  | Deploy command | `npx wrangler deploy` |
+  | Output | `dist/` (set by `assets.directory` in `wrangler.jsonc`; not a separate setting) |
+  | Production branch | `main` |
+  | Build watch paths | `site/*` (so app-only commits don't rebuild the site) |
+
+  `pnpm build` also runs `tsc` and `scripts/launch-thumb.mjs` (which fetches nothing while `LAUNCH_VIDEO.id` is empty, and uses the committed thumbnail once it isn't). The Korataki outlines are committed, so the build never needs the font.
+
+Nothing has been deployed and no Cloudflare setting has been changed yet.

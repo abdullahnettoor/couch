@@ -1,0 +1,4 @@
+# site/ is its own pnpm project, separate from the app at the repo root.
+allowBuilds:
+  esbuild: true
+  workerd: true
