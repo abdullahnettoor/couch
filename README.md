@@ -1,8 +1,41 @@
 # Couch
 
-Turns a Mac connected to a TV into a couch-friendly media centre, controlled from phones. See `PRODUCT.md` for what it's for and `GLOSSARY.md` for the words we use.
+Couch turns a Mac connected to a TV or monitor into a calm, couch-friendly home screen, and your phone is the remote. The Screen shows Home, with the Apps you open from the couch: YouTube, Netflix, and the Library of video folders on the Mac. The Remote is a web page on your phone: you scan a QR code once, and it becomes a D-pad, volume and Now Playing controls. There are no profiles and no Couch account; the household shares one Screen.
 
-Contributing (set-up, tickets, adding a YouTube add-on or a web App): see `CONTRIBUTING.md`. What it takes to ship Couch to other people: see `SHIPPING.md`.
+> **Early personal project.** Use your own accounts on each service. Couch shows each service's own website; it does not give access to anything you could not open in a browser.
+
+![The Library](docs/screenshots/library.jpg)
+
+![Settings](docs/screenshots/settings.jpg)
+
+![Remotes and Devices in Settings](docs/screenshots/remotes.jpg)
+
+![Playing a Library video](docs/screenshots/player.jpg)
+
+The pictures use test videos, not real films.
+
+Words like Screen, Remote, App and Library have fixed meanings: see `GLOSSARY.md`. What Couch is for is in `PRODUCT.md`.
+
+## Requirements
+
+- A Mac on macOS 14 or later.
+- A TV or monitor connected to the Mac.
+- A phone on the same Wi-Fi as the Mac (for the Remote).
+- Homebrew `mpv`, for playing the Library (for now): `brew install mpv`.
+
+## Build from source
+
+Couch isn't distributed as a download yet, so you build it yourself. You need Xcode command line tools, Homebrew and [pnpm](https://pnpm.io).
+
+```sh
+brew install mpv
+pnpm install
+pnpm run build:native      # builds the embedded mpv player
+pnpm exec vp run start     # build and run Couch
+pnpm exec vp run package   # or build out/Couch-darwin-<arch>/Couch.app
+```
+
+`CONTRIBUTING.md` has the details (tests, checks, signing for Netflix and other DRM Apps). `SHIPPING.md` lists what it would take to ship Couch to other people.
 
 ## Commands
 
@@ -26,7 +59,7 @@ Run `vp` as `pnpm exec vp …` if it isn't installed globally. If `ELECTRON_RUN_
 ```
 src/
   shared/      Types shared by every process: Player port, IPC channel names
-  main/        Electron main process: owns the core, ports, Remote server (later tickets)
+  main/        Electron main process: owns the core, ports and the Remote server
     mpv/       Player port implementation: MpvPlayer: in-process libmpv core (embedded) + JSON IPC client
     display.ts Picks the external monitor, else the built-in screen
     index.ts   Wiring (window, ports, quit handling)
@@ -35,13 +68,9 @@ src/
 scripts/       Dev helpers
 ```
 
-Planned homes: `src/main/core/` (state + commands), `src/main/ports/` (YouTube, Mac, Clock, Store, Thumbnails), `src/main/remote/` (server + phone page).
-
 Build outputs: `dist/renderer` (Vite), `dist/main/index.mjs` (ESM), `dist/preload/index.cjs` (CJS, required for sandboxed preload). `vite.config.ts` holds all three configs: Vite (root `src/renderer`), `pack` (tsdown) for main and preload, and `test` (root forced to the repo).
 
 **TMDB details (optional).** Posters and show/film details come from [TMDB](https://www.themoviedb.org). A release build can carry the project's TMDB key: put `COUCH_TMDB_TOKEN=<API Read Access Token or v3 API key>` in a git-ignored `.env` in the repo root (or set it in the environment, e.g. a CI secret) before `vp run build` / `vp run package`. It is injected into the main-process bundle only (never the renderer, the Remote page or the repo). Without it Couch behaves as bring-your-own-key: the household can paste their own key in Settings → Show and film details, or use video frames. Never commit `.env`.
-
-This product uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.
 
 ## mpv hand-off
 
@@ -49,11 +78,11 @@ Couch loads libmpv in-process through a small native add-on (`native/mpv-embed/`
 
 **Building the add-on** (needs Xcode command line tools and `brew install mpv`, which also supplies the headers): `pnpm run build:native` writes `native/mpv-embed/mpv_embed.node` (git-ignored; run it after `pnpm install` and before `vp run start` / `vp run package`). `vp run package` unpacks it into `app.asar.unpacked`. The built Couch.app still needs mpv installed on the Mac (libmpv comes from Homebrew, not bundled).
 
-Temporary keys on the Screen (removed once the core exists): `P` play the sample, `Space` pause, `←/→` seek 10 s, `S`/`Esc` stop, `Q` quit.
+Development keys on the Screen: `P` play the sample, `Space` pause, `←/→` seek 10 s, `S`/`Esc` stop, `Q` quit.
 
 Dev aids: `COUCH_SELFTEST=1` plays/stops five times and logs window focus; `COUCH_SELFTEST=quit-mid-play`; `COUCH_FORCE_NO_MPV=1` simulates mpv missing; `COUCH_SAMPLE=/path.mkv` overrides the sample.
 
-## Manual checks (ticket 002)
+## Manual checks for the mpv hand-off
 
 Run `vp run sample` once, then `vp run start`.
 
@@ -64,9 +93,9 @@ Run `vp run sample` once, then `vp run start`.
 5. **Quit mid-play:** `P`, then `Q` (or Cmd+Q). `pgrep -fl mpv` shows nothing.
 6. **No mpv:** `COUCH_FORCE_NO_MPV=1 vp run start` shows "Couch needs mpv to play videos. Install it with: brew install mpv".
 
-## Setting up Couch (for the household)
+## Setting up Couch on your Mac
 
-You need a Mac with Homebrew, an Android phone with Chrome, and a TV or monitor on the Mac.
+You need a Mac with Homebrew, an Android phone with Chrome, and a TV or monitor on the Mac. (The Remote is a web page, so other phones may work too, but Android with Chrome is what Couch is tested on.)
 
 1. **Install mpv.** Open Terminal and run `brew install mpv`.
 2. **Build Couch.** In the Couch folder run `pnpm install`, then `pnpm exec vp run package`. This makes `out/Couch-darwin-arm64/Couch.app` (the folder name says `x64` on an Intel Mac).
@@ -92,4 +121,17 @@ The Couch Listener is a tiny background program inside `Couch.app`. It lets the 
 
 ### Where Couch keeps its data
 
-Settings, the pairing key, watch history, YouTube sign-in and thumbnails live in `~/Library/Application Support/Couch`. Rebuilding or replacing `Couch.app` keeps all of it. Delete that folder to start from scratch.
+Settings, the pairing key, watch history, App sign-ins and thumbnails live in `~/Library/Application Support/Couch`. Rebuilding or replacing `Couch.app` keeps all of it. Delete that folder to start from scratch.
+
+## Third-party
+
+- **mpv / libmpv** plays the Library. It is GPL software, installed through Homebrew; Couch loads it at run time.
+- **Electron** (the castLabs ECS build) runs the Screen. Electron and castLabs ECS are MIT-licensed.
+- **Widevine CDM** is downloaded at run time by the castLabs build. Couch does not ship it.
+- **TMDB** supplies posters and film details. This product uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.
+- The YouTube ad-blocker add-on is adapted from [VacuumTube](https://github.com/shy1132/VacuumTube) (MIT, see the top of `src/main/apps/youtube/addons/adblock.ts`). It is off by default.
+- Netflix and YouTube names and logos are trademarks of their owners, used only to label those Apps. Couch is not affiliated with or endorsed by either.
+
+## Licence
+
+Couch is free software under GPL-3.0-or-later; see [LICENSE](LICENSE).

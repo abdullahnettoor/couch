@@ -42,7 +42,7 @@ Couch needs an updater: Sparkle, or Electron's `autoUpdater` with a feed. It als
 
 - Planning notes (`.issues/`, `.wayfinder/`) are local only and were removed from the history before the first push.
 - **Keys:** the TMDB key is injected at build time from `COUCH_TMDB_TOKEN` and isn't committed. Keep it out of public builds' logs, or use a per-user key.
-- **Personal paths:** check the repo for personal paths and machine names in docs and issues.
+- **Personal paths:** the tracked files were checked for personal paths, addresses and machine names; keep them out of new docs and tests (use `~/…`, `192.168.1.20` or `<your Mac's IP>`).
 
 ## Other platforms
 

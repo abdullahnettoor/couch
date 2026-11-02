@@ -1,6 +1,9 @@
 import { describe, expect, test } from "vite-plus/test";
 import { fakePage } from "../../../web/page-test-helpers.ts";
+import { MemoryStore } from "../../../ports/store.ts";
+import { enabledAddons, readChoices } from "../../../web/addon.ts";
 import { ADBLOCK } from "./adblock.ts";
+import { YOUTUBE_ADDONS } from "./index.ts";
 import browse from "./fixtures/browse.json" with { type: "json" };
 import player from "./fixtures/player.json" with { type: "json" };
 import search from "./fixtures/search.json" with { type: "json" };
@@ -24,6 +27,11 @@ async function fetched(url: string, v: unknown) {
 describe("ad blocker add-on", () => {
   test("is off by default", () => {
     expect(ADBLOCK).toMatchObject({ id: "adblock", label: "Ad blocker", defaultOn: false });
+  });
+
+  test("a fresh Store does not turn it on", () => {
+    const enabled = enabledAddons(YOUTUBE_ADDONS, readChoices(new MemoryStore(), "youtube"));
+    expect(enabled.map((a) => a.id)).not.toContain("adblock");
   });
 
   test("player response: ad lists emptied, everything else unchanged", () => {

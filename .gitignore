@@ -31,3 +31,6 @@ native/mpv-embed/*.node
 # Planning and tickets stay local (not pushed)
 .issues/
 .wayfinder/
+
+# Cache from the maintainer's own graft CLI
+graft/
