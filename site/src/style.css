@@ -253,6 +253,22 @@ html.intro.intro-now .lamp, html.intro.intro-now .hero-copy > :not(.mark) { anim
 .ticks li::before { content: ""; position: absolute; left: 2px; top: .5em; width: 12px; height: 7px; border-left: 2px solid var(--amber); border-bottom: 2px solid var(--amber); transform: rotate(-45deg); }
 .demo { position: relative; padding-bottom: 20px; }
 .demo .tv { width: 100%; }
+.copy > .more-apps { margin-top: 28px; font-size: 16px; }
+.more-apps a, .why-letter a { color: var(--amber-3); text-decoration: underline; text-decoration-color: rgba(255, 216, 154, .35); text-underline-offset: 4px; transition: color .2s, text-decoration-color .2s; }
+.more-apps a { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; font-weight: 500; }
+.more-apps a .i { width: 15px; height: 15px; transition: transform .38s var(--ease); }
+.more-apps a:hover { color: #fff; } .more-apps a:hover .i { transform: translateX(3px); }
+.why-letter a:hover { color: #fff; text-decoration-color: #fff; }
+
+/* Why I made Couch (ticket 143): a short letter in the maker's voice, signed, between Setup and Download */
+.why-in { max-width: 680px; }
+.why .eyebrow { text-wrap: wrap; margin-bottom: var(--head-gap); }
+.why-letter { display: grid; gap: 1.05em; font-size: clamp(19px, 1.7vw, 22px); line-height: 1.6; letter-spacing: -.008em; color: var(--t2); }
+.why-letter p { margin: 0; }
+.why-letter p:first-child { color: var(--t1); }
+.why-sign { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 24px; margin-top: var(--head-gap); padding-top: var(--head-gap); border-top: 1px solid var(--line); }
+.why-sign > p { margin: 0; font-size: 18px; font-weight: 500; letter-spacing: -.01em; }
+.why-sign .social { margin: 0; }
 
 /* The Remote (#how, ticket 143): a head, then the stage (the steps beside a big Screen with the phone in front of
    its lower-right corner), then the ticks. From 900 px with motion and script the stage pins (sticky) while

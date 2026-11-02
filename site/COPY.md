@@ -99,6 +99,7 @@ The QR caption remains conditional on the sequence showing its QR state. Avoid �
   - Netflix opens its own website on the Screen. Sign in there, then use the Remote to move the focus ring and choose what to watch.
   - Continue watching on Home brings unfinished titles back within reach. Netflix manages its own resume position.
 - Caption: **App marks belong to their owners. Couch is not affiliated with or endorsed by Netflix or YouTube.**
+- Closing line (ticket 143, Addendum 4): **More Apps are welcome. Add one →** ("Add one" links to the Couch repo's CONTRIBUTING.md, "Add a web App": `ADD_APP_URL` in `src/config.ts`; the arrow is a drawn icon).
 
 Do not call this “YouTube TV” (the separate paid service). Do not promise Netflix quality, resolution, access or a Couch-managed Netflix resume position.
 
@@ -200,6 +201,20 @@ Do not shorten this to “nothing leaves your Mac”, “fully offline” or “
 - Body: Use the Remote to choose YouTube, Netflix or the Library. Press OK. Make yourself comfortable.
 
 Do not name an installer format. Requirements and first-open security steps remain in the download card; service sign-ins remain in Apps and FAQ.
+
+## 7b. Why I made Couch (`#why`)
+
+The user's own words, approved as written (ticket 143, Addendum 4). Do not edit them; they are the one place the page says "I". Between Setup and Download, signed with the name and the social icons from `SOCIAL` (no photo).
+
+- Heading (set as the section's small label): **Why I made Couch**
+- Letter:
+  - I bought a monitor for work. A TV as well didn't make sense, so my first thought was a streaming stick, so the family could watch on the monitor in the evenings.
+  - Then I looked at my MacBook, sitting idle every evening. Why not let it be the TV, with our phones as the remote?
+  - So I built Couch. It brings YouTube, Netflix and our own videos to one calm home screen.
+  - I only have accounts for those, so I built Couch so that more Apps can be added. If your favourite service is missing, you're welcome to **add it** (link: CONTRIBUTING.md, "Add a web App", `ADD_APP_URL`).
+- Signature: **— Abdullah**, then the social icons (list name "Abdullah elsewhere").
+
+"the remote" and "home screen" stay lower-case here: it is the maker's story, not product UI.
 
 ## 8. Download (`#download`)
 

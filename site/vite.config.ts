@@ -1,12 +1,12 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
-import { GUMROAD_URL, GITHUB_URL, RELEASES_URL, SITE_URL, INTRO_MODE, SOCIAL, type IntroMode, type SocialLink } from "./src/config.ts";
+import { GUMROAD_URL, GITHUB_URL, RELEASES_URL, SITE_URL, ADD_APP_URL, INTRO_MODE, SOCIAL, type IntroMode, type SocialLink } from "./src/config.ts";
 import { home, install, remote, shelf, sprite } from "./src/mocks.ts";
 import { introHead, introSvg, wordmarkSvg } from "./src/brand/wordmark.ts";
 import { slots, type Slot, type SlotName } from "./src/slots.ts";
 
-const values: Record<string, string> = { GUMROAD_URL, GITHUB_URL, RELEASES_URL, SITE_URL };
+const values: Record<string, string> = { GUMROAD_URL, GITHUB_URL, RELEASES_URL, SITE_URL, ADD_APP_URL };
 const introMode = (process.env.COUCH_INTRO_MODE || INTRO_MODE) as IntroMode;
 if (introMode !== "sequence" && introMode !== "logo-only") throw new Error(`Unknown intro mode "${introMode}" (sequence or logo-only)`);
 const shots = resolve(import.meta.dirname, "src/shots");
@@ -38,15 +38,15 @@ const SOCIAL_ICONS: Record<NonNullable<SocialLink["icon"]>, string> = {
   youtube: `<path d="M164.44,121.34l-48-32A8,8,0,0,0,104,96v64a8,8,0,0,0,12.44,6.66l48-32a8,8,0,0,0,0-13.32ZM120,145.05V111l25.58,17ZM234.33,69.52a24,24,0,0,0-14.49-16.4C185.56,39.88,131,40,128,40s-57.56-.12-91.84,13.12a24,24,0,0,0-14.49,16.4C19.08,79.5,16,97.74,16,128s3.08,48.5,5.67,58.48a24,24,0,0,0,14.49,16.41C69,215.56,120.4,216,127.34,216h1.32c6.94,0,58.37-.44,91.18-13.11a24,24,0,0,0,14.49-16.41c2.59-10,5.67-28.22,5.67-58.48S236.92,79.5,234.33,69.52Zm-15.49,113a8,8,0,0,1-4.77,5.49c-31.65,12.22-85.48,12-86,12H128c-.54,0-54.33.2-86-12a8,8,0,0,1-4.77-5.49C34.8,173.39,32,156.57,32,128s2.8-45.39,5.16-54.47A8,8,0,0,1,41.93,68c30.52-11.79,81.66-12,85.85-12h.27c.54,0,54.38-.18,86,12a8,8,0,0,1,4.77,5.49C221.2,82.61,224,99.43,224,128S221.2,173.39,218.84,182.47Z"/>`,
 };
 
-/** The footer's social links, icons only: one item per entry in SOCIAL (src/config.ts); no list at all when it is empty. */
-function social(links: readonly SocialLink[]): string {
+/** Social links, icons only: one item per entry in SOCIAL (src/config.ts); no list at all when it is empty. */
+function social(links: readonly SocialLink[], name: string): string {
   if (!links.length) return "";
   const item = (l: SocialLink) => {
     const label = esc(l.label);
     const inner = l.icon ? `<svg class="i" viewBox="0 0 256 256" aria-hidden="true" fill="currentColor">${SOCIAL_ICONS[l.icon]}</svg>` : `<span>${label}</span>`;
     return `<li><a href="${esc(l.href)}" rel="noopener me"${l.icon ? ` aria-label="${label}" title="${label}"` : ""}>${inner}</a></li>`;
   };
-  return `<ul class="social" aria-label="Elsewhere">${links.map(item).join("")}</ul>`;
+  return `<ul class="social" aria-label="${esc(name)}">${links.map(item).join("")}</ul>`;
 }
 
 function img(name: string, slot: Slot, file: string): string {
@@ -87,7 +87,8 @@ const sitePlugin = (): Plugin => ({
         .replace("{{couch-sprite}}", sprite())
         .replace("{{wordmark:nav}}", wordmarkSvg({ id: "wm-nav", attrs: 'class="wm" width="157" height="20"' }))
         .replace("{{wordmark:foot}}", wordmarkSvg({ id: "wm-foot", attrs: 'class="wm" width="157" height="20"', title: "Couch" }))
-        .replace("{{social}}", social(SOCIAL))
+        .replace("{{social}}", social(SOCIAL, "Elsewhere"))
+        .replace("{{social:why}}", social(SOCIAL, "Abdullah elsewhere"))
         .replace("{{intro:svg}}", introSvg())
         .replace("{{intro:head}}", `<script>${introHead(introMode)}</script>`)
         .replace("{{mock:shelf}}", shelf())
