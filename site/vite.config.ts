@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import { GUMROAD_URL, GITHUB_URL, RELEASES_URL, SITE_URL } from "./src/config.ts";
+import { home, remote, shelf, sprite } from "./src/mocks.ts";
 import { slots, type Slot, type SlotName } from "./src/slots.ts";
 
 const values: Record<string, string> = { GUMROAD_URL, GITHUB_URL, RELEASES_URL, SITE_URL };
@@ -14,6 +15,15 @@ function fileFor(name: string, slot: Slot): string | null {
   }
   return slot.file;
 }
+
+/** The CSS-built stand-ins for slots that have no picture yet: Couch's real UI (src/couch-ui/), see src/mocks.ts. */
+const mocks: Record<string, (alt: string) => string> = {
+  "hero-screen": (alt) => home({ alt, layout: "empty", focus: "youtube", drift: true }),
+  "hero-remote": (alt) => remote(alt, false),
+  "remote-screen": (alt) => home({ alt, layout: "empty", focus: "netflix", qr: true }),
+  "remote-phone": (alt) => remote(alt, true),
+  "apps-screen": (alt) => home({ alt, layout: "film", focus: "youtube" }),
+};
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
@@ -36,12 +46,17 @@ const sitePlugin = (): Plugin => ({
     handler(html) {
       const used = new Set<string>();
       const out = html
-        .replace(/<!--mock:([\w-]+)-->([\s\S]*?)<!--\/mock-->/g, (_m, name: string, mock: string) => {
+        .replace(/<!--mock:([\w-]+)-->([\s\S]*?)<!--\/mock-->/g, (_m, name: string) => {
           used.add(name);
           const slot = slotOf(name);
           const file = fileFor(name, slot);
-          return file ? img(name, slot, file) : mock;
+          if (file) return img(name, slot, file);
+          const build = mocks[name];
+          if (!build) throw new Error(`Slot "${name}" has no file and no mock builder in vite.config.ts`);
+          return build(slot.alt);
         })
+        .replace("{{couch-sprite}}", sprite())
+        .replace("{{mock:shelf}}", shelf())
         .replace(/\{\{slot:([\w-]+)\}\}/g, (_m, name: string) => {
           used.add(name);
           const slot = slotOf(name);

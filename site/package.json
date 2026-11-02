@@ -7,6 +7,7 @@
     "dev": "vite --port 5173",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 4173",
+    "sync:couch": "node scripts/sync-couch-ui.mjs",
     "deploy": "pnpm build && wrangler deploy"
   },
   "devDependencies": {
@@ -17,5 +18,6 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
     "wrangler": "^4.156.0"
-  }
+  },
+  "license": "GPL-3.0-or-later"
 }

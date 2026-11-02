@@ -1,3 +1,5 @@
+import "./couch-ui/screen.css";
+import "./couch-ui/remote.css";
 import "./style.css";
 
 const motionQuery = matchMedia("(prefers-reduced-motion: reduce)");
@@ -54,16 +56,21 @@ settleTarget(location.hash);
 
 // The Remote sequence: finite, ends connected. data-stage drives the visuals (see style.css).
 const seq = document.querySelector<HTMLElement>("[data-seq]");
-const seqHasMock = !!seq?.querySelector(".mock-pair");
+const seqHasMock = !!seq?.querySelector(".h-qr");
 const seqSteps = [...document.querySelectorAll<HTMLButtonElement>("[data-go]")];
 const replay = document.querySelector<HTMLButtonElement>("[data-replay]");
-const stageTimes = [0, 2200, 1900, 1500]; // wait before stages 1..4 (index 0 unused)
+const stageTimes = [0, 2200, 1900, 700]; // wait before stages 2..4 (index n-1); the press is held a beat so it reads
 let seqTimers: number[] = [];
 let seqStarted = false;
 
 const clearSeq = () => { seqTimers.forEach(clearTimeout); seqTimers = []; };
+const seqTiles = seq ? [...seq.querySelectorAll<HTMLElement>(".cu .h-app")] : [];
+const seqRight = seq?.querySelector<HTMLElement>(".cr .dir.r");
 const setStage = (n: number) => {
   seq?.setAttribute("data-stage", String(n));
+  // Couch's own states: the highlight is the .focused class (its transition does the move), the press is .is-active on the D-pad's Right.
+  seqTiles.forEach((t) => t.classList.toggle("focused", t.dataset.id === (n === 4 ? "netflix" : "youtube")));
+  seqRight?.classList.toggle("is-active", n === 3);
   seqSteps.forEach((b) => (Number(b.dataset.go) === n ? b.setAttribute("aria-current", "step") : b.removeAttribute("aria-current")));
 };
 const playSeq = () => {
@@ -76,7 +83,7 @@ const endSeq = () => { clearSeq(); setStage(4); };
 
 if (seq && seqHasMock) {
   if (replay) replay.hidden = false;
-  seqSteps.forEach((b) => b.addEventListener("click", () => { clearSeq(); setStage(Number(b.dataset.go)); }));
+  seqSteps.forEach((b) => b.addEventListener("click", () => { seqStarted = true; clearSeq(); setStage(Number(b.dataset.go)); }));
   replay?.addEventListener("click", () => { if (reduced()) { clearSeq(); setStage(1); } else playSeq(); });
   new IntersectionObserver((entries, io) => {
     if (!entries.some((e) => e.isIntersecting) || seqStarted) return;
@@ -86,23 +93,32 @@ if (seq && seqHasMock) {
   }, { threshold: 0.5 }).observe(seq);
 }
 
-// Apps mock: one pass of the focus across the tiles, then it rests on the first.
-const apps = document.querySelector<HTMLElement>(".mock-apps");
-let appsTimers: number[] = [];
-if (apps) {
-  const tiles = [...apps.querySelectorAll<HTMLElement>(".a-tile")];
-  const focus = (i: number) => tiles.forEach((t, n) => t.classList.toggle("focus", n === i));
-  const stopApps = () => { appsTimers.forEach(clearTimeout); appsTimers = []; focus(0); };
-  const runApps = () => [1, 2, 0].forEach((i, k) => appsTimers.push(window.setTimeout(() => focus(i), 1400 * (k + 1))));
+// Focus passes: the highlight moves across a row once, as Couch's D-pad would move it, then rests on the first.
+// The move itself is Couch's own .focused transition (src/couch-ui/screen.css); this only toggles the class.
+const passes: Array<[string, string]> = [
+  ['[data-demo="apps"] .cu .h-row', ".h-app:not(.h-film)"],
+  ['[data-pass="shelf"] .shelf-cu', ".lib-card.wide:not(:first-child)"],
+];
+let passTimers: number[] = [];
+const passRows = passes
+  .map(([root, items]) => {
+    const host = document.querySelector<HTMLElement>(root);
+    return host ? { host, items: [...host.querySelectorAll<HTMLElement>(items)] } : undefined;
+  })
+  .filter((p): p is { host: HTMLElement; items: HTMLElement[] } => !!p && p.items.length > 1);
+const focusAt = (items: HTMLElement[], i: number) => items.forEach((t, n) => t.classList.toggle("focused", n === i));
+const stopPasses = () => { passTimers.forEach(clearTimeout); passTimers = []; passRows.forEach((p) => focusAt(p.items, 0)); };
+for (const p of passRows) {
   let ran = false;
   new IntersectionObserver((entries, io) => {
     if (!entries.some((e) => e.isIntersecting) || ran) return;
     ran = true;
     io.disconnect();
-    if (!reduced()) runApps();
-  }, { threshold: 0.5 }).observe(apps);
-  motionQuery.addEventListener("change", () => { if (reduced()) stopApps(); });
+    if (reduced()) return;
+    [1, 2, 0].forEach((i, k) => passTimers.push(window.setTimeout(() => focusAt(p.items, i % p.items.length), 1400 * (k + 1))));
+  }, { threshold: 0.5 }).observe(p.host);
 }
+motionQuery.addEventListener("change", () => { if (reduced()) stopPasses(); });
 
 // Hero phone: a light parallax against the TV.
 const ph = document.querySelector<HTMLElement>("[data-parallax]");
