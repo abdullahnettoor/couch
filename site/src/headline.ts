@@ -28,13 +28,18 @@ export function headline(reduced: () => boolean, onChange: (fn: () => void) => (
     return s;
   });
   const items = [real, ...alts];
-  // a phrase wider than the column (only on the narrowest phones) is scaled to fit, not wrapped
-  const fit = new Map<HTMLElement, number>();
+  // a phrase wider than the column (only on the narrowest phones) is scaled to fit, not wrapped. The fit is the
+  // span's own `scale`, apart from the animated transform, so a resize applies at once to whatever is showing;
+  // measured again once the web font is in (it changes the phrases' widths).
   const measure = () => {
     const room = h1.parentElement!.clientWidth;
-    for (const el of alts) fit.set(el, Math.min(1, room / Math.max(1, el.offsetWidth)));
+    for (const el of alts) {
+      const fit = Math.min(1, room / Math.max(1, el.offsetWidth));
+      el.style.scale = fit < 1 ? fit.toFixed(4) : "";
+    }
   };
   measure();
+  document.fonts?.ready.then(measure);
 
   const anims = new Map<HTMLElement, Animation>();
   const play = (el: HTMLElement, frames: Keyframe[], ms: number, easing: string) => {
@@ -42,24 +47,25 @@ export function headline(reduced: () => boolean, onChange: (fn: () => void) => (
     anims.set(el, el.animate(frames, { duration: ms, easing, fill: "forwards" }));
     old?.cancel();
   };
-  const at = (el: HTMLElement, y: number, s = 1) => `translate3d(0, ${y}em, 0) scale(${((fit.get(el) ?? 1) * s).toFixed(4)})`;
+  const at = (y: number, s = 1) => `translate3d(0, ${y}em, 0) scale(${s})`;
   let showing = 0;
   const show = (i: number) => {
     const from = items[showing]!, to = items[i]!;
     showing = i;
     h1.dataset.showing = String(i);
     play(from, [
-      { opacity: 1, filter: "blur(0)", transform: at(from, 0) },
-      { opacity: 0, filter: "blur(.09em)", transform: at(from, -0.1, 1.015) },
+      { opacity: 1, filter: "blur(0)", transform: at(0) },
+      { opacity: 0, filter: "blur(.09em)", transform: at(-0.1, 1.015) },
     ], 440, "cubic-bezier(0.4, 0, 1, 1)");
     play(to, [
-      { opacity: 0, filter: "blur(.11em)", transform: at(to, 0.12, 0.985), offset: 0 },
-      { opacity: 0, filter: "blur(.11em)", transform: at(to, 0.12, 0.985), offset: 0.26 },
-      { opacity: 1, filter: "blur(0)", transform: at(to, 0) },
+      { opacity: 0, filter: "blur(.11em)", transform: at(0.12, 0.985), offset: 0 },
+      { opacity: 0, filter: "blur(.11em)", transform: at(0.12, 0.985), offset: 0.26 },
+      { opacity: 1, filter: "blur(0)", transform: at(0) },
     ], 1040, EASE);
   };
 
-  // the turn: hold "Settle in.", then each phrase, then back to "Settle in." for good
+  // the turn: hold "Settle in.", then each phrase, then back to "Settle in." for good. It is over only once
+  // "Settle in." has fully come back; until then a switch to reduced motion still stops it at once.
   const order = [...alts.map((_, k) => k + 1), 0];
   let step = 0, timer = 0, due = 0, left = HOLD, started = false, done = false;
   const blockers = new Set<string>();
@@ -67,12 +73,16 @@ export function headline(reduced: () => boolean, onChange: (fn: () => void) => (
     timer = 0;
     show(order[step]!);
     step++;
-    if (step >= order.length) return finish();
+    if (step >= order.length) {
+      h1.dataset.rotation = "returning";
+      anims.get(real)!.finished.then(() => { if (!done) finish(); }, () => {});
+      return;
+    }
     left = HOLD;
     run();
   };
   const run = () => {
-    if (!started || done || timer || blockers.size) return;
+    if (!started || done || timer || blockers.size || step >= order.length) return;
     h1.dataset.rotation = "running";
     due = performance.now() + left;
     timer = window.setTimeout(tick, left);
