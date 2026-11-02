@@ -120,10 +120,217 @@ for (const p of passRows) {
 }
 motionQuery.addEventListener("change", () => { if (reduced()) stopPasses(); });
 
-// Hero phone: a light parallax against the TV.
+// Hero: the room's light moves slower than the page (parallax), the mark a little less; the first look settles in as it arrives.
+const hero = document.querySelector<HTMLElement>(".hero");
+const room = document.querySelector<HTMLElement>("[data-room]")?.parentElement;
+const lamp = document.querySelector<HTMLElement>("[data-lamp]");
+const stage = document.querySelector<HTMLElement>("[data-stage-scroll]");
+const stageGlow = stage?.querySelector<HTMLElement>(".stage-glow");
 const ph = document.querySelector<HTMLElement>("[data-parallax]");
-const parallax = () => { ph!.style.translate = reduced() ? "" : `0 ${Math.min(60, scrollY * -0.05)}px`; };
-if (ph) addEventListener("scroll", parallax, { passive: true });
+let scrollQueued = false;
+const scrollScene = () => {
+  scrollQueued = false;
+  if (reduced()) {
+    for (const el of [room, lamp, stage, ph]) if (el) el.style.transform = "";
+    if (stageGlow) stageGlow.style.opacity = "";
+    return;
+  }
+  const y = scrollY;
+  if (y < innerHeight * 1.5) {
+    if (room) room.style.transform = `translate3d(0, ${(y * 0.35).toFixed(1)}px, 0)`;
+    if (lamp) lamp.style.transform = `translate3d(0, ${(y * 0.16).toFixed(1)}px, 0) scale(${(1 - Math.min(y, 600) / 6000).toFixed(4)})`;
+  }
+  if (stage) {
+    // 0 when the stage's top meets the bottom of the window, 1 when it reaches 35% from the top
+    const top = stage.getBoundingClientRect().top;
+    const p = Math.max(0, Math.min(1, (innerHeight - top) / (innerHeight * 0.65)));
+    const e = 1 - Math.pow(1 - p, 3);
+    stage.style.transform = `rotateX(${((1 - e) * 14).toFixed(2)}deg) translate3d(0, ${((1 - e) * 36).toFixed(1)}px, 0) scale(${(0.94 + e * 0.06).toFixed(4)})`;
+    if (stageGlow) stageGlow.style.opacity = (0.35 + e * 0.65).toFixed(3);
+    if (ph) ph.style.transform = `translate3d(0, ${((1 - e) * 40).toFixed(1)}px, 0)`;
+  }
+};
+addEventListener("scroll", () => { if (!scrollQueued) { scrollQueued = true; requestAnimationFrame(scrollScene); } }, { passive: true });
+addEventListener("resize", scrollScene, { passive: true });
+scrollScene();
+
+// The Screen in the mark "plays" only while the hero is on screen and the tab is visible.
+if (hero) {
+  let heroVisible = true;
+  const playState = () => hero.classList.toggle("paused", !heroVisible || document.hidden);
+  new IntersectionObserver((es) => { heroVisible = es.some((e) => e.isIntersecting); playState(); }).observe(hero);
+  document.addEventListener("visibilitychange", playState);
+  if (!reduced()) hero.classList.add("playing");
+}
+
+// A soft light follows the pointer in the hero, eased toward it each frame; it rests when the pointer leaves.
+const cursorGlow = document.querySelector<HTMLElement>("[data-cursor-glow]");
+const finePointer = matchMedia("(hover: hover) and (pointer: fine)");
+if (hero && cursorGlow && finePointer.matches) {
+  let tx = 0, ty = 0, x = 0, y = 0, raf = 0, placed = false;
+  const step = () => {
+    x += (tx - x) * 0.12; y += (ty - y) * 0.12;
+    cursorGlow.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
+    raf = Math.abs(tx - x) + Math.abs(ty - y) > 0.5 ? requestAnimationFrame(step) : 0;
+  };
+  hero.addEventListener("pointermove", (ev) => {
+    if (reduced()) return;
+    const r = hero.getBoundingClientRect();
+    // the room layer moves with the parallax, so place the light in its coordinates
+    const shift = room ? scrollY * 0.35 : 0;
+    tx = ev.clientX - r.left; ty = ev.clientY - r.top - shift;
+    if (!placed) { x = tx; y = ty; placed = true; }
+    hero.classList.add("pointing");
+    if (!raf) raf = requestAnimationFrame(step);
+  });
+  hero.addEventListener("pointerleave", () => hero.classList.remove("pointing"));
+}
+
+// Cards: a light under the pointer (moved with a transform) and the lift from CSS.
+if (finePointer.matches) {
+  for (const card of document.querySelectorAll<HTMLElement>(".step, .panel, .dl-card, .win")) {
+    card.classList.add("spot");
+    card.addEventListener("pointermove", (ev) => {
+      const r = card.getBoundingClientRect();
+      card.style.setProperty("--mx", `${(ev.clientX - r.left).toFixed(0)}px`);
+      card.style.setProperty("--my", `${(ev.clientY - r.top).toFixed(0)}px`);
+    });
+  }
+}
+
+// Digits that tick: the old digit lifts out, the new one rises in (Couch's ease, transform and opacity only).
+const roll = (el: HTMLElement, text: string) => {
+  if (reduced() || !el.animate) { el.textContent = text; return; }
+  const ease = "cubic-bezier(0.16, 1, 0.3, 1)";
+  el.animate([{ transform: "none", opacity: 1 }, { transform: "translateY(-45%)", opacity: 0 }], { duration: 160, easing: "ease-in" }).onfinish = () => {
+    el.textContent = text;
+    el.animate([{ transform: "translateY(45%)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 380, easing: ease });
+  };
+};
+/** Wraps the last character of a text node in a .roll span, so it can tick on its own. */
+const rollable = (host: Element | null | undefined): HTMLElement | undefined => {
+  const node = host && [...host.childNodes].find((n) => n.nodeType === 3 && /\d$/.test(n.textContent ?? ""));
+  if (!node) return undefined;
+  const t = node.textContent!;
+  const span = document.createElement("span");
+  span.className = "roll";
+  span.textContent = t.slice(-1);
+  node.textContent = t.slice(0, -1);
+  node.parentNode!.insertBefore(span, node.nextSibling);
+  return span;
+};
+
+// First look: one finite pass with the Remote. Each press is the phone's own key press (.is-active, Couch's .12s),
+// the highlight is Couch's .focused lift travelling across the tiles; the clock ticks over a minute; the volume goes up.
+if (stage) {
+  const tiles = [...stage.querySelectorAll<HTMLElement>(".cu .h-app")];
+  const key = (sel: string) => stage.querySelector<HTMLElement>(`.cr ${sel}`);
+  const clocks = [...stage.querySelectorAll(".cu .h-clock .t, .cu .topbar .clock")].map(rollable).filter((x): x is HTMLElement => !!x);
+  const vol = stage.querySelector<HTMLElement>(".cr .vpill b");
+  let at = tiles.findIndex((t) => t.classList.contains("focused"));
+  const press = (el: HTMLElement | null, then: () => void) => {
+    el?.classList.add("is-active");
+    setTimeout(() => { el?.classList.remove("is-active"); then(); }, 160);
+  };
+  const move = (d: number) => () => press(key(d > 0 ? ".dir.r" : ".dir.l"), () => {
+    at = Math.max(0, Math.min(tiles.length - 1, at + d));
+    tiles.forEach((t, i) => t.classList.toggle("focused", i === at));
+  });
+  const volUp = () => press(key('.vpill button[data-cmd="volUp"]'), () => { if (vol) { const n = Number(vol.textContent) + 1; roll(vol, String(n)); } });
+  const tick = () => clocks.forEach((c) => roll(c, String((Number(c.textContent) + 1) % 10)));
+  const script: Array<[number, () => void]> = [[700, move(1)], [1300, move(1)], [1200, tick], [600, move(-1)], [1300, move(-1)], [1300, volUp], [700, volUp]];
+  let ran = false;
+  new IntersectionObserver((entries, io) => {
+    if (!entries.some((e) => e.isIntersecting) || ran) return;
+    ran = true;
+    io.disconnect();
+    if (reduced()) return;
+    let t = 0;
+    for (const [wait, fn] of script) { t += wait; setTimeout(() => { if (!reduced()) fn(); }, t); }
+  }, { threshold: 0.55 }).observe(stage);
+}
+
+// Nav: a small light slides under the link you point at, and rests under the section you are reading.
+const navBar = document.querySelector<HTMLElement>(".nav nav");
+if (navBar) {
+  const links = [...navBar.querySelectorAll<HTMLAnchorElement>('a[href^="#"]')];
+  const ind = document.createElement("i");
+  ind.className = "nav-ind";
+  ind.setAttribute("aria-hidden", "true");
+  navBar.append(ind);
+  let current: HTMLAnchorElement | undefined;
+  const show = (a?: HTMLAnchorElement) => {
+    if (!a) { ind.style.opacity = "0"; return; }
+    ind.style.transform = `translateX(${(a.offsetLeft + a.offsetWidth / 2).toFixed(0)}px)`;
+    ind.style.opacity = "1";
+  };
+  links.forEach((a) => a.addEventListener("pointerenter", () => show(a)));
+  navBar.addEventListener("pointerleave", () => show(current));
+  const sections = links.map((a) => document.getElementById(a.hash.slice(1))).filter((x): x is HTMLElement => !!x);
+  const seen = new Map<Element, boolean>();
+  const spy = new IntersectionObserver((es) => {
+    es.forEach((e) => seen.set(e.target, e.isIntersecting));
+    const id = sections.find((s) => seen.get(s))?.id;
+    current = links.find((a) => a.hash === `#${id}`);
+    links.forEach((a) => a.classList.toggle("is-current", a === current));
+    if (!navBar.matches(":hover")) show(current);
+  }, { rootMargin: "-45% 0px -50% 0px" });
+  sections.forEach((s) => spy.observe(s));
+}
+
+// FAQ: let the answer fade before the row closes (opening is CSS).
+for (const d of document.querySelectorAll<HTMLDetailsElement>(".acc details")) {
+  d.querySelector("summary")!.addEventListener("click", (ev) => {
+    if (!d.open || reduced()) return;
+    ev.preventDefault();
+    d.classList.add("closing");
+    setTimeout(() => { d.open = false; d.classList.remove("closing"); }, 200);
+  });
+}
+
+// Couch for Windows: one anonymous count. POST /api/demand/windows (worker/index.ts) with no body;
+// localStorage remembers the tap so this browser counts once. No cookies.
+const DEMAND_KEY = "couch:demand:windows";
+const demandBtn = document.querySelector<HTMLButtonElement>('[data-demand="windows"]');
+const demandCard = demandBtn?.closest<HTMLElement>("[data-demand-card]");
+const done = demandCard?.querySelector<HTMLElement>("[data-demand-confirmation]");
+const fail = demandCard?.querySelector<HTMLElement>("[data-demand-error]");
+const live = demandCard?.querySelector<HTMLElement>("[data-demand-live]");
+const remembered = () => { try { return localStorage.getItem(DEMAND_KEY) === "1"; } catch { return false; } };
+const showCounted = (announce: boolean) => {
+  if (!demandBtn || !done) return;
+  const hadFocus = document.activeElement === demandBtn;
+  demandBtn.hidden = true;
+  done.hidden = false;
+  if (fail) fail.hidden = true;
+  if (announce) {
+    demandCard!.classList.add("counted");
+    if (live) live.textContent = done.textContent;
+    if (hadFocus) done.focus({ preventScroll: true });
+  }
+};
+if (demandBtn && done) {
+  if (remembered()) showCounted(false);
+  demandBtn.addEventListener("click", async () => {
+    if (demandBtn.getAttribute("aria-busy") === "true") return;
+    if (remembered()) { showCounted(true); return; }
+    demandBtn.setAttribute("aria-busy", "true");
+    if (fail) fail.hidden = true;
+    let ok = false;
+    try {
+      const res = await fetch("/api/demand/windows", { method: "POST", credentials: "omit", cache: "no-store" });
+      ok = res.ok;
+    } catch { ok = false; }
+    demandBtn.removeAttribute("aria-busy");
+    if (ok) {
+      try { localStorage.setItem(DEMAND_KEY, "1"); } catch { /* private mode: still counted once */ }
+      showCounted(true);
+    } else if (fail) {
+      fail.hidden = false;
+      if (live) live.textContent = fail.textContent;
+    }
+  });
+}
 
 // Reduced motion can change at any time: settle everything now; going back to motion needs no reset.
 motionQuery.addEventListener("change", () => {
@@ -132,8 +339,11 @@ motionQuery.addEventListener("change", () => {
     settleAll();
     document.documentElement.classList.remove("reveal-ready");
     if (seq && seqHasMock) endSeq();
-    if (ph) parallax();
-  } else if (revealObserver) {
-    document.documentElement.classList.add("reveal-ready");
+    scrollScene();
+    hero?.classList.remove("playing");
+  } else {
+    if (revealObserver) document.documentElement.classList.add("reveal-ready");
+    hero?.classList.add("playing");
+    scrollScene();
   }
 });

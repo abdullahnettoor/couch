@@ -65,10 +65,14 @@
   <main id="main">
     <!-- 2. Hero -->
     <section class="hero" id="top">
-      <div class="aurora" aria-hidden="true"></div>
+      <div class="room" aria-hidden="true"><div class="room-glow" data-room></div><div class="room-cursor" data-cursor-glow></div></div>
       <div class="wrap hero-copy">
         <a class="pill" href="#download"><span class="dot"></span>Early release · Free and open source<svg class="i" viewBox="0 0 16 16"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        <h1>Settle in with <em class="grad">Couch.</em></h1>
+        <div class="lamp" aria-hidden="true" data-lamp>
+          <img src="/src/shots/couch-glow.webp" srcset="/src/shots/couch-glow-480.webp 480w, /src/shots/couch-glow.webp 832w" sizes="(max-width: 700px) 62vw, 320px" width="832" height="688" alt="" fetchpriority="high" decoding="async" />
+          <i class="lamp-film"></i><i class="lamp-on"></i>
+        </div>
+        <h1><span class="h1-lead">Settle in with</span> <em class="grad wordmark">Couch.</em></h1>
         <p class="lead">A calm home screen for your TV, with YouTube, Netflix and your own videos. Your phone is the Remote.</p>
         <div class="cta">
           <a class="btn btn-primary btn-lg" href="{{GUMROAD_URL}}" rel="noopener">Get Couch, pay what you want</a>
@@ -77,10 +81,15 @@
         <ul class="meta" aria-label="Requirements">
           <li>Mac today · macOS 14+</li><li>Apple silicon</li><li>GPL-3.0-or-later</li><li>No Couch account</li>
         </ul>
+        <a class="win-chip" href="#windows">On Windows? Tell us you'd use it<svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3.5 8.5 8 13l4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
       </div>
+    </section>
 
-      <div class="wrap stage">
-        <div class="device tv" data-tilt>
+    <!-- The product, as it looks today: Couch's real Home and Remote (src/couch-ui/) -->
+    <section class="first-look" aria-label="Couch on the Screen, with the Remote">
+      <div class="wrap stage" data-stage-scroll>
+        <div class="stage-glow" aria-hidden="true"></div>
+        <div class="device tv">
           <div class="tv-screen slot" data-slot="hero-screen">
             <!--mock:hero-screen--><!--/mock-->
           </div>
@@ -131,7 +140,7 @@
       <div class="wrap split flip">
         <div class="copy reveal">
           <p class="eyebrow">Apps</p>
-          <h2 id="apps-h">Familiar Apps. Room to <em class="grad">relax.</em></h2>
+          <h2 id="apps-h">The Apps you know, together on <em class="grad">Home.</em></h2>
           <p>Open YouTube or Netflix from Home, then choose something with the Remote. These are the services' own websites, with your own accounts. Couch does not include subscriptions or unlock extra content.</p>
           <ul class="ticks">
             <li>YouTube has its familiar TV layout. To sign in, enter the code from the Screen at youtube.com/activate on your phone.</li>
@@ -158,7 +167,7 @@
           <ul class="ticks">
             <li>The built-in player handles your videos, with subtitles and volume on the Remote.</li>
             <li>Continue watching on Home keeps unfinished videos close by.</li>
-            <li>Optional film and show details come from TMDB. Without online details, Couch uses frames from your videos, or a colour while they load.</li>
+            <li>Optional film and show details come from TMDB. Where no saved details are available, Couch uses frames from your videos, or a colour while they load.</li>
           </ul>
         </div>
         <div class="demo reveal" data-demo="library">
@@ -197,7 +206,7 @@
             <li><strong>Your phone, over home Wi-Fi.</strong> The Remote page is served by your Mac on the local network, not by an internet service.</li>
           </ul>
           <p>Couch does not check for updates or send data to a Couch server.</p>
-          <p>The Windows button is not connected yet. When enabled, it will record only an anonymous count: no email, no cookies and no IP stored.</p>
+          <p>The Couch for Windows button adds one anonymous count on this site: no email, no cookies and no IP stored. Your browser keeps a note of the tap, so the same browser counts once.</p>
         </div>
       </div>
     </section>
@@ -253,13 +262,18 @@
             <p>Try opening Couch once. If macOS says it cannot check the app, and you trust your download, go to System Settings → Privacy &amp; Security → Open Anyway, then confirm Open. On macOS 15 and later, right-click → Open is not enough.</p>
           </div>
         </div>
-        <div class="dl-card reveal" aria-labelledby="windows-h">
-          <h3 id="windows-h">Couch for Windows</h3>
-          <p class="lead">Not yet. Would you use it? Help us decide what to build next.</p>
-          <button class="btn btn-primary btn-lg" type="button" data-demand="windows" aria-describedby="windows-status windows-privacy">I'd use Couch for Windows</button>
-          <p class="note" id="windows-status">Demand counting is not connected yet.</p>
-          <p class="note" id="windows-privacy">Anonymous count when enabled. No email, no cookies, no IP stored.</p>
-          <p role="status" data-demand-confirmation hidden>Counted. Thank you.</p>
+        <div class="win reveal" id="windows" aria-labelledby="windows-h" data-demand-card>
+          <div class="win-copy">
+            <h3 id="windows-h">Couch for Windows</h3>
+            <p>Not yet. Tap if you'd use it, so we know what to build next.</p>
+            <p class="win-fine" id="windows-privacy">An anonymous count. No email, no cookies, no IP stored.</p>
+          </div>
+          <div class="win-act">
+            <button class="btn btn-ghost btn-lg" type="button" data-demand="windows" aria-describedby="windows-privacy"><span>I'd use Couch for Windows</span></button>
+            <p class="win-done" data-demand-confirmation tabindex="-1" hidden><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Counted. Thank you.</p>
+            <p class="win-err" data-demand-error hidden>That did not go through. Please try again in a moment.</p>
+            <p class="sr" role="status" data-demand-live></p>
+          </div>
         </div>
       </div>
     </section>
@@ -277,7 +291,7 @@
           <details><summary>How does Netflix work?</summary><p>Couch opens Netflix's own website inside the Screen. Sign in with your Netflix account and use the Remote to browse. Your subscription and Netflix's website determine what you can watch and how it plays on a Mac.</p></details>
           <details><summary>Why does macOS warn me?</summary><p>Couch is an early release and is not yet notarised by Apple. Try opening Couch once. If macOS says it cannot check the app, and you trust your download, go to System Settings → Privacy &amp; Security → Open Anyway, then confirm Open. On macOS 15 and later, right-click → Open is not enough. macOS then remembers the exception.</p></details>
           <details><summary>Can I read the source?</summary><p>Yes. Couch is licensed under GPL-3.0-or-later. Read the code on <a href="{{GITHUB_URL}}" rel="noopener">GitHub</a>, change it or build it yourself.</p></details>
-          <details><summary>Will Couch come to Windows?</summary><p>Windows is being considered, not promised. The Couch for Windows button above is a place to register interest once counting is connected. Linux is not supported. Today, Couch needs Apple silicon and macOS 14 or later. The Remote runs in a phone browser; Android with Chrome is what we test.</p></details>
+          <details><summary>Will Couch come to Windows?</summary><p>Windows is being considered, not promised. If you'd use it, tap Couch for Windows above: it adds one anonymous count. Linux is not supported. Today, Couch needs Apple silicon and macOS 14 or later. The Remote runs in a phone browser; Android with Chrome is what we test.</p></details>
         </div>
       </div>
     </section>

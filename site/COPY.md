@@ -81,14 +81,14 @@ The QR caption remains conditional on the sequence showing its QR state. Avoid �
 
 ### Headline options
 
-1. **PICK — Familiar Apps. Room to relax.** Pairs recognition with the feeling of watching from the sofa.
-2. **The Apps you know, together on Home.** Explains the launcher without suggesting Couch supplies content.
+1. **Familiar Apps. Room to relax.** Pairs recognition with the feeling of watching from the sofa.
+2. **PICK (copy review, ticket 138) — The Apps you know, together on Home.** Explains the launcher without suggesting Couch supplies content.
 3. **YouTube. Netflix. Feet up.** The shortest, most relaxed version; less descriptive of Home.
 
 ### Picked copy
 
 - Eyebrow: **Apps**
-- Headline: **Familiar Apps. Room to relax.**
+- Headline: **The Apps you know, together on Home.**
 - Body: Open YouTube or Netflix from Home, then choose something with the Remote. These are the services' own websites, with your own accounts. Couch does not include subscriptions or unlock extra content.
 - Bullets:
   - YouTube has its familiar TV layout. To sign in, enter the code from the Screen at youtube.com/activate on your phone.
@@ -114,7 +114,7 @@ Do not call this “YouTube TV” (the separate paid service). Do not promise Ne
 - Bullets:
   - The built-in player handles your videos, with subtitles and volume on the Remote.
   - Continue watching on Home keeps unfinished videos close by.
-  - Optional film and show details come from TMDB. Without online details, Couch uses frames from your videos, or a colour while they load.
+  - Optional film and show details come from TMDB. Where no saved details are available, Couch uses frames from your videos, or a colour while they load.
 - Screenshot and shelf illustration accessible descriptions: see §12.
 
 No “plays every format”, codec guarantee or promise that the household's videos leave the Mac for processing.
