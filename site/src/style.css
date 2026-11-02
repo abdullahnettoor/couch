@@ -31,6 +31,9 @@
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 84px; -webkit-text-size-adjust: 100%; }
 body {
+  /* the fixed nav's pill ends 66 px down (12 px + 38 px controls + 2 × 8 px); pinned things sit below it */
+  --nav-h: 66px;
+  --pin-top: calc(var(--nav-h) + 12px);
   margin: 0; background: var(--bg); color: var(--t1);
   font: 400 17px/1.55 var(--sans); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
   overflow-x: hidden;
@@ -271,15 +274,16 @@ html.intro.intro-now .lamp, html.intro.intro-now .hero-copy > :not(.mark) { anim
 .why-sign .social { margin: 0; }
 
 /* The Remote (#how, ticket 143): a head, then the stage (the steps beside a big Screen with the phone in front of
-   its lower-right corner), then the ticks. From 900 px with motion and script the stage pins (sticky) while
-   .how-track scrolls past, and main.ts turns the scroll into the four steps; otherwise it plays once in view. */
+   its lower-right corner), then the ticks. From 900 × 740 px with motion and script the head and the stage pin
+   together (sticky, under the nav) while .how-track scrolls past, and main.ts turns the scroll into the four steps;
+   otherwise it plays once in view. */
 .how-head { display: grid; gap: var(--head-gap); margin-bottom: var(--intro-gap); }
 .how-head > p { margin: 0; color: var(--t2); font-size: 19px; max-width: 34em; }
 .how-stage { display: grid; gap: 28px; }
 .how-side { position: relative; }
 .how-ticks { margin-top: var(--intro-gap); }
-.seq { container-type: inline-size; padding-bottom: 0; }
-.seq-devices { --ph: clamp(104px, 32cqw, 176px); --over: .3; --drop: .55; position: relative; padding-right: calc(var(--ph) * var(--over)); margin-bottom: calc(var(--ph) * 19 / 9 * var(--drop)); }
+.seq { --ph: clamp(104px, 32cqw, 176px); --over: .3; --drop: .55; container-type: inline-size; padding-bottom: 0; }
+.seq-devices { position: relative; padding-right: calc(var(--ph) * var(--over)); margin-bottom: calc(var(--ph) * 19 / 9 * var(--drop)); }
 .seq .tv { width: 100%; margin: 0; }
 .seq .phone { position: absolute; right: 0; bottom: calc(var(--ph) * 19 / 9 * var(--drop) * -1); width: var(--ph); z-index: 3; }
 .seq .phone-screen { border-width: 5px; border-radius: 26px; }
@@ -293,14 +297,19 @@ html.intro.intro-now .lamp, html.intro.intro-now .hero-copy > :not(.mark) { anim
   .how-head { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: end; column-gap: clamp(40px, 6vw, 96px); }
   .how-head > p { padding-bottom: .35em; }
   .how-stage { grid-template-columns: minmax(232px, 288px) minmax(0, 1fr); gap: clamp(28px, 3.4vw, 48px); align-items: center; }
-  .seq-devices { --ph: clamp(150px, 22cqw, 188px); --over: .3; --drop: .36; }
+  .seq { --ph: clamp(150px, 22cqw, 188px); --over: .3; --drop: .36; }
+  /* the note sits under the Screen, beside the phone, rather than below everything */
+  .seq .seq-note { position: absolute; left: 0; top: calc(100% - var(--ph) * 19 / 9 * var(--drop) + 14px); margin: 0; padding-right: calc(var(--ph) * 1.15); }
   .how-ticks { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px clamp(24px, 4vw, 56px); }
 }
-/* the pinned stage: about 3.4 screens of scroll, the stage held under the nav and sized to the window's height */
-@media (min-width: 900px) and (min-height: 620px) and (prefers-reduced-motion: no-preference) and (scripting: enabled) {
+/* the pinned stage: about 3.4 screens of scroll. The head and the stage are held together under the nav (so the
+   headline is never under it) and the devices are sized to the height that is left. */
+@media (min-width: 900px) and (min-height: 740px) and (prefers-reduced-motion: no-preference) and (scripting: enabled) {
   .how-track { height: 340vh; }
-  .how-pin { position: sticky; top: 76px; height: calc(100vh - 76px); display: grid; align-content: center; }
-  .seq { justify-self: center; width: 100%; max-width: calc((100vh - 314px) * 1.88); }
+  .how-pin { position: sticky; top: var(--pin-top); height: calc(100vh - var(--pin-top)); display: flex; flex-direction: column; padding: 10px 0 12px; }
+  .how-pin > .how-head { flex: none; margin-bottom: 32px; }
+  .how-pin > .how-stage { flex: 1 1 0; min-height: 0; container-type: size; }
+  .seq { justify-self: center; width: 100%; max-width: calc((100cqh - 140px) * 1.77); }
   .seq .phone { will-change: transform; }
 }
 

@@ -64,10 +64,10 @@ document.addEventListener("click", (ev) => {
 settleTarget(location.hash);
 
 // The Remote stage (#how): four steps, ending connected. data-stage drives the visuals (see style.css).
-// From 900 px with motion (PIN, the same query as style.css) the stage is pinned and the scroll is the control:
-// the track's progress picks the step, forward and back, and a step's button scrolls to it. Native scroll only.
-// Otherwise (phones, short windows, reduced motion) it plays once when it comes into view, with Replay;
-// reduced motion shows the end at once.
+// From 900 × 740 px with motion (pinQuery, the same query as style.css) the head and the stage are pinned and the
+// scroll is the control: the track's progress picks the step, forward and back, and a step's button scrolls to it.
+// Native scroll only. Otherwise (phones, short windows, reduced motion) it plays once when the devices and the
+// step list are both in view, with Replay; reduced motion shows the end at once.
 const seq = document.querySelector<HTMLElement>("[data-seq]");
 const seqHasMock = !!seq?.querySelector(".h-qr");
 const seqSteps = [...document.querySelectorAll<HTMLButtonElement>("[data-go]")];
@@ -77,7 +77,8 @@ const pin = track?.firstElementChild as HTMLElement | null | undefined;
 const rail = document.querySelector<HTMLElement>(".seq-rail");
 const railFill = rail?.querySelector<HTMLElement>("[data-rail]");
 const seqPhone = seq?.querySelector<HTMLElement>(".phone");
-const pinQuery = matchMedia("(min-width: 900px) and (min-height: 620px) and (prefers-reduced-motion: no-preference) and (scripting: enabled)");
+const seqDevices = seq?.querySelector<HTMLElement>(".seq-devices");
+const pinQuery = matchMedia("(min-width: 900px) and (min-height: 740px) and (prefers-reduced-motion: no-preference) and (scripting: enabled)");
 const stageTimes = [0, 2200, 1900, 700]; // wait before stages 2..4 (index n-1); the press is held a beat so it reads
 let seqTimers: number[] = [];
 let seqStarted = false;
@@ -120,29 +121,46 @@ const placeRail = () => {
   rail.style.height = `${(end - top).toFixed(1)}px`;
 };
 
-/** How far the pinned stage is through its track: 0 as it pins, 1 as it lets go. */
-const trackSpan = () => {
-  const r = track!.getBoundingClientRect();
-  const top = parseFloat(getComputedStyle(pin!).top) || 0;
-  return { r, top, len: Math.max(1, track!.offsetHeight - pin!.offsetHeight) };
+// Where each step starts along the track. The pairing (1 → 2) and the highlight's move (3 → 4) get the longer
+// stretches before them; the end (4) holds only briefly before the stage lets go.
+const STEP_AT = [0, 0.3, 0.55, 0.84];
+/**
+ * The track's geometry, measured only when layout changes (ResizeObserver), never on a scroll frame:
+ * start is the scrollY at which the stage pins (p = 0), len the scroll it stays pinned for (p 0 → 1).
+ */
+let geo = { start: 0, len: 1 };
+let lastP = NaN;
+const measureTrack = () => {
+  if (!pinned || !track || !pin) return;
+  const top = parseFloat(getComputedStyle(pin).top) || 0;
+  geo = { start: track.getBoundingClientRect().top + scrollY - top, len: Math.max(1, track.offsetHeight - pin.offsetHeight) };
+  lastP = NaN;
 };
-const STEP_AT = [0, 0.25, 0.5, 0.75]; // where each step starts along the track
 let stageQueued = false;
 const stageScroll = () => {
   stageQueued = false;
   if (!pinned) return;
-  const { r, top, len } = trackSpan();
-  const p = Math.max(0, Math.min(1, (top - r.top) / len));
+  const p = Math.max(0, Math.min(1, (scrollY - geo.start) / geo.len));
+  if (p === lastP) return; // before the pin, after it lets go, or no move at all: nothing to write
+  lastP = p;
   let n = 1;
   STEP_AT.forEach((at, i) => { if (p >= at) n = i + 1; });
   setStage(n);
   setRail(Math.min(1, p / STEP_AT[3]!));
-  // the phone comes forward a little as the steps advance (depth only, transform only)
-  if (seqPhone) seqPhone.style.transform = `translate3d(0, ${((1 - p) * 26).toFixed(1)}px, 0)`;
+  // the phone comes forward a little as the steps advance (depth only, transform only), never below the stage
+  if (seqPhone) seqPhone.style.transform = `translate3d(0, ${(-p * 22).toFixed(1)}px, 0)`;
 };
-const queueStage = () => { if (pinned && !stageQueued) { stageQueued = true; requestAnimationFrame(stageScroll); } };
+const queueStage = () => {
+  if (!pinned || stageQueued) return;
+  // only near the track (from a screen before it pins to a screen after it lets go); elsewhere it is out of sight
+  const y = scrollY;
+  if (y < geo.start - innerHeight || y > geo.start + geo.len + innerHeight * 2) return;
+  stageQueued = true;
+  requestAnimationFrame(stageScroll);
+};
+const relayout = () => { placeRail(); measureTrack(); queueStage(); };
 
-/** Pinned (scroll-linked) or not (plays once in view): set from PIN at load and whenever it changes. */
+/** Pinned (scroll-linked) or not (plays once in view): set from pinQuery at load and whenever it changes. */
 const setPinned = () => {
   if (!seq || !seqHasMock) return;
   pinned = pinQuery.matches && !!track && !!pin;
@@ -151,7 +169,7 @@ const setPinned = () => {
   rail?.classList.toggle("eased", !pinned);
   if (seqPhone) seqPhone.style.transform = "";
   placeRail();
-  if (pinned) stageScroll();
+  if (pinned) { measureTrack(); stageScroll(); }
   else endSeq();
 };
 
@@ -160,24 +178,43 @@ if (seq && seqHasMock) {
     const n = Number(b.dataset.go);
     if (pinned) {
       // scroll to the middle of that step's stretch of the track; the scroll sets the step
-      const { r, top, len } = trackSpan();
-      const at = STEP_AT[n - 1]! + 0.125;
-      scrollTo({ top: scrollY + r.top - top + at * len });
+      measureTrack();
+      const at = (STEP_AT[n - 1]! + (STEP_AT[n] ?? 1)) / 2;
+      scrollTo({ top: geo.start + at * geo.len });
       return;
     }
     seqStarted = true; clearSeq(); setStage(n);
   }));
   replay?.addEventListener("click", () => { if (reduced()) { clearSeq(); setStage(1); } else playSeq(); });
-  new IntersectionObserver((entries, io) => {
-    if (!entries.some((e) => e.isIntersecting) || seqStarted) return;
-    seqStarted = true;
-    io.disconnect();
-    if (!pinned && !reduced()) playSeq();
-  }, { threshold: 0.5 }).observe(seq);
+  // Unpinned, it starts only once the devices are mostly in view (60 %, or 60 % of a window they do not fit in)
+  // and the first step is fully in view, so the whole sequence is seen; below the nav, not under it.
+  const firstStep = seqSteps[0]?.closest("li");
+  if (seqDevices && firstStep) {
+    const seen = new Map<Element, IntersectionObserverEntry>();
+    const navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--nav-h")) || 0;
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => seen.set(e.target, e));
+      if (seqStarted) return;
+      const dev = seen.get(seqDevices), step = seen.get(firstStep);
+      if (!dev?.isIntersecting || !step?.isIntersecting) return;
+      const room = (dev.rootBounds?.height ?? innerHeight) * 0.6;
+      if (dev.intersectionRatio < 0.6 && dev.intersectionRect.height < room) return;
+      if (step.intersectionRatio < 0.99) return;
+      seqStarted = true;
+      io.disconnect();
+      if (!pinned && !reduced()) playSeq();
+    }, { threshold: [0, 0.2, 0.4, 0.6, 0.8, 0.99, 1], rootMargin: `-${navH}px 0px 0px 0px` });
+    io.observe(seqDevices);
+    io.observe(firstStep);
+  }
   addEventListener("scroll", queueStage, { passive: true });
-  addEventListener("resize", () => { placeRail(); queueStage(); }, { passive: true });
+  // layout changes anywhere above or in the track (fonts, pictures, the window, the FAQ) move it: measure again then
+  if (track && pin) {
+    const ro = new ResizeObserver(relayout);
+    [document.body, track, pin].forEach((el) => ro.observe(el));
+  } else addEventListener("resize", relayout, { passive: true });
   pinQuery.addEventListener("change", setPinned);
-  document.fonts?.ready.then(placeRail);
+  document.fonts?.ready.then(relayout);
   setPinned();
 }
 
