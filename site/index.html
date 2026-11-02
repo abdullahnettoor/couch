@@ -297,20 +297,24 @@
   <!-- 10. Footer -->
   <footer class="foot">
     <div class="wrap foot-in">
-      <div class="foot-brand"><img src="/icon.png" width="32" height="32" alt="" /><span>Couch</span></div>
-      <nav aria-label="Footer">
-        <a href="{{GITHUB_URL}}" rel="noopener">GitHub</a>
-        <a href="{{RELEASES_URL}}" rel="noopener">Releases</a>
-        <a href="{{GITHUB_URL}}/blob/main/LICENSE" rel="noopener">GPL-3.0-or-later</a>
-        <a href="/licenses/">Third-party licences</a>
-      </nav>
-      <p class="legal">Netflix and YouTube are trademarks of their owners. Couch is not affiliated with or endorsed by them.</p>
+      <div class="foot-main">
+        <div class="foot-brand">{{wordmark:foot}}</div>
+        <nav aria-label="Footer">
+          <a href="{{GITHUB_URL}}" rel="noopener">GitHub</a>
+          <a href="{{RELEASES_URL}}" rel="noopener">Releases</a>
+          <a href="{{GITHUB_URL}}/blob/main/LICENSE" rel="noopener">GPL-3.0-or-later</a>
+          <a href="/licenses/">Third-party licences</a>
+        </nav>
+        <!-- Social links: one per entry in SOCIAL (src/config.ts), nothing when it is empty. GitHub only for now. -->
+        {{social}}
+        <p class="legal">Netflix and YouTube are trademarks of their owners. Couch is not affiliated with or endorsed by them.</p>
+        <p class="legal">© <span id="year">2026</span> Abdullah Nettoor. No cookies. No analytics.</p>
+      </div>
       <section class="credits" aria-labelledby="credits-h">
         <h2 id="credits-h">Credits</h2>
         <p class="legal">The films on the Screen are Blender's open films <a href="https://peach.blender.org/" rel="noopener"><cite>Big Buck Bunny</cite></a>, <a href="https://durian.blender.org/" rel="noopener"><cite>Sintel</cite></a> and <a href="https://mango.blender.org/" rel="noopener"><cite>Tears of Steel</cite></a>, © Blender Foundation, <a href="https://creativecommons.org/licenses/by/3.0/" rel="noopener license">CC BY 3.0</a>. Film imagery shown within Couch screenshots; cropped and resized for this site.</p>
         <p class="legal tmdb"><a href="https://www.themoviedb.org/" rel="noopener"><img src="/tmdb.svg" width="92" height="12" alt="TMDB" loading="lazy" decoding="async" /></a><span>Posters and backdrops come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</span></p>
       </section>
-      <p class="legal">© <span id="year">2026</span> Abdullah Nettoor. No cookies. No analytics.</p>
     </div>
   </footer>
 </body>

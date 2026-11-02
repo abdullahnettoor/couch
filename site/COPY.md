@@ -277,14 +277,15 @@ Windows is being considered, not promised. If you'd use it, tap Couch for Window
 
 ## 10. Footer
 
-- Brand: **Couch**
+- Layout (ticket 143): two columns from 900 px. Left: the brand, the links, the social links, the trademark note and the copyright line. Right: Credits. One column on phones, Credits last.
+- Brand: the **COUCH** wordmark (20 px tall, accessible name **Couch**; until ticket 143 the icon and the word "Couch")
 - Navigation accessible name: **Footer**
 - Links: **GitHub** / **Releases** / **GPL-3.0-or-later** / **Third-party licences**
+- Social links (ticket 143), accessible name **Couch elsewhere**: one per entry in `SOCIAL` (`src/config.ts`), nothing when it is empty. Today: **GitHub** (with Phosphor's GitHub mark). Add the others there when the accounts exist.
 - Trademark note: Netflix and YouTube are trademarks of their owners. Couch is not affiliated with or endorsed by them.
-- Credits (ticket 142; a small "Credits" heading in the footer): The films on the Screen are Blender's open films *Big Buck Bunny*, *Sintel* and *Tears of Steel*, © Blender Foundation, CC BY 3.0. Film imagery shown within Couch screenshots; cropped and resized for this site. Then TMDB's approved logo (`public/tmdb.svg`, "Primary short (blue)" from themoviedb.org/about/logos-attribution, self-hosted, 12 px tall, smaller and quieter than Couch's footer mark) beside: Posters and backdrops come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB. (Each film links to its Blender project page, "CC BY 3.0" to the licence and the TMDB logo, alt "TMDB", to themoviedb.org. The TMDB sentence is TMDB's required notice, word for word. The changes note is the CC BY "indicate if changes were made" line.)
+- Credits (ticket 142; a small "Credits" heading in the footer): The films on the Screen are Blender's open films *Big Buck Bunny*, *Sintel* and *Tears of Steel*, © Blender Foundation, CC BY 3.0. Film imagery shown within Couch screenshots; cropped and resized for this site. Then TMDB's approved logo (`public/tmdb.svg`, "Primary short (blue)" from themoviedb.org/about/logos-attribution, self-hosted, 12 px tall, smaller and quieter than Couch's footer wordmark) beside: Posters and backdrops come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB. (Each film links to its Blender project page, "CC BY 3.0" to the licence and the TMDB logo, alt "TMDB", to themoviedb.org. The TMDB sentence is TMDB's required notice, word for word. The changes note is the CC BY "indicate if changes were made" line.)
 - Copyright and site privacy: © **2026** Abdullah Nettoor. No cookies. No analytics.
 - The year remains dynamic, with 2026 as the HTML fallback.
-- Brand icon alt: empty.
 
 Since ticket 142 the screenshots show TMDB artwork (the Blender films' posters and backdrops, fetched by Couch's optional online details), so the footer and the licences page carry TMDB's notice and the films' CC BY credit. Keep both whenever a screenshot shows a film.
 

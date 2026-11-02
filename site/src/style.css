@@ -308,16 +308,27 @@ details p { margin: 0; padding: 0 4px 26px; color: var(--t2); max-width: 40em; a
 details p a { color: var(--amber-3); }
 @keyframes open { from { opacity: 0; transform: translateY(-6px); } }
 
-/* footer */
+/* footer: one column on phones; from 900 px the brand, links, social and legal on the left, the credits on the right */
 .foot { border-top: 1px solid var(--line); padding: 56px 0 64px; }
-.foot-in { display: grid; gap: 22px; justify-items: start; }
-.foot-brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 18px; } .foot-brand img { border-radius: 9px; }
+.foot-in { display: grid; gap: 32px; }
+.foot-main { display: grid; gap: 22px; justify-items: start; align-content: start; }
+.foot-brand { display: flex; } .foot-brand .wm { display: block; width: auto; height: 20px; }
 .foot nav { display: flex; flex-wrap: wrap; gap: 8px 28px; } .foot nav a { color: var(--t2); text-decoration: none; font-size: 15px; } .foot nav a:hover { color: #fff; text-decoration: underline; text-underline-offset: 4px; }
+.social { list-style: none; margin: -6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.social a { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px 0 11px; border-radius: 999px; font-size: 14px; color: var(--t2); text-decoration: none; border: 1px solid var(--line); transition: color .2s, background .2s; }
+.social a:hover { color: #fff; background: rgba(255,255,255,.06); }
+.social .i { width: 17px; height: 17px; }
 .legal { margin: 0; font-size: 13.5px; color: var(--t3); max-width: 62em; }
 .legal a { text-underline-offset: 3px; text-decoration-color: rgba(235, 235, 245, .3); } .legal a:hover { color: #fff; text-decoration-color: #fff; }
-.credits { display: grid; gap: 10px; max-width: 62em; padding-top: 18px; border-top: 1px solid var(--line); }
+.credits { display: grid; gap: 10px; align-content: start; max-width: 62em; padding-top: 24px; border-top: 1px solid var(--line); }
 .credits h2 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--t3); }
 .legal.tmdb { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; } .legal.tmdb a { display: inline-flex; padding: 4px 0; } .legal.tmdb img { display: block; width: 92px; height: 12px; }
+.foot-main .legal + .legal { margin-top: -12px; }
+@media (min-width: 900px) {
+  .foot-in { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: clamp(48px, 7vw, 112px); }
+  .credits { padding-top: 0; border-top: 0; }
+  .legal.tmdb { align-items: flex-start; flex-direction: column; }
+}
 
 /* reveal: content is visible by default. main.ts adds .reveal-ready (once observers exist) and
    .pre to blocks below the fold; the pre state is a small shift only: never dim, never invisible. */
