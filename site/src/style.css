@@ -312,9 +312,10 @@ html.intro.intro-now .lamp, html.intro.intro-now .hero-copy > :not(.mark) { anim
    headline is never under it) and the devices are sized to the height that is left. */
 @media (min-width: 900px) and (min-height: 740px) and (prefers-reduced-motion: no-preference) and (scripting: enabled) {
   .how-track { height: 340vh; }
-  .how-pin { position: sticky; top: var(--pin-top); height: calc(100vh - var(--pin-top)); display: flex; flex-direction: column; padding: 10px 0 12px; }
+  .how-pin { position: sticky; top: var(--pin-top); height: calc(100vh - var(--pin-top)); display: flex; flex-direction: column; justify-content: center; padding: 10px 0 12px; }
   .how-pin > .how-head { flex: none; margin-bottom: 32px; }
-  .how-pin > .how-stage { flex: 1 1 0; min-height: 0; container-type: size; }
+  /* never taller than the devices need at this width, so a tall, narrow window doesn't leave empty bands around them */
+  .how-pin > .how-stage { flex: 1 1 0; min-height: 0; max-height: calc((min(100vw - 48px, var(--wrap)) - 288px - clamp(28px, 3.4vw, 48px)) / 1.77 + 140px); container-type: size; }
   .seq { justify-self: center; width: 100%; max-width: calc((100cqh - 140px) * 1.77); }
   .seq .phone { will-change: transform; }
 }
