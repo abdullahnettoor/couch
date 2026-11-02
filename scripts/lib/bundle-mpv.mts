@@ -10,23 +10,25 @@ import {
   realpathSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { collectLibs, rewritePlan, type LibInfo } from "./bundle-libs.mts";
-import { isLicenceFile, kegOf, renderManifest, type ThirdParty } from "./third-party.mts";
+import { parseFormula } from "./formula.mts";
+import { planLicences } from "./licences.mts";
+import { parseOtool } from "./otool.mts";
+import { describePin, kegOf, renderManifest, type ThirdParty } from "./third-party.mts";
+
+const vendoredLicences = join(dirname(fileURLToPath(import.meta.url)), "..", "licenses");
 
 const run = (command: string, args: string[]) =>
   execFileSync(command, args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
 
 function inspect(file: string): LibInfo {
-  const [, ...lines] = run("otool", ["-L", file]).split("\n");
-  const id = run("otool", ["-D", file]).split("\n")[1]?.trim();
-  const deps = lines
-    .map((l) => /^\s+(\S.*?) \(compatibility/.exec(l)?.[1])
-    .filter((r): r is string => !!r);
-  const rpaths = [
-    ...run("otool", ["-l", file]).matchAll(/cmd LC_RPATH\n\s+cmdsize \d+\n\s+path (.+) \(offset/g),
-  ].map((m) => m[1]);
-  return { deps: deps.filter((d) => d !== id), rpaths };
+  return parseOtool({
+    deps: run("otool", ["-L", file]),
+    id: run("otool", ["-D", file]),
+    loads: run("otool", ["-l", file]),
+  });
 }
 
 /** Where the Homebrew libmpv is: `brew --prefix` (Apple Silicon: /opt/homebrew). */
@@ -84,6 +86,9 @@ function writeNotices(appContents: string, libs: { realPath: string; name: strin
       dir: keg.dir,
       license: undefined,
       source: "",
+      pins: [],
+      patches: [],
+      extraSources: [],
       libraries: [],
       licenceFiles: [],
     };
@@ -92,7 +97,7 @@ function writeNotices(appContents: string, libs: { realPath: string; name: strin
   }
   const resources = join(appContents, "Resources");
   for (const entry of kegs.values()) {
-    // The keg's own SBOM names the source archive and licence of the version installed (brew info shows the newest formula).
+    // The keg's own SBOM names the licence of the version installed (brew info shows the newest formula).
     const sbom = existsSync(join(entry.dir, "sbom.spdx.json"))
       ? (JSON.parse(readFileSync(join(entry.dir, "sbom.spdx.json"), "utf8")) as {
           packages?: { licenseConcluded?: string; downloadLocation?: string }[];
@@ -100,16 +105,34 @@ function writeNotices(appContents: string, libs: { realPath: string; name: strin
       : {};
     const pkg = sbom.packages?.[0];
     entry.license = pkg?.licenseConcluded;
-    entry.source = pkg?.downloadLocation ?? "";
-    if (!entry.source || !entry.license)
-      console.warn(`!! no source or licence recorded for ${entry.formula}`);
+    if (!entry.license) console.warn(`!! no licence recorded for ${entry.formula}`);
+
+    // The keg's formula file pins the exact revision and lists patches; the SBOM only has a bare url.
+    const formulaFile = join(entry.dir, ".brew", `${entry.formula}.rb`);
+    const formula = existsSync(formulaFile)
+      ? parseFormula(readFileSync(formulaFile, "utf8"))
+      : undefined;
+    entry.source = formula?.url ?? pkg?.downloadLocation ?? "";
+    if (!entry.source) throw new Error(`no source recorded for ${entry.formula}`);
+    if (!formula) console.warn(`!! no formula file for ${entry.formula}; source is unpinned`);
+    entry.pins = formula ? describePin(formula) : [];
+    entry.patches = formula?.patches ?? [];
+    entry.extraSources = (formula?.resources ?? []).map(
+      (r) => `${r.name}: ${r.url}${describePin(r).length ? ` (${describePin(r).join("; ")})` : ""}`,
+    );
+
+    const vendorDir = join(vendoredLicences, entry.formula);
+    const plan = planLicences(
+      entry.formula,
+      readdirSync(entry.dir),
+      existsSync(vendorDir) ? readdirSync(vendorDir) : [],
+    );
     const out = join(resources, "licenses", entry.formula);
-    for (const name of readdirSync(entry.dir).filter(isLicenceFile)) {
-      mkdirSync(out, { recursive: true });
-      copyFileSync(join(entry.dir, name), join(out, name));
+    mkdirSync(out, { recursive: true });
+    for (const { name, from } of plan) {
+      copyFileSync(join(from === "keg" ? entry.dir : vendorDir, name), join(out, name));
       entry.licenceFiles.push(name);
     }
-    if (!entry.licenceFiles.length) console.warn(`!! no licence file found in ${entry.dir}`);
   }
   writeFileSync(join(resources, "THIRD-PARTY-LIBRARIES.md"), renderManifest([...kegs.values()]));
 }

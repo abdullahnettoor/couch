@@ -13,6 +13,13 @@ interface Addon {
   create(handle: Buffer, options: Record<string, string>, libraryPaths?: string[]): number;
   /** Loads libmpv without a window and returns the file it loaded. Throws when none can be loaded. */
   loadLibmpv(libraryPaths?: string[]): string;
+  /** Test-only (scripts/bundled-mpv-check.mjs): plays a file windowless to its end and returns a JSON report. */
+  probePlayback(
+    libraryPaths: string[],
+    file: string,
+    options: Record<string, string>,
+    timeoutMs: number,
+  ): string;
   setVisible(id: number, visible: boolean): void;
   setGlass(
     id: number,

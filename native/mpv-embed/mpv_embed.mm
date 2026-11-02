@@ -31,6 +31,11 @@ struct Api {
   uint64_t (*render_update)(mpv_render_context *);
   int (*render_render)(mpv_render_context *, mpv_render_param *);
   void (*render_free)(mpv_render_context *);
+  int (*command)(mpv_handle *, const char **);
+  int (*observe)(mpv_handle *, uint64_t, const char *, mpv_format);
+  mpv_event *(*wait_event)(mpv_handle *, double);
+  char *(*get_property_string)(mpv_handle *, const char *);
+  void (*free_)(void *);
 };
 static Api api;
 static bool apiLoaded = false;
@@ -56,6 +61,8 @@ static bool loadApi(const std::vector<std::string> &first) {
   SYM(render_set_cb, "mpv_render_context_set_update_callback")
   SYM(render_update, "mpv_render_context_update") SYM(render_render, "mpv_render_context_render")
   SYM(render_free, "mpv_render_context_free")
+  SYM(command, "mpv_command") SYM(observe, "mpv_observe_property") SYM(wait_event, "mpv_wait_event")
+  SYM(get_property_string, "mpv_get_property_string") SYM(free_, "mpv_free")
   Dl_info where;
   if (dladdr((void *)api.create, &where) && where.dli_fname) apiPath = where.dli_fname;
   apiLoaded = true;
@@ -259,6 +266,88 @@ static napi_value LoadLibmpv(napi_env env, napi_callback_info info) {
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
   if (!loadApi(argc > 0 ? pathList(env, argv[0]) : std::vector<std::string>())) return fail(env, apiError);
   napi_value out; napi_create_string_utf8(env, apiPath.c_str(), NAPI_AUTO_LENGTH, &out);
+  return out;
+}
+
+
+static std::string jsonQuote(const std::string &s) {
+  std::string o = "\"";
+  for (unsigned char c : s) {
+    if (c == '"' || c == '\\') { o += '\\'; o += (char)c; }
+    else if (c < 0x20) { char b[8]; snprintf(b, sizeof b, "\\u%04x", c); o += b; }
+    else o += (char)c;
+  }
+  return o + "\"";
+}
+
+static std::string prop(mpv_handle *mpv, const std::string &name) {
+  char *v = api.get_property_string(mpv, name.c_str());
+  std::string s = v ? v : "";
+  if (v) api.free_(v);
+  return s;
+}
+
+// probePlayback(libraryPaths: string | string[], file: string, options: Record<string,string>, timeoutMs: number): string
+// Test-only: creates a windowless mpv (the caller passes vo=null, ao=null...), plays `file` to its end and returns
+// a JSON report: whether it loaded, the decoders, the tracks, the subtitle lines seen, and how it ended.
+static napi_value ProbePlayback(napi_env env, napi_callback_info info) {
+  size_t argc = 4; napi_value argv[4];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  if (argc < 4) return fail(env, "probePlayback(libraryPaths, file, options, timeoutMs)");
+  if (!loadApi(pathList(env, argv[0]))) return fail(env, apiError);
+  std::string file = str(env, argv[1]);
+  double timeoutMs = 0; napi_get_value_double(env, argv[3], &timeoutMs);
+  setlocale(LC_NUMERIC, "C");
+  mpv_handle *mpv = api.create();
+  if (!mpv) return fail(env, "mpv_create failed");
+  napi_value keys; napi_get_property_names(env, argv[2], &keys);
+  uint32_t n; napi_get_array_length(env, keys, &n);
+  for (uint32_t i = 0; i < n; i++) {
+    napi_value k, v; napi_get_element(env, keys, i, &k);
+    napi_get_property(env, argv[2], k, &v);
+    api.set_option_string(mpv, str(env, k).c_str(), str(env, v).c_str());
+  }
+  int rc = api.initialize(mpv);
+  if (rc < 0) { api.terminate_destroy(mpv); return fail(env, std::string("mpv_initialize: ") + api.error_string(rc)); }
+  api.observe(mpv, 1, "sub-text", MPV_FORMAT_STRING);
+  const char *cmd[] = {"loadfile", file.c_str(), NULL};
+  rc = api.command(mpv, cmd);
+  bool loaded = false, ended = false;
+  int endReason = -1; std::string endError, videoCodec, audioCodec, tracks = "[", subLines = "[";
+  CFAbsoluteTime deadline = CFAbsoluteTimeGetCurrent() + timeoutMs / 1000.0;
+  while (rc >= 0 && !ended && CFAbsoluteTimeGetCurrent() < deadline) {
+    mpv_event *e = api.wait_event(mpv, 0.2);
+    if (e->event_id == MPV_EVENT_FILE_LOADED) {
+      loaded = true;
+      videoCodec = prop(mpv, "video-codec");
+      audioCodec = prop(mpv, "audio-codec");
+      int count = atoi(prop(mpv, "track-list/count").c_str());
+      for (int i = 0; i < count; i++) {
+        std::string p = "track-list/" + std::to_string(i) + "/";
+        if (i) tracks += ",";
+        tracks += "{\"type\":" + jsonQuote(prop(mpv, p + "type")) + ",\"codec\":" + jsonQuote(prop(mpv, p + "codec")) +
+                  ",\"selected\":" + (prop(mpv, p + "selected") == "yes" ? "true" : "false") + "}";
+      }
+    } else if (e->event_id == MPV_EVENT_PROPERTY_CHANGE && e->data) {
+      mpv_event_property *pr = (mpv_event_property *)e->data;
+      if (pr->format == MPV_FORMAT_STRING && pr->data) {
+        const char *t = *(const char **)pr->data;
+        if (t && *t) { if (subLines.size() > 1) subLines += ","; subLines += jsonQuote(t); }
+      }
+    } else if (e->event_id == MPV_EVENT_END_FILE && e->data) {
+      mpv_event_end_file *ef = (mpv_event_end_file *)e->data;
+      endReason = ef->reason;
+      if (ef->error < 0) endError = api.error_string(ef->error);
+      ended = true;
+    }
+  }
+  api.terminate_destroy(mpv);
+  std::string json = "{\"commandError\":" + std::string(rc < 0 ? jsonQuote(api.error_string(rc)) : "null") +
+    ",\"loaded\":" + (loaded ? "true" : "false") + ",\"ended\":" + (ended ? "true" : "false") +
+    ",\"endReason\":" + std::to_string(endReason) + ",\"endError\":" + jsonQuote(endError) +
+    ",\"videoCodec\":" + jsonQuote(videoCodec) + ",\"audioCodec\":" + jsonQuote(audioCodec) +
+    ",\"tracks\":" + tracks + "],\"subtitleLines\":" + subLines + "]}";
+  napi_value out; napi_create_string_utf8(env, json.c_str(), NAPI_AUTO_LENGTH, &out);
   return out;
 }
 
@@ -582,6 +671,7 @@ static napi_value Init(napi_env env, napi_value exports) {
   napi_property_descriptor d[] = {
     {"create", 0, Create, 0, 0, 0, napi_default, 0},
     {"loadLibmpv", 0, LoadLibmpv, 0, 0, 0, napi_default, 0},
+    {"probePlayback", 0, ProbePlayback, 0, 0, 0, napi_default, 0},
     {"setVisible", 0, SetVisible, 0, 0, 0, napi_default, 0},
     {"setPlacement", 0, SetPlacement, 0, 0, 0, napi_default, 0},
     {"setGlass", 0, SetGlass, 0, 0, 0, napi_default, 0},
