@@ -52,7 +52,7 @@ html { scrollbar-color: #3a3a3e var(--bg); }
   backdrop-filter: blur(24px) saturate(1.6); -webkit-backdrop-filter: blur(24px) saturate(1.6); box-shadow: var(--edge), 0 12px 40px rgba(0,0,0,.35);
 }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; padding: 6px 4px; border-radius: 8px; }
-.brand .wm { display: block; width: auto; height: 18px; }
+.brand .wm { display: block; width: auto; height: 20px; }
 .nav nav { display: flex; gap: 2px; position: relative; }
 .nav-ind { position: absolute; left: 0; bottom: 2px; width: 18px; height: 2px; margin-left: -9px; border-radius: 2px; background: var(--amber); opacity: 0; pointer-events: none; transition: transform .38s var(--ease), opacity .25s; }
 .nav nav a.is-current { color: #fff; }

@@ -24,56 +24,64 @@ export const LEFT = -WIDTH / 2;
 
 // Weights, in the "PRO" manner: the horizontal bars carry the weight, counters are slots.
 const STEM = 28; // vertical stems
-const SLOT = 12; // slot counters (O, C)
-const BAR = (CAP - SLOT) / 2; // 44: top and bottom bars
 const R = 34; // outer corners
 const r = 4; // slot corners
+
+/**
+ * Optical sizes. Display: 12-unit slots, as in "PRO". Small (the nav, about 18px tall): slots and notches
+ * opened up so they stay at least two device pixels and the letters do not close up into bars.
+ */
+export type Optical = { slot: number; notch: number };
+export const DISPLAY: Optical = { slot: 12, notch: 18 };
+export const SMALL: Optical = { slot: 17, notch: 22 };
 
 const rect = (x0: number, y0: number, x1: number, y1: number, rad: number): Poly => [
   [x0, y0, rad], [x1, y0, rad], [x1, y1, rad], [x0, y1, rad],
 ];
 
 /** C: the O with its slot run out through the right side. */
-const C = (x: number): Poly => {
+const C = (x: number, { slot }: Optical): Poly => {
   const w = 132, m = -CAP / 2;
   return [
-    [x, -CAP, R], [x + w, -CAP, 26], [x + w, m - SLOT / 2, 5], [x + STEM, m - SLOT / 2, r],
-    [x + STEM, m + SLOT / 2, r], [x + w, m + SLOT / 2, 5], [x + w, 0, 26], [x, 0, R],
+    [x, -CAP, R], [x + w, -CAP, 26], [x + w, m - slot / 2, 5], [x + STEM, m - slot / 2, r],
+    [x + STEM, m + slot / 2, r], [x + w, m + slot / 2, 5], [x + w, 0, 26], [x, 0, R],
   ];
 };
 
 /** O: outside and the slot (the slot becomes the Screen). */
-export const O_X = -224;
-const O = (x: number): Poly[] => {
+const O = (x: number, { slot }: Optical): Poly[] => {
   const w = 140, m = -CAP / 2;
-  return [rect(x, -CAP, x + w, 0, R), rect(x + STEM, m - SLOT / 2, x + w - STEM, m + SLOT / 2, r).reverse()];
+  return [rect(x, -CAP, x + w, 0, R), rect(x + STEM, m - slot / 2, x + w - STEM, m + slot / 2, r).reverse()];
 };
 
 /** U: the O without its top bar. Same corners as the sofa: arm, arm, cradle, cradle, arm, arm, base, base. */
-const U = (): Poly => {
-  const h = 70;
+const U = ({ slot }: Optical): Poly => {
+  const h = 70, bar = (CAP - slot) / 2;
   return [
-    [-h, -CAP, 6], [-h + STEM, -CAP, 6], [-h + STEM, -BAR, 12], [h - STEM, -BAR, 12],
+    [-h, -CAP, 6], [-h + STEM, -CAP, 6], [-h + STEM, -bar, 12], [h - STEM, -bar, 12],
     [h - STEM, -CAP, 6], [h, -CAP, 6], [h, 0, R], [-h, 0, R],
   ];
 };
 
 /** H: two heavy stems, a crossbar, the counters as narrow vertical slots. */
-const H = (x: number): Poly => {
-  const w = 140, c = x + w / 2, n = 9, t = -CAP / 2 - 13, b = -CAP / 2 + 13;
+const H = (x: number, { notch }: Optical): Poly => {
+  const w = 140, c = x + w / 2, n = notch / 2, t = -CAP / 2 - 13, b = -CAP / 2 + 13;
   return [
     [x, -CAP, R], [c - n, -CAP, r], [c - n, t, r], [c + n, t, r], [c + n, -CAP, r], [x + w, -CAP, R],
     [x + w, 0, R], [c + n, 0, r], [c + n, b, r], [c - n, b, r], [c - n, 0, r], [x, 0, R],
   ];
 };
 
-export const letters = {
-  c1: [C(LEFT)],
-  o: O(O_X),
-  u: [U()],
-  c2: [C(84)],
-  h: [H(227)],
-} satisfies Record<string, Poly[]>;
+/** The five letters at an optical size (em). */
+export const draw = (o: Optical) => ({
+  c1: [C(LEFT, o)],
+  o: O(-224, o),
+  u: [U(o)],
+  c2: [C(84, o)],
+  h: [H(227, o)],
+}) satisfies Record<string, Poly[]>;
+
+export const letters = draw(DISPLAY);
 
 /** The logo, in mark units (832 × 688, measured from build/icon.png). */
 export const MARK = { w: 832, h: 688, cx: 417, base: 620 } as const;
@@ -124,10 +132,10 @@ export const mix = (a: Poly, b: Poly, t: number): Poly =>
 export const ORANGE = `<stop offset="0" stop-color="#ffc681"/><stop offset=".55" stop-color="#f28a3a"/><stop offset="1" stop-color="#c9601f"/>`;
 
 /** The static wordmark: one path per letter, em units. */
-export function wordmarkSvg(o: { id: string; attrs: string; title?: string }): string {
+export function wordmarkSvg(o: { id: string; attrs: string; title?: string; optical?: Optical }): string {
   const label = o.title ? `role="img" aria-labelledby="${o.id}-t"` : `aria-hidden="true" focusable="false"`;
   const title = o.title ? `<title id="${o.id}-t">${o.title}</title>` : "";
-  const body = Object.values(letters).map((p) => `<path d="${paths(p)}"/>`).join("");
+  const body = Object.values(draw(o.optical ?? DISPLAY)).map((p) => `<path d="${paths(p)}"/>`).join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${LEFT} -${CAP} ${WIDTH} ${CAP}" ${o.attrs} ${label}>${title}<defs><linearGradient id="${o.id}-g" x1="0" y1="0" x2="0" y2="1">${ORANGE}</linearGradient></defs><g fill="url(#${o.id}-g)" fill-rule="evenodd">${body}</g></svg>`;
 }
 
