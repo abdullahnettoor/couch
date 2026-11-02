@@ -16,6 +16,16 @@ The pictures use test videos, not real films.
 
 Words like Screen, Remote, App and Library have fixed meanings: see [GLOSSARY.md](GLOSSARY.md). What Couch is for is in [PRODUCT.md](PRODUCT.md).
 
+## Why I made Couch
+
+I bought a monitor for work. A TV as well didn't make sense, so my first thought was a streaming stick, so the family could watch on the monitor in the evenings.
+
+Then I looked at my MacBook, sitting idle every evening. Why not let it be the TV, with our phones as the remote?
+
+So I built Couch. It brings YouTube, Netflix and our own videos to one calm home screen. I only have accounts for those, so I built Couch so that more Apps can be added. If your favourite service is missing, you're welcome to add it: see [Add a web App](CONTRIBUTING.md#add-a-web-app).
+
+— Abdullah
+
 ## Requirements
 
 - A Mac on macOS 14 or later.
