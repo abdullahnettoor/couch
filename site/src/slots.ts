@@ -23,31 +23,31 @@ const PHONE = { width: 1080, height: 2280 } as const;
 export const slots = {
   "hero-screen": {
     file: null, ...SCREEN, loading: "eager",
-    alt: "Couch Home on a TV: a clock, a greeting and the YouTube, Netflix and Library tiles",
+    alt: "Couch Home on the Screen, with a clock and the YouTube, Netflix and Library Apps",
   },
   "hero-remote": {
     file: null, ...PHONE, loading: "eager",
-    alt: "The Couch Remote on a phone: a D-pad with Back, Home and Play",
+    alt: "The Remote on a phone, with Apps, a D-pad and volume controls",
   },
   "remote-screen": {
     file: null, ...SCREEN, loading: "lazy",
-    alt: "Couch Home on the Screen, with a highlight on one App tile",
+    alt: "Couch Home during phone pairing, with a QR code or a connected phone and a highlighted App",
   },
   "remote-phone": {
     file: null, ...PHONE, loading: "lazy",
-    alt: "The Remote on a phone, with its D-pad",
+    alt: "A phone pairing with Couch, then showing the Remote and its D-pad",
   },
   "apps-screen": {
     file: null, ...SCREEN, loading: "lazy",
-    alt: "The Apps page on the Screen: YouTube, Netflix and Library tiles",
+    alt: "Couch Home with the YouTube, Netflix and Library Apps and unfinished videos",
   },
   "library-screen": {
     file: "library.jpg", width: 1400, height: 787, loading: "lazy",
-    alt: "The Library: a shelf of videos on the Screen, with one film highlighted",
+    alt: "The Library on the Screen, with a highlighted test video and its picture",
   },
   "privacy-screen": {
     file: "settings.jpg", width: 1400, height: 787, loading: "lazy",
-    alt: "Couch Settings on the Screen, with Library folders and Remotes",
+    alt: "Couch Settings, with Remotes and Devices, Library, Sound output, Apps and Home",
   },
   "setup-remotes": {
     file: "remotes.jpg", width: 1400, height: 787, loading: "lazy",
@@ -55,7 +55,7 @@ export const slots = {
   },
   "setup-player": {
     file: "player.jpg", width: 1400, height: 909, loading: "lazy",
-    alt: "A Library video playing full screen with the player controls",
+    alt: "A test video playing in the Library, with playback, subtitle and volume controls",
   },
 } as const satisfies Record<string, Slot>;
 

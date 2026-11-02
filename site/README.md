@@ -15,6 +15,12 @@ pnpm preview      # serve dist/ at http://localhost:4173
 
 `src/config.ts` holds `GUMROAD_URL` (a **placeholder** until the Gumroad product exists), `GITHUB_URL`, `RELEASES_URL` and `SITE_URL`. They are filled into `index.html` at build time (`{{GUMROAD_URL}}` and so on), so every link works without JavaScript.
 
+## Copy and Windows interest
+
+`COPY.md` is the ticket 137 copy deck: every page string, headline alternatives, picks and factual evidence. Keep it in step with text changes, including screenshot alternatives and social-card text.
+
+The Windows card is an explicit stub. Its plain `button[data-demand="windows"]` has no handler, counter, network request or storage. The success copy is hidden in `[data-demand-confirmation]`; do not show it until a real count succeeds. `COPY.md` includes the enabled-state wording for a future implementation. Before enabling counting, verify the anonymous-count promise (no email, cookies or IP stored, including infrastructure logs) and update the card, FAQ and privacy copy together. Nothing here promises a Windows release.
+
 ## Screenshot slots
 
 Every product picture is a **slot**, declared once in `src/slots.ts` (a typed manifest: slot name → interim file, alt text, width and height, `loading` priority). `vite.config.ts` reads it at build time and writes the `<img>` into `index.html` (`{{slot:name}}`), or into the place a mock stands in (`<!--mock:name-->…<!--/mock-->`). The build fails if `index.html` uses a slot the manifest lacks, or the manifest has a slot `index.html` never uses.
