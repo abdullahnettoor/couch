@@ -14,7 +14,7 @@ Couch turns a Mac connected to a TV or monitor into a calm, couch-friendly home 
 
 The pictures use test videos, not real films.
 
-Words like Screen, Remote, App and Library have fixed meanings: see `GLOSSARY.md`. What Couch is for is in `PRODUCT.md`.
+Words like Screen, Remote, App and Library have fixed meanings: see [GLOSSARY.md](GLOSSARY.md). What Couch is for is in [PRODUCT.md](PRODUCT.md).
 
 ## Requirements
 
@@ -35,22 +35,22 @@ pnpm exec vp run start     # build and run Couch
 pnpm exec vp run package   # or build out/Couch-darwin-<arch>/Couch.app
 ```
 
-`CONTRIBUTING.md` has the details (tests, checks, signing for Netflix and other DRM Apps). `SHIPPING.md` lists what it would take to ship Couch to other people.
+[CONTRIBUTING.md](CONTRIBUTING.md) has the details (tests, checks, signing for Netflix and other DRM Apps). [SHIPPING.md](SHIPPING.md) lists what it would take to ship Couch to other people.
 
 ## Commands
 
 Tooling is [Vite+](https://viteplus.dev) (`vp`), run through pnpm.
 
-| Command          | What it does                                                                                              |
-| ---------------- | --------------------------------------------------------------------------------------------------------- |
-| `pnpm install`   | Install dependencies (Electron's download is allowed in `pnpm-workspace.yaml`)                            |
-| `vp check`       | Format, lint and type-check (use `vp check --fix` to auto-fix)                                            |
-| `vp test run`    | Run the Vitest tests once                                                                                 |
-| `vp run build`   | Build renderer (`vp build`) and main + preload (`vp pack`) into `dist/`                                   |
-| `vp run start`   | Build, then start Couch in Electron                                                                       |
-| `vp run package` | Build an unsigned `out/Couch-darwin-<arch>/Couch.app` (name, icon, bundle id `com.abdullahnettoor.couch`) |
-| `vp run sample`  | Generate `.dev/sample.mkv` (needs ffmpeg) used by the temporary play key                                  |
-| `vp run icons`   | Rebuild `build/icon.icns` and the Remote/Credits PNGs from `build/icon.png` and `icon-touch.png`          |
+| Command          | What it does                                                                                                |
+| ---------------- | ----------------------------------------------------------------------------------------------------------- |
+| `pnpm install`   | Install dependencies (Electron's download is allowed in `pnpm-workspace.yaml`)                              |
+| `vp check`       | Format, lint and type-check (use `vp check --fix` to auto-fix)                                              |
+| `vp test run`    | Run the Vitest tests once                                                                                   |
+| `vp run build`   | Build renderer (`vp build`) and main + preload (`vp pack`) into `dist/`                                     |
+| `vp run start`   | Build, then start Couch in Electron                                                                         |
+| `vp run package` | Build `out/Couch-darwin-<arch>/Couch.app`, signed ad hoc by default (bundle id `com.abdullahnettoor.couch`) |
+| `vp run sample`  | Generate `.dev/sample.mkv` (needs ffmpeg) for a quick playback check                                        |
+| `vp run icons`   | Rebuild `build/icon.icns` and the Remote/Credits PNGs from `build/icon.png` and `icon-touch.png`            |
 
 Run `vp` as `pnpm exec vp …` if it isn't installed globally. If `ELECTRON_RUN_AS_NODE` is set in your shell, unset it before `vp run start`.
 
@@ -78,20 +78,19 @@ Couch loads libmpv in-process through a small native add-on (`native/mpv-embed/`
 
 **Building the add-on** (needs Xcode command line tools and `brew install mpv`, which also supplies the headers): `pnpm run build:native` writes `native/mpv-embed/mpv_embed.node` (git-ignored; run it after `pnpm install` and before `vp run start` / `vp run package`). `vp run package` unpacks it into `app.asar.unpacked`. The built Couch.app still needs mpv installed on the Mac (libmpv comes from Homebrew, not bundled).
 
-Development keys on the Screen: `P` play the sample, `Space` pause, `←/→` seek 10 s, `S`/`Esc` stop, `Q` quit.
+## Checking playback by hand
 
-Dev aids: `COUCH_SELFTEST=1` plays/stops five times and logs window focus; `COUCH_SELFTEST=quit-mid-play`; `COUCH_FORCE_NO_MPV=1` simulates mpv missing; `COUCH_SAMPLE=/path.mkv` overrides the sample.
+Run `vp run sample` once. It needs ffmpeg and writes a 20 second test video to `.dev/sample.mkv`. Then run `vp run start`.
 
-## Manual checks for the mpv hand-off
+1. In Settings, add the `.dev` folder to the Library, then open Library and play the sample.
+2. **External monitor:** with a monitor connected, Couch fills it (no menu bar, no Dock) and the video plays full screen on the same monitor. Stop the video: Couch is back in front.
+3. **Built-in screen only:** unplug the monitor and repeat.
+4. **Two plays in a row:** play and stop twice. Watch for Spaces animation, Dock or menu bar flashes, or Couch hiding behind another window.
+5. **End of file:** let the sample play to the end. Couch returns with focus.
+6. **Quit mid-play:** quit Couch while it plays. `pgrep -fl mpv` shows nothing.
+7. **No mpv:** with mpv uninstalled or hidden, Couch shows "Couch needs mpv to play videos. Install it with: brew install mpv".
 
-Run `vp run sample` once, then `vp run start`.
-
-1. **External monitor:** with a monitor connected, Couch fills it (no menu bar, no Dock). Press `P`: video plays full screen on the same monitor. Press `S`: video disappears, Couch is in front, and `P` works again without clicking.
-2. **Built-in only:** unplug the monitor, repeat.
-3. **Two plays in a row:** `P`, `S`, `P`, `S`. Watch for Spaces animation, Dock/menu bar flashes, or Couch hiding behind another window.
-4. **End of file:** `P`, then `→` until the 20 s sample ends. Couch returns with focus.
-5. **Quit mid-play:** `P`, then `Q` (or Cmd+Q). `pgrep -fl mpv` shows nothing.
-6. **No mpv:** `COUCH_FORCE_NO_MPV=1 vp run start` shows "Couch needs mpv to play videos. Install it with: brew install mpv".
+`pnpm webkit-selftest` runs the headless WebKit checks (it needs the native add-on built). `COUCH_LIBMPV=/path/libmpv.2.dylib` points Couch at a different libmpv.
 
 ## Setting up Couch on your Mac
 
@@ -100,7 +99,7 @@ You need a Mac with Homebrew, an Android phone with Chrome, and a TV or monitor 
 1. **Install mpv.** Open Terminal and run `brew install mpv`.
 2. **Build Couch.** In the Couch folder run `pnpm install`, then `pnpm exec vp run package`. This makes `out/Couch-darwin-arm64/Couch.app` (the folder name says `x64` on an Intel Mac).
 3. **Install it.** Drag `Couch.app` into Applications. Open Applications, then drag Couch to the Dock to keep it there.
-4. **First launch.** Couch isn't signed, so double-clicking is blocked. Right-click Couch, choose **Open**, then **Open** again. After that it opens normally, including from the Dock. Couch fills the TV; if no TV is connected it uses the Mac's screen.
+4. **First launch.** A local build is signed ad hoc by default (or with your own certificate, if you set `COUCH_CODESIGN_IDENTITY`; see [CONTRIBUTING.md](CONTRIBUTING.md)). It is not notarised, so macOS may block the first double-click. If it does, right-click Couch, choose **Open**, then **Open** again; what you see can differ between Macs. After that it normally opens from the Dock. Couch fills the TV; if no TV is connected it uses the Mac's screen.
 5. **Pair a phone.** Join the phone to the same Wi-Fi as the Mac. Open Couch's Settings and scan the QR code with the phone. In Chrome, tap ⋮ then **Add to Home screen**. The Remote is now an icon on the phone.
 6. **Sign in to YouTube.** Open YouTube in Couch. It shows a code; on the phone go to youtube.com/activate, enter the code and pick your account. You only do this once.
 7. **Add Library folders.** In Settings, choose Library folders and pick the folders that hold your videos. They appear under Library.

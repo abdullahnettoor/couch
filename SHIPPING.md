@@ -26,7 +26,7 @@ Couch is a personal app today: it runs on the household's Mac, built and install
   - the App Store sandbox;
   - the castLabs runtime;
   - the Couch Listener's LaunchAgent;
-  - the WebKit mouse fix, which uses WebKit's private `_simulateMouseMove:` (ticket 112). It's fine outside the App Store, and falls back if Apple removes it.
+  - the WebKit mouse fix, which uses WebKit's private `_simulateMouseMove:`. It's fine outside the App Store, and falls back if Apple removes it.
 
 ## Updates
 
@@ -34,15 +34,14 @@ Couch needs an updater: Sparkle, or Electron's `autoUpdater` with a feed. It als
 
 ## Accounts and content
 
-- **How Couch shows services:** it shows each service's own website, like a browser, and users sign in with their own accounts on the service's own sign-in page (ticket 118). Couch never asks for Full Disk Access and never reads another app's data.
+- **How Couch shows services:** it shows each service's own website, like a browser, and users sign in with their own accounts on the service's own sign-in page. Couch never asks for Full Disk Access and never reads another app's data.
 - **Copy sign-in from Couch:** it only moves a user's own existing sign-in from Couch's Chromium engine to its WebKit engine, inside Couch's own data.
 - **What not to ship:** anything that looks like sharing accounts or getting around a service's rules.
 
 ## Before the repo goes public
 
-- Planning notes (`.issues/`, `.wayfinder/`) are local only and were removed from the history before the first push.
 - **Keys:** the TMDB key is injected at build time from `COUCH_TMDB_TOKEN` and isn't committed. Keep it out of public builds' logs, or use a per-user key.
-- **Personal paths:** the tracked files were checked for personal paths, addresses and machine names; keep them out of new docs and tests (use `~/…`, `192.168.1.20` or `<your Mac's IP>`).
+- **Personal paths:** before publishing, check tracked files and history for personal paths, addresses and machine names; use neutral examples in new docs and tests (such as `~/…`, `192.168.1.20` or `<your Mac's IP>`).
 
 ## Other platforms
 
