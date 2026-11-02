@@ -32,7 +32,8 @@ export default defineConfig({
     },
   ],
   // The landing page in site/ is its own project (own package.json, checks and tests): the app's checks leave it out.
-  fmt: { ignorePatterns: ["site/**"] },
+  // AGENTS.md is written by the graft CLI (graft init), which would undo any reformatting.
+  fmt: { ignorePatterns: ["site/**", "AGENTS.md"] },
   lint: {
     ignorePatterns: ["site/**"],
     jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
