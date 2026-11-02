@@ -45,6 +45,7 @@ const hero = (page) => page.evaluate(() => {
     copy: [...document.querySelectorAll(".hero-copy > :not(.mark)")].map(o),
     lamp: o(document.querySelector(".lamp")),
     svg: getComputedStyle(document.querySelector("svg.wm-intro")).display,
+    dust: document.querySelectorAll(".wm-dust").length,
   };
 });
 
@@ -85,6 +86,7 @@ for (const mode of ["sequence", "logo-only"]) {
       if (mode === "sequence") assert.ok(s.copy.every((v) => v < 0.05), `the copy waits for the logo: ${s.copy}`);
       else assert.ok(s.copy.every((v) => v === 1), `the copy is there from the first paint: ${s.copy}`);
       assert.equal(s.cls.includes("intro-logo"), mode === "logo-only");
+      assert.equal(s.dust, 1, "the dust canvas is there while the intro plays");
       return { page, cdp };
     }
 
@@ -98,6 +100,7 @@ for (const mode of ["sequence", "logo-only"]) {
       assert.deepEqual(s.copy, s.copy.map(() => 1), "headline, text, buttons and meta are fully visible");
       assert.equal(s.lamp, 1, "the glowing picture is shown");
       assert.equal(s.svg, "none");
+      assert.equal(s.dust, 0, "the dust canvas is removed");
       assert.deepEqual(await introListeners(page, cdp), []);
       await page.close();
     }
@@ -147,8 +150,24 @@ for (const mode of ["sequence", "logo-only"]) {
       assert.doesNotMatch(s.cls, /intro-skip/);
       assert.deepEqual(s.copy, s.copy.map(() => 1));
       assert.equal(s.lamp, 1);
+      assert.equal(s.dust, 0);
       assert.deepEqual(await introListeners(t.page, t.cdp), []);
       await t.page.close();
+    });
+
+    test("with reduced motion there is no intro and no dust: the finished hero at once", async () => {
+      const page = await browser.newPage();
+      await page.setViewport({ width: 1280, height: 860 });
+      await page.emulateMediaFeatures([{ name: "prefers-reduced-motion", value: "reduce" }]);
+      await page.goto(url, { waitUntil: "load" });
+      const s = await hero(page);
+      assert.doesNotMatch(s.cls, /\bintro\b/);
+      assert.deepEqual(s.copy, s.copy.map(() => 1));
+      assert.equal(s.lamp, 1);
+      assert.equal(s.svg, "none");
+      assert.equal(s.dust, 0);
+      assert.equal(await page.evaluate(() => document.getAnimations().filter((a) => a.playState === "running").length), 0);
+      await page.close();
     });
   });
 }
