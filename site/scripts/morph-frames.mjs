@@ -1,4 +1,4 @@
-// Frames and a video of the hero intro (tickets 139 and 142), from the local preview:
+// Frames and a video of the hero intro (tickets 139, 142 and 143), from the local preview:
 //   node scripts/morph-frames.mjs <outDir> [url]
 // Writes morph-1440-*.png and morph-390-*.png (steps of intro time), morph-hero-{1440,390}.png (the settled hero),
 // morph-reduced-motion-1440.png, and morph.webm / morph.mp4 (30 fps at 1440; needs ffmpeg).
@@ -41,21 +41,21 @@ async function run(w, h, steps, name, video) {
   await page.close();
 }
 
-await run(1440, 900, [0, 200, 480, 650, 800, 950, 1100, 1250, 1400, 1550, 1700, 1900, 2400], "morph-1440", false);
-await run(390, 844, [0, 480, 700, 900, 1100, 1300, 1550, 1900, 2400], "morph-390", false);
+await run(1440, 900, [0, 400, 800, 1250, 1500, 1750, 2000, 2250, 2450, 2650, 2850, 3050, 3250, 3500, 4200], "morph-1440", false);
+await run(390, 844, [0, 800, 1300, 1700, 2100, 2450, 2800, 3200, 4200], "morph-390", false);
 // the settled hero, and the reduced-motion hero (no intro at all)
 for (const [w, h, reduce] of [[1440, 900, false], [390, 844, false], [1440, 900, true]]) {
   const page = await browser.newPage();
   await page.setViewport({ width: w, height: h, deviceScaleFactor: 2 });
   if (reduce) await page.emulateMediaFeatures([{ name: "prefers-reduced-motion", value: "reduce" }]);
   await page.goto(url, { waitUntil: "networkidle0" });
-  await wait(reduce ? 300 : 2600);
+  await wait(reduce ? 300 : 4400);
   await page.screenshot({ path: reduce ? `${out}/morph-reduced-motion-${w}.png` : `${out}/morph-hero-${w}.png` });
   await page.close();
 }
 if (process.env.STILLS_ONLY) { await browser.close(); process.exit(0); }
-// video: 30 fps of intro time, 0 to 2.6s, at 1440
-const steps = Array.from({ length: 79 }, (_, k) => Math.round((k * 1000) / 30));
+// video: 30 fps of intro time, 0 to 4.2s, at 1440
+const steps = Array.from({ length: 127 }, (_, k) => Math.round((k * 1000) / 30));
 await run(1440, 900, steps, "f", true);
 await browser.close();
 execFileSync("ffmpeg", ["-loglevel", "error", "-y", "-framerate", "30", "-i", `${videoDir}/f-%03d.png`, "-vf", "scale=1440:-2", "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "34", `${out}/morph.webm`]);

@@ -11,7 +11,7 @@ for (const [w, h] of [[1440, 900], [1024, 768], [768, 1024], [390, 844]]) {
   const page = await browser.newPage();
   await page.setViewport({ width: w, height: h, deviceScaleFactor: 1 });
   await page.goto(url, { waitUntil: "networkidle0" });
-  await wait(2600); // the hero intro (ticket 139) has settled
+  await wait(4400); // the hero intro (tickets 139 and 143) has settled
   await page.screenshot({ path: `${out}/hero-${w}.png` });
   // Remote sequence: let it play once through, then capture the connected end state
   await page.evaluate(() => document.getElementById("how").scrollIntoView({ block: "start" }));

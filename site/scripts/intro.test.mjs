@@ -1,7 +1,8 @@
-// Behavioural tests of the hero intro (ticket 139) in headless Chrome, for both INTRO_MODE values (src/config.ts).
+// Behavioural tests of the hero intro (tickets 139, 142 and 143) in headless Chrome, for both INTRO_MODE values (src/config.ts).
 // Builds the site once per mode (COUCH_INTRO_MODE), serves each build on a free port, and checks that a click or
 // focus without a pointer, a resize and a return from the back/forward cache all end the intro with the hero
-// copy, the buttons and the glowing picture fully visible, and that the intro's listeners are gone afterwards.
+// copy, the buttons and the glowing picture fully visible, and that the intro's listeners are gone afterwards;
+// and the ticket 143 timeline (COUCH holds a beat; the copy arrives over the last moments of the ~3.2s morph).
 // The page's animation clock is slowed (DevTools playback rate) so every trigger lands mid-intro.
 // Needs Google Chrome (CHROME overrides the path); skipped without it.
 import assert from "node:assert/strict";
@@ -144,8 +145,8 @@ for (const mode of ["sequence", "logo-only"]) {
     test("without a trigger it plays to the end on its own", async () => {
       const t = await open();
       await t.cdp.send("Animation.setPlaybackRate", { playbackRate: 1 });
-      await t.page.waitForFunction(() => document.documentElement.classList.contains("intro-done"), { timeout: 5000 });
-      await wait(700); // the last copy fade (sequence) ends at 2.52s
+      await t.page.waitForFunction(() => document.documentElement.classList.contains("intro-done"), { timeout: 7000 });
+      await wait(700); // the intro is done at 3.55s; the last copy fade (sequence) ends at 3.8s
       const s = await hero(t.page);
       assert.doesNotMatch(s.cls, /intro-skip/);
       assert.deepEqual(s.copy, s.copy.map(() => 1));
@@ -153,6 +154,48 @@ for (const mode of ["sequence", "logo-only"]) {
       assert.equal(s.dust, 0);
       assert.deepEqual(await introListeners(t.page, t.cdp), []);
       await t.page.close();
+    });
+
+    test("the cinematic timeline: COUCH holds a beat, the copy arrives over the morph's last moments", async () => {
+      const page = await browser.newPage();
+      await page.setViewport({ width: 1280, height: 860 });
+      const cdp = await page.createCDPSession();
+      await cdp.send("Animation.enable");
+      await cdp.send("Animation.setPlaybackRate", { playbackRate: 0.5 });
+      await page.goto(url, { waitUntil: "load" });
+      await page.waitForFunction(() => document.querySelector("svg.wm-intro")?.getAnimations().length > 0);
+      /** Waits until the intro's own clock (the svg's fade-out animation) reaches `ms`, then reads the hero. */
+      const at = async (ms) => {
+        await page.waitForFunction((ms) => {
+          const a = document.querySelector("svg.wm-intro").getAnimations().find((x) => x.animationName === "intro-out");
+          return !a || document.timeline.currentTime - a.startTime >= ms;
+        }, { polling: "raf", timeout: 15000 }, ms);
+        return page.evaluate(() => ({
+          u: document.querySelector("svg.wm-intro .l-u").getAttribute("d"),
+          o: document.querySelector("svg.wm-intro .l-o").getAttribute("d"),
+          dusting: document.querySelector("svg.wm-intro").classList.contains("dusting"),
+          copy: [...document.querySelectorAll(".hero-copy > :not(.mark)")].map((el) => Number(getComputedStyle(el).opacity)),
+          lamp: Number(getComputedStyle(document.querySelector(".lamp")).opacity),
+          cls: document.documentElement.className,
+        }));
+      };
+      const risen = await at(800);
+      const held = await at(1150);
+      assert.equal(held.u, risen.u, "the U has not moved yet: COUCH holds");
+      assert.equal(held.o, risen.o, "the O has not moved yet: COUCH holds");
+      assert.equal(held.dusting, false, "the C, C and H have not started to dissolve");
+      const moving = await at(1900);
+      assert.notEqual(moving.u, held.u, "the U is widening");
+      assert.equal(moving.dusting, true, "the C, C and H are dust");
+      const before = await at(2450);
+      assert.equal(before.lamp, 0, "the glowing picture waits for the hand-off");
+      if (mode === "sequence") assert.ok(before.copy.every((v) => v < 0.05), `no copy before 2.6s: ${before.copy}`);
+      const overlap = await at(3050);
+      assert.doesNotMatch(overlap.cls, /intro-(done|skip)/, "the morph is still on screen");
+      assert.ok(overlap.copy[1] > 0.3, `the headline arrives while the logo completes: ${overlap.copy}`);
+      assert.ok(overlap.lamp > 0, "the glowing picture is taking over");
+      if (mode === "logo-only") assert.ok([before, overlap].every((s) => s.copy.every((v) => v === 1)), "logo-only: the copy is always there");
+      await page.close();
     });
 
     test("with reduced motion there is no intro and no dust: the finished hero at once", async () => {

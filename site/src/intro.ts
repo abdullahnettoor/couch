@@ -1,9 +1,9 @@
 /*
- * The hero intro's morph (tickets 139 and 142). src/style.css times the intro; this runs on the same clock (the
+ * The hero intro's morph (tickets 139, 142 and 143). src/style.css times the intro; this runs on the same clock (the
  * CSS animations' start time) and does what CSS cannot: the C, C and H dissolve into soft warm dust that drifts
  * into the Screen (a small canvas, only while the intro plays), the O glides in behind the U's arm and settles
  * as the Screen's frame, and the U widens into the sofa. Plain corner interpolation (src/brand/logo.ts), one
- * requestAnimationFrame loop for about 1.5s, no library. Any scroll, click, tap, key, focus, resize or rotation,
+ * requestAnimationFrame loop for about 2.9s, no library. Any scroll, click, tap, key, focus, resize or rotation,
  * or a switch to reduced motion, skips to the end; a return from the back/forward cache shows the end at once.
  * The listeners and the canvas go when it ends.
  */
@@ -21,19 +21,23 @@ const bezier = (x1: number, y1: number, x2: number, y2: number) => {
     return c(y1, y2, t);
   };
 };
-const glide = bezier(0.45, 0, 0.2, 1); // a slow start and Couch's long settle
+const glide = bezier(0.45, 0, 0.2, 1); // a slow start and Couch's long settle (the dust)
+const drift = bezier(0.55, 0, 0.3, 1); // a gentle ease-in-out for the O's glide and the U's widening (ticket 143)
 const clamp = (v: number) => Math.max(0, Math.min(1, v));
 const seg = (t: number, at: number, len: number) => clamp((t - at) / len);
 const smooth = (v: number) => v * v * (3 - 2 * v);
 
-/** Timing (ms from the start), matching style.css ("Hero intro"). */
+/**
+ * Timing (ms from the start), matching style.css ("Hero intro"). Ticket 143 made it cinematic: COUCH rises in
+ * (to 0.76s) and holds a beat, then everything moves slower and softer, and the logo is whole at about 3.2s.
+ */
 export const TIMES = {
-  dust: [480, 620], // the C, C and H dissolve, outward from the U (the H a little later)
-  o: [520, 800], // the O glides to the Screen's place
-  oShape: [700, 620], // and becomes the frame
-  u: [640, 660], // the U widens into the sofa
-  arrive: 1500, // all dust is in the Screen by now (it lights from 1.28s)
-  end: 2100, // the vector intro has faded (style.css: out at 1.62s + .4s)
+  dust: [1250, 1000], // the C, C and H dissolve, outward from the U (the H a little later)
+  o: [1350, 1250], // the O glides to the Screen's place
+  oShape: [1600, 1000], // and becomes the frame
+  u: [1400, 1200], // the U widens into the sofa
+  arrive: 2900, // all dust is in the Screen by now (it lights from 2.35s)
+  end: 3600, // the vector intro has faded (style.css: out at 3s + .55s)
 } as const;
 
 /** A small seeded random, so every visit (and every frame capture) draws the same dust. */
@@ -109,7 +113,7 @@ function dust(mark: HTMLElement, s: number) {
   };
   const spans = parts.map(([key, d]) => ({ key, x: span(d) }));
   const delay = { c2: 0, c1: 0.06, h: 0.12 } as const;
-  const band = 0.05;
+  const band = 0.08;
 
   // a threshold per covered pixel, dissolved once progress passes it: the letter (per column), how far along it from
   // the U's side, and some noise. Worked out a few rows at a time while COUCH rises in (prepare), so nothing stalls.
@@ -123,7 +127,8 @@ function dust(mark: HTMLElement, s: number) {
   }
   let row = 0;
 
-  // the motes: fewer, smaller and warmer than sparks; they lift a little, sway, then settle into the Screen
+  // the motes: fewer, smaller and warmer than sparks; they lift a little, sway like dust in a beam, then settle into
+  // the Screen. Since ticket 143 they live longer and drift slower and softer.
   const rnd = seeded(142);
   const [dAt, dFor] = TIMES.dust;
   const [sx, sy] = centre(logo.screen).map((v, i) => (i ? v * m - y0 : v * m - x0));
@@ -137,12 +142,12 @@ function dust(mark: HTMLElement, s: number) {
       const born = dAt + th[k] * dFor;
       const ang = rnd() * Math.PI * 2, rr = Math.sqrt(rnd());
       const tx = sx + Math.cos(ang) * rr * sw * 0.42, ty = sy + Math.sin(ang) * rr * sh * 0.4;
-      const life = Math.max(380, Math.min(720 + rnd() * 380, TIMES.arrive - born));
+      const life = Math.max(650, Math.min(1150 + rnd() * 600, TIMES.arrive - born));
       motes.push({
         x, y, born, life, tx, ty,
-        c1x: x + (rnd() - 0.5) * 40 * (em / 0.9), c1y: y - (14 + rnd() * 34) * (em / 0.9),
+        c1x: x + (rnd() - 0.5) * 48 * (em / 0.9), c1y: y - (18 + rnd() * 40) * (em / 0.9),
         c2x: tx + (x - tx) * (0.25 + rnd() * 0.3), c2y: ty - (rnd() - 0.3) * 50 * (em / 0.9),
-        r: 0.55 + rnd() ** 2 * 1.1, a: 0.3 + rnd() * 0.4, warm: rnd() < 0.6, ph: rnd() * 6.283, sway: 1.5 + rnd() * 4,
+        r: 0.55 + rnd() ** 2 * 1.1, a: 0.24 + rnd() * 0.34, warm: rnd() < 0.6, ph: rnd() * 6.283, sway: 2 + rnd() * 5,
       });
     }
   };
@@ -205,8 +210,8 @@ function dust(mark: HTMLElement, s: number) {
       const bx = v * v * v * q.x + 3 * v * v * e * q.c1x + 3 * v * e * e * q.c2x + e * e * e * q.tx;
       const by = v * v * v * q.y + 3 * v * v * e * q.c1y + 3 * v * e * e * q.c2y + e * e * e * q.ty;
       const sway = Math.sin(Math.PI * u) * q.sway;
-      const x = bx + Math.sin(u * 5 + q.ph) * sway, y = by + Math.cos(u * 4 + q.ph) * sway * 0.5;
-      ctx.globalAlpha = q.a * smooth(clamp(u / 0.15)) * (1 - smooth(clamp((u - 0.7) / 0.3)));
+      const x = bx + Math.sin(u * 3.2 + q.ph) * sway, y = by + Math.cos(u * 2.6 + q.ph) * sway * 0.5;
+      ctx.globalAlpha = q.a * smooth(clamp(u / 0.22)) * (1 - smooth(clamp((u - 0.68) / 0.32)));
       const r = q.r * 3;
       ctx.drawImage(q.warm ? amber : cream, x - r, y - r, r * 2, r * 2);
     }
@@ -237,8 +242,8 @@ export function intro(reduced: () => boolean, onChange: (fn: () => void) => () =
   const ctrl = [oc0[0] + (oc1[0] - oc0[0]) * 0.6, oc0[1] + 18];
 
   const shapes = (t: number) => {
-    u.setAttribute("d", path(mix(uA, uB, glide(seg(t, ...TIMES.u)))));
-    const e = glide(seg(t, ...TIMES.o)), v = 1 - e, k = glide(seg(t, ...TIMES.oShape));
+    u.setAttribute("d", path(mix(uA, uB, drift(seg(t, ...TIMES.u)))));
+    const e = drift(seg(t, ...TIMES.o)), v = 1 - e, k = drift(seg(t, ...TIMES.oShape));
     const cx = v * v * oc0[0] + 2 * v * e * ctrl[0] + e * e * oc1[0], cy = v * v * oc0[1] + 2 * v * e * ctrl[1] + e * e * oc1[1];
     const d = oA0.map((p, i) => path(mix(p, oB0[i], k).map(([x, y, r]) => [x + cx, y + cy, r]))).join("");
     os.forEach((o) => o.setAttribute("d", d));
