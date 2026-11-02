@@ -6,7 +6,10 @@ import { intro } from "./intro.ts";
 const motionQuery = matchMedia("(prefers-reduced-motion: reduce)");
 const reduced = () => motionQuery.matches;
 
-intro(reduced, (fn) => motionQuery.addEventListener("change", fn));
+intro(reduced, (fn) => {
+  motionQuery.addEventListener("change", fn);
+  return () => motionQuery.removeEventListener("change", fn);
+});
 
 document.getElementById("year")!.textContent = String(new Date().getFullYear());
 

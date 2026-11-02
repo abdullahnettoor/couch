@@ -43,10 +43,15 @@ test("a morph starts and ends on its shapes, and every frame is a closed path of
   }
 });
 
-test("the <head> script sizes the mark exactly as the CSS does", () => {
+test("the <head> script sizes the mark exactly as the CSS does, in both intro modes", () => {
   const css = readFileSync(new URL("../style.css", import.meta.url), "utf8");
   assert.match(css, /\.mark \{ --lamp: min\(320px, 62vw, 33vh\);/);
-  assert.match(introHead, /Math\.min\(320,\.62\*w,\.33\*h\)/);
-  assert.match(introHead, /sessionStorage/);
-  assert.match(introHead, /prefers-reduced-motion: reduce/);
+  for (const mode of ["sequence", "logo-only"] as const) {
+    const head = introHead(mode);
+    assert.match(head, /Math\.min\(320,\.62\*w,\.33\*h\)/);
+    assert.match(head, /sessionStorage/);
+    assert.match(head, /prefers-reduced-motion: reduce/);
+  }
+  assert.doesNotMatch(introHead("sequence"), /intro-logo/);
+  assert.match(introHead("logo-only"), /"intro","intro-logo"/);
 });

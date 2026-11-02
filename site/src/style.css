@@ -180,14 +180,18 @@ html.intro .lamp { animation: intro-fade .45s ease-out 1.5s backwards; }
 html.intro .lamp-on { animation: none; }
 html.intro .hero .room-glow, html.intro .hero.playing .room-glow { animation-delay: 1.3s, 2.6s; }
 html.intro .hero.playing .lamp-film { animation-delay: 2.6s; }
-html.intro .hero-copy > :not(.mark) { animation: intro-copy .7s var(--ease) calc(1.56s + var(--d, 0s)) backwards; }
+html.intro:not(.intro-logo) .hero-copy > :not(.mark) { animation: intro-copy .7s var(--ease) calc(1.56s + var(--d, 0s)) backwards; }
 html.intro .hero-copy > h1 { --d: .02s; } html.intro .hero-copy > .lead { --d: .1s; } html.intro .hero-copy > .cta { --d: .16s; }
 html.intro .hero-copy > .meta { --d: .22s; } html.intro .hero-copy > .win-chip { --d: .26s; }
-/* skipped (any scroll, click, tap or key): everything arrives at once */
+/* skipped (any scroll, click, tap, key, focus or resize): everything arrives at once. In the logo-only mode
+   (html.intro-logo, src/config.ts) the copy is there from the first paint and only the logo area plays. */
 html.intro-skip .wm-intro { animation: intro-gone .2s ease forwards; }
-html.intro-skip .lamp, html.intro-skip .hero-copy > :not(.mark) { animation: intro-fade .3s ease-out backwards; }
+html.intro-skip .lamp, html.intro-skip:not(.intro-logo) .hero-copy > :not(.mark) { animation: intro-fade .3s ease-out backwards; }
 html.intro-skip .hero .room-glow, html.intro-skip .hero.playing .room-glow { animation-delay: 0s, 1.2s; }
 html.intro-skip .hero.playing .lamp-film { animation-delay: 1.2s; }
+/* back from the back/forward cache mid-intro: the end state at once, no fades */
+html.intro.intro-now .wm-intro { display: none; }
+html.intro.intro-now .lamp, html.intro.intro-now .hero-copy > :not(.mark) { animation: none; }
 
 .aurora { position: absolute; z-index: -1; pointer-events: none; inset: -40% 0 auto 0; height: 100%; opacity: .8; filter: blur(24px);
   background: radial-gradient(40% 50% at 28% 22%, rgba(255, 150, 60, .30), transparent 70%), radial-gradient(38% 46% at 74% 18%, rgba(70, 96, 190, .34), transparent 70%); }

@@ -11,6 +11,8 @@
  * (src/shots/couch-glow.webp), so the vector logo lands exactly on the picture that takes over.
  */
 
+import type { IntroMode } from "../config.ts";
+
 export type Pt = [x: number, y: number];
 /** A corner: position and radius. */
 export type Corner = [x: number, y: number, r: number];
@@ -161,10 +163,11 @@ export function introSvg(): string {
 /**
  * Runs in <head> before the first paint: once per visit (sessionStorage), never with reduced motion or a
  * #section link, it marks the page for the intro and sizes the wordmark (--wm-s: mark units per em) so it
- * spans min(700px, 88vw) over a mark of min(320px, 62vw, 33vh), the hero mark's CSS size.
+ * spans min(700px, 88vw) over a mark of min(320px, 62vw, 33vh), the hero mark's CSS size. In the "logo-only"
+ * mode (src/config.ts) it also adds html.intro-logo, so the copy is never hidden.
  */
-export const introHead = `(function(){try{var d=document.documentElement,w=innerWidth,h=innerHeight;`
+export const introHead = (mode: IntroMode) => `(function(){try{var d=document.documentElement,w=innerWidth,h=innerHeight;`
   + `if(location.hash.length>1||matchMedia("(prefers-reduced-motion: reduce)").matches||sessionStorage.getItem("couch:intro"))return;`
   + `sessionStorage.setItem("couch:intro","1");`
   + `d.style.setProperty("--wm-s",(Math.min(700,.88*w)*${MARK.w}/Math.min(320,.62*w,.33*h)/${WIDTH}).toFixed(3));`
-  + `d.classList.add("intro")}catch(e){}})();`;
+  + `d.classList.add(${mode === "logo-only" ? `"intro","intro-logo"` : `"intro"`})}catch(e){}})();`;

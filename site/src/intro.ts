@@ -3,7 +3,8 @@
  * clock (the CSS animations' start time): the U's corners slide to the sofa's (its arms round into
  * armrests, its base becomes the seat), and the O hops over the arm, drops into the sofa and opens its slot
  * into the Screen. Plain corner interpolation (src/brand/wordmark.ts), one requestAnimationFrame loop for
- * about 0.7s, no library. Any scroll, click, tap or key, or a switch to reduced motion, skips to the end.
+ * about 0.7s, no library. Any scroll, click, tap, key, focus, resize or rotation, or a switch to reduced motion,
+ * skips to the end; a return from the back/forward cache shows the end at once. The listeners go when it ends.
  */
 import { letters, logo, mix, path, toEm, type Poly } from "./brand/wordmark.ts";
 
@@ -27,7 +28,7 @@ const U_AT = 900, U_FOR = 620;
 const O_AT = 800, O_FOR = 760;
 const END = 2100; // the vector intro has faded (style.css: out at 1.66s + .4s)
 
-export function intro(reduced: () => boolean, onChange: (fn: () => void) => void) {
+export function intro(reduced: () => boolean, onChange: (fn: () => void) => () => void) {
   const root = document.documentElement;
   const svg = document.querySelector<SVGSVGElement>("svg.wm-intro");
   if (!root.classList.contains("intro") || !svg) return;
@@ -57,30 +58,42 @@ export function intro(reduced: () => boolean, onChange: (fn: () => void) => void
     os.forEach((o) => o.setAttribute("d", d));
   };
 
-  let raf = 0, over = false;
-  const events = ["wheel", "touchstart", "pointerdown", "keydown", "scroll"] as const;
-  const end = (skipped: boolean) => {
+  let raf = 0, over = false, offChange = () => {};
+  // Anything that reaches the hero skips: scroll, wheel, tap, key, and also a click or focus that comes without a
+  // pointer (assistive tech, element.click(), focus()), so no control is ever used while it is still transparent.
+  // A resize or rotation skips too: the wordmark was sized for the first viewport (--wm-s).
+  const inputs = ["wheel", "touchstart", "pointerdown", "keydown", "scroll", "click", "focusin"] as const;
+  const sizes = ["resize", "orientationchange"] as const;
+  const end = (how: "played" | "skipped" | "now") => {
     if (over) return;
     over = true;
     cancelAnimationFrame(raf);
-    events.forEach((e) => removeEventListener(e, onInput, true));
+    inputs.forEach((e) => removeEventListener(e, onInput, true));
+    sizes.forEach((e) => removeEventListener(e, onInput));
+    removeEventListener("pageshow", onShow);
+    offChange();
     draw(Infinity);
-    if (!skipped) { root.classList.add("intro-done"); return; }
+    if (how === "played") { root.classList.add("intro-done"); return; }
+    if (how === "now") { root.classList.add("intro-skip", "intro-now", "intro-done"); return; }
     root.classList.add("intro-skip");
     setTimeout(() => root.classList.add("intro-done"), 260);
   };
-  const onInput = () => end(true);
+  const onInput = () => end("skipped");
+  // back from the back/forward cache: no intro left to watch, the end state at once
+  const onShow = (e: PageTransitionEvent) => { if (e.persisted) end("now"); };
   const frame = () => {
     const t = now() - t0;
     draw(t);
     raf = t < O_AT + O_FOR ? requestAnimationFrame(frame) : 0;
   };
-  events.forEach((e) => addEventListener(e, onInput, { capture: true, passive: true }));
-  onChange(() => { if (reduced()) end(true); });
+  inputs.forEach((e) => addEventListener(e, onInput, { capture: true, passive: true }));
+  sizes.forEach((e) => addEventListener(e, onInput, { passive: true }));
+  addEventListener("pageshow", onShow);
+  offChange = onChange(() => { if (reduced()) end("skipped"); });
 
-  if (scrollY > 0 || reduced()) return end(true);
-  if (now() - t0 >= END) return end(false);
+  if (scrollY > 0 || reduced()) return end("skipped");
+  if (now() - t0 >= END) return end("played");
   raf = requestAnimationFrame(frame);
-  if (clock) clock.finished.then(() => end(false), () => {});
-  else setTimeout(() => end(false), END - (now() - t0));
+  if (clock) clock.finished.then(() => end("played"), () => {});
+  else setTimeout(() => end("played"), END - (now() - t0));
 }
