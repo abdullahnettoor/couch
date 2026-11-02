@@ -1,4 +1,5 @@
 import type { BrowserWindow } from "electron";
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import type { DrawerGlass } from "../web/quick-drawer.ts";
@@ -9,7 +10,9 @@ import type { EmbedFactory } from "./mpv-player.ts";
 type DrawerGlassRect = Parameters<DrawerGlass["open"]>[0];
 
 interface Addon {
-  create(handle: Buffer, options: Record<string, string>, libraryPath?: string): number;
+  create(handle: Buffer, options: Record<string, string>, libraryPaths?: string[]): number;
+  /** Loads libmpv without a window and returns the file it loaded. Throws when none can be loaded. */
+  loadLibmpv(libraryPaths?: string[]): string;
   setVisible(id: number, visible: boolean): void;
   setGlass(
     id: number,
@@ -115,6 +118,21 @@ export interface WebKitSelfTestAddon {
   ): void;
 }
 
+/**
+ * Where to look for libmpv before Homebrew's folders (the add-on appends those): the developer override
+ * COUCH_LIBMPV, then the copy that `vp run package` puts in Contents/Frameworks/mpv.
+ */
+export function libmpvCandidates(
+  env: Record<string, string | undefined>,
+  resourcesPath: string,
+  exists: (path: string) => boolean = existsSync,
+): string[] {
+  const bundled = join(resourcesPath, "..", "Frameworks", "mpv", "libmpv.2.dylib");
+  return [env.COUCH_LIBMPV, exists(bundled) ? bundled : undefined].filter((path): path is string =>
+    Boolean(path),
+  );
+}
+
 function loadAddon(): Addon {
   return createRequire(import.meta.url)(
     join(import.meta.dirname, "../../native/mpv-embed/mpv_embed.node"),
@@ -214,7 +232,11 @@ export function createEmbedFactory(win: () => BrowserWindow | undefined): EmbedF
     const window = win();
     if (!window || window.isDestroyed()) throw new Error("no window to embed into");
     const addon = loadAddon();
-    const id = addon.create(window.getNativeWindowHandle(), options, process.env.COUCH_LIBMPV);
+    const id = addon.create(
+      window.getNativeWindowHandle(),
+      options,
+      libmpvCandidates(process.env, process.resourcesPath),
+    );
     return {
       setVisible: (visible) => addon.setVisible(id, visible),
       nativeGlass: addon.glassSupported() && process.env.COUCH_NATIVE_GLASS !== "0",

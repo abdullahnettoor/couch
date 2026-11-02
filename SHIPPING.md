@@ -12,6 +12,12 @@ Couch is a personal app today: it runs on the household's Mac, built and install
   - Notarising (`notarytool submit --wait`, then `stapler staple`) still has to be added after it.
 - **What a stable signature fixes:** WebKit keeps a keychain item, "Couch WebCrypto Master Key". With any stable signature, users approve it at most once. Ad-hoc builds re-ask after every update.
 
+## Bundled mpv and GPL source
+
+- **What's in place:** `vp run package` copies libmpv and its Homebrew libraries (FFmpeg, libass, libplacebo and others) into `Contents/Frameworks/mpv`, with licence texts and `THIRD-PARTY-LIBRARIES.md` (version, licence and source archive of each) in `Contents/Resources`.
+- **Before a public download:** provide the corresponding source for the GPL parts (mpv, FFmpeg, x264, x265, rubberband, and others in the manifest): either attach a source archive of each listed version to the release, or include a written offer valid for three years, and link it from the download page. The manifest's source URLs are Homebrew's archives for the installed versions; Homebrew's bottles may carry patches (see each formula), so keep those with the archive.
+- **Architecture:** only arm64, the Homebrew on the packaging Mac. An x86_64 or universal build needs an Intel Homebrew (`/usr/local`) run of `vp run package`, or a separate build of each library, and `lipo` to merge them.
+
 ## DRM
 
 - **Widevine (Chromium engine):** the castLabs ECS Electron build, VMP-signed through castLabs EVS.

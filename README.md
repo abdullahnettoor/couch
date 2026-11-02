@@ -21,11 +21,11 @@ Words like Screen, Remote, App and Library have fixed meanings: see [GLOSSARY.md
 - A Mac on macOS 14 or later.
 - A TV or monitor connected to the Mac.
 - A phone on the same Wi-Fi as the Mac (for the Remote).
-- Homebrew `mpv`, for playing the Library (for now): `brew install mpv`.
+- Nothing else to play the Library: a packaged Couch carries its own libmpv. Homebrew `mpv` is only needed to build Couch, or to run it from source.
 
 ## Build from source
 
-Couch isn't distributed as a download yet, so you build it yourself. You need Xcode command line tools, Homebrew and [pnpm](https://pnpm.io).
+Couch isn't distributed as a download yet, so you build it yourself. You need Xcode command line tools, Homebrew (with `mpv`, which `vp run package` copies into the app) and [pnpm](https://pnpm.io).
 
 ```sh
 brew install mpv
@@ -74,9 +74,9 @@ Build outputs: `dist/renderer` (Vite), `dist/main/index.mjs` (ESM), `dist/preloa
 
 ## mpv hand-off
 
-Couch loads libmpv in-process through a small native add-on (`native/mpv-embed/`, Objective-C++, N-API) and draws the video into an NSView (a `CAOpenGLLayer`) added on top of Couch's window. The video therefore moves, resizes and goes full screen with Couch, and no separate mpv window exists. The core is created idle at start with the same options as before plus `input-ipc-server`, and is still controlled only through a Unix socket in a temp folder. The view is shown on mpv's `file-loaded` and hidden on `end-file`, so Couch's UI returns when playback stops. The overlay is still mpv's `osd-overlay`. libmpv is `dlopen`ed (Homebrew paths, or `COUCH_LIBMPV=/path/libmpv.2.dylib`), so Couch still opens and shows the "needs mpv" message without it. Without the add-on (vitest) `MpvPlayer` spawns a headless mpv process instead.
+Couch loads libmpv in-process through a small native add-on (`native/mpv-embed/`, Objective-C++, N-API) and draws the video into an NSView (a `CAOpenGLLayer`) added on top of Couch's window. The video therefore moves, resizes and goes full screen with Couch, and no separate mpv window exists. The core is created idle at start with the same options as before plus `input-ipc-server`, and is still controlled only through a Unix socket in a temp folder. The view is shown on mpv's `file-loaded` and hidden on `end-file`, so Couch's UI returns when playback stops. The overlay is still mpv's `osd-overlay`. libmpv is `dlopen`ed, first from `COUCH_LIBMPV=/path/libmpv.2.dylib`, then from the copy inside the app (`Contents/Frameworks/mpv`), then from Homebrew's folders (so a source run works), so Couch still opens and shows the "needs mpv" message without it. Without the add-on (vitest) `MpvPlayer` spawns a headless mpv process instead.
 
-**Building the add-on** (needs Xcode command line tools and `brew install mpv`, which also supplies the headers): `pnpm run build:native` writes `native/mpv-embed/mpv_embed.node` (git-ignored; run it after `pnpm install` and before `vp run start` / `vp run package`). `vp run package` unpacks it into `app.asar.unpacked`. The built Couch.app still needs mpv installed on the Mac (libmpv comes from Homebrew, not bundled).
+**Building the add-on** (needs Xcode command line tools and `brew install mpv`, which also supplies the headers): `pnpm run build:native` writes `native/mpv-embed/mpv_embed.node` (git-ignored; run it after `pnpm install` and before `vp run start` / `vp run package`). `vp run package` unpacks it into `app.asar.unpacked`. `vp run package` also copies Homebrew's libmpv and the libraries it needs (about 50, arm64) into `Couch.app/Contents/Frameworks/mpv`, rewrites their install names to point at each other, signs them with the app's identity, and writes their licences and a manifest into `Contents/Resources` (`licenses/`, `THIRD-PARTY-LIBRARIES.md`). The built Couch.app plays without Homebrew; `pnpm bundled-mpv-check` proves it loads the bundled copy with Homebrew's folders unreadable.
 
 ## Checking playback by hand
 
@@ -124,7 +124,7 @@ Settings, the pairing key, watch history, App sign-ins and thumbnails live in `~
 
 ## Third-party
 
-- **mpv / libmpv** plays the Library. It is GPL software, installed through Homebrew; Couch loads it at run time.
+- **mpv / libmpv** plays the Library. It is GPL software. A packaged Couch bundles libmpv and the libraries it needs (FFmpeg, libass, libplacebo and others, copied from Homebrew when packaging); their licences and source locations are in `Couch.app/Contents/Resources/THIRD-PARTY-LIBRARIES.md` and `licenses/`. A source run loads Homebrew's libmpv instead.
 - **Electron** (the castLabs ECS build) runs the Screen. Electron and castLabs ECS are MIT-licensed.
 - **Widevine CDM** is downloaded at run time by the castLabs build. Couch does not ship it.
 - **TMDB** supplies posters and film details. This product uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.

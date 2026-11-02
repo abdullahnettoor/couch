@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { builtinModules } from "node:module";
 import { join } from "node:path";
+import { bundleMpv } from "./lib/bundle-mpv.mts";
 import { evsState, signPkg, verifyPkg } from "./lib/evs-cli.mts";
 import { packagingPlan } from "./lib/evs.mts";
 
@@ -82,6 +83,11 @@ copyFileSync("dist/remote/page.html", join(remote, "page.html"));
 copyFileSync("dist/remote/manifest.webmanifest", join(remote, "manifest.webmanifest"));
 for (const icon of ["icon-192.png", "icon-512.png", "touch-icon.png"])
   copyFileSync(join("src/renderer/public", icon), join(remote, icon));
+// libmpv and the libraries it needs go in Contents/Frameworks/mpv, so Couch plays without Homebrew. They are added
+// after VMP signing (like the listener above) and signed here with the app's identity; the deep signing below seals them in.
+const identity = process.env.COUCH_CODESIGN_IDENTITY || "-";
+const bundled = bundleMpv(join(appPath, "Couch.app", "Contents"), identity);
+console.log(`Bundled ${bundled.length} libraries into Contents/Frameworks/mpv`);
 // COUCH_CODESIGN_IDENTITY: a Developer ID identity; unset means an ad-hoc signature (runs here, can't be notarised).
 // disable-library-validation lets the Widevine CDM load under the hardened runtime.
 execFileSync(
@@ -94,7 +100,7 @@ execFileSync(
     "--entitlements",
     "build/entitlements.plist",
     "--sign",
-    process.env.COUCH_CODESIGN_IDENTITY || "-",
+    identity,
     join(appPath, "Couch.app"),
   ],
   { stdio: "inherit" },

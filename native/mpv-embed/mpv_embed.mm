@@ -36,10 +36,12 @@ static Api api;
 static bool apiLoaded = false;
 static std::string apiError;
 
-static bool loadApi(const char *explicitPath) {
+static std::string apiPath;
+
+// `first` are the candidates from JS, in order: COUCH_LIBMPV, then the copy bundled in the app. Homebrew comes last.
+static bool loadApi(const std::vector<std::string> &first) {
   if (apiLoaded) return true;
-  std::vector<std::string> paths;
-  if (explicitPath && *explicitPath) paths.push_back(explicitPath);
+  std::vector<std::string> paths = first;
   paths.push_back("/opt/homebrew/lib/libmpv.2.dylib");
   paths.push_back("/usr/local/lib/libmpv.2.dylib");
   paths.push_back("/opt/homebrew/lib/libmpv.dylib");
@@ -54,6 +56,8 @@ static bool loadApi(const char *explicitPath) {
   SYM(render_set_cb, "mpv_render_context_set_update_callback")
   SYM(render_update, "mpv_render_context_update") SYM(render_render, "mpv_render_context_render")
   SYM(render_free, "mpv_render_context_free")
+  Dl_info where;
+  if (dladdr((void *)api.create, &where) && where.dli_fname) apiPath = where.dli_fname;
   apiLoaded = true;
   return true;
 }
@@ -231,13 +235,38 @@ static std::map<int, bool> below;
 static int nextId = 1;
 
 
-// create(nsViewHandle: Buffer, options: Record<string,string>, libraryPath?: string): number
+// Accepts one path or an array of paths; anything else is ignored.
+static std::vector<std::string> pathList(napi_env env, napi_value v) {
+  std::vector<std::string> out;
+  bool isArray = false; napi_is_array(env, v, &isArray);
+  if (isArray) {
+    uint32_t n = 0; napi_get_array_length(env, v, &n);
+    for (uint32_t i = 0; i < n; i++) {
+      napi_value el; napi_valuetype t;
+      napi_get_element(env, v, i, &el); napi_typeof(env, el, &t);
+      if (t == napi_string) out.push_back(str(env, el));
+    }
+  } else {
+    napi_valuetype t; napi_typeof(env, v, &t);
+    if (t == napi_string) out.push_back(str(env, v));
+  }
+  return out;
+}
+
+// loadLibmpv(libraryPaths?: string | string[]): string  (loads libmpv without a window; returns the file it loaded)
+static napi_value LoadLibmpv(napi_env env, napi_callback_info info) {
+  size_t argc = 1; napi_value argv[1];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  if (!loadApi(argc > 0 ? pathList(env, argv[0]) : std::vector<std::string>())) return fail(env, apiError);
+  napi_value out; napi_create_string_utf8(env, apiPath.c_str(), NAPI_AUTO_LENGTH, &out);
+  return out;
+}
+
+// create(nsViewHandle: Buffer, options: Record<string,string>, libraryPaths?: string | string[]): number
 static napi_value Create(napi_env env, napi_callback_info info) {
   size_t argc = 3; napi_value argv[3];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
-  std::string lib;
-  if (argc > 2) { napi_valuetype t; napi_typeof(env, argv[2], &t); if (t == napi_string) lib = str(env, argv[2]); }
-  if (!loadApi(lib.c_str())) return fail(env, apiError);
+  if (!loadApi(argc > 2 ? pathList(env, argv[2]) : std::vector<std::string>())) return fail(env, apiError);
   void *data; size_t len;
   if (napi_get_buffer_info(env, argv[0], &data, &len) != napi_ok || len < sizeof(void *)) return fail(env, "bad native handle");
   NSView *parent = (__bridge NSView *)(*(void **)data);
@@ -552,6 +581,7 @@ static napi_value UnwatchMouseMoves(napi_env env, napi_callback_info info) {
 static napi_value Init(napi_env env, napi_value exports) {
   napi_property_descriptor d[] = {
     {"create", 0, Create, 0, 0, 0, napi_default, 0},
+    {"loadLibmpv", 0, LoadLibmpv, 0, 0, 0, napi_default, 0},
     {"setVisible", 0, SetVisible, 0, 0, 0, napi_default, 0},
     {"setPlacement", 0, SetPlacement, 0, 0, 0, napi_default, 0},
     {"setGlass", 0, SetGlass, 0, 0, 0, napi_default, 0},
