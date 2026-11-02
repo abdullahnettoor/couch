@@ -121,7 +121,7 @@ The site is licensed **GPL-3.0-or-later**, the same as Couch (`LICENSE`, `packag
 
 ## Checks
 
-`node scripts/shoot.mjs <dir>` writes, at 1440, 1024, 768 and 390 px from `pnpm preview`, a full-page shot, the hero viewport and the Remote sequence's end state (needs Google Chrome). Lighthouse on the local build after ticket 138: performance 98–99 mobile (the hero light is now the LCP image) and 100 desktop; accessibility, best practices and SEO 100.
+`node scripts/shoot.mjs <dir>` writes, at 1440, 1024, 768 and 390 px from `pnpm preview`, a full-page shot, the hero viewport and the Remote sequence's end state (needs Google Chrome). Lighthouse on the local build after the ticket 138 review: mobile performance 98 (LCP 2.3s simulated, the hero light image; CLS 0.009) and desktop 100; accessibility, best practices and SEO 100 on both.
 
 ## Before publishing
 
