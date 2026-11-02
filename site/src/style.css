@@ -473,6 +473,8 @@ details p a { color: var(--amber-3); }
    hero picture gives way to the wallpaper and clock: home.css's .7s) → open (YouTube's tile grows to fill the
    Screen) → end (the thumbnail or the poster). Couch's ease throughout. */
 .lv { position: absolute; inset: 0; z-index: 1; pointer-events: none; --u: calc(100cqw / 1920); }
+/* its pictures load only once the TV is near (src/launch.ts adds .armed), never with the page's first pictures */
+.lv:not(.armed) img { display: none; }
 /* reduced motion: the end at once, with no transitions at all (not even reduced motion's .01ms ones) */
 .lv-now, .lv-now * { transition: none !important; }
 .tv-screen .lv-home { z-index: 0; isolation: isolate; opacity: 0; transition: opacity .25s linear; }
@@ -494,6 +496,7 @@ details p a { color: var(--amber-3); }
 .lv[data-step="open"] .lv-open, .lv[data-step="end"] .lv-open { visibility: visible; }
 .lv-open-mark { display: block; width: calc(220 * var(--u)); height: calc(220 * 164 / 192 * var(--u)); }
 .lv-open-mark svg { display: block; width: 100%; height: 100%; }
+.lv[data-step="end"] .lv-open-mark { opacity: 0; transition: opacity .35s var(--ease); }
 /* the end: the thumbnail and play button, or the poster */
 .lv-end { position: absolute; inset: 0; z-index: 2; overflow: hidden; opacity: 0; visibility: hidden; transition: opacity .7s var(--ease), visibility .7s; }
 .lv[data-step="end"] .lv-end { opacity: 1; visibility: visible; pointer-events: auto; }

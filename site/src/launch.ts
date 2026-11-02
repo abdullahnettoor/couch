@@ -43,7 +43,7 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
   const endEl = lv.querySelector<HTMLElement>(".lv-end")!;
   let raf = 0;
   let anims: Animation[] = [];
-  let state: "waiting" | "playing" | "ended" = "waiting";
+  let state: "waiting" | "starting" | "playing" | "ended" = "waiting";
   const setState = (s: typeof state) => { state = s; lv.dataset.state = s; };
   setState("waiting");
 
@@ -56,7 +56,7 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
   const finish = () => {
     cancelAnimationFrame(raf); raf = 0;
     anims.forEach((a) => a.cancel()); anims = [];
-    lv.classList.add("lv-now");
+    lv.classList.add("lv-now", "armed");
     focusOn("youtube");
     yt.classList.remove("lv-pressed");
     lv.classList.add("lit");
@@ -99,10 +99,9 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
   };
 
   const play = () => {
-    if (state !== "waiting") return;
+    if (state !== "starting") return;
     if (reduced()) { finish(); return; }
     setState("playing");
-    stopWatching();
     const T = LAUNCH_TIMES;
     const beats: Array<[number, () => void]> = [
       [T.row, () => step("row")],
@@ -126,29 +125,54 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
     tick();
   };
 
+  // Its pictures (the Continue tile's, the poster's light or the thumbnail) load once the page's own are in: after
+  // the load event and the intro, when the browser is idle, or as soon as the TV starts to come into view.
+  const arm = () => lv.classList.add("armed");
+  const tileImg = lv.querySelector<HTMLImageElement>(".lv-home img");
+  /** Waits (a little, at most) for the Continue tile's picture, so the live row never shows it empty. */
+  const ready = () => {
+    arm();
+    const img = tileImg;
+    if (!img || (img.complete && img.naturalWidth)) return Promise.resolve();
+    return Promise.race([img.decode().catch(() => {}), new Promise((ok) => setTimeout(ok, 1200))]);
+  };
+
   // Once, when the TV is mostly in view (60 %, or 60 % of a window it does not fit in) and the hero's intro is done.
   let io: IntersectionObserver | undefined;
   let mo: MutationObserver | undefined;
   let seen = false;
   const root = document.documentElement;
   const introDone = () => !root.classList.contains("intro") || root.classList.contains("intro-done");
-  const tryStart = () => { if (seen && introDone()) play(); };
+  const tryStart = () => {
+    if (!seen || !introDone() || state !== "waiting") return;
+    setState("starting");
+    stopWatching();
+    ready().then(() => { if (state === "starting") play(); });
+  };
   function stopWatching() { io?.disconnect(); mo?.disconnect(); io = mo = undefined; }
+  const armWhenIdle = () => {
+    if (!introDone() || document.readyState !== "complete") return;
+    const idle = window.requestIdleCallback ?? ((fn: () => void) => setTimeout(fn, 200));
+    idle(arm);
+  };
 
   onChange(() => { if (reduced() && state !== "ended") finish(); });
   if (reduced()) finish();
   else if ("IntersectionObserver" in window) {
     io = new IntersectionObserver(([e]) => {
       if (!e?.isIntersecting) return;
+      arm();
       const room = (e.rootBounds?.height ?? innerHeight) * 0.6;
       seen = e.intersectionRatio >= 0.6 || e.intersectionRect.height >= room;
       tryStart();
     }, { threshold: [0, 0.2, 0.4, 0.6, 0.8, 1] });
     io.observe(tv);
     if (!introDone()) {
-      mo = new MutationObserver(() => { if (introDone()) { mo?.disconnect(); tryStart(); } });
+      mo = new MutationObserver(() => { if (introDone()) { mo?.disconnect(); tryStart(); armWhenIdle(); } });
       mo.observe(root, { attributes: true, attributeFilter: ["class"] });
     }
+    if (document.readyState === "complete") armWhenIdle();
+    else addEventListener("load", armWhenIdle, { once: true });
   } else finish();
 
   // The play facade (with a video): YouTube is loaded only now, into the Screen.

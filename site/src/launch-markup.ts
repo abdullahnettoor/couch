@@ -35,8 +35,8 @@ export function launchScreen(o: LaunchOptions): string {
   const open = `<div class="lv-open" aria-hidden="true"><span class="lv-open-mark">${mark(yt)}</span></div>`;
   let end: string;
   if (!o.id) {
-    // the poster: Couch's own light (the icon's sofa-and-Screen glow, the hero's picture) in a dark, warm room
-    end = `<div class="lv-end lv-poster"><div class="lv-light" aria-hidden="true"><img src="/src/shots/couch-glow.webp" width="832" height="688" alt="" loading="lazy" decoding="async" /></div>`
+    // the poster: Couch's own light (the icon's sofa-and-Screen glow, the hero's picture and its two sizes) in a dark, warm room
+    end = `<div class="lv-end lv-poster"><div class="lv-light" aria-hidden="true"><img src="/src/shots/couch-glow.webp" srcset="/src/shots/couch-glow-480.webp 480w, /src/shots/couch-glow.webp 832w" sizes="(max-width: 700px) 45vw, 480px" width="832" height="688" alt="" loading="lazy" decoding="async" /></div>`
       + `<div class="lv-text"><p class="lv-title">Launch video</p><p class="lv-meta">Coming soon to YouTube</p></div></div>`;
   } else {
     const t = o.thumb!;
