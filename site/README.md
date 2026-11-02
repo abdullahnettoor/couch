@@ -42,20 +42,20 @@ The Worker stores nothing about the visitor: no IP, no user agent, no body, no c
 
 Every product picture is a **slot**, declared once in `src/slots.ts` (a typed manifest: slot name → interim file, alt text, width and height, `loading` priority). `vite.config.ts` reads it at build time and writes the `<img>` into `index.html` (`{{slot:name}}`), or into the place a mock stands in (`<!--mock:name-->…<!--/mock-->`). The build fails if `index.html` uses a slot the manifest lacks, or the manifest has a slot `index.html` never uses.
 
-To replace a picture after the real shoot, drop a file named `src/shots/slot-<name>.png` (or `.jpg`, `.webp`) and rebuild. It wins over the manifest's `file` and over any CSS mock. The slot keeps its alt text, `width`/`height` and `loading` (`eager` for the first viewport, `lazy` for the rest) from the manifest, so edit those in `src/slots.ts` if the new picture differs (and write real alt text for what it shows). Crop shots to the frame: 16:9 for the Screen (for example 1920×1080), about 9:19 for the Remote (1080×2280), each under about 150 KB.
+To replace a picture, drop a file named `src/shots/slot-<name>.png` (or `.jpg`, `.webp`) and rebuild. It wins over the manifest's `file` and over any CSS mock. The slot keeps its alt text, `width`/`height` and `loading` (`eager` for the first viewport, `lazy` for the rest) from the manifest, so edit those in `src/slots.ts` if the new picture differs (and write real alt text for what it shows). Crop shots to the frame: 16:9 for the Screen (for example 1920×1080), about 9:19 for the Remote (1080×2280), each under about 150 KB. A dropped-in file has no `srcset`; the manifest's own pictures do (below).
 
-| Slot name | Where | Today | Wanted |
+| Slot name | Where | Today | Source (ticket 140 shoot) |
 | --- | --- | --- | --- |
-| `hero-screen` | First look, under the hero | Couch UI mock: Home (clock, Apps) | Home, with the Apps row |
-| `remote-screen` | "Your phone is the remote" TV | Couch UI mock: Home with the pairing QR card | Home |
-| `remote-phone` | Same section, phone | Couch UI mock: the Remote, and a phone camera view | The Remote |
-| `apps-screen` | "The Apps you already use" TV | Couch UI mock: Home with the Continue row and App tiles | Apps row; YouTube shots should be the guest view. Never a signed-in Netflix page |
-| `library-screen` | "Your Library" TV | `library.jpg` | A full Library shelf |
-| `privacy-screen` | Privacy panel TV | `settings.jpg` | Settings |
-| `setup-remotes` | Setup step 2 | `remotes.jpg` | Settings → Add a phone |
-| `setup-player` | Setup step 3 | `player.jpg` | A Library video playing |
+| `hero-screen` | First look, under the hero | `home.webp`: Home with Big Buck Bunny under Continue watching | `hero-home-continue-focus.png` |
+| `remote-screen` | "Your phone is the remote" TV | Couch UI mock: Home with the pairing QR card | (mock kept: the pairing sequence) |
+| `remote-phone` | Same section, phone | Couch UI mock: the Remote, and a phone camera view | (mock kept: the pairing sequence) |
+| `apps-screen` | "The Apps you already use" TV | Couch UI mock: Home with the Continue row and App tiles | (mock kept: the focus pass across the Apps) |
+| `library-screen` | "Your Library" TV | `library.webp`: the Films shelf (Big Buck Bunny, Sintel, Tears of Steel) | `library-first-page.png` |
+| `privacy-screen` | Privacy panel TV | `settings.webp`: Settings | `settings.png` |
+| `setup-remotes` | Setup step 2 | `remotes.webp`: Remotes and Devices, Add a phone | `remotes-devices.png` |
+| `setup-player` | Setup step 3 | `player.webp`: Big Buck Bunny in the player, controls showing | `player-controls.png` |
 
-The four JPEGs are copies of `docs/screenshots/` in the Couch repo. The two Remote-section slots (`remote-screen`, `remote-phone`) carry the finite pairing sequence (QR, pair, D-pad press, highlight moves); replacing either with a still turns that part into a plain picture, so replace both or neither. The sequence's end state is the connected state, which is also what visitors with reduced motion or no JavaScript see.
+**The screenshots (ticket 142)** are the real Couch from the ticket 140 shoot (`~/Projects/couch-notes/shots/140/`): a temporary profile, no household data, YouTube and Netflix only as App tiles, each picture privacy-checked there and again here. `pnpm shots [dir]` (`scripts/shots.mjs`, needs `cwebp`) crops each window capture to 16:9 and writes WebP at 1920 (`<name>.webp`), 1280 and 640 px (`<name>-1280.webp`, `<name>-640.webp`); `vite.config.ts` writes them as a `srcset` with the slot's `sizes`. The films are Blender's open films *Big Buck Bunny*, *Sintel* and *Tears of Steel* (© Blender Foundation, CC BY 3.0) and the posters, backdrops and synopses come from TMDB, so the footer and `/licenses/` credit both and carry TMDB's notice ("This product uses the TMDB API but is not endorsed or certified by TMDB"). Keep those credits whenever a picture shows a film. The two Remote-section slots (`remote-screen`, `remote-phone`) carry the finite pairing sequence (QR, pair, D-pad press, highlight moves); replacing either with a still turns that part into a plain picture, so replace both or neither. The sequence's end state is the connected state, which is also what visitors with reduced motion or no JavaScript see.
 
 The hero's light is `src/shots/couch-glow.webp` (and `-480`): Couch's own icon art, `build/icon.png` in the Couch repo, cropped to the sofa and its tile darkened so it can be added to the page as light (`mix-blend-mode: screen`). Regenerate:
 
@@ -67,46 +67,51 @@ cwebp -q 80 -resize 480 397 /tmp/glow.png -o src/shots/couch-glow-480.webp
 
 Other assets: `public/icon.png`, `favicon.png` and `apple-touch-icon.png` come from `build/icon.png` in the Couch repo. `public/og.png` (the social card) is generated by `node scripts/og.mjs` from `scripts/og.html`; edit that file and rerun to change it.
 
-## The wordmark (ticket 139)
+## The wordmark (ticket 142)
 
-COUCH in the manner of Apple's iPhone "PRO" lettering: very wide, black-weight capitals, rounded-square corners, counters cut as narrow slots, in the icon's orange with a soft vertical gradient. It is drawn, not set: `src/brand/wordmark.ts` describes each letter as a polygon whose corners carry their own radius (cap height 100, baseline 0), and builds the SVG paths from that. No font ships for it.
+COUCH set in **Korataki ExtraBold** (Typodermic Fonts), converted to SVG paths, in the icon's orange with a soft vertical gradient (#ffc681 → #f28a3a → #c9601f). It replaced ticket 139's hand-drawn wordmark. **No font ships**: the site carries only the outlines, as paths.
 
-- **Reference font, not shipped.** The proportions were traced by eye from **Archivo** (Expanded, Black; Omnibus-Type, SIL OFL 1.1), with Unbounded Black (OFL) for comparison. Both were downloaded only to render a comparison sheet next to the "PRO" reference; neither is in this repo or the build, and no Apple font was used.
-- **Weights.** The horizontal bars carry the weight (44 of 100), the stems are 28, the slot counters 12 and the outer corners 34. Letters are about 1.4 times as wide as they are tall. Gaps are 14, and 11 after each C, whose open side already adds air.
-- **C** is the O with its slot run out through the right side. **H** has two heavy stems and its counters as narrow vertical slots.
-- **U and O match the logo.** The U is the O without its top bar, and it has the same eight corners as the sofa in the icon (arm, arm, the cradle's two corners, arm, arm, the base's two corners); its open counter is close to the sofa's own proportions (arms about a fifth of the width, the seat under half the height). The O has the same four outside and four inside corners as the Screen's frame, so its slot is the Screen. The logo's corners are measured from `build/icon.png`, in the coordinates of the hero picture (`couch-glow.webp`, the icon's 832 × 688 crop), so the vector logo lands on the picture.
-- **Two optical sizes.** Display (the hero) uses 12-unit slots. Small (the nav, 20px tall) opens the slots to 17 and the H's notches to 22, so they stay at least two device pixels wide.
-- **Files.** `src/brand/wordmark.svg` is the standalone wordmark (display size, `role="img"`, titled "Couch"); `pnpm wordmark` rewrites it from the geometry and `pnpm test` fails if it is out of date. The nav's copy is inlined at build time (`{{wordmark:nav}}` in `index.html`) inside the brand link, whose accessible name is "Couch, back to top". The icon stays as the favicon, the app mark in Setup and Download, and the footer mark.
+- **Generated, not drawn.** `scripts/korataki.mjs` (opentype.js, dev-time only) reads the font and writes `src/brand/korataki.ts`: the letters in em units (cap height 100, baseline 0, the U centred on x = 0), set with the font's own advances, plus the font's name, version and SHA-256. Run it with the font's path: `pnpm wordmark:font <font.ttf>` (or `KORATAKI_FONT=<font.ttf> pnpm wordmark:font`); add `--check` to compare the committed file with a font. Then `pnpm wordmark` rewrites `src/brand/wordmark.svg`.
+- **The font is never committed.** It is a paid font (see "Before publishing"). `.gitignore` ignores `*.ttf` and `*.otf`, and a unit test fails if any font other than the Geist web fonts is tracked. The outlines in the repo today were generated from a copy the user supplied for evaluation (Korataki ExtraBold 3.000, SHA-256 `870e0923…`); regenerate them from the purchased file before publishing.
+- **C, C and H** are the font's own outlines, its quadratic curves as drawn.
+- **U and O** are the font's shapes traced as rounded polygons, so they can morph: every curved corner becomes a corner whose radius is the mean of its two legs (the font's corners are slightly elliptical; these are circular, a hair rounder), every square corner stays square. The generator puts the corners in the logo's order (`src/brand/logo.ts`): the U has the sofa's eight (arm, arm, the cradle's two, arm, arm, the base's two), the O the Screen frame's four outside and four inside, so its slot becomes the Screen. The logo's corners are measured from `build/icon.png`, in the coordinates of the hero picture (`couch-glow.webp`, the icon's 832 × 688 crop), so the vector logo lands on the picture.
+- **One size.** Korataki's counters are wide open (the C's slot is 38% of the cap), so the nav uses the same outlines at 20 px tall; ticket 139's separate small optical size is gone.
+- **Files.** `src/brand/wordmark.svg` is the standalone wordmark (`role="img"`, titled "Couch"), also used on the social card; `pnpm test` fails if it is out of date. The nav's copy is inlined at build time (`{{wordmark:nav}}` in `index.html`) inside the brand link, whose accessible name is "Couch, back to top". The icon stays as the favicon, the app mark in Setup and Download, and the footer mark.
 
 ### The hero intro
 
-On the first visit in a browser session, COUCH turns into the logo, then the hero copy arrives (about 2 s):
+On the first visit in a browser session, COUCH turns into the logo, then the hero copy arrives (the move about 1.8 s, as in the ticket 141 storyboard):
 
 | Time | What happens |
 | --- | --- |
-| 0–0.8s | The five letters rise in, 60ms apart (Couch's `--ease`) |
-| 0.66–1.1s | The C, C and H slide outwards and fade |
-| 0.8–1.56s | The O hops over the sofa's arm and drops in: it grows into the Screen's frame, its slot opens into the Screen, and it darkens to the frame's colour |
-| 0.9–1.52s | The U becomes the sofa: its arms round into armrests and widen, its base becomes the seat |
-| 1.0–1.65s | The sofa's back rises behind the Screen |
-| 1.38–1.98s | The Screen switches on with a short flicker; the room's light comes up from 1.3s |
-| 1.5–2.06s | The icon's own glowing picture fades in over the vector logo, which fades out, so the existing hero mark (and its slow film flicker) takes over in place |
-| 1.56–2.5s | The badge, headline, lead, buttons and meta arrive (opacity and a 14px rise) |
+| 0–0.52s | The five letters rise in, 30ms apart (Couch's `--ease`) |
+| 0.48–1.1s | The C, C and H dissolve, outward from the U along a soft, noisy front (the H a little later); each bit leaves as a mote of warm dust |
+| 0.48–1.5s | The dust drifts, slow and soft, into the Screen: about 220 small motes at 1440 px (about 120 on a phone), lifting a little and swaying before they gather |
+| 0.52–1.32s | The O glides to the Screen's place in one eased move, dipping behind the U's arm; from 0.7s it becomes the frame, and from 0.88s it darkens to the frame's colour |
+| 0.64–1.3s | The U widens into the sofa: its arms round into armrests, its base becomes the seat |
+| 1.0–1.5s | The sofa's back rises behind the Screen |
+| 1.24–1.84s | The Screen lights as the dust arrives, with a soft glow around it; the room's light comes up from 1.3s |
+| 1.5–2.02s | The icon's own glowing picture fades in over the vector logo, which fades out, so the existing hero mark (and its slow film flicker) takes over in place |
+| 1.56–2.5s | The badge, "Settle in.", lead, buttons and meta arrive (opacity and a 14px rise) |
 
 **Two modes**, one constant: `INTRO_MODE` in `src/config.ts`, built in at build time (`COUCH_INTRO_MODE=logo-only` overrides it for one build).
 - `"sequence"` (the default) is the table above: the logo first, then the words.
 - `"logo-only"`: the badge, headline, lead, buttons and meta are there from the first paint (no 1.56s row); the morph plays only in the logo area and the glowing picture still fades in as the morph ends (1.5s). The head script adds `html.intro-logo`.
-- Lighthouse's LCP element is the glowing picture on mobile in both modes, so mobile LCP is about 2.05s either way (unthrottled); on desktop the headline is larger than the picture, so `logo-only` takes desktop LCP from about 2.4s to about 0.12s.
 
 How it is built:
-- **Before the first paint**, a small inline script in `<head>` (`introHead` in `src/brand/wordmark.ts`) decides whether to play. It plays only once per session (`sessionStorage`, `couch:intro`), never with `prefers-reduced-motion`, and never when the URL has a `#section`. If it plays, it adds `html.intro` (and `html.intro-logo` in the logo-only mode) and sets `--wm-s`, which sizes the wordmark to `min(700px, 88vw)` wide.
-- **CSS keeps the timeline** (`style.css`, "Hero intro"). Every keyframe uses only transform and opacity.
-- **`src/intro.ts` morphs the U and the O** on the same clock: it reads the CSS animation's start time from `document.timeline`. Corners are interpolated and the rounded path is rebuilt each frame, so every in-between shape is clean. One `requestAnimationFrame` loop runs for about 0.75s. There is no animation library, only a small `cubic-bezier` solver for Couch's easing. CSS `d: path()` interpolation was not used, because Safari does not animate `d`.
-- **Skipping.** Any scroll, wheel, tap, click or key ends it at once: the copy and mark appear within 0.3s. So does a click or focus that comes without a pointer or key (assistive tech, `element.click()`, `focus()`), so no hero control is ever used while transparent; and a resize or rotation, because the wordmark was sized for the first viewport. Switching to reduced motion does the same. Coming back from the back/forward cache shows the end state at once, with no fade (`html.intro-now`). The intro's listeners are removed when it ends.
-- **Tests.** `scripts/intro.test.mjs` (part of `pnpm test`, needs Google Chrome) builds both modes, serves them and checks in headless Chrome that a pointerless click, a focus, a resize and a back/forward-cache return each end the intro with the copy, buttons and picture fully visible, and that no intro listener is left.
-- **No JavaScript.** If the module script never runs, the CSS timeline still ends on the finished hero; only the U and O do not change shape.
-- **Layout.** The hero's text and buttons are in the HTML from the start, and the intro only changes opacity and transforms, so nothing shifts (CLS 0; 0.009 in the logo-only mode, the web font settling on copy that is already visible, as before ticket 139). The intro SVG is `aria-hidden`.
+- **Before the first paint**, a small inline script in `<head>` (`introHead` in `src/brand/wordmark.ts`) decides whether to play. It plays only once per session (`sessionStorage`, `couch:intro`), never with `prefers-reduced-motion`, and never when the URL has a `#section`. If it plays, it adds `html.intro` (and `html.intro-logo` in the logo-only mode) and sets `--wm-s`, which sizes the wordmark to `min(720px, 88vw)` wide.
+- **CSS keeps the timeline** (`style.css`, "Hero intro"): the letters' rise, the frame's colour, the back, the Screen, the glow, the picture and the copy, with transform and opacity only.
+- **`src/intro.ts` does the rest on the same clock** (the CSS animation's start time on `document.timeline`; its `TIMES` match the CSS). The U and O are interpolated corner by corner and their rounded paths rebuilt each frame, so every in-between shape is clean; the O's position follows a shallow curve. The dust is a **small canvas** over the mark, added when the intro starts and removed when the dust has arrived (or the intro ends): the C, C and H are drawn into it once, each covered pixel gets a dissolve threshold (the letter, how far along it from the U, and value noise), worked out a few rows per frame while COUCH rises in so nothing stalls; each frame then clears what the front has passed and draws the motes as two soft pre-rendered sprites (additive). The dust is seeded, so every visit and every frame capture is the same. One `requestAnimationFrame` loop runs for about 1.5s. There is no library, only a small `cubic-bezier` solver. CSS `d: path()` interpolation is not used, because Safari does not animate `d`.
+- **Skipping.** Any scroll, wheel, tap, click or key ends it at once: the copy and mark appear within 0.3s. So does a click or focus that comes without a pointer or key (assistive tech, `element.click()`, `focus()`), so no hero control is ever used while transparent; and a resize or rotation, because the wordmark was sized for the first viewport. Switching to reduced motion does the same. Coming back from the back/forward cache shows the end state at once, with no fade (`html.intro-now`). The intro's listeners and the dust canvas are removed when it ends.
+- **Reduced motion** never starts the intro: the finished hero, no dust, no running animation.
+- **Tests.** `scripts/intro.test.mjs` (part of `pnpm test`, needs Google Chrome) builds both modes, serves them and checks in headless Chrome that a pointerless click, a focus, a resize and a back/forward-cache return each end the intro with the copy, buttons and picture fully visible, the dust canvas gone and no intro listener left; that the dust canvas is there while the intro plays; and that reduced motion shows the finished hero with no dust and no running animation.
+- **No JavaScript.** If the module script never runs, the CSS timeline still ends on the finished hero; the C, C and H simply fade where they stand, and the U and O do not change shape.
+- **Layout.** The hero's text and buttons are in the HTML from the start, and the intro only changes opacity and transforms (and draws in its own canvas), so nothing shifts (CLS 0). The intro SVG and canvas are `aria-hidden`.
 - **Frames and video.** `node scripts/morph-frames.mjs <dir>` writes frames at fixed intro times (1440 and 390), the settled hero, a reduced-motion shot and `morph.webm` / `morph.mp4`, from `pnpm preview`. It slows the page clock with DevTools.
+
+### Film grain
+
+A fine, static film grain lies over the hero (`.hero::after`): `src/shots/grain.png`, a 128 × 128 tile of seeded grey noise (16 KB, `pnpm grain` rewrites it), shown at 64 CSS px with an overlay blend at 15%. Overlay leaves the blacks nearly untouched and shows the grain in the light, so it smooths the glow's gradients and lets the drawn logo sit in the same picture as the glowing icon. It never moves, and it stays with reduced motion.
 
 ## The mocks use Couch's real UI
 
@@ -146,12 +151,12 @@ Everything uses Couch's `--ease` and its durations (0.38s for moves and lifts, .
 | Where | What | How |
 | --- | --- | --- |
 | Hero | The Screen in the Couch mark switches on (0.7s), the room's light comes up (1.6s), then a slow colour flicker plays on the Screen and in the room (12s loop, paused when the hero is off screen or the tab is hidden) | `.lamp-on`, `.lamp-film`, `.room-glow`; `main.ts` toggles `.playing` / `.paused` |
-| Hero, first visit in a session (ticket 139) | COUCH morphs into the logo, then the copy arrives (about 2s, skippable; see "The hero intro"). It replaces the Screen's switch-on above; the room light and film follow the intro | `html.intro`, `.wm-intro`, `src/intro.ts` |
+| Hero, first visit in a session (tickets 139 and 142) | COUCH dissolves into dust and morphs into the logo, then the copy arrives (about 2s, skippable; see "The hero intro"). It replaces the Screen's switch-on above; the room light and film follow the intro | `html.intro`, `.wm-intro`, `.wm-dust`, `src/intro.ts` |
 | Hero | A soft light follows the pointer, eased each frame; on scroll the room's light moves slower than the page (parallax). The mark scrolls with the headline it lights, so the two never part or overlap | `[data-cursor-glow]`, `scrollScene()` |
 | Badge | The dot sends out three rings, then rests; the arrow nudges on hover | `.pill .dot::after` |
 | Buttons and links | Hover lift with a warm sheen across primary buttons; press is Couch's Remote press (.12s, scale .95). Shadows stay static | `.btn`, `.btn-primary::after` |
 | Nav | A small light slides under the link you point at and rests under the section you are reading | `.nav-ind`, IntersectionObserver |
-| First look (under the hero) | Couch's Home alone, no phone: it tilts up and settles as it scrolls in, then the clock ticks once, 8:42 → 8:43 (digit roll). The Remote and the travelling highlight are left to the Remote section | `[data-stage-scroll]` |
+| First look (under the hero) | Couch's Home (the real screenshot, ticket 142): it tilts up and settles as it scrolls in. The Remote and the travelling highlight are left to the Remote section. (Over the ticket 138 mock the clock ticked once, 8:42 → 8:43; the code still does that if a mock stands in again) | `[data-stage-scroll]` |
 | Remote section | The finite pairing sequence (QR, pair, D-pad press, the highlight moves); step numbers pop when current | `[data-seq]`, `.seq-steps` |
 | Cards | A light under the pointer (a transformed layer) and a lift on the setup cards | `.spot::before`, `.step:hover` |
 | FAQ | Answers settle in on open and fade out before the row closes | `details p`, `details.closing` |
@@ -159,11 +164,11 @@ Everything uses Couch's `--ease` and its durations (0.38s for moves and lifts, .
 
 ## Licence
 
-The site is licensed **GPL-3.0-or-later**, the same as Couch (`LICENSE`, `package.json`). It copies Couch's own UI code (the files above; same author) and GPL-3.0-or-later code should not sit inside a more permissive site. Other things in the repo keep their own terms: Geist and Geist Mono are SIL OFL 1.1 (full text with copyright: `public/licenses/geist-OFL-1.1.txt`); the icons in `data.json` and `remote.html` are Phosphor Icons (MIT, Copyright (c) 2023 Phosphor Icons, via `src/shared/icons.ts` in Couch; full text: `public/licenses/phosphor-icons-MIT.txt`); the YouTube and Netflix marks are the ones Couch ships on its App tiles, trademarks of their owners, shown only as App tiles. The licence texts live in `public/licenses/`, ship with every build at `/licenses/` and are linked from the footer ("Third-party licences").
+The site is licensed **GPL-3.0-or-later**, the same as Couch (`LICENSE`, `package.json`). It copies Couch's own UI code (the files above; same author) and GPL-3.0-or-later code should not sit inside a more permissive site. Other things in the repo keep their own terms: Geist and Geist Mono are SIL OFL 1.1 (full text with copyright: `public/licenses/geist-OFL-1.1.txt`); the icons in `data.json` and `remote.html` are Phosphor Icons (MIT, Copyright (c) 2023 Phosphor Icons, via `src/shared/icons.ts` in Couch; full text: `public/licenses/phosphor-icons-MIT.txt`); the YouTube and Netflix marks are the ones Couch ships on its App tiles, trademarks of their owners, shown only as App tiles. The screenshots show Blender's open films (*Big Buck Bunny*, *Sintel*, *Tears of Steel*: © Blender Foundation, CC BY 3.0) with posters and backdrops from TMDB; the footer and the licences page credit them and carry TMDB's notice. The COUCH wordmark is drawn from the outlines of Korataki ExtraBold (© Typodermic Fonts Inc., a commercial font; only the outlines ship, as SVG paths, under Typodermic's Desktop licence once bought: see "Before publishing"). The licence texts live in `public/licenses/`, ship with every build at `/licenses/` and are linked from the footer ("Third-party licences").
 
 ## Checks
 
-`node scripts/shoot.mjs <dir>` writes, at 1440, 1024, 768 and 390 px from `pnpm preview`, a full-page shot, the hero viewport and the Remote sequence's end state (needs Google Chrome). Lighthouse on the local build after the ticket 138 review: mobile performance 98 (LCP 2.3s simulated, the hero light image; CLS 0.009) and desktop 100; accessibility, best practices and SEO 100 on both. After ticket 139 (with the intro playing, as on a first visit): desktop 100 in all four, mobile performance 99 (LCP 2.2s simulated, CLS 0, TBT 0) and 100 for the rest. Lighthouse simulates LCP from network and CPU work; the LCP it observed without throttling is about 2.1–2.4s, which is the intro itself: the hero picture is the LCP element and it fades in at 1.5s. Later visits in the session, and visitors with reduced motion, get the hero at once. After the ticket 139 review (both intro modes, see "The hero intro"): sequence mobile 99 and 98 (LCP 2.2s simulated, 2.05s observed unthrottled), desktop 100; logo-only mobile 99 twice (LCP 2.2s simulated, 2.05s observed), desktop 100 (LCP 0.29s simulated, 0.12s observed); 100 for the other three everywhere.
+`node scripts/shoot.mjs <dir>` writes, at 1440, 1024, 768 and 390 px from `pnpm preview`, a full-page shot, the hero viewport and the Remote sequence's end state (needs Google Chrome). Lighthouse on the local build after the ticket 138 review: mobile performance 98 (LCP 2.3s simulated, the hero light image; CLS 0.009) and desktop 100; accessibility, best practices and SEO 100 on both. After ticket 139 (with the intro playing, as on a first visit): desktop 100 in all four, mobile performance 99 (LCP 2.2s simulated, CLS 0, TBT 0) and 100 for the rest. Lighthouse simulates LCP from network and CPU work; the LCP it observed without throttling is about 2.1–2.4s, which is the intro itself: the hero picture is the LCP element and it fades in at 1.5s. Later visits in the session, and visitors with reduced motion, get the hero at once. After the ticket 139 review (both intro modes, see "The hero intro"): sequence mobile 99 and 98 (LCP 2.2s simulated, 2.05s observed unthrottled), desktop 100; logo-only mobile 99 twice (LCP 2.2s simulated, 2.05s observed), desktop 100 (LCP 0.29s simulated, 0.12s observed); 100 for the other three everywhere. After ticket 142 (Korataki intro with dust, grain, the screenshots; Lighthouse 13, local `vite preview`, intro playing): sequence mobile 98, 97, 98, 98 (LCP 2.4s simulated, 2.07s observed; TBT 0–70ms; CLS 0), desktop 100 twice (LCP 0.5s simulated, 2.4s observed); logo-only mobile 98 (CLS 0.006), desktop 100. Accessibility, best practices and SEO 100 in every run. With "Settle in." smaller than the old "Couch.", the glowing picture is the LCP element on desktop too, so logo-only no longer lowers desktop's observed LCP (about 2.1s in both modes).
 
 ## Before publishing
 
@@ -173,6 +178,7 @@ The site goes live only when all of these are true. The page links to the GitHub
 - [ ] A first release exists on GitHub Releases.
 - [ ] The Gumroad product exists, and `GUMROAD_URL` in `src/config.ts` points at it (it is a placeholder today).
 - [ ] The first-open steps on the page (open once, then System Settings → Privacy & Security → Open Anyway) are verified on the release build.
+- [ ] Korataki Desktop licence bought; outlines regenerated from the purchased file. Buy Typodermic's Desktop licence for Korataki (typodermicfonts.com or MyFonts; it covers logos and static graphics made from the outlines), keep the purchased font outside this repo, then run `pnpm wordmark:font <purchased Korataki ExtraBold>` and `pnpm wordmark`, check the diff (the SHA-256 in `src/brand/korataki.ts` changes; the outlines should not, or barely), rebuild and look at the nav, the intro and the social card (`node scripts/og.mjs`). Until then the outlines come from a copy supplied for evaluation, from an unofficial site.
 
 - [ ] The Windows count's database exists and is bound (once, from this folder, logged in to the right account):
   ```sh

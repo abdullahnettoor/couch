@@ -1,4 +1,4 @@
-// Frames and a video of the hero intro (ticket 139), from the local preview:
+// Frames and a video of the hero intro (tickets 139 and 142), from the local preview:
 //   node scripts/morph-frames.mjs <outDir> [url]
 // Writes morph-1440-*.png and morph-390-*.png (steps of intro time), morph-hero-{1440,390}.png (the settled hero),
 // morph-reduced-motion-1440.png, and morph.webm / morph.mp4 (30 fps at 1440; needs ffmpeg).
@@ -41,8 +41,8 @@ async function run(w, h, steps, name, video) {
   await page.close();
 }
 
-await run(1440, 900, [0, 150, 400, 700, 850, 1000, 1150, 1300, 1450, 1600, 1800, 2000, 2400], "morph-1440", false);
-await run(390, 844, [0, 400, 850, 1000, 1150, 1300, 1450, 1800, 2400], "morph-390", false);
+await run(1440, 900, [0, 200, 480, 650, 800, 950, 1100, 1250, 1400, 1550, 1700, 1900, 2400], "morph-1440", false);
+await run(390, 844, [0, 480, 700, 900, 1100, 1300, 1550, 1900, 2400], "morph-390", false);
 // the settled hero, and the reduced-motion hero (no intro at all)
 for (const [w, h, reduce] of [[1440, 900, false], [390, 844, false], [1440, 900, true]]) {
   const page = await browser.newPage();

@@ -111,16 +111,17 @@ function dust(mark: HTMLElement, s: number) {
   const delay = { c2: 0, c1: 0.06, h: 0.12 } as const;
   const band = 0.05;
 
-  // a threshold per covered pixel: dissolved once progress passes it
+  // a threshold per covered pixel, dissolved once progress passes it: the letter (per column), how far along it from
+  // the U's side, and some noise. Worked out a few rows at a time while COUCH rises in (prepare), so nothing stalls.
   const cover: number[] = [], th: number[] = [];
-  for (let j = 0, n = lw * lh; j < n; j++) {
-    if (orig[j * 4 + 3] === 0) continue;
-    const cx = (lx + (j % lw)) / dpr, cy = (ly + Math.floor(j / lw)) / dpr;
+  const colKey: Array<keyof typeof delay> = [], colAlong: number[] = [];
+  for (let x = 0; x < lw; x++) {
+    const cx = (lx + x) / dpr;
     const l = spans.find((v) => cx >= v.x[0] - 1 && cx <= v.x[1] + 1) ?? spans[0];
-    const along = l.key === "c1" ? (l.x[1] - cx) / (l.x[1] - l.x[0]) : (cx - l.x[0]) / (l.x[1] - l.x[0]);
-    cover.push(j);
-    th.push(delay[l.key] + (1 - 0.12 - band) * (0.68 * clamp(along) + 0.32 * noise(cx / em, cy / em)));
+    colKey.push(l.key);
+    colAlong.push(clamp(l.key === "c1" ? (l.x[1] - cx) / (l.x[1] - l.x[0]) : (cx - l.x[0]) / (l.x[1] - l.x[0])));
   }
+  let row = 0;
 
   // the motes: fewer, smaller and warmer than sparks; they lift a little, sway, then settle into the Screen
   const rnd = seeded(142);
@@ -129,20 +130,39 @@ function dust(mark: HTMLElement, s: number) {
   const sw = (logo.screen[1][0] - logo.screen[0][0]) * m, sh = (logo.screen[2][1] - logo.screen[0][1]) * m;
   const count = Math.round(Math.min(260, Math.max(100, WIDTH * em * 0.34)));
   const motes: Mote[] = [];
-  for (let i = 0; i < count && cover.length; i++) {
-    const k = Math.floor(rnd() * cover.length), j = cover[k];
-    const x = (lx + (j % lw)) / dpr, y = (ly + Math.floor(j / lw)) / dpr;
-    const born = dAt + th[k] * dFor;
-    const ang = rnd() * Math.PI * 2, rr = Math.sqrt(rnd());
-    const tx = sx + Math.cos(ang) * rr * sw * 0.42, ty = sy + Math.sin(ang) * rr * sh * 0.4;
-    const life = Math.max(380, Math.min(720 + rnd() * 380, TIMES.arrive - born));
-    motes.push({
-      x, y, born, life, tx, ty,
-      c1x: x + (rnd() - 0.5) * 40 * (em / 0.9), c1y: y - (14 + rnd() * 34) * (em / 0.9),
-      c2x: tx + (x - tx) * (0.25 + rnd() * 0.3), c2y: ty - (rnd() - 0.3) * 50 * (em / 0.9),
-      r: 0.55 + rnd() ** 2 * 1.1, a: 0.3 + rnd() * 0.4, warm: rnd() < 0.6, ph: rnd() * 6.283, sway: 1.5 + rnd() * 4,
-    });
-  }
+  const scatter = () => {
+    for (let i = 0; i < count && cover.length; i++) {
+      const k = Math.floor(rnd() * cover.length), j = cover[k];
+      const x = (lx + (j % lw)) / dpr, y = (ly + Math.floor(j / lw)) / dpr;
+      const born = dAt + th[k] * dFor;
+      const ang = rnd() * Math.PI * 2, rr = Math.sqrt(rnd());
+      const tx = sx + Math.cos(ang) * rr * sw * 0.42, ty = sy + Math.sin(ang) * rr * sh * 0.4;
+      const life = Math.max(380, Math.min(720 + rnd() * 380, TIMES.arrive - born));
+      motes.push({
+        x, y, born, life, tx, ty,
+        c1x: x + (rnd() - 0.5) * 40 * (em / 0.9), c1y: y - (14 + rnd() * 34) * (em / 0.9),
+        c2x: tx + (x - tx) * (0.25 + rnd() * 0.3), c2y: ty - (rnd() - 0.3) * 50 * (em / 0.9),
+        r: 0.55 + rnd() ** 2 * 1.1, a: 0.3 + rnd() * 0.4, warm: rnd() < 0.6, ph: rnd() * 6.283, sway: 1.5 + rnd() * 4,
+      });
+    }
+  };
+  /** Works on the thresholds for about `ms` (a whole row at least); true once everything is ready. */
+  const prepare = (ms: number) => {
+    if (row >= lh) return true;
+    const stop = performance.now() + ms;
+    do {
+      const cy = (ly + row) / dpr / em;
+      for (let x = 0, j = row * lw; x < lw; x++, j++) {
+        if (orig[j * 4 + 3] === 0) continue;
+        cover.push(j);
+        th.push(delay[colKey[x]] + (1 - 0.12 - band) * (0.68 * colAlong[x] + 0.32 * noise((lx + x) / dpr / em, cy)));
+      }
+      row++;
+    } while (row < lh && performance.now() < stop);
+    if (row < lh) return false;
+    scatter();
+    return true;
+  };
 
   // two soft sprites: amber and cream
   const sprite = (rgb: string) => {
@@ -193,7 +213,7 @@ function dust(mark: HTMLElement, s: number) {
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = "source-over";
   };
-  return { canvas, draw };
+  return { canvas, prepare, draw };
 }
 
 export function intro(reduced: () => boolean, onChange: (fn: () => void) => () => void) {
@@ -225,12 +245,12 @@ export function intro(reduced: () => boolean, onChange: (fn: () => void) => () =
   };
 
   let raf = 0, over = false, offChange = () => {};
-  let motes: ReturnType<typeof dust> = null;
+  let fx: ReturnType<typeof dust> = null;
   const [dAt, dFor] = TIMES.dust;
   // The dust starts only if the intro is early enough to show it; otherwise the CSS fade takes the letters.
   if (now() - t0 < dAt + dFor * 0.5) {
-    motes = dust(mark, s);
-    if (motes) { mark.append(motes.canvas); svg.classList.add("dust"); }
+    fx = dust(mark, s);
+    if (fx) { mark.append(fx.canvas); svg.classList.add("dust"); }
   }
   // Anything that reaches the hero skips: scroll, wheel, tap, key, and also a click or focus that comes without a
   // pointer (assistive tech, element.click(), focus()), so no control is ever used while it is still transparent.
@@ -245,8 +265,8 @@ export function intro(reduced: () => boolean, onChange: (fn: () => void) => () =
     sizes.forEach((e) => removeEventListener(e, onInput));
     removeEventListener("pageshow", onShow);
     offChange();
-    motes?.canvas.remove();
-    motes = null;
+    fx?.canvas.remove();
+    fx = null;
     shapes(Infinity);
     if (how === "played") { root.classList.add("intro-done"); return; }
     if (how === "now") { root.classList.add("intro-skip", "intro-now", "intro-done"); return; }
@@ -260,10 +280,12 @@ export function intro(reduced: () => boolean, onChange: (fn: () => void) => () =
   const frame = () => {
     const t = now() - t0;
     shapes(t);
-    if (motes && t >= dAt) {
+    if (fx && t < dAt) fx.prepare(4);
+    else if (fx) {
+      fx.prepare(Infinity);
       svg.classList.add("dusting");
-      motes.draw(t);
-      if (t >= TIMES.arrive) { motes.canvas.remove(); motes = null; }
+      fx.draw(t);
+      if (t >= TIMES.arrive) { fx.canvas.remove(); fx = null; }
     }
     raf = t < last ? requestAnimationFrame(frame) : 0;
   };
