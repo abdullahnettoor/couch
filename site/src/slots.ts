@@ -22,13 +22,15 @@ export interface Slot {
 const SCREEN = { width: 1920, height: 1080 } as const;
 const PHONE = { width: 1080, height: 2280 } as const;
 const SHOT = { ...SCREEN, loading: "lazy" } as const;
+/** Home and the Library at the Mac display's own 16:10, so no crop cuts through their UI (scripts/shots.mjs). */
+const SHOT_16X10 = { width: 1920, height: 1200, loading: "lazy" } as const;
 const widths = [640, 1280] as const;
 
 // The real Couch, from the ticket 140 shoot (scripts/shots.mjs). The films are Blender's open films (© Blender
 // Foundation, CC BY 3.0) and the posters and backdrops come from TMDB; the footer and /licenses/ credit both.
 export const slots = {
   "hero-screen": {
-    file: "home.webp", ...SHOT, srcset: { widths, sizes: "(max-width: 1048px) calc(100vw - 66px), 982px" },
+    file: "home.webp", ...SHOT_16X10, srcset: { widths, sizes: "(max-width: 1048px) calc(100vw - 66px), 982px" },
     alt: "Couch Home on the Screen: Big Buck Bunny under Continue watching, its picture filling the Screen with Resume and From start, and the YouTube, Netflix and Library Apps below",
   },
   "remote-screen": {
@@ -44,7 +46,7 @@ export const slots = {
     alt: "Couch Home with the YouTube, Netflix and Library Apps and unfinished videos",
   },
   "library-screen": {
-    file: "library.webp", ...SHOT, srcset: { widths, sizes: "(max-width: 880px) calc(100vw - 58px), min(50vw, 640px)" },
+    file: "library.webp", ...SHOT_16X10, srcset: { widths, sizes: "(max-width: 880px) calc(100vw - 58px), min(50vw, 640px)" },
     alt: "The Library on the Screen: a Films shelf with the posters of Big Buck Bunny, Sintel and Tears of Steel, and the highlighted film's details above",
   },
   "privacy-screen": {
@@ -57,7 +59,7 @@ export const slots = {
   },
   "setup-player": {
     file: "player.webp", ...SHOT, srcset: { widths, sizes: "(max-width: 700px) calc(100vw - 82px), min(30vw, 340px)" },
-    alt: "Big Buck Bunny playing in Couch's player, with pause, skip, subtitle and volume controls",
+    alt: "Big Buck Bunny playing full screen in Couch's player",
   },
 } as const satisfies Record<string, Slot>;
 

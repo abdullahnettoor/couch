@@ -317,7 +317,7 @@ Source of truth for slot alts: `src/slots.ts`. These descriptions also name the 
 | `library-screen` | The Library on the Screen: a Films shelf with the posters of Big Buck Bunny, Sintel and Tears of Steel, and the highlighted film's details above |
 | `privacy-screen` | Couch Settings: Remotes and Devices with one phone connected, Library, Sound output, Apps, Home and Quit Couch |
 | `setup-remotes` | Remotes and Devices in Settings, with Add a phone highlighted to show the QR code |
-| `setup-player` | Big Buck Bunny playing in Couch's player, with pause, skip, subtitle and volume controls |
+| `setup-player` | Big Buck Bunny playing full screen in Couch's player (a clean frame, controls hidden) |
 | Library shelf mock (`src/mocks.ts`), unchanged | A folder named Movies becomes a shelf of videos: Summer Trip and Cooking Show part-watched, Home Videos watched |
 
 Decorative brand/app icons have empty alt text. Decorative SVGs, highlights and device frames do not need prose. Product mocks are image-like and inert, not working controls.

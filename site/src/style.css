@@ -214,6 +214,8 @@ html.intro.intro-now .lamp, html.intro.intro-now .hero-copy > :not(.mark) { anim
 .tv::before { content: ""; position: absolute; inset: -1px; border-radius: 22px; padding: 1px; background: linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,.04) 40%); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; z-index: 2; }
 .tv-screen { box-sizing: content-box; aspect-ratio: 16 / 9; border-radius: 20px; background: #000; overflow: hidden; border: 9px solid #121214; box-shadow: 0 50px 120px rgba(0,0,0,.6), 0 0 120px rgba(255,150,60,.10); container-type: inline-size; position: relative; text-align: left; }
 .tv-screen > img { width: 100%; height: 100%; object-fit: cover; }
+/* a real screenshot sets its frame's shape from its own width/height (16:10 Home and Library, 16:9 the others); mocks stay 16:9 */
+.tv-screen:has(> img) { aspect-ratio: auto; } .tv-screen > img { display: block; height: auto; }
 .tv-stand { width: 24%; height: 14px; margin: 0 auto; background: linear-gradient(#1b1b1e, #0c0c0e); border-radius: 0 0 14px 14px; }
 .tv.small .tv-screen { border-width: 6px; border-radius: 14px; }
 .phone { width: 230px; }
