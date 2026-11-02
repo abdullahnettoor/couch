@@ -98,7 +98,7 @@ export function launchHome(): string {
   const row = apps.map((a) => appTile(a, false)).join("") + `<div class="h-divider"></div>${film}`;
   const topbar = `<div class="topbar"><div class="phones"><i></i>1 phone connected</div><div class="tb-gear">${icon("gear")}</div></div>`;
   const clock = `<div class="h-clock on"><div class="t num">3:36<small>PM</small></div><div class="d">Good afternoon · Monday 2 November</div></div>`;
-  return `<div class="cu lv-home" aria-hidden="true" inert><div class="screen-glass home still" style="${vars}"><div class="lv-wall"><div class="h-drift"></div><div class="h-scrim"></div></div>${clock}<div class="h-chrome">${topbar}<div class="h-row">${row}</div></div></div></div>`;
+  return `<div class="cu lv-home" aria-hidden="true" inert><div class="screen-glass home still" style="${vars}"><div class="lv-hush"></div><div class="lv-wall"><div class="h-drift"></div><div class="h-scrim"></div></div>${clock}<div class="h-chrome">${topbar}<div class="h-row">${row}</div></div></div></div>`;
 }
 
 /** The Library shelf as Couch's own cards draw it: a folder card, then the videos. */
