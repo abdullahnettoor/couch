@@ -17,7 +17,7 @@ pnpm dev:worker   # build, apply the D1 migration to a local database, then wran
 
 ## Settings in one place
 
-`src/config.ts` holds `GUMROAD_URL` (a **placeholder** until the Gumroad product exists), `GITHUB_URL`, `RELEASES_URL` and `SITE_URL`. They are filled into `index.html` at build time (`{{GUMROAD_URL}}` and so on), so every link works without JavaScript. `SOCIAL` (ticket 143) is the footer's list of social links: the footer shows exactly the entries there (today GitHub only) and no list when it is empty; add an account as `{ label, href }` (with `icon: "github"` or no icon, or add a mark to `SOCIAL_ICONS` in `vite.config.ts`).
+`src/config.ts` holds `GUMROAD_URL` (a **placeholder** until the Gumroad product exists), `GITHUB_URL`, `RELEASES_URL` and `SITE_URL`. They are filled into `index.html` at build time (`{{GUMROAD_URL}}` and so on), so every link works without JavaScript. `SOCIAL` (ticket 143) is the footer's list of social links, shown as icons only: the footer shows exactly the entries there (GitHub, X, LinkedIn and YouTube) and no list when it is empty. Each entry is `{ label, href, icon }`; `label` is the link's accessible name and tooltip, and `icon` picks a Phosphor brand mark from `SOCIAL_ICONS` in `vite.config.ts` (inline SVG, no requests; Phosphor is MIT, `public/licenses/`). An entry without an icon is shown as its label.
 
 Section spacing (ticket 143) is four tokens in `src/style.css` `:root`, used by every section: `--section-pad` (section top and bottom), `--eyebrow-gap` (eyebrow → headline: 20px, 16px on phones), `--head-gap` (headline → body: 24px, 20px on phones) and `--intro-gap` (a centred heading → its content: 56px, 40px on phones).
 

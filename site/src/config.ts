@@ -5,12 +5,16 @@ export const RELEASES_URL = "https://github.com/abdullahnettoor/couch/releases";
 export const SITE_URL = "https://couch.abdullahnettoor.com";
 
 /**
- * Couch elsewhere (ticket 143): the footer lists exactly these, in this order, and nothing else. Add a link here
- * when an account exists; `icon` picks a drawn mark from vite.config.ts (SOCIAL_ICONS), or none for a text link.
+ * Elsewhere (ticket 143): the footer lists exactly these, in this order, and nothing else, as icons only. `label`
+ * is the link's accessible name (and its tooltip); `icon` picks a Phosphor brand mark from vite.config.ts
+ * (SOCIAL_ICONS). A link without an icon is shown as its label.
  */
-export interface SocialLink { label: string; href: string; icon?: "github" }
+export interface SocialLink { label: string; href: string; icon?: "github" | "x" | "linkedin" | "youtube" }
 export const SOCIAL: readonly SocialLink[] = [
-  { label: "GitHub", href: GITHUB_URL, icon: "github" },
+  { label: "Couch on GitHub", href: GITHUB_URL, icon: "github" },
+  { label: "Abdullah Nettoor on X", href: "https://x.com/abdullahnettoor", icon: "x" },
+  { label: "Abdullah Nettoor on LinkedIn", href: "https://www.linkedin.com/in/abdullahnettoor", icon: "linkedin" },
+  { label: "Abdullah Nettoor on YouTube", href: "https://www.youtube.com/@abdullahnettoor", icon: "youtube" },
 ];
 
 /**

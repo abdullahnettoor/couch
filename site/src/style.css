@@ -338,9 +338,10 @@ details p a { color: var(--amber-3); }
 .foot-brand { display: flex; } .foot-brand .wm { display: block; width: auto; height: 20px; }
 .foot nav { display: flex; flex-wrap: wrap; gap: 8px 28px; } .foot nav a { color: var(--t2); text-decoration: none; font-size: 15px; } .foot nav a:hover { color: #fff; text-decoration: underline; text-underline-offset: 4px; }
 .social { list-style: none; margin: -6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
-.social a { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px 0 11px; border-radius: 999px; font-size: 14px; color: var(--t2); text-decoration: none; border: 1px solid var(--line); transition: color .2s, background .2s; }
-.social a:hover { color: #fff; background: rgba(255,255,255,.06); }
-.social .i { width: 17px; height: 17px; }
+.social a { display: inline-grid; place-items: center; min-width: 44px; height: 44px; padding: 0 12px; border-radius: 999px; font-size: 14px; color: var(--t2); text-decoration: none; border: 1px solid var(--line); transition: color .2s, background .2s, border-color .2s; }
+.social a:has(> svg) { padding: 0; }
+.social a:hover { color: #fff; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.18); }
+.social .i { width: 19px; height: 19px; }
 .legal { margin: 0; font-size: 13.5px; color: var(--t3); max-width: 62em; }
 .legal a { text-underline-offset: 3px; text-decoration-color: rgba(235, 235, 245, .3); } .legal a:hover { color: #fff; text-decoration-color: #fff; }
 .credits { display: grid; gap: 10px; align-content: start; max-width: 62em; padding-top: 24px; border-top: 1px solid var(--line); }
