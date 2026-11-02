@@ -182,6 +182,8 @@ describe("the font's swap", { skip }, () => {
       await wait(1500);
       const s = await head(page);
       assert.equal(s.clsAll, 0, `whole-navigation CLS ${s.clsAll}`);
+      const cta = await page.$eval(".nav-cta .btn-primary", (a) => ({ text: a.textContent.trim(), href: a.getAttribute("href"), shown: a.offsetWidth > 0 }));
+      assert.deepEqual(cta, { text: "Download", href: "#download", shown: true }, "the nav's button says Download, not the name beside it");
       assert.ok(await page.evaluate(() => [...document.querySelectorAll('link[rel="preload"][as="font"]')].some((l) => /Geist-Variable-[\w-]+\.woff2$/.test(l.href) && l.crossOrigin === "anonymous")), "Geist is preloaded, from its built URL");
       await page.close();
     });
