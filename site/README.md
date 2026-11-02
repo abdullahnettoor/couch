@@ -46,8 +46,7 @@ To replace a picture after the real shoot, drop a file named `src/shots/slot-<na
 
 | Slot name | Where | Today | Wanted |
 | --- | --- | --- | --- |
-| `hero-screen` | Hero TV | Couch UI mock: Home (clock, Apps) | Home, with the Apps row |
-| `hero-remote` | Hero phone | Couch UI mock: the Remote | The Remote (D-pad) |
+| `hero-screen` | First look, under the hero | Couch UI mock: Home (clock, Apps) | Home, with the Apps row |
 | `remote-screen` | "Your phone is the remote" TV | Couch UI mock: Home with the pairing QR card | Home |
 | `remote-phone` | Same section, phone | Couch UI mock: the Remote, and a phone camera view | The Remote |
 | `apps-screen` | "The Apps you already use" TV | Couch UI mock: Home with the Continue row and App tiles | Apps row; YouTube shots should be the guest view. Never a signed-in Netflix page |
@@ -101,17 +100,17 @@ Home has no focus ring: Couch's focus is the lift-and-sheen above (and solid whi
 
 ## The site's own motion (ticket 138)
 
-Everything uses Couch's `--ease` and its durations (0.38s for moves and lifts, .12s and scale(.95) for presses, 0.7s for fades); only `transform` and `opacity` animate (the hero light is blended once, not animated). `prefers-reduced-motion: reduce` turns all of it off at any time (no transitions, no animations, no parallax, no pointer light); the content and every end state are complete without it.
+Everything uses Couch's `--ease` and its durations (0.38s for moves and lifts, .12s and scale(.95) for presses, 0.7s for fades). Movement (lifts, presses, parallax, reveals, the sheen, the nav light, rolling digits, the cursor and card lights) is done with `transform` and `opacity` only, and no shadow ever animates: buttons and cards keep one static shadow and lift with a transform. The only other properties that change over time are paint-only: short colour and background fades on hover (≤ .25s) and the stroke drawn in the Windows check. The hero light is blended once, not animated. (Couch's copied CSS keeps its own tile motion, `transform` and `box-shadow` on focus; see "Motion" above.) `prefers-reduced-motion: reduce` turns all of it off at any time (no transitions, no animations, no parallax, no pointer light, no hover lift or press scale on buttons, cards and step numbers; a digit already rolling is cancelled and shows its new value); the content and every end state are complete without it.
 
 | Where | What | How |
 | --- | --- | --- |
 | Hero | The Screen in the Couch mark switches on (0.7s), the room's light comes up (1.6s), then a slow colour flicker plays on the Screen and in the room (12s loop, paused when the hero is off screen or the tab is hidden) | `.lamp-on`, `.lamp-film`, `.room-glow`; `main.ts` toggles `.playing` / `.paused` |
-| Hero | A soft light follows the pointer, eased each frame; on scroll the room's light and the mark move slower than the page (parallax) | `[data-cursor-glow]`, `scrollScene()` |
+| Hero | A soft light follows the pointer, eased each frame; on scroll the room's light moves slower than the page (parallax). The mark scrolls with the headline it lights, so the two never part or overlap | `[data-cursor-glow]`, `scrollScene()` |
 | Badge | The dot sends out three rings, then rests; the arrow nudges on hover | `.pill .dot::after` |
-| Buttons and links | Hover lift with a warm sheen across primary buttons; press is Couch's Remote press (.12s, scale .95) | `.btn`, `.btn-primary::after` |
+| Buttons and links | Hover lift with a warm sheen across primary buttons; press is Couch's Remote press (.12s, scale .95). Shadows stay static | `.btn`, `.btn-primary::after` |
 | Nav | A small light slides under the link you point at and rests under the section you are reading | `.nav-ind`, IntersectionObserver |
-| First look (under the hero) | Tilts up and settles as it scrolls in; then one finite pass: the phone's D-pad keys press (`.is-active`), Couch's focus lift travels YouTube → Netflix → Library and back, the clock ticks 8:42 → 8:43, the volume goes up twice | `[data-stage-scroll]`; the classes are Couch's own |
-| Remote section | Step numbers pop when current; the existing finite pairing sequence | `.seq-steps` |
+| First look (under the hero) | Couch's Home alone, no phone: it tilts up and settles as it scrolls in, then the clock ticks once, 8:42 → 8:43 (digit roll). The Remote and the travelling highlight are left to the Remote section | `[data-stage-scroll]` |
+| Remote section | The finite pairing sequence (QR, pair, D-pad press, the highlight moves); step numbers pop when current | `[data-seq]`, `.seq-steps` |
 | Cards | A light under the pointer (a transformed layer) and a lift on the setup cards | `.spot::before`, `.step:hover` |
 | FAQ | Answers settle in on open and fade out before the row closes | `details p`, `details.closing` |
 | Couch for Windows | Confirmation scales in with a drawn check and a one-off warm glow | `.win-done`, `.win.counted::after` |

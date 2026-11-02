@@ -39,8 +39,8 @@ html { scrollbar-color: #3a3a3e var(--bg); }
 ::-webkit-scrollbar { width: 10px; } ::-webkit-scrollbar-thumb { background: #3a3a3e; border-radius: 10px; border: 2px solid var(--bg); } ::-webkit-scrollbar-track { background: var(--bg); }
 .wrap { width: min(100% - 48px, var(--wrap)); margin-inline: auto; }
 .narrow { width: min(100% - 48px, 760px); }
-.skip { position: absolute; left: 12px; top: -60px; background: #fff; color: #000; padding: 10px 16px; border-radius: 12px; font-weight: 600; z-index: 100; transition: top .2s; }
-.skip:focus { top: 12px; }
+.skip { position: absolute; left: 12px; top: 12px; background: #fff; color: #000; padding: 10px 16px; border-radius: 12px; font-weight: 600; z-index: 100; transform: translateY(-80px); transition: transform .2s var(--ease); }
+.skip:focus { transform: none; }
 
 /* progress + nav */
 .progress { position: fixed; inset: 0 0 auto 0; height: 2px; z-index: 60; }
@@ -71,14 +71,14 @@ html { scrollbar-color: #3a3a3e var(--bg); }
 .link-quiet { font-size: 14px; color: var(--t2); text-decoration: none; padding: 8px 12px; border-radius: 999px; }
 .link-quiet:hover { color: #fff; background: rgba(255,255,255,.08); }
 
-/* buttons */
-.btn { position: relative; overflow: hidden; isolation: isolate; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; font: inherit; font-weight: 500; border: 0; cursor: pointer; text-decoration: none; transition: transform .38s var(--ease), background .25s, color .25s, box-shadow .38s var(--ease); white-space: nowrap; }
-.btn-primary { background: #fff; color: #0a0a0c; box-shadow: 0 8px 30px rgba(255, 176, 74, 0.18); }
+/* buttons: shadows are static; only transform (lift, press, sheen) and short colour fades move */
+.btn { position: relative; overflow: hidden; isolation: isolate; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; font: inherit; font-weight: 500; border: 0; cursor: pointer; text-decoration: none; transition: transform .38s var(--ease), background .25s, color .25s; white-space: nowrap; }
+.btn-primary { background: #fff; color: #0a0a0c; box-shadow: 0 10px 36px rgba(255, 176, 74, 0.24); }
 .btn-primary::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(105deg, transparent 30%, rgba(255, 200, 130, .55) 50%, transparent 70%); transform: translateX(-110%); }
-.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 14px 44px rgba(255, 176, 74, 0.34); }
+.btn-primary:hover { transform: translateY(-2px); }
 .btn-primary:hover::after { transform: translateX(110%); transition: transform .9s var(--ease); }
-.btn-ghost { background: rgba(255,255,255,.06); color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), var(--edge); }
-.btn-ghost:hover { transform: translateY(-2px); background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 1px rgba(255,255,255,.28), var(--edge), 0 12px 32px rgba(0,0,0,.4); }
+.btn-ghost { background: rgba(255,255,255,.06); color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.2), var(--edge); }
+.btn-ghost:hover { transform: translateY(-2px); background: rgba(255,255,255,.12); }
 /* press: Couch's Remote key press (page.ts: transform .12s, :active scale(.95)) */
 .btn:active, .btn.is-pressed { transform: scale(.95); transition-duration: .12s; }
 .btn:disabled { cursor: default; }
@@ -118,7 +118,7 @@ p { text-wrap: pretty; }
 .hero-copy { display: flex; flex-direction: column; align-items: center; gap: 24px; }
 /* The icon's art is added to the room as light (screen blend): its dark tile disappears into the night, only the glow stays.
    The mask keeps the tile's edge out. */
-.lamp { --lamp: min(320px, 62vw, 33vh); position: relative; width: var(--lamp); aspect-ratio: 832 / 688; margin: 0 0 calc(var(--lamp) * -.16); z-index: -1; will-change: transform; mix-blend-mode: screen;
+.lamp { --lamp: min(320px, 62vw, 33vh); position: relative; width: var(--lamp); aspect-ratio: 832 / 688; margin: 0 0 calc(var(--lamp) * -.16); z-index: -1; mix-blend-mode: screen;
   -webkit-mask: radial-gradient(farthest-side at 50% 56%, #000 78%, transparent 99%); mask: radial-gradient(farthest-side at 50% 56%, #000 78%, transparent 99%); }
 .lamp img { width: 100%; height: 100%; }
 /* the Screen inside the mark: it switches on, then plays something (colour only, nothing to read) */
@@ -153,7 +153,7 @@ h1 { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .aurora { position: absolute; z-index: -1; pointer-events: none; inset: -40% 0 auto 0; height: 100%; opacity: .8; filter: blur(24px);
   background: radial-gradient(40% 50% at 28% 22%, rgba(255, 150, 60, .30), transparent 70%), radial-gradient(38% 46% at 74% 18%, rgba(70, 96, 190, .34), transparent 70%); }
 
-/* first look: Couch's real Home and Remote, settling into place as they scroll in */
+/* first look: Couch's real Home, settling into place as it scrolls in (the Remote has its own section) */
 .first-look { position: relative; padding: 8px 0 clamp(40px, 6vw, 80px); perspective: 1600px; }
 .stage-glow { position: absolute; left: 6%; right: 6%; top: 18%; bottom: 0; z-index: -1; pointer-events: none; opacity: .35;
   background: radial-gradient(50% 50% at 50% 50%, rgba(255, 150, 60, .22), transparent 70%); filter: blur(10px); }
@@ -170,8 +170,6 @@ h1 { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .phone { width: 230px; }
 .phone-screen { aspect-ratio: 9 / 19; border-radius: 34px; background: #0b0b0d; border: 7px solid #17171a; overflow: hidden; container-type: inline-size; box-shadow: 0 30px 80px rgba(0,0,0,.65), inset 0 0 0 1px rgba(255,255,255,.08); position: relative; text-align: left; }
 .phone-screen > img { width: 100%; height: 100%; object-fit: cover; }
-.phone-hero { position: absolute; right: clamp(0px, 3vw, 40px); bottom: -10px; width: clamp(150px, 19vw, 210px); z-index: 3; }
-.phone-hero .phone-screen { border-width: 5px; border-radius: clamp(18px, 3.4vw, 32px); }
 
 /* mocks: the Couch UI itself lives in src/couch-ui/ (copied by scripts/sync-couch-ui.mjs); this file only frames it. See "couch ui" below. */
 
@@ -225,7 +223,7 @@ h1 { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 
 /* steps */
 .steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: start; }
-.step { position: relative; overflow: hidden; isolation: isolate; transition: transform .38s var(--ease), box-shadow .38s var(--ease); display: flex; flex-direction: column; padding: 24px; border-radius: 20px; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); border: 1px solid var(--line); box-shadow: var(--edge); }
+.step { position: relative; overflow: hidden; isolation: isolate; transition: transform .38s var(--ease); display: flex; flex-direction: column; padding: 24px; border-radius: 20px; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); border: 1px solid var(--line); box-shadow: var(--edge); }
 .step-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; } .step-icon { border-radius: 10px; }
 .step .n { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: #fff; color: #000; font: 600 15px var(--mono); }
 .step p { margin: 8px 0 0; color: var(--t2); font-size: 16px; } .step p:last-child { margin: 8px 0 0; }
@@ -303,11 +301,11 @@ details p a { color: var(--amber-3); }
 }
 
 
-/* micro: cursor spotlight on cards (a transformed light, nothing repaints), lift on hover like a focused tile (0.38s) */
+/* micro: cursor spotlight on cards (a transformed light, nothing repaints), lift on hover like a focused tile (0.38s); the shadow stays put */
 .spot::before { content: ""; position: absolute; left: 0; top: 0; width: 420px; height: 420px; margin: -210px 0 0 -210px; z-index: -1; border-radius: 50%; pointer-events: none;
   background: radial-gradient(closest-side, rgba(255, 190, 120, .10), transparent); opacity: 0; transform: translate(var(--mx, 50%), var(--my, 50%)); transition: opacity .4s var(--ease); }
 .spot:hover::before { opacity: 1; }
-@media (hover: hover) { .step:hover { transform: translateY(-4px); box-shadow: var(--edge), 0 24px 50px rgba(0,0,0,.45); } }
+@media (hover: hover) { .step:hover { transform: translateY(-4px); } }
 .step .n { transition: transform .38s var(--ease); } .step:hover .n { transform: scale(1.09); }
 /* FAQ: opens with a short settle, closes with a quicker fade (main.ts holds the close for it) */
 details.closing p { animation: close .2s var(--ease) forwards; }
@@ -363,7 +361,7 @@ summary { transition: color .2s; } summary:active { transform: scale(.99); }
   .steps { grid-template-columns: 1fr; max-width: 480px; margin-inline: auto; }
   summary { font-size: 18px; }
   /* phones sit in normal flow, centred under the Screen, wide enough to read */
-  .phone-hero, .seq .phone { position: static; width: min(200px, 56vw); margin: 22px auto 0; translate: none !important; }
+  .seq .phone { position: static; width: min(200px, 56vw); margin: 22px auto 0; }
   .seq .tv { width: 100%; }
   .seq { padding-bottom: 0; } .seq-note { text-align: center; }
 }
@@ -372,6 +370,10 @@ summary { transition: color .2s; } summary:active { transform: scale(.99); }
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; transition-delay: 0s !important; }
   .reveal-ready .reveal.pre, .reveal-ready .shelf.pre { transform: none; }
-  .stage, .lamp, .room, .room-cursor { transform: none !important; }
-  .room-cursor, .lamp-film, .spot::before { display: none; }
+  .stage, .room, .room-cursor { transform: none !important; }
+  .room-cursor, .lamp-film, .spot::before, .btn-primary::after { display: none; }
+  /* no decorative movement on hover or press: buttons, links, cards, step numbers and their icons stay where they are */
+  .btn:hover, .btn:active, .btn.is-pressed, .pill:active, .pill:hover .i, .win-chip:hover .i,
+  .nav nav a:active, .link-quiet:active, .seq-steps button:active, summary:active,
+  .step:hover, .step:hover .n { transform: none !important; }
 }

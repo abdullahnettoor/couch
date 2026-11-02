@@ -19,7 +19,6 @@ function fileFor(name: string, slot: Slot): string | null {
 /** The CSS-built stand-ins for slots that have no picture yet: Couch's real UI (src/couch-ui/), see src/mocks.ts. */
 const mocks: Record<string, (alt: string) => string> = {
   "hero-screen": (alt) => home({ alt, layout: "empty", focus: "youtube", drift: true }),
-  "hero-remote": (alt) => remote(alt, false),
   "remote-screen": (alt) => home({ alt, layout: "empty", focus: "netflix", qr: true }),
   "remote-phone": (alt) => remote(alt, true),
   "apps-screen": (alt) => home({ alt, layout: "film", focus: "youtube" }),

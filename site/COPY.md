@@ -44,7 +44,7 @@ Ticket 137 was a copy pass, not a redesign; ticket 138 redesigned the page aroun
 - Meta strip: **Mac today · macOS 14+** / **Apple silicon** / **GPL-3.0-or-later** / **No Couch account**
 - Meta strip accessible name: **Requirements**
 - Link under the meta strip (ticket 138), to the Windows card: **On Windows? Tell us you'd use it**
-- First-look section under the hero (ticket 138), accessible name: **Couch on the Screen, with the Remote**
+- First-look section under the hero (ticket 138), accessible name: **Couch Home on the Screen** (was "Couch on the Screen, with the Remote" until the 138 review removed the phone from the first look; the Remote has its own section)
 - Decorative icon alt: empty.
 - Product picture alts: see §12.
 
@@ -309,7 +309,6 @@ Source of truth for slot alts: `src/slots.ts`. These descriptions also name the 
 | Slot | Picked alt |
 | --- | --- |
 | `hero-screen` | Couch Home on the Screen, with a clock and the YouTube, Netflix and Library Apps |
-| `hero-remote` | The Remote on a phone, with Apps, a D-pad and volume controls |
 | `remote-screen` | Couch Home during phone pairing, with a QR code or a connected phone and a highlighted App |
 | `remote-phone` | A phone pairing with Couch, then showing the Remote and its D-pad |
 | `apps-screen` | Couch Home with the YouTube, Netflix and Library Apps and unfinished videos |

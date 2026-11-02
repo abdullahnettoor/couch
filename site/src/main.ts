@@ -120,35 +120,30 @@ for (const p of passRows) {
 }
 motionQuery.addEventListener("change", () => { if (reduced()) stopPasses(); });
 
-// Hero: the room's light moves slower than the page (parallax), the mark a little less; the first look settles in as it arrives.
+// Hero: the room's light moves slower than the page (parallax). The mark stays with the headline it lights, so
+// the two never drift apart or overlap at any width. The first look settles in as it arrives.
 const hero = document.querySelector<HTMLElement>(".hero");
 const room = document.querySelector<HTMLElement>("[data-room]")?.parentElement;
-const lamp = document.querySelector<HTMLElement>("[data-lamp]");
 const stage = document.querySelector<HTMLElement>("[data-stage-scroll]");
 const stageGlow = stage?.querySelector<HTMLElement>(".stage-glow");
-const ph = document.querySelector<HTMLElement>("[data-parallax]");
 let scrollQueued = false;
 const scrollScene = () => {
   scrollQueued = false;
   if (reduced()) {
-    for (const el of [room, lamp, stage, ph]) if (el) el.style.transform = "";
+    for (const el of [room, stage]) if (el) el.style.transform = "";
     if (stageGlow) stageGlow.style.opacity = "";
     return;
   }
   const y = scrollY;
   // read before writing, so a scroll frame never forces a second layout
   const top = stage ? stage.parentElement!.getBoundingClientRect().top : 0;
-  if (y < innerHeight * 1.5) {
-    if (room) room.style.transform = `translate3d(0, ${(y * 0.35).toFixed(1)}px, 0)`;
-    if (lamp) lamp.style.transform = `translate3d(0, ${(y * 0.16).toFixed(1)}px, 0) scale(${(1 - Math.min(y, 600) / 6000).toFixed(4)})`;
-  }
+  if (y < innerHeight * 1.5 && room) room.style.transform = `translate3d(0, ${(y * 0.35).toFixed(1)}px, 0)`;
   if (stage && top < innerHeight * 1.2 && top > -innerHeight) {
     // 0 when the first look's top meets the bottom of the window, 1 when it reaches 35% from the top
     const p = Math.max(0, Math.min(1, (innerHeight - top) / (innerHeight * 0.65)));
     const e = 1 - Math.pow(1 - p, 3);
     stage.style.transform = `rotateX(${((1 - e) * 14).toFixed(2)}deg) translate3d(0, ${((1 - e) * 36).toFixed(1)}px, 0) scale(${(0.94 + e * 0.06).toFixed(4)})`;
     if (stageGlow) stageGlow.style.opacity = (0.35 + e * 0.65).toFixed(3);
-    if (ph) ph.style.transform = `translate3d(0, ${((1 - e) * 40).toFixed(1)}px, 0)`;
   }
 };
 addEventListener("scroll", () => { if (!scrollQueued) { scrollQueued = true; requestAnimationFrame(scrollScene); } }, { passive: true });
@@ -200,13 +195,27 @@ if (finePointer.matches) {
 }
 
 // Digits that tick: the old digit lifts out, the new one rises in (Couch's ease, transform and opacity only).
+// Running rolls are tracked so a switch to reduced motion can cancel them and show the new digit at once.
+const rolling = new Map<HTMLElement, { text: string; anims: Animation[] }>();
 const roll = (el: HTMLElement, text: string) => {
+  rolling.get(el)?.anims.forEach((a) => a.cancel());
+  rolling.delete(el);
   if (reduced() || !el.animate) { el.textContent = text; return; }
   const ease = "cubic-bezier(0.16, 1, 0.3, 1)";
-  el.animate([{ transform: "none", opacity: 1 }, { transform: "translateY(-45%)", opacity: 0 }], { duration: 160, easing: "ease-in" }).onfinish = () => {
+  const entry = { text, anims: [] as Animation[] };
+  rolling.set(el, entry);
+  const out = el.animate([{ transform: "none", opacity: 1 }, { transform: "translateY(-45%)", opacity: 0 }], { duration: 160, easing: "ease-in" });
+  entry.anims.push(out);
+  out.onfinish = () => {
     el.textContent = text;
-    el.animate([{ transform: "translateY(45%)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 380, easing: ease });
+    const inn = el.animate([{ transform: "translateY(45%)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 380, easing: ease });
+    entry.anims.push(inn);
+    inn.onfinish = () => { if (rolling.get(el) === entry) rolling.delete(el); };
   };
+};
+const stopRolls = () => {
+  for (const [el, { text, anims }] of rolling) { anims.forEach((a) => a.cancel()); el.textContent = text; }
+  rolling.clear();
 };
 /** Wraps the last character of a text node in a .roll span, so it can tick on its own. */
 const rollable = (host: Element | null | undefined): HTMLElement | undefined => {
@@ -221,33 +230,17 @@ const rollable = (host: Element | null | undefined): HTMLElement | undefined => 
   return span;
 };
 
-// First look: one finite pass with the Remote. Each press is the phone's own key press (.is-active, Couch's .12s),
-// the highlight is Couch's .focused lift travelling across the tiles; the clock ticks over a minute; the volume goes up.
+// First look: Home on its own, alive for one moment: the clock ticks over a minute (8:42 → 8:43), once.
+// The Remote and the travelling highlight are left to "The Remote is already in your pocket" and its sequence.
 if (stage) {
-  const tiles = [...stage.querySelectorAll<HTMLElement>(".cu .h-app")];
-  const key = (sel: string) => stage.querySelector<HTMLElement>(`.cr ${sel}`);
   const clocks = [...stage.querySelectorAll(".cu .h-clock .t, .cu .topbar .clock")].map(rollable).filter((x): x is HTMLElement => !!x);
-  const vol = stage.querySelector<HTMLElement>(".cr .vpill b");
-  let at = tiles.findIndex((t) => t.classList.contains("focused"));
-  const press = (el: HTMLElement | null, then: () => void) => {
-    el?.classList.add("is-active");
-    setTimeout(() => { el?.classList.remove("is-active"); then(); }, 160);
-  };
-  const move = (d: number) => () => press(key(d > 0 ? ".dir.r" : ".dir.l"), () => {
-    at = Math.max(0, Math.min(tiles.length - 1, at + d));
-    tiles.forEach((t, i) => t.classList.toggle("focused", i === at));
-  });
-  const volUp = () => press(key('.vpill button[data-cmd="volUp"]'), () => { if (vol) { const n = Number(vol.textContent) + 1; roll(vol, String(n)); } });
-  const tick = () => clocks.forEach((c) => roll(c, String((Number(c.textContent) + 1) % 10)));
-  const script: Array<[number, () => void]> = [[700, move(1)], [1300, move(1)], [1200, tick], [600, move(-1)], [1300, move(-1)], [1300, volUp], [700, volUp]];
   let ran = false;
   new IntersectionObserver((entries, io) => {
     if (!entries.some((e) => e.isIntersecting) || ran) return;
     ran = true;
     io.disconnect();
     if (reduced()) return;
-    let t = 0;
-    for (const [wait, fn] of script) { t += wait; setTimeout(() => { if (!reduced()) fn(); }, t); }
+    setTimeout(() => { if (!reduced()) clocks.forEach((c) => roll(c, String((Number(c.textContent) + 1) % 10))); }, 2400);
   }, { threshold: 0.55 }).observe(stage);
 }
 
@@ -340,6 +333,7 @@ motionQuery.addEventListener("change", () => {
     settleAll();
     document.documentElement.classList.remove("reveal-ready");
     if (seq && seqHasMock) endSeq();
+    stopRolls();
     scrollScene();
     hero?.classList.remove("playing");
   } else {

@@ -25,10 +25,6 @@ export const slots = {
     file: null, ...SCREEN, loading: "eager",
     alt: "Couch Home on the Screen, with a clock and the YouTube, Netflix and Library Apps",
   },
-  "hero-remote": {
-    file: null, ...PHONE, loading: "eager",
-    alt: "The Remote on a phone, with Apps, a D-pad and volume controls",
-  },
   "remote-screen": {
     file: null, ...SCREEN, loading: "lazy",
     alt: "Couch Home during phone pairing, with a QR code or a connected phone and a highlighted App",
