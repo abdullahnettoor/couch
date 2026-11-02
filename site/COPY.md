@@ -39,6 +39,7 @@ Ticket 137 was a copy pass, not a redesign; ticket 138 redesigned the page aroun
 
 - Badge: **Early release · Free and open source**
 - Headline: **Settle in.** (ticket 142; one `h1`, set large in the warm white gradient. Until ticket 142 it was "Settle in with" above a large "Couch.")
+- Headline turn (ticket 143, the user's pick): after the intro it shows, once, **Sit back.** → **Press play.** → **Lights down.** → back to **Settle in.**, about 2.6s each. Short phrases only, so the box never changes. The h1's text and accessible name stay "Settle in."; reduced motion and no script show only "Settle in.".
 - Body: A calm home screen for your TV, with YouTube, Netflix and your own videos. Your phone is the Remote.
 - Primary button: **Get Couch, pay what you want**
 - Secondary link: **or download free from GitHub**
@@ -70,7 +71,7 @@ The Mac requirement is visible here, but is not the headline or the proposition.
   2. Scan it to pair your phone
   3. Press right on the phone's D-pad
   4. The highlight moves on the Screen
-- Sequence replay: **Replay**
+- Sequence replay: **Replay** (phones, short windows and reduced motion only; from 900 px the scroll moves the steps and there is no Replay, ticket 143)
 - Bullets:
   - The Remote opens in your phone's browser. No phone app to install.
   - Now Playing puts playback controls on your phone.
