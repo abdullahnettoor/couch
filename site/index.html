@@ -23,7 +23,7 @@
   <meta name="twitter:title" content="Settle in with Couch" />
   <meta name="twitter:description" content="Your TV. Your evening. Your phone as the Remote. A calm home for YouTube, Netflix and your own videos. For Mac today." />
   <meta name="twitter:image" content="{{SITE_URL}}/og.png" />
-  
+  {{intro:head}}
   <script type="module" src="/src/main.ts"></script>
 </head>
 <body>
@@ -34,8 +34,7 @@
   <header class="nav">
     <div class="nav-in">
       <a class="brand" href="#top" aria-label="Couch, back to top">
-        <img src="/icon.png" width="28" height="28" alt="" />
-        <span>Couch</span>
+        {{wordmark:nav}}
       </a>
       <nav aria-label="Main">
         <a href="#how">How it works</a>
@@ -68,9 +67,12 @@
       <div class="room" aria-hidden="true"><div class="room-glow" data-room></div><div class="room-cursor" data-cursor-glow></div></div>
       <div class="wrap hero-copy">
         <a class="pill" href="#download"><span class="dot"></span>Early release · Free and open source<svg class="i" viewBox="0 0 16 16"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        <div class="lamp" aria-hidden="true" data-lamp>
-          <img src="/src/shots/couch-glow.webp" srcset="/src/shots/couch-glow-480.webp 480w, /src/shots/couch-glow.webp 832w" sizes="(max-width: 700px) 62vw, 320px" width="832" height="688" alt="" fetchpriority="high" decoding="async" />
-          <i class="lamp-film"></i><i class="lamp-on"></i>
+        <div class="mark" aria-hidden="true">
+          <div class="lamp" data-lamp>
+            <img src="/src/shots/couch-glow.webp" srcset="/src/shots/couch-glow-480.webp 480w, /src/shots/couch-glow.webp 832w" sizes="(max-width: 700px) 62vw, 320px" width="832" height="688" alt="" fetchpriority="high" decoding="async" />
+            <i class="lamp-film"></i><i class="lamp-on"></i>
+          </div>
+          {{intro:svg}}
         </div>
         <h1><span class="h1-lead">Settle in with</span> <em class="grad wordmark">Couch.</em></h1>
         <p class="lead">A calm home screen for your TV, with YouTube, Netflix and your own videos. Your phone is the Remote.</p>

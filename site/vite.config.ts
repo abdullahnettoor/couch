@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import { GUMROAD_URL, GITHUB_URL, RELEASES_URL, SITE_URL } from "./src/config.ts";
 import { home, remote, shelf, sprite } from "./src/mocks.ts";
+import { introHead, introSvg, wordmarkSvg } from "./src/brand/wordmark.ts";
 import { slots, type Slot, type SlotName } from "./src/slots.ts";
 
 const values: Record<string, string> = { GUMROAD_URL, GITHUB_URL, RELEASES_URL, SITE_URL };
@@ -55,6 +56,9 @@ const sitePlugin = (): Plugin => ({
           return build(slot.alt);
         })
         .replace("{{couch-sprite}}", sprite())
+        .replace("{{wordmark:nav}}", wordmarkSvg({ id: "wm-nav", attrs: 'class="wm" width="132" height="18"' }))
+        .replace("{{intro:svg}}", introSvg())
+        .replace("{{intro:head}}", `<script>${introHead}</script>`)
         .replace("{{mock:shelf}}", shelf())
         .replace(/\{\{slot:([\w-]+)\}\}/g, (_m, name: string) => {
           used.add(name);

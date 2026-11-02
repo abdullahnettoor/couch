@@ -1,9 +1,12 @@
 import "./couch-ui/screen.css";
 import "./couch-ui/remote.css";
 import "./style.css";
+import { intro } from "./intro.ts";
 
 const motionQuery = matchMedia("(prefers-reduced-motion: reduce)");
 const reduced = () => motionQuery.matches;
+
+intro(reduced, (fn) => motionQuery.addEventListener("change", fn));
 
 document.getElementById("year")!.textContent = String(new Date().getFullYear());
 

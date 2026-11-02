@@ -51,8 +51,8 @@ html { scrollbar-color: #3a3a3e var(--bg); }
   padding: 8px 10px 8px 16px; border-radius: 999px; background: rgba(14, 14, 16, 0.62);
   backdrop-filter: blur(24px) saturate(1.6); -webkit-backdrop-filter: blur(24px) saturate(1.6); box-shadow: var(--edge), 0 12px 40px rgba(0,0,0,.35);
 }
-.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 600; letter-spacing: -0.02em; font-size: 17px; }
-.brand img { border-radius: 8px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; padding: 6px 4px; border-radius: 8px; }
+.brand .wm { display: block; width: auto; height: 18px; }
 .nav nav { display: flex; gap: 2px; position: relative; }
 .nav-ind { position: absolute; left: 0; bottom: 2px; width: 18px; height: 2px; margin-left: -9px; border-radius: 2px; background: var(--amber); opacity: 0; pointer-events: none; transition: transform .38s var(--ease), opacity .25s; }
 .nav nav a.is-current { color: #fff; }
@@ -118,7 +118,8 @@ p { text-wrap: pretty; }
 .hero-copy { display: flex; flex-direction: column; align-items: center; gap: 24px; }
 /* The icon's art is added to the room as light (screen blend): its dark tile disappears into the night, only the glow stays.
    The mask keeps the tile's edge out. */
-.lamp { --lamp: min(320px, 62vw, 33vh); position: relative; width: var(--lamp); aspect-ratio: 832 / 688; margin: 0 0 calc(var(--lamp) * -.16); z-index: -1; mix-blend-mode: screen;
+.mark { --lamp: min(320px, 62vw, 33vh); position: relative; width: var(--lamp); aspect-ratio: 832 / 688; margin: 0 0 calc(var(--lamp) * -.16); }
+.lamp { position: relative; width: 100%; height: 100%; z-index: -1; mix-blend-mode: screen;
   -webkit-mask: radial-gradient(farthest-side at 50% 56%, #000 78%, transparent 99%); mask: radial-gradient(farthest-side at 50% 56%, #000 78%, transparent 99%); }
 .lamp img { width: 100%; height: 100%; }
 /* the Screen inside the mark: it switches on, then plays something (colour only, nothing to read) */
@@ -149,6 +150,44 @@ h1 { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .win-chip:hover { color: #fff; background: rgba(255,255,255,.06); }
 .win-chip .i { width: 14px; height: 14px; transition: transform .38s var(--ease); }
 .win-chip:hover .i { transform: translateY(2px); }
+
+/* Hero intro (ticket 139), once per visit: COUCH arrives, the C, C and H leave, the U becomes the sofa, the O drops
+   in and becomes the Screen, the Screen switches on, the icon's own light takes over, then the copy arrives.
+   Timing is here; src/intro.ts morphs the U and the O on the same clock and ends or skips the intro.
+   html.intro is set before the first paint by the <head> script (src/brand/wordmark.ts, introHead). */
+.wm-intro { display: none; position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+html.intro .wm-intro { display: block; animation: intro-out .4s ease 1.66s forwards; }
+html.intro-done .wm-intro { display: none; }
+.i-wm { transform: translate(417px, 620px) scale(var(--wm-s, 2.4)); }
+.wm-intro .l { animation: wm-in .6s var(--ease) calc(var(--i) * 60ms) backwards; }
+.wm-intro .l-c1 { animation: wm-in .6s var(--ease) backwards, wm-out-l .4s cubic-bezier(.5, 0, .75, 0) .66s forwards; }
+.wm-intro .l-c2 { animation: wm-in .6s var(--ease) .18s backwards, wm-out-r .4s cubic-bezier(.5, 0, .75, 0) .66s forwards; }
+.wm-intro .l-h { animation: wm-in .6s var(--ease) .24s backwards, wm-out-r .4s cubic-bezier(.5, 0, .75, 0) .7s forwards; }
+.wm-intro .l-o-frame { fill: #3e322c; opacity: 0; animation: frame-on .45s ease .95s forwards; }
+.i-back { transform-box: fill-box; transform-origin: 50% 100%; animation: back-up .65s var(--ease) 1s backwards; }
+.i-screen { animation: tv-on .6s linear 1.38s backwards; }
+@keyframes wm-in { from { opacity: 0; transform: translateY(22px); } }
+@keyframes wm-out-l { 70%, to { opacity: 0; } to { transform: translateX(-150px); } }
+@keyframes wm-out-r { 70%, to { opacity: 0; } to { transform: translateX(150px); } }
+@keyframes back-up { from { opacity: 0; transform: scaleY(.2); } }
+@keyframes tv-on { 0% { opacity: 0; } 16% { opacity: 1; } 28% { opacity: .5; } 44%, 100% { opacity: 1; } }
+@keyframes intro-fade { from { opacity: 0; } }
+@keyframes intro-out { to { opacity: 0; } }
+@keyframes intro-gone { to { opacity: 0; } }
+@keyframes frame-on { to { opacity: 1; } }
+@keyframes intro-copy { from { opacity: 0; transform: translateY(14px); } }
+html.intro .lamp { animation: intro-fade .45s ease-out 1.5s backwards; }
+html.intro .lamp-on { animation: none; }
+html.intro .hero .room-glow, html.intro .hero.playing .room-glow { animation-delay: 1.3s, 2.6s; }
+html.intro .hero.playing .lamp-film { animation-delay: 2.6s; }
+html.intro .hero-copy > :not(.mark) { animation: intro-copy .7s var(--ease) calc(1.56s + var(--d, 0s)) backwards; }
+html.intro .hero-copy > h1 { --d: .02s; } html.intro .hero-copy > .lead { --d: .1s; } html.intro .hero-copy > .cta { --d: .16s; }
+html.intro .hero-copy > .meta { --d: .22s; } html.intro .hero-copy > .win-chip { --d: .26s; }
+/* skipped (any scroll, click, tap or key): everything arrives at once */
+html.intro-skip .wm-intro { animation: intro-gone .2s ease forwards; }
+html.intro-skip .lamp, html.intro-skip .hero-copy > :not(.mark) { animation: intro-fade .3s ease-out backwards; }
+html.intro-skip .hero .room-glow, html.intro-skip .hero.playing .room-glow { animation-delay: 0s, 1.2s; }
+html.intro-skip .hero.playing .lamp-film { animation-delay: 1.2s; }
 
 .aurora { position: absolute; z-index: -1; pointer-events: none; inset: -40% 0 auto 0; height: 100%; opacity: .8; filter: blur(24px);
   background: radial-gradient(40% 50% at 28% 22%, rgba(255, 150, 60, .30), transparent 70%), radial-gradient(38% 46% at 74% 18%, rgba(70, 96, 190, .34), transparent 70%); }
@@ -371,7 +410,7 @@ summary { transition: color .2s; } summary:active { transform: scale(.99); }
   *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; transition-delay: 0s !important; }
   .reveal-ready .reveal.pre, .reveal-ready .shelf.pre { transform: none; }
   .stage, .room, .room-cursor { transform: none !important; }
-  .room-cursor, .lamp-film, .spot::before, .btn-primary::after { display: none; }
+  .room-cursor, .lamp-film, .spot::before, .btn-primary::after, html.intro .wm-intro { display: none; }
   /* no decorative movement on hover or press: buttons, links, cards, step numbers and their icons stay where they are */
   .btn:hover, .btn:active, .btn.is-pressed, .pill:active, .pill:hover .i, .win-chip:hover .i,
   .nav nav a:active, .link-quiet:active, .seq-steps button:active, summary:active,
