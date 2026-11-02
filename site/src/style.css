@@ -473,6 +473,8 @@ details p a { color: var(--amber-3); }
    hero picture gives way to the wallpaper and clock: home.css's .7s) → open (YouTube's tile grows to fill the
    Screen) → end (the thumbnail or the poster). Couch's ease throughout. */
 .lv { position: absolute; inset: 0; z-index: 1; pointer-events: none; --u: calc(100cqw / 1920); }
+/* reduced motion: the end at once, with no transitions at all (not even reduced motion's .01ms ones) */
+.lv-now, .lv-now * { transition: none !important; }
 .tv-screen .lv-home { z-index: 0; isolation: isolate; opacity: 0; transition: opacity .25s linear; }
 .lv[data-step] .lv-home { opacity: 1; }
 /* the shoot's 16:10 crop trimmed 5 px (2.67u) off the window's top and bottom; the live Home sits where Couch drew it */

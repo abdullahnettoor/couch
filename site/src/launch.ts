@@ -48,12 +48,15 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
   setState("waiting");
 
   const focusOn = (id: string) => tiles.forEach((t, k) => t.classList.toggle("focused", k === id));
-  const step = (s: string) => { lv.dataset.step = s; };
+  // the end (and its play button) is out of reach until it shows
+  endEl.inert = true;
+  const step = (s: string) => { lv.dataset.step = s; endEl.inert = s !== "end"; };
 
-  /** The end state, at once: YouTube open, the thumbnail (or poster) on the Screen. */
+  /** The end state, at once (reduced motion): YouTube open, the thumbnail (or poster) on the Screen, no fades. */
   const finish = () => {
     cancelAnimationFrame(raf); raf = 0;
     anims.forEach((a) => a.cancel()); anims = [];
+    lv.classList.add("lv-now");
     focusOn("youtube");
     yt.classList.remove("lv-pressed");
     lv.classList.add("lit");
@@ -152,7 +155,7 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
   const btn = endEl.querySelector<HTMLButtonElement>(".lv-play");
   btn?.addEventListener("click", () => {
     if (lv.querySelector("iframe")) return;
-    if (state !== "ended") finish();
+    if (state === "playing") { cancelAnimationFrame(raf); raf = 0; setState("ended"); }
     const frame = document.createElement("iframe");
     frame.className = "lv-frame";
     frame.src = lv.dataset.embed!;
