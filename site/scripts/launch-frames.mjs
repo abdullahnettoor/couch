@@ -71,7 +71,7 @@ async function run(w, h, steps, name, { dpr = 2, dir = out, numbered = true } = 
   await page.close();
 }
 
-const STEPS = [0, 200, 420, 700, 940, 1200, 1460, 1800, 2160, 2340, 2460, 2600, 2850, 3140, 3400, 3900];
+const STEPS = [0, 400, 800, 950, 1100, 1320, 1840, 2200, 2540, 2720, 2840, 2980, 3230, 3520, 3780, 4280];
 await run(1440, 900, STEPS, "launch-1440");
 await run(390, 844, STEPS, "launch-390");
 for (const w of [1440, 390]) {

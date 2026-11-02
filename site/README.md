@@ -180,11 +180,11 @@ The first look's TV ends on Couch's launch video, from YouTube (the channel is `
 | Time | What happens |
 | --- | --- |
 | 0 | Couch's live Home row takes over from the screenshot's, drawn in the same place (a .25s fade; the Continue tile's picture is the shoot's own, `src/shots/launch-continue.webp`). The sequence waits for that picture first, at most 1.2s. |
-| 420 | Left: the highlight leaves Big Buck Bunny for Library, and the hero picture gives way to the wallpaper, the clock and the greeting (Couch's .7s hero fade; the screenshot's captions fade out under it as the live ones come in). |
-| 940 / 1460 | Left, Left: Netflix, then YouTube (Couch's .38s lift each). |
-| 2160–2300 | YouTube is pressed: the Remote's key press (.12s, scale .95) on the lifted tile. Couch has no press on Home tiles. |
-| 2340–3240 | YouTube opens: its tile's face grows from the tile's box to the Screen (a `clip-path` inset, 0.9s), the mark riding from the tile's centre to the Screen's. |
-| 3140–3840 | The end comes up over it (0.7s fade, the text rising 1s): the poster, or the thumbnail and play button. |
+| 800 | Home holds for a moment, then Left: the highlight leaves Big Buck Bunny for Library. The hero gives way one type at a time: the screenshot's hero copy (title, blurb, meta, Resume and From start) goes first under its own soft-edged mask (.3s), the picture dissolves to the wallpaper over Couch's .7s, and the clock and greeting come in only once the copy has gone (.6s from 1100). The screenshot's captions fade out under it as the live ones come in. |
+| 1320 / 1840 | Left, Left: Netflix, then YouTube (520 ms apart, Couch's .38s lift each). |
+| 2540–2680 | YouTube is pressed: the Remote's key press (.12s, scale .95) on the lifted tile. Couch has no press on Home tiles. |
+| 2720–3620 | YouTube opens: its tile's face grows from the tile's box to the Screen (a `clip-path` inset, 0.9s), the mark riding from the tile's centre to the Screen's. |
+| 3520–4220 | The end comes up over it (0.7s fade, the text rising 1s): the poster, or the thumbnail and play button. |
 
 All on Couch's ease, `cubic-bezier(0.16, 1, 0.3, 1)`. The overlay's pictures load only after the page's own (idle after the load event and the intro, or when the TV starts to come into view), so they never compete with the hero. No layout shift: everything is inside the TV's box, and the links under it are in the HTML from the start. Reduced motion: the end state at once, with no transitions, before the TV is even seen; a switch to reduced motion mid-sequence ends it at once. Without script: the Home screenshot, and the links.
 

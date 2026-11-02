@@ -20,11 +20,11 @@
 /** When each beat starts, in ms from the start (the opening and the ending last OPEN_MS and END_MS). */
 export const LAUNCH_TIMES = {
   row: 0, // the live row takes over from the screenshot's (a .25s fade; they are drawn in the same place)
-  hops: [420, 940, 1460] as const, // Left, Left, Left: Library, Netflix, YouTube
-  press: 2160, // the Remote's key press on the lifted YouTube tile, held .14s
-  release: 2300,
-  open: 2340, // YouTube opens: its tile grows to fill the Screen
-  end: 3140, // the thumbnail (or the poster) comes up over it
+  hops: [800, 1320, 1840] as const, // Home held a moment, then Left, Left, Left (520 ms apart): Library, Netflix, YouTube
+  press: 2540, // the Remote's key press on the lifted YouTube tile, held .14s
+  release: 2680,
+  open: 2720, // YouTube opens: its tile grows to fill the Screen
+  end: 3520, // the thumbnail (or the poster) comes up over it
 };
 const OPEN_MS = 900;
 const END_MS = 700;
