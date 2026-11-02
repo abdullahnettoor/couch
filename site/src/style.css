@@ -20,6 +20,11 @@
   --sans: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --wrap: 1180px;
+  /* section rhythm (ticket 143): section top → eyebrow → headline → body, the same in every section */
+  --section-pad: clamp(72px, 9vw, 128px);
+  --eyebrow-gap: 20px;
+  --head-gap: 24px;
+  --intro-gap: 56px;
   color-scheme: dark;
 }
 
@@ -97,7 +102,7 @@ h3 { font-size: 22px; letter-spacing: -0.02em; font-weight: 500; }
 em { font-style: normal; }
 .grad { background: linear-gradient(100deg, var(--amber-3) 0%, var(--amber) 45%, var(--amber-2) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; padding-bottom: .08em; }
 .lead { font-size: clamp(18px, 2vw, 21px); color: var(--t2); max-width: 36em; margin: 0; text-wrap: pretty; }
-.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--amber); margin: 0 0 18px; }
+.eyebrow { font: 500 12px/16px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--amber); margin: 0 0 var(--eyebrow-gap); }
 p { text-wrap: pretty; }
 
 /* hero: the Couch mark, lit. The icon's own sofa-and-Screen art is the room's only light source. */
@@ -225,10 +230,12 @@ html.intro.intro-now .lamp, html.intro.intro-now .hero-copy > :not(.mark) { anim
 /* mocks: the Couch UI itself lives in src/couch-ui/ (copied by scripts/sync-couch-ui.mjs); this file only frames it. See "couch ui" below. */
 
 /* stories */
-.story { padding: clamp(72px, 9vw, 128px) 0; position: relative; }
-.split { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 13fr); gap: clamp(40px, 6vw, 96px); align-items: center; }
+.story { padding: var(--section-pad) 0; position: relative; }
+/* the copy starts at the section's top padding, like the centred sections; the picture centres against it */
+.split { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 13fr); gap: clamp(40px, 6vw, 96px); align-items: start; }
+.split > .demo { align-self: center; }
 .split.flip { grid-template-columns: minmax(0, 13fr) minmax(0, 11fr); } .split.flip .copy { order: 2; } .split.flip .demo { order: 1; }
-.copy p { color: var(--t2); margin: 24px 0 0; max-width: 34em; }
+.copy > p:not(.eyebrow) { color: var(--t2); margin: var(--head-gap) 0 0; max-width: 34em; }
 .copy h2 + p { font-size: 19px; }
 .ticks { list-style: none; margin: 28px 0 0; padding: 0; display: grid; gap: 14px; color: var(--t2); font-size: 16px; }
 .ticks li { position: relative; padding-left: 28px; }
@@ -257,7 +264,7 @@ html.intro.intro-now .lamp, html.intro.intro-now .hero-copy > :not(.mark) { anim
 .replay[hidden] { display: none; } .replay:hover { color: #fff; background: rgba(60,60,66,.6); } .replay:focus-visible { outline: 2px solid var(--amber-3); outline-offset: 3px; } .replay .i { width: 16px; height: 16px; }
 .seq + * { margin-top: 0; }
 .note { margin: 28px 0 0; font-size: 13.5px; color: var(--t3); text-align: center; }
-.center { text-align: center; margin-bottom: 56px; } .center h2 { max-width: 14em; margin-inline: auto; }
+.center { text-align: center; margin-bottom: var(--intro-gap); } .center h2 { max-width: 14em; margin-inline: auto; }
 
 /* library shelf: see "couch ui" below */
 
@@ -400,11 +407,12 @@ summary { transition: color .2s; } summary:active { transform: scale(.99); }
 }
 @media (max-width: 880px) {
   .split, .split.flip { grid-template-columns: 1fr; } .split.flip .copy, .split.flip .demo { order: initial; }
-  .copy p { max-width: 40em; }
+  .copy > p:not(.eyebrow) { max-width: 40em; }
   .demo { max-width: 680px; width: 100%; margin-inline: auto; }
   .nav .link-quiet { display: none; }
 }
 @media (max-width: 700px) {
+  :root { --eyebrow-gap: 16px; --head-gap: 20px; --intro-gap: 40px; }
   body { font-size: 16px; }
   .wrap, .narrow { width: min(100% - 32px, var(--wrap)); }
   .nav nav { display: none; } .menu { display: block; }
