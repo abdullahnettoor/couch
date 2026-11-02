@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 4173",
     "sync:couch": "node scripts/sync-couch-ui.mjs",
-    "test": "node scripts/css-scope.test.mjs",
+    "test": "node scripts/css-scope.test.mjs && node --test worker/",
+    "dev:worker": "pnpm build && wrangler d1 migrations apply couch-site-demand --local && wrangler dev --local --port 8787",
     "deploy": "pnpm build && wrangler deploy"
   },
   "devDependencies": {
