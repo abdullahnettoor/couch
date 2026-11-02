@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import { GUMROAD_URL, GITHUB_URL, RELEASES_URL, SITE_URL, INTRO_MODE, SOCIAL, type IntroMode, type SocialLink } from "./src/config.ts";
-import { home, remote, shelf, sprite } from "./src/mocks.ts";
+import { home, install, remote, shelf, sprite } from "./src/mocks.ts";
 import { introHead, introSvg, wordmarkSvg } from "./src/brand/wordmark.ts";
 import { slots, type Slot, type SlotName } from "./src/slots.ts";
 
@@ -25,6 +25,7 @@ const mocks: Record<string, (alt: string) => string> = {
   "remote-screen": (alt) => home({ alt, layout: "empty", focus: "netflix", qr: true }),
   "remote-phone": (alt) => remote(alt, true),
   "apps-screen": (alt) => home({ alt, layout: "film", focus: "youtube" }),
+  "setup-install": install,
 };
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");

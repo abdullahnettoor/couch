@@ -25,6 +25,9 @@ const SHOT = { ...SCREEN, loading: "lazy" } as const;
 /** Home and the Library at the Mac display's own 16:10, so no crop cuts through their UI (scripts/shots.mjs). */
 const SHOT_16X10 = { width: 1920, height: 1200, loading: "lazy" } as const;
 const widths = [640, 1280] as const;
+/** The setup cards' pictures (ticket 143): 16:9 details of Home at 1280 and 640, about 340 px wide on the page. */
+const SETUP = { width: 1280, height: 720, loading: "lazy" } as const;
+const SETUP_SIZES = "(max-width: 700px) calc(100vw - 82px), min(30vw, 340px)";
 
 // The real Couch, from the ticket 140 shoot (scripts/shots.mjs). The films are Blender's open films (© Blender
 // Foundation, CC BY 3.0) and the posters and backdrops come from TMDB; the footer and /licenses/ credit both.
@@ -53,13 +56,17 @@ export const slots = {
     file: "settings.webp", ...SHOT, srcset: { widths, sizes: "(max-width: 700px) calc(100vw - 80px), min(40vw, 460px)" },
     alt: "Couch Settings: Remotes and Devices with one phone connected, Library, Sound output, Apps, Home and Quit Couch",
   },
-  "setup-remotes": {
-    file: "remotes.webp", ...SHOT, srcset: { widths, sizes: "(max-width: 700px) calc(100vw - 82px), min(30vw, 340px)" },
-    alt: "Remotes and Devices in Settings, with Add a phone highlighted to show the QR code",
+  "setup-install": {
+    file: null, width: 1280, height: 720, loading: "lazy",
+    alt: "The Couch app icon being dragged into the Applications folder, into the empty place marked Couch",
   },
-  "setup-player": {
-    file: "player.webp", ...SHOT, srcset: { widths, sizes: "(max-width: 700px) calc(100vw - 82px), min(30vw, 340px)" },
-    alt: "Big Buck Bunny playing full screen in Couch's player",
+  "setup-qr": {
+    file: "home-qr.webp", ...SETUP, srcset: { widths: [640], sizes: SETUP_SIZES },
+    alt: "Couch Home showing No phone connected and a QR code card: Scan to use your phone as a remote",
+  },
+  "setup-app": {
+    file: "home-youtube.webp", ...SETUP, srcset: { widths: [640], sizes: SETUP_SIZES },
+    alt: "Couch Home with the YouTube App highlighted, next to Netflix and the Library",
   },
 } as const satisfies Record<string, Slot>;
 

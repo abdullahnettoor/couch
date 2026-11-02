@@ -96,6 +96,19 @@ export function shelf(): string {
   return `<div class="cu shelf-cu" role="img" aria-label="A folder named Movies becomes a shelf of videos: Summer Trip and Cooking Show part-watched, Home Videos watched" inert>${folder}${arrow}${card("Summer Trip", "1h 12m left · Holidays", 24, prog(0.62), true)}${card("Cooking Show", "38m left · Shows", 205, prog(0.18))}${card("Home Videos", "Watched", 130, '<span class="lib-badge">Watched</span>')}</div>`;
 }
 
+/**
+ * Setup step 1 (ticket 143): the Couch icon being dragged into an Applications row. Not Couch's UI and not
+ * macOS's: a quiet row of app places (no marks, no names but Couch's), the empty one marked Couch, and the real
+ * app icon (public/icon.png) lifted over it with a pointer. Drawn in container units (style.css "setup install").
+ */
+export function install(alt: string): string {
+  const app = (h: number) => `<i class="inst-app" style="--h:${h}"></i>`;
+  const pointer = `<svg class="inst-ptr" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.5v15.2l4.1-3.9 2.7 6.2 2.9-1.3-2.7-6.1h5.7z" fill="#fff" stroke="#0a0a0c" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
+  return `<div class="inst" role="img" aria-label="${esc(alt)}"><div class="inst-bar">Applications</div>`
+    + `<div class="inst-row">${app(222)}${app(266)}<span class="inst-slot"><b>Couch</b></span>${app(28)}</div>`
+    + `<div class="inst-drag"><img src="/icon.png" width="256" height="256" alt="" loading="lazy" decoding="async" />${pointer}</div></div>`;
+}
+
 const remoteHtml = readFileSync(resolve(import.meta.dirname, "couch-ui/remote.html"), "utf8").replace(/^<!--[\s\S]*?-->\n/, "");
 
 /** The Remote's idle view as the phone shows it, plus (optionally) the phone camera view over it. */

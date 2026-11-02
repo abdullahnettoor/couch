@@ -279,14 +279,31 @@ html.intro.intro-now .lamp, html.intro.intro-now .hero-copy > :not(.mark) { anim
 .connects li strong { color: #fff; font-weight: 600; }
 .connects p { color: var(--t3); font-size: 15px; margin: 20px 0 0; }
 
-/* steps */
-.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: start; }
+/* steps: on wider screens the three cards share one height and their pictures line up along the bottom */
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: stretch; }
 .step { position: relative; overflow: hidden; isolation: isolate; transition: transform .38s var(--ease); display: flex; flex-direction: column; padding: 24px; border-radius: 20px; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); border: 1px solid var(--line); box-shadow: var(--edge); }
 .step-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; } .step-icon { border-radius: 10px; }
 .step .n { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: #fff; color: #000; font: 600 15px var(--mono); }
 .step p { margin: 8px 0 0; color: var(--t2); font-size: 16px; } .step p:last-child { margin: 8px 0 0; }
 .step-art { margin-top: 18px; border-radius: 12px; overflow: hidden; background: #0c0c0e; border: 1px solid var(--line); aspect-ratio: 16 / 9; }
 .step-art img { width: 100%; height: 100%; object-fit: cover; }
+@media (min-width: 701px) {
+  .step > p { margin-bottom: 18px; }
+  .step-art { margin-top: auto; }
+  .step-icon { display: none; }
+}
+/* setup install: the Couch icon lifted over its empty place in an Applications row (src/mocks.ts install()) */
+.inst { position: relative; width: 100%; height: 100%; container-type: inline-size; overflow: hidden; background: radial-gradient(90% 90% at 60% 10%, #1a1b22, #0c0c0e 72%); }
+.inst-bar { position: absolute; inset: 0 0 auto; height: 11cqw; display: flex; align-items: center; padding: 0 5cqw; font: 500 3.6cqw/1 var(--sans); letter-spacing: -.01em; color: var(--t3); border-bottom: 1px solid var(--line); }
+.inst-row { position: absolute; left: 7cqw; top: 21cqw; display: flex; gap: 6cqw; }
+.inst-app, .inst-slot { flex: none; width: 17cqw; aspect-ratio: 1; border-radius: 23%; }
+.inst-app { background: linear-gradient(160deg, hsl(var(--h) 16% 28%), hsl(var(--h) 20% 15%)); box-shadow: inset 0 1px 0 rgba(255,255,255,.08); opacity: .5; }
+.inst-slot { position: relative; border: max(1px, .45cqw) dashed rgba(255, 216, 154, .55); background: rgba(255, 176, 74, .06); box-shadow: 0 0 7cqw rgba(255, 150, 60, .16); }
+.inst-slot b { position: absolute; top: 100%; left: 50%; translate: -50% 0; margin-top: 3cqw; font: 500 3.4cqw/1 var(--sans); color: var(--t2); }
+.inst-drag { position: absolute; left: 47cqw; top: 9cqw; width: 21cqw; rotate: -7deg; filter: drop-shadow(0 3cqw 3.5cqw rgba(0, 0, 0, .65)); transition: translate .5s var(--ease); }
+.inst-drag img { display: block; width: 100%; height: auto; }
+.inst-ptr { position: absolute; right: -3cqw; bottom: -4.5cqw; width: 7.5cqw; rotate: 7deg; }
+@media (hover: hover) { .step:hover .inst-drag { translate: 0 1.6cqw; } }
 
 /* download */
 .dl-card { position: relative; overflow: hidden; isolation: isolate; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 26px; padding: clamp(40px, 6vw, 80px) clamp(24px, 5vw, 64px); border-radius: 28px; background: rgba(255,255,255,.03); border: 1px solid var(--line); box-shadow: var(--edge); }
@@ -433,6 +450,7 @@ summary { transition: color .2s; } summary:active { transform: scale(.99); }
   .hero { padding: 104px 0 40px; }
   .win { grid-template-columns: 1fr; text-align: center; } .win-copy p { margin-inline: auto; } .win-act { justify-items: center; } .win-err { text-align: center; }
   .steps { grid-template-columns: 1fr; max-width: 480px; margin-inline: auto; }
+  .step-art-wide { display: none; }
   summary { font-size: 18px; }
   /* phones sit in normal flow, centred under the Screen, wide enough to read */
   .seq .phone { position: static; width: min(200px, 56vw); margin: 22px auto 0; }
@@ -450,4 +468,5 @@ summary { transition: color .2s; } summary:active { transform: scale(.99); }
   .btn:hover, .btn:active, .btn.is-pressed, .pill:active, .pill:hover .i, .win-chip:hover .i,
   .nav nav a:active, .link-quiet:active, .seq-steps button:active, summary:active,
   .step:hover, .step:hover .n { transform: none !important; }
+  .step:hover .inst-drag { translate: none !important; }
 }
