@@ -26,7 +26,7 @@ A personal, TV-like shell for one household's YouTube, local files and other App
 
 ## Capabilities and Constraints
 
-- Surfaces: Home (clock, greeting, Apps row built from the App list: YouTube, Netflix and Library, Continue watching beside it: the newest unfinished title from each App and the newest Library video, as many as fit, Settings gear), Library (folders, subfolders, videos, Continue watching row), Player (title, progress, transport, subtitles, volume), Settings (Add a phone, Forget all phones, Library folders, Restart YouTube, Quit Couch), the phone Remote (D-pad, Back/Home/Play-Pause, Type, volume, YouTube skip buttons, Now Playing).
+- Surfaces: Home (clock, greeting, Apps row built from the App list: YouTube, Netflix and Library, Continue watching beside it: the newest unfinished title from each App and the newest Library video, as many as fit, Settings gear, and the update icon beside it only while a downloaded update is ready), Library (folders, subfolders, videos, Continue watching row), Player (title, progress, transport, subtitles, volume), Settings (Add a phone, Forget all phones, Library folders, Restart YouTube, About: version, Check for updates, Restart to update and Beta updates, Quit Couch), the phone Remote (D-pad, Back/Home/Play-Pause, Type, volume, YouTube skip buttons, Now Playing).
 - Focus is grid-based and owned by the core; the Screen must always show clearly where focus is.
 - Library tiles show a frame from the video (or a colour from the title until it's ready), a cleaned title, progress and "Watched".
 - Show and film details come from TMDB (a built-in project key in release builds, or the household's own key); Couch works fully without them.

@@ -84,6 +84,18 @@ _Avoid_: skip button, overlay button
 The one page for setup chores, opened from the gear on Home: adding phones, Library folders, restarting YouTube, and quitting.
 _Avoid_: preferences, options, admin
 
+**About**:
+The Settings page, just above Quit Couch, with Couch's version (and build number), **Check for updates**, **Restart to update** (only once an update has downloaded; it asks first, then Couch closes and opens again on the new version) and **Beta updates**. A downloaded update otherwise installs when Couch quits; nothing restarts Couch by itself.
+_Avoid_: info, version page
+
+**Beta updates**:
+The On/Off row on Settings → About: On, Couch also updates to beta versions (the beta feed); Off, only to released ones. Off is the default. Turning it Off on a beta version never goes back to an older version: Couch waits for a release newer than the beta it runs.
+_Avoid_: beta channel, insider, preview (in UI copy)
+
+**Update icon**:
+The round arrow-up icon beside the gear on Home (and on the phone's Home), shown only while a downloaded update is ready. It opens Settings → About on Restart to update.
+_Avoid_: badge, notification
+
 **Household**:
 The people who share one Screen. There are no profiles or logins; any household phone can act as a Remote.
 _Avoid_: user, account, profile
