@@ -92,6 +92,83 @@ describe("updates", () => {
     expect(toasts).toEqual([]);
     expect(logs).toEqual(["Update check failed: no network", "Update check failed: offline"]);
   });
+  test("a downloaded update ends the checks until Couch restarts", () => {
+    const { updater, clock } = start();
+    clock.advance(FIRST_CHECK_MS);
+    updater.download();
+    clock.advance(CHECK_EVERY_MS * 3);
+    expect(updater.checks).toBe(1);
+  });
+});
+
+describe("the beta channel", () => {
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+  function startBeta(version: string, feed: () => unknown) {
+    const updater = new FakeUpdater();
+    const clock = new FakeClock();
+    const logs: string[] = [];
+    const fetched: string[] = [];
+    startUpdates({
+      updater,
+      clock,
+      platform: "darwin",
+      arch: "arm64",
+      version,
+      channel: "beta",
+      toast: () => {},
+      fetchJson: async (url) => {
+        fetched.push(url);
+        return feed();
+      },
+      log: (m) => logs.push(m),
+    });
+    return { updater, clock, logs, fetched };
+  }
+
+  test("reads the beta feed file on GitHub, and gives Squirrel that file", async () => {
+    const { updater, clock, fetched } = startBeta("0.1.1", () => ({ version: "0.2.0-beta.1" }));
+    const url =
+      "https://github.com/abdullahnettoor/couch/releases/download/beta-feed/beta-darwin-arm64.json";
+    expect(updater.feed).toBe(url);
+    clock.advance(FIRST_CHECK_MS);
+    await flush();
+    expect(fetched).toEqual([url]);
+    expect(updater.checks).toBe(1);
+  });
+
+  test("asks Squirrel only for a newer version, never the same or an older one", async () => {
+    let version = "0.2.0-beta.1";
+    const { updater, clock } = startBeta("0.2.0-beta.1", () => ({ version }));
+    clock.advance(FIRST_CHECK_MS);
+    await flush();
+    expect(updater.checks).toBe(0);
+    version = "0.1.1";
+    clock.advance(CHECK_EVERY_MS);
+    await flush();
+    expect(updater.checks).toBe(0);
+    // The stable release that follows a beta is newer than the beta.
+    version = "0.2.0";
+    clock.advance(CHECK_EVERY_MS);
+    await flush();
+    expect(updater.checks).toBe(1);
+  });
+
+  test("a feed that can't be read or names no version is only logged", async () => {
+    let feed: () => unknown = () => {
+      throw new Error("HTTP 404");
+    };
+    const { updater, clock, logs } = startBeta("0.1.1", () => feed());
+    clock.advance(FIRST_CHECK_MS);
+    await flush();
+    feed = () => ({ url: "x" });
+    clock.advance(CHECK_EVERY_MS);
+    await flush();
+    expect(updater.checks).toBe(0);
+    expect(logs).toEqual([
+      "Update check failed: HTTP 404",
+      "Update check failed: the beta feed names no version",
+    ]);
+  });
 });
 
 describe("restartListenerAfterUpdate", () => {

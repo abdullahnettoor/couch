@@ -34,7 +34,8 @@ Couch is a personal app today: it runs on the household's Mac, built and install
 ## Updates
 
 - **Updater:** Electron's own `autoUpdater` through update.electronjs.org, which reads this repo's published GitHub Releases (`src/main/ports/updates.ts`). It needs a public repo and the `Couch-darwin-arm64-<version>.zip` asset the workflow attaches. A packaged Couch checks a minute after start and every six hours; a downloaded update installs when Couch quits, with one toast, never a forced restart. On the first start of a new version Couch restarts the Listener's LaunchAgent, which would otherwise keep running the old binary.
-- **To check before relying on it:** install one release that has the updater, publish the next, and confirm it updates itself.
+- **Checked:** 0.1.0 updated itself to 0.1.1 (self-signed, installed on quit).
+- **Beta channel:** a Mac set to it (`defaults write com.abdullahnettoor.couch updateChannel beta`, then restart Couch; `defaults delete com.abdullahnettoor.couch updateChannel` goes back to stable) reads `beta-darwin-arm64.json` from the `beta-feed` GitHub release instead of update.electronjs.org. That file names the newest published release, beta or stable, so a beta Mac also moves on to the stable release after its beta. `scripts/beta-feed.mjs` writes it: `release.yml` runs it after publishing a beta, and `beta-feed.yml` when a release is published, unpublished, edited or deleted by hand (Actions → Beta feed → Run workflow rewrites it any time). Squirrel.Mac installs whatever a plain file names, so Couch compares the file's version itself (SemVer) and asks Squirrel only when it is newer: never a downgrade. The `beta-feed` release is a pre-release with a non-SemVer tag, so neither update.electronjs.org nor GitHub's "Latest" ever picks it.
 
 ## Releasing
 
@@ -44,7 +45,7 @@ Couch is a personal app today: it runs on the household's Mac, built and install
   1. On an up-to-date, clean `main`: `pnpm release patch` (or `minor`, `major`, or an exact version such as `0.2.0-beta.1`). It asks to confirm, runs `vp check` and the tests, sets `version` in `package.json`, commits it, and pushes the commit and the `v<version>` tag.
   2. The tag starts `.github/workflows/release.yml`: it builds on an Apple Silicon runner, VMP-signs, signs, and makes the zip, dmg, GPL source bundle and `SHA256SUMS.txt`. It fails if the tag and `package.json` disagree, or if EVS isn't signed in.
   3. It creates a **draft** GitHub Release. Download the dmg, check it opens and plays (including a DRM App), then publish the draft. The updater only sees published releases.
-- **Pre-releases:** a version with a hyphen (`0.2.0-beta.1`) becomes a GitHub pre-release. update.electronjs.org skips pre-releases and drafts, so installed copies never update to one; install it by hand to try it. The release after it (`pnpm release patch` from `0.2.0-beta.1` gives `0.2.0`) reaches everyone, beta Macs included.
+- **Betas:** a version with a hyphen (`pnpm release 0.2.0-beta.1`) is published at once as a GitHub pre-release, with no draft step, and the beta feed is updated, so Macs on the beta channel update to it; stable Macs don't (update.electronjs.org skips pre-releases). The release after it (`pnpm release patch` from `0.2.0-beta.1` gives `0.2.0`) starts as a draft as usual and, once published, reaches everyone, beta Macs included.
 - **A failed build:** re-run it from Actions if the failure was passing (a download). If code had to change, move the unpublished tag: `git tag -f v<version> && git push -f origin v<version>`. Never move or reuse the tag of a published release; release the next version instead.
 - **Trial build:** Actions → Release → Run workflow builds the same files without a release, kept as an artifact for a week.
 

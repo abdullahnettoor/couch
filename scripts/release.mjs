@@ -38,7 +38,7 @@ if (read("git", ["tag", "--list", tag])) fail(`The tag ${tag} already exists.`);
 
 const pre = version.includes("-");
 console.log(
-  `\nRelease ${current} → ${version} (tag ${tag})${pre ? ", a pre-release: installed copies won't update to it" : ""}.`,
+  `\nRelease ${current} → ${version} (tag ${tag})${pre ? ", a beta: published at once, and only Macs on the beta channel update to it" : ""}.`,
 );
 if (process.stdin.isTTY) {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -63,5 +63,5 @@ const repo = /github\.com[:/](.+?)(?:\.git)?$/.exec(
 console.log(`
 Pushed ${tag}. The release workflow is building it (about 30–40 minutes):
   https://github.com/${repo}/actions/workflows/release.yml
-When it's done, test the draft and publish it:
+${pre ? "It publishes the beta itself; Macs on the beta channel pick it up within six hours:" : "When it's done, test the draft and publish it:"}
   https://github.com/${repo}/releases`);

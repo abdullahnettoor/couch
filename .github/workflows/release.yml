@@ -97,15 +97,26 @@ jobs:
       - name: Make the zip, dmg and GPL source bundle
         run: pnpm run release:assets
 
-      - name: Create a draft release
+      - name: Create the release
         if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          prerelease=""
-          case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
+          # A beta (a version with a hyphen) is published at once as a pre-release, for the beta channel; stable
+          # versions start as a draft to test and publish by hand. update.electronjs.org ignores both.
+          case "$GITHUB_REF_NAME" in
+            *-*) state="--prerelease" ;;
+            *) state="--draft" ;;
+          esac
           gh release create "$GITHUB_REF_NAME" out/release/* \
-            --draft $prerelease --verify-tag --generate-notes --title "Couch ${GITHUB_REF_NAME#v}"
+            $state --verify-tag --generate-notes --title "Couch ${GITHUB_REF_NAME#v}"
+
+      # Publishing a stable release by hand runs beta-feed.yml; a release this workflow creates can't trigger it.
+      - name: Update the beta feed
+        if: github.ref_type == 'tag' && contains(github.ref_name, '-')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/beta-feed.mjs
 
       - name: Keep the trial build
         if: github.ref_type != 'tag'

@@ -8,6 +8,7 @@ import {
   Menu,
   screen,
   session,
+  systemPreferences,
   WebContentsView,
 } from "electron";
 import { join } from "node:path";
@@ -494,6 +495,9 @@ async function createScreen(): Promise<void> {
       platform: process.platform,
       arch: process.arch,
       version: app.getVersion(),
+      // Hidden switch, set in Terminal: `defaults write com.abdullahnettoor.couch updateChannel beta`.
+      channel:
+        systemPreferences.getUserDefault("updateChannel", "string") === "beta" ? "beta" : "stable",
       toast: (text) => couch?.toast(text),
     });
   couch.onScreen((payload) => {

@@ -1,0 +1,29 @@
+# Keeps the beta update feed (beta-darwin-<arch>.json on the beta-feed release) pointing at the newest published
+# release, when a release is published, unpublished, edited (e.g. its pre-release box) or deleted by hand.
+# Betas published by release.yml update the feed there. See SHIPPING.md, "Beta channel".
+name: Beta feed
+
+on:
+  release:
+    types: [published, unpublished, edited, deleted]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: beta-feed
+
+jobs:
+  feed:
+    if: github.event_name == 'workflow_dispatch' || github.event.release.tag_name != 'beta-feed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+      - name: Update the beta feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/beta-feed.mjs

@@ -1,3 +1,4 @@
+import { compareVersions, parseVersion } from "../../shared/semver.ts";
 import type { Clock } from "./clock.ts";
 import { LISTENER_LABEL, systemExec, type Exec } from "./login-item.ts";
 import type { Store } from "./store.ts";
@@ -9,8 +10,17 @@ export const UPDATE_READY_TOAST = "Couch has an update. It's ready next time Cou
 export const FIRST_CHECK_MS = 60_000;
 export const CHECK_EVERY_MS = 6 * 60 * 60_000;
 
+/**
+ * Stable follows update.electronjs.org, which serves only published releases that aren't pre-releases. Beta
+ * follows the beta feed (scripts/beta-feed.mjs), which names the newest published release, beta or stable.
+ */
+export type UpdateChannel = "stable" | "beta";
+
 export const updateFeedUrl = (o: { platform: string; arch: string; version: string }) =>
   `https://update.electronjs.org/${UPDATE_REPO}/${o.platform}-${o.arch}/${o.version}`;
+
+export const betaFeedUrl = (arch: string) =>
+  `https://github.com/${UPDATE_REPO}/releases/download/beta-feed/beta-darwin-${arch}.json`;
 
 /** The part of Electron's autoUpdater Couch uses. */
 export interface Updater {
@@ -20,9 +30,18 @@ export interface Updater {
   on(event: "error", listener: (error: Error) => void): unknown;
 }
 
+/** Fetches a JSON document (the beta feed). */
+export type FetchJson = (url: string) => Promise<unknown>;
+
+const fetchJson: FetchJson = async (url) => {
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
+  return response.json();
+};
+
 /**
  * Checks for a newer published release now and then. A downloaded update is never forced on the household: macOS
- * installs it when Couch quits, and a toast says so once.
+ * installs it when Couch quits, and a toast says so once. After that, no more checks until Couch restarts.
  */
 export function startUpdates(o: {
   updater: Updater;
@@ -30,21 +49,36 @@ export function startUpdates(o: {
   platform: string;
   arch: string;
   version: string;
+  channel?: UpdateChannel;
   toast: (text: string) => void;
+  fetchJson?: FetchJson;
   log?: (message: string) => void;
 }): () => void {
   const log = o.log ?? ((m) => console.warn(`[couch] ${m}`));
-  o.updater.setFeedURL({ url: updateFeedUrl(o) });
-  let told = false;
+  const beta = o.channel === "beta";
+  // The beta feed is a plain file that always names an update, and Squirrel.Mac installs whatever its feed
+  // names: so on beta Couch reads the file itself and asks Squirrel only when the file's version is newer.
+  o.updater.setFeedURL({ url: beta ? betaFeedUrl(o.arch) : updateFeedUrl(o) });
+  let downloaded = false;
   o.updater.on("update-downloaded", () => {
-    if (told) return;
-    told = true;
+    if (downloaded) return;
+    downloaded = true;
     o.toast(UPDATE_READY_TOAST);
   });
   // Offline, GitHub down, or no newer release: nothing to tell the household.
   o.updater.on("error", (e) => log(`Update check failed: ${e.message}`));
-  const check = () => {
+  const newerBeta = async () => {
+    const feed = (await (o.fetchJson ?? fetchJson)(betaFeedUrl(o.arch))) as {
+      version?: unknown;
+    } | null;
+    const version = typeof feed?.version === "string" ? feed.version : "";
+    if (!parseVersion(version)) throw new Error("the beta feed names no version");
+    return compareVersions(version, o.version) > 0;
+  };
+  const check = async () => {
+    if (downloaded) return;
     try {
+      if (beta && !(await newerBeta())) return;
       o.updater.checkForUpdates();
     } catch (e) {
       log(`Update check failed: ${(e as Error).message}`);
@@ -52,8 +86,8 @@ export function startUpdates(o: {
   };
   const cancels = [
     o.clock.setTimeout(() => {
-      check();
-      cancels.push(o.clock.setInterval(check, CHECK_EVERY_MS));
+      void check();
+      cancels.push(o.clock.setInterval(() => void check(), CHECK_EVERY_MS));
     }, FIRST_CHECK_MS),
   ];
   return () => cancels.forEach((cancel) => cancel());
