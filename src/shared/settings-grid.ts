@@ -7,6 +7,9 @@ function column(items: Array<Omit<GridItem, "r" | "c">>): GridItem[] {
 
 export const SETTINGS_APP = "settings:app:";
 
+/** The Interface sounds On/Off row, last on the Sound output page. */
+export const INTERFACE_SOUNDS_ID = "interface-sounds";
+
 /** Settings: six rows, each a group page except Quit. */
 export const SETTINGS_ITEMS: GridItem[] = column([
   { id: "remotes", label: "Remotes and Devices", action: "settings:remotes" },

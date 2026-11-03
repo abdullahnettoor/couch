@@ -126,7 +126,12 @@ describe("Sound output", () => {
   test("the page shows System default, then each device", async () => {
     await start();
     await openSoundPage();
-    expect(rows()).toEqual(["System default", "MacBook Pro Speakers", "L27h-4A"]);
+    expect(rows()).toEqual([
+      "System default",
+      "MacBook Pro Speakers",
+      "L27h-4A",
+      "Interface sounds",
+    ]);
     expect(h.screen.last.sound).toEqual({ selected: "default", label: "System default" });
   });
 
@@ -180,7 +185,7 @@ describe("Sound output", () => {
       label: "System default",
       hint: "L27h-4A isn't connected · using System default",
     });
-    expect(rows()).toEqual(["System default", "MacBook Pro Speakers"]);
+    expect(rows()).toEqual(["System default", "MacBook Pro Speakers", "Interface sounds"]);
 
     h.mac.setOutputDevices([SPEAKERS, MONITOR]);
     await until(() => h.player.audioDevice === MONITOR.uid);
@@ -224,7 +229,6 @@ describe("Sound output", () => {
     await until(() => asks() > before);
     const mid = asks();
     await openSoundPage();
-    await phone.press("down");
     await phone.press("down");
     await phone.press("ok");
     expect(asks()).toBeGreaterThan(mid);

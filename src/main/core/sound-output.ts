@@ -73,6 +73,11 @@ export class SoundOutput {
     return this.#muted;
   }
 
+  /** The name of the device in use, or undefined for System default. */
+  get outputName(): string | undefined {
+    return this.#effective()?.name;
+  }
+
   /** Changing the volume unmutes. */
   setVolume(volume: number): void {
     this.#volume = volume;

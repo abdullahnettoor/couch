@@ -15,6 +15,8 @@ import {
   type ScreenState,
   type Confirmation,
   type View,
+  type UiSound,
+  type UiSoundEvent,
 } from "../../shared/protocol.ts";
 import {
   formatTime,
@@ -63,6 +65,7 @@ import { DetailsPage } from "./details-page.ts";
 import { HomePage } from "./home-page.ts";
 import type { WallpaperPorts } from "../ports/pictures.ts";
 import { SoundOutput } from "./sound-output.ts";
+import { InterfaceSounds } from "./interface-sounds.ts";
 import { QuickSettings } from "./quick-settings.ts";
 import { LibrarySearchView } from "./library-search-view.ts";
 import { AMBIENT_MS, filmAfterFocus, homeGrid } from "./home-view.ts";
@@ -179,6 +182,7 @@ export class Core {
   #grids = new Map<string, GridItem[]>();
   #remotes = new Set<RemoteId>();
   #listeners = new Set<() => void>();
+  #soundListeners = new Set<(event: UiSoundEvent) => void>();
   #cancelToast: (() => void) | undefined;
   #toastId = 0;
   #cancelMinute: (() => void) | undefined;
@@ -244,6 +248,7 @@ export class Core {
   #couchCopy = new Set<string>();
   #couchCheck = 0;
   #sound: SoundOutput;
+  #uiSounds: InterfaceSounds;
   #quick: QuickSettings;
   #search: LibrarySearchView;
   /** Where Back from a show page goes: the Library, or the search it was opened from. */
@@ -341,6 +346,7 @@ export class Core {
       changed: () => this.#emit(),
     });
     this.#state.volume = this.#sound.volume;
+    this.#uiSounds = new InterfaceSounds(ports.store);
     this.#quick = new QuickSettings({
       clock: ports.clock,
       sound: this.#sound,
@@ -807,7 +813,10 @@ export class Core {
     }
     if (this.#state.view === "player") return this.#controls.grid();
     if (this.#state.view === "details") return this.#detailsPage.grid();
-    if (this.#state.view === "soundOutput") return this.#sound.grid();
+    if (this.#state.view === "soundOutput") {
+      const devices = this.#sound.grid();
+      return [...devices, this.#uiSounds.row(devices.length)];
+    }
     if (this.#state.view === "settingsHome") return this.#homePage.grid();
     if (this.#state.view === "addons") return this.#addonsPage.grid();
     if (this.#state.view === "settingsApps")
@@ -1379,6 +1388,7 @@ export class Core {
       ...(this.#state.view === "settings" || this.#state.view === "soundOutput"
         ? { sound: this.#sound.payload() }
         : {}),
+      ...(this.#state.view === "soundOutput" ? { interfaceSounds: this.#uiSounds.on } : {}),
       homeApps: this.#homeApps.rows(),
       ...(this.#state.view === "settingsApps" || this.#state.view === "addons"
         ? { addons: this.#addonsPage.payload() }
@@ -1638,7 +1648,38 @@ export class Core {
     this.#emit();
   }
 
+  /** The Screen's Interface sounds, one per command at most. */
+  onSound(listener: (event: UiSoundEvent) => void): () => void {
+    this.#soundListeners.add(listener);
+    return () => void this.#soundListeners.delete(listener);
+  }
+
   handle(command: Command, from: Source): void {
+    const quiet = this.#quietUi();
+    this.#uiSounds.take();
+    this.#handle(command, from);
+    const sound = this.#uiSounds.take();
+    if (!sound || quiet || this.#quietUi() || !this.#uiSounds.on || this.#sound.muted) return;
+    const output = this.#sound.outputName;
+    const event: UiSoundEvent = {
+      sound,
+      volume: this.#sound.volume,
+      ...(output ? { output } : {}),
+    };
+    for (const l of this.#soundListeners) l(event);
+  }
+
+  /** Playback or a web App is in front: it owns the sound (and the keys), so Couch's own UI stays silent. */
+  #quietUi(): boolean {
+    const s = this.#state;
+    return s.view === "app" || s.view === "player" || s.player !== undefined;
+  }
+
+  #cue(sound: UiSound): void {
+    this.#uiSounds.cue(sound);
+  }
+
+  #handle(command: Command, from: Source): void {
     if (SCREEN_ONLY.includes(command.command) && from !== "screen") return;
     this.#source = from;
     if (from !== "screen") this.#lastFrom = from;
@@ -1793,7 +1834,22 @@ export class Core {
       return true;
     }
     if (name === "quickClose" || name === "quickPick") return this.#quick.handle(command) || true;
-    return this.#quick.handle(command);
+    const open = this.#quick.isOpen;
+    const focus = this.#quick.payload()?.focusedId;
+    const handled = this.#quick.handle(command);
+    if (open) this.#cueQuick(name, focus);
+    return handled;
+  }
+
+  /** The drawer's keys: OK picks, Back or Right closes it, Up and Down move along its rows. */
+  #cueQuick(name: string, before: string | undefined): void {
+    if (name === "ok") return this.#cue("select");
+    if (!this.#quick.isOpen) {
+      if (name === "back" || name === "right") this.#cue("back");
+      return;
+    }
+    if (name === "up" || name === "down")
+      this.#cue(this.#quick.payload()?.focusedId === before ? "blocked" : "move");
   }
 
   /** What a typing session started now would be typing into: decided by the view it opens in. */
@@ -1975,6 +2031,7 @@ export class Core {
       case "confirmAt": {
         const i = command.args?.index;
         if (i === undefined || !Number.isInteger(i) || i < 0 || i >= c.buttons.length) return true;
+        this.#cue("select");
         this.#answerConfirm(i);
         break;
       }
@@ -1987,18 +2044,26 @@ export class Core {
         break;
       }
       case "left":
-      case "up":
-        c.focus = Math.max(0, c.focus - 1);
+      case "up": {
+        const next = Math.max(0, c.focus - 1);
+        this.#cue(next === c.focus ? "blocked" : "move");
+        c.focus = next;
         break;
+      }
       case "right":
-      case "down":
-        c.focus = Math.min(c.buttons.length - 1, c.focus + 1);
+      case "down": {
+        const next = Math.min(c.buttons.length - 1, c.focus + 1);
+        this.#cue(next === c.focus ? "blocked" : "move");
+        c.focus = next;
         break;
+      }
       case "ok": {
+        this.#cue("select");
         this.#answerConfirm(c.focus);
         break;
       }
       case "back": {
+        this.#cue("back");
         const back = this.#confirmBack;
         this.#dismissConfirm();
         back?.();
@@ -2095,6 +2160,7 @@ export class Core {
     this.#unsubPlayer();
     for (const off of this.#appsOff) off();
     this.#listeners.clear();
+    this.#soundListeners.clear();
   }
 
   #move(direction: "up" | "down" | "left" | "right"): void {
@@ -2106,10 +2172,13 @@ export class Core {
     if (this.#state.view === "show") {
       this.#show.move(direction);
       this.#show.syncTab();
-      return;
+    } else {
+      const next = moveFocus(grid, current, direction);
+      this.#state.focus[this.viewKey] = { r: next.r, c: next.c };
     }
-    const next = moveFocus(grid, current, direction);
-    this.#state.focus[this.viewKey] = { r: next.r, c: next.c };
+    // Focus that stays put met the edge of its row or page.
+    const after = resolveFocus(grid, this.#state.focus[this.viewKey]);
+    this.#cue(after?.id === current.id ? "blocked" : "move");
   }
 
   #focusAt(r?: number, c?: number): void {
@@ -2129,11 +2198,13 @@ export class Core {
     const grid = this.#currentGrid();
     const item = resolveFocus(grid, this.#state.focus[this.viewKey]);
     if (!item) return;
+    this.#cue("select");
     if (item.action === "back") return this.#back();
     if (
       this.#libraryAction(item.action) ||
       this.#detailsPage.action(item.action, this.#source) ||
       this.#sound.action(item.action) ||
+      this.#uiSounds.action(item.action) ||
       this.#homePage.action(item.action) ||
       this.#addonsPage.action(item.action) ||
       this.#homeApps.action(item.action) ||
@@ -2216,8 +2287,10 @@ export class Core {
 
   #back(): void {
     const step = this.#backStep();
-    if (step) step.act();
-    else this.#keepLibraryFocus();
+    if (step) {
+      this.#cue("back");
+      step.act();
+    } else this.#keepLibraryFocus();
   }
 
   /** Changes view; leaving an App hides it (pausing playback) and lets the display sleep again. */

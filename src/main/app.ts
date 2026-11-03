@@ -1,4 +1,4 @@
-import type { GridItem, ScreenPayload } from "../shared/protocol.ts";
+import type { GridItem, ScreenPayload, UiSoundEvent } from "../shared/protocol.ts";
 import { Core, type Ports, type Source } from "./core/core.ts";
 import type { Command } from "../shared/protocol.ts";
 import { createFrontdoor, type FrontdoorOptions } from "./frontdoor.ts";
@@ -20,6 +20,8 @@ export interface CouchApp {
   beforeQuit(): void;
   /** Subscribe to what the renderer should draw. */
   onScreen(listener: (payload: ScreenPayload) => void): () => void;
+  /** Subscribe to the Interface sounds the renderer should play. */
+  onSound(listener: (event: UiSoundEvent) => void): () => void;
   stop(): Promise<void>;
 }
 
@@ -89,6 +91,7 @@ export async function startApp(options: AppOptions): Promise<CouchApp> {
     onScreen(listener) {
       return core.onChange(() => listener(core.screen()));
     },
+    onSound: (listener) => core.onSound(listener),
     async stop() {
       await remote?.close();
       core.dispose();

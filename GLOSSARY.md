@@ -60,6 +60,10 @@ _Avoid_: player controls, transport
 Couch's own volume set to silence. It remembers the level, silences mpv and every web App, and unmuting restores the level; changing the volume while muted unmutes. It is kept across restarts like the volume. The phone's Mute button sits next to Back and Home.
 _Avoid_: silence, volume off
 
+**Interface sounds**:
+The soft clicks the Screen plays as you move around Couch's own pages (Home, the Library, Settings, Quick settings, questions): a tick when focus moves, a fuller click on OK, a falling note on Back and a muted bump when a move can't go further. Never while a video plays or a web App is in front, and not while muted; they play at Couch's volume on the chosen Sound output. On by default; turned off on Settings → Sound output. The phone makes no sounds.
+_Avoid_: navigation clicks, UI sounds, beeps
+
 **Picture off**:
 A black cover over the whole Screen, with a small dim Couch mark, while playback and sound carry on underneath; the phone's Picture off button on Now Playing turns it on, any navigation key turns it off (playback controls like play/pause, volume and seek work without turning it off), and it also ends when playback stops, on Home or when the App changes.
 _Avoid_: screen off, blank, sleep

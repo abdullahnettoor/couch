@@ -399,6 +399,8 @@ export interface ScreenPayload {
   home?: HomePayload;
   /** Settings and the Sound output page. */
   sound?: SoundPayload;
+  /** The Sound output page: whether Interface sounds is on. */
+  interfaceSounds?: boolean;
   /** Settings and the YouTube add-ons page: each add-on and whether it is on. */
   addons?: Array<{ id: string; label: string; description: string; on: boolean }>;
   /** Every App with whether Home shows it, in Home order (Store key `home.apps`). */
@@ -431,6 +433,16 @@ export interface ScreenPayload {
   pairingUrl: string;
   /** Epoch ms from the Clock port, for the Home clock. */
   now: number;
+}
+
+/** The Screen's Interface sounds: focus moved, something was picked, Back left a view, or a move went nowhere. */
+export type UiSound = "move" | "select" | "back" | "blocked";
+
+/** Core → Screen renderer: one Interface sound to play, at Couch's volume (0–100), on the chosen output's name (System default when absent). */
+export interface UiSoundEvent {
+  sound: UiSound;
+  volume: number;
+  output?: string;
 }
 
 /** One video in the Up next list as a phone sees it. */

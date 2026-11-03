@@ -1,4 +1,4 @@
-import type { Command, GridItem, QuickPayload, ScreenPayload } from "./protocol.ts";
+import type { Command, GridItem, QuickPayload, ScreenPayload, UiSoundEvent } from "./protocol.ts";
 
 /** Channel names and payloads between the Screen renderer and the main process. */
 export const Channel = {
@@ -20,6 +20,8 @@ export const Channel = {
   glass: "couch:glass",
   /** main → renderer: the video's main colour, for the tinted fallback */
   tint: "couch:tint",
+  /** main → renderer: an Interface sound to play */
+  sound: "couch:sound",
 } as const;
 
 export interface GridReport {
@@ -52,6 +54,7 @@ export interface CouchApi {
   /** One entry per panel slot (0 dock, 1 Up next); missing slots are hidden. */
   reportGlass(rects: GlassRect[]): void;
   onTint(listener: (rgb: [number, number, number] | null) => void): void;
+  onSound(listener: (event: UiSoundEvent) => void): void;
 }
 
 /** All the Quick settings drawer's page may do: pick a row, close, and be handed what to draw. */

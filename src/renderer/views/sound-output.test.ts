@@ -38,3 +38,28 @@ describe("Settings → Sound output", () => {
     expect(screen.textContent).not.toContain("Follows the Mac");
   });
 });
+
+describe("Settings → Sound output → Interface sounds", () => {
+  const withToggle = (on: boolean) =>
+    ({
+      ...payload({}),
+      focusedId: "interface-sounds",
+      interfaceSounds: on,
+      grid: [
+        { id: "default", label: "System default", r: 0, c: 0 },
+        { id: "interface-sounds", label: "Interface sounds", r: 1, c: 0 },
+      ],
+    }) as unknown as ScreenPayload;
+
+  test("is a focusable row after the devices, with On or Off", () => {
+    page.render(withToggle(true));
+    const rows = Array.from(screen.querySelectorAll("[data-id]"));
+    expect(rows.map((r) => r.getAttribute("data-id"))).toEqual(["default", "interface-sounds"]);
+    expect(rows[1]!.textContent).toContain("Interface sounds");
+    expect(rows[1]!.textContent).toContain("On");
+    expect(rows[1]!.classList.contains("focused")).toBe(true);
+    expect(rows[0]!.textContent).toContain("In use");
+    page.render(withToggle(false));
+    expect(screen.querySelector('[data-id="interface-sounds"]')!.textContent).toContain("Off");
+  });
+});

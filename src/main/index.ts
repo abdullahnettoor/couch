@@ -163,6 +163,8 @@ async function createScreen(): Promise<void> {
       preload: join(import.meta.dirname, "../preload/index.cjs"),
       contextIsolation: true,
       sandbox: true,
+      // Interface sounds answer the phone's keys too, which are no user gesture on this page.
+      autoplayPolicy: "no-user-gesture-required",
     },
   });
   win.once("ready-to-show", () => {
@@ -519,6 +521,9 @@ async function createScreen(): Promise<void> {
       payload.state.volumeShown ? (payload.muted ? 0 : payload.state.volume) : undefined,
     );
     publishScreen();
+  });
+  couch.onSound((event) => {
+    if (win && !win.isDestroyed()) win.webContents.send(Channel.sound, event);
   });
   // A hidden App isn't loaded at start; showing it again loads it on first open.
   if (resolveHomeApps(store, APP_ENTRIES).find((r) => r.id === "youtube")?.shown) youtube.start();

@@ -12,7 +12,13 @@ import { NetflixApp } from "../apps/netflix/netflix-app.ts";
 import { YouTubeApp } from "../apps/youtube/youtube-app.ts";
 import type { App } from "../apps/app.ts";
 import { APP_ENTRIES, type AppEntry } from "../apps/index.ts";
-import type { Command, GridItem, RemoteSnapshot, ScreenPayload } from "../../shared/protocol.ts";
+import type {
+  Command,
+  GridItem,
+  RemoteSnapshot,
+  ScreenPayload,
+  UiSoundEvent,
+} from "../../shared/protocol.ts";
 import { startApp, type AppOptions, type CouchApp } from "../app.ts";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -112,7 +118,10 @@ const DEFAULT_GRIDS: Record<string, GridItem[]> = {
  */
 export class FakeScreen {
   payloads: ScreenPayload[] = [];
+  /** Every Interface sound the core asked the Screen to play. */
+  sounds: UiSoundEvent[] = [];
   constructor(app: CouchApp, grids: Record<string, GridItem[]> = DEFAULT_GRIDS) {
+    app.onSound((event) => this.sounds.push(event));
     app.onScreen((payload) => {
       this.payloads.push(payload);
       const grid = grids[payload.viewKey];

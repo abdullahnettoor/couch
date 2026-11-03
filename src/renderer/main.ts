@@ -6,6 +6,7 @@ import { VIEWS } from "./views/index.ts";
 import { showing } from "./views/glass.ts";
 import { renderConfirm, renderHud } from "./hud.ts";
 import { renderPictureOff } from "./picture-off.ts";
+import { interfaceSounds } from "./interface-sounds.ts";
 import { isTypingTarget, syncTyping } from "./views/typing.ts";
 import { renderOverlay, setNativeGlass, setVideoTint } from "./player-overlay.ts";
 import { darkTint } from "../shared/glass-tint.ts";
@@ -149,6 +150,7 @@ window.couch.onScreen((payload) => {
   renderPictureOff(payload);
 });
 
+window.couch.onSound(interfaceSounds());
 window.couch.onTint((rgb) => setVideoTint(rgb ? darkTint(rgb) : undefined));
 window.couch.onMpv((status) => {
   setNativeGlass(status.nativeGlass === true);
