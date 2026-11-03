@@ -41,9 +41,11 @@ Couch is a personal app today: it runs on the household's Mac, built and install
 - **Versions:** SemVer, tagged `v<version>` (`v0.1.0`). `0.x` while Couch is early; `1.0.0` when it's ready for people outside the household. A bug-fix release bumps the last number, new features the middle one. The macOS build number (`CFBundleVersion`) is the workflow's run number.
 - **Secrets** (repo → Settings → Secrets and variables → Actions): `COUCH_SIGNING_P12` and `COUCH_SIGNING_P12_PASSWORD` (from `pnpm release:cert`), `EVS_ACCOUNT_NAME` and `EVS_PASSWD` (castLabs EVS), and optionally `COUCH_TMDB_TOKEN`.
 - **Steps:**
-  1. Set `version` in `package.json`, commit, then `git tag v<version> && git push origin v<version>`.
-  2. `.github/workflows/release.yml` builds on an Apple Silicon runner, VMP-signs, signs, and makes the zip, dmg, GPL source bundle and `SHA256SUMS.txt`. It fails if the tag and `package.json` disagree, or if EVS isn't signed in.
+  1. On an up-to-date, clean `main`: `pnpm release patch` (or `minor`, `major`, or an exact version such as `0.2.0-beta.1`). It asks to confirm, runs `vp check` and the tests, sets `version` in `package.json`, commits it, and pushes the commit and the `v<version>` tag.
+  2. The tag starts `.github/workflows/release.yml`: it builds on an Apple Silicon runner, VMP-signs, signs, and makes the zip, dmg, GPL source bundle and `SHA256SUMS.txt`. It fails if the tag and `package.json` disagree, or if EVS isn't signed in.
   3. It creates a **draft** GitHub Release. Download the dmg, check it opens and plays (including a DRM App), then publish the draft. The updater only sees published releases.
+- **Pre-releases:** a version with a hyphen (`0.2.0-beta.1`) becomes a GitHub pre-release. update.electronjs.org skips pre-releases and drafts, so installed copies never update to one; install it by hand to try it. The release after it (`pnpm release patch` from `0.2.0-beta.1` gives `0.2.0`) reaches everyone, beta Macs included.
+- **A failed build:** re-run it from Actions if the failure was passing (a download). If code had to change, move the unpublished tag: `git tag -f v<version> && git push -f origin v<version>`. Never move or reuse the tag of a published release; release the next version instead.
 - **Trial build:** Actions → Release → Run workflow builds the same files without a release, kept as an artifact for a week.
 
 ## Accounts and content
