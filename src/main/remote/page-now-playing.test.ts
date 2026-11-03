@@ -291,6 +291,16 @@ describe("the idle Remote", () => {
     }
   });
 
+  test("the update icon shows beside the gear on Home only while an update is ready", () => {
+    idle({ layout: "home", where: "Home" });
+    expect(hidden("upd")).toBe(true);
+    idle({ layout: "home", where: "Home", updateReady: true });
+    expect(hidden("upd")).toBe(false);
+    expect(hidden("gear")).toBe(false);
+    idle({ layout: "other", where: "Settings", view: "settings", updateReady: true });
+    expect(hidden("upd")).toBe(true);
+  });
+
   test("Settings and other pages show no card", () => {
     idle({ layout: "other", where: "Settings", view: "settings" });
     expect(hidden("cw")).toBe(true);

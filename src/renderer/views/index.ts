@@ -8,6 +8,7 @@ import {
 import { APP_ERROR_ITEMS } from "../../shared/app-grid.ts";
 import type { GridItem, View } from "../../shared/protocol.ts";
 import type { ViewModule } from "./dom.ts";
+import * as about from "./about.ts";
 import * as addPhone from "./add-phone.ts";
 import * as credits from "./credits.ts";
 import * as details from "./details.ts";
@@ -45,6 +46,7 @@ export const VIEWS: Partial<Record<View, ViewModule & { grid?: GridItem[] }>> = 
   details: { ...details },
   soundOutput: { ...soundOutput },
   settingsHome: { ...settingsHome },
+  about: { ...about },
   addons: { ...addons },
   show: { ...show },
   fixMatch: { ...fixMatch },

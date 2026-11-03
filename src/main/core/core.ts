@@ -62,6 +62,8 @@ import { ShowView } from "./show-view.ts";
 import { AddonsPage } from "./addons-page.ts";
 import { APPS_MENU_KEY, HomeApps, leavesOnHide } from "./home-apps.ts";
 import { DetailsPage } from "./details-page.ts";
+import { AboutPage } from "./about-page.ts";
+import type { Updates } from "../ports/updates.ts";
 import { HomePage } from "./home-page.ts";
 import type { WallpaperPorts } from "../ports/pictures.ts";
 import { SoundOutput } from "./sound-output.ts";
@@ -81,6 +83,15 @@ const phoneKey = (url: string | undefined): string | undefined =>
     ?.split("/")
     .pop()
     ?.replace(/\.jpg$/, "");
+
+/** Home's update icon, in the top strip left of the gear (as the Library's search icon is). */
+const UPDATE_ICON: GridItem = {
+  id: "update",
+  r: 0,
+  c: -1,
+  label: "Update ready",
+  action: "open:update",
+};
 
 /** Home's row fits this many tiles: its App tiles, then Continue watching. */
 const HOME_ROW_TILES = 5;
@@ -109,6 +120,7 @@ const PICTURE_KEYS = [
   "menu",
   "power",
   "openSettings",
+  "openUpdate",
   "screenKey",
   "find",
   "typeOpen",
@@ -137,6 +149,8 @@ export interface Ports {
   continueArt?: { dir: string; fetch?: ArtFetch; hosts: Record<string, string[]> };
   /** The Mac's pictures as wallpapers (its desktop picture, a folder, Apple's); without it Home offers the built-ins only. */
   wallpapers?: WallpaperPorts;
+  /** The updater: Settings → About and Home's update icon (an inert one when Couch runs from the repo). */
+  updates: Updates;
   /** Show and film details (TMDB). Without it, everything uses frames. */
   metadata?: Metadata;
   /** The project's TMDB key, built into release builds; used when the household has none of its own. */
@@ -241,6 +255,8 @@ export class Core {
   readonly details: MetadataService;
   #show: ShowView;
   #detailsPage: DetailsPage;
+  #about: AboutPage;
+  #offUpdates: () => void;
   #addonsPage: AddonsPage;
   #homePage: HomePage;
   #homeApps: HomeApps;
@@ -405,6 +421,16 @@ export class Core {
       toast: (text) => this.#toast(text),
       changed: () => this.#emit(),
     });
+    this.#about = new AboutPage({
+      updates: ports.updates,
+      ask: (title, buttons, answers, more) => this.#ask(title, buttons, answers, more),
+      restart: () => {
+        this.savePlayingPosition();
+        ports.updates.restart();
+      },
+      toast: (text) => this.#toast(text),
+    });
+    this.#offUpdates = ports.updates.onChange(() => this.#emit());
     this.#detailsPage = new DetailsPage(this.#state, {
       details: this.details,
       connectedPhone: () =>
@@ -818,6 +844,7 @@ export class Core {
       return [...devices, this.#uiSounds.row(devices.length)];
     }
     if (this.#state.view === "settingsHome") return this.#homePage.grid();
+    if (this.#state.view === "about") return this.#about.grid();
     if (this.#state.view === "addons") return this.#addonsPage.grid();
     if (this.#state.view === "settingsApps")
       return this.#homeApps.menuId
@@ -1389,6 +1416,7 @@ export class Core {
         ? { sound: this.#sound.payload() }
         : {}),
       ...(this.#state.view === "soundOutput" ? { interfaceSounds: this.#uiSounds.on } : {}),
+      ...(this.#state.view === "about" ? { about: this.#about.payload() } : {}),
       homeApps: this.#homeApps.rows(),
       ...(this.#state.view === "settingsApps" || this.#state.view === "addons"
         ? { addons: this.#addonsPage.payload() }
@@ -1475,6 +1503,7 @@ export class Core {
             },
           }
         : {}),
+      ...(this.#about.ready ? { updateReady: true as const } : {}),
       ...(s.confirm ? { confirm: s.confirm } : {}),
       ...(s.toast ? { toast: { text: s.toast, id: this.#toastId } } : {}),
       ...(s.view === "settingsApps" && this.#homeApps.menuId && this.#remoteNote()
@@ -1809,6 +1838,9 @@ export class Core {
         break;
       case "openSettings":
         if (this.#state.view === "home") this.#setView("settings");
+        break;
+      case "openUpdate":
+        if (this.#state.view === "home" && this.#about.ready) this.#openUpdate();
         break;
       case "typeOpen":
       case "typeText":
@@ -2158,6 +2190,7 @@ export class Core {
     this.#cancelNote?.();
     this.#cancelVolume?.();
     this.#unsubPlayer();
+    this.#offUpdates();
     for (const off of this.#appsOff) off();
     this.#listeners.clear();
     this.#soundListeners.clear();
@@ -2205,6 +2238,7 @@ export class Core {
       this.#detailsPage.action(item.action, this.#source) ||
       this.#sound.action(item.action) ||
       this.#uiSounds.action(item.action) ||
+      this.#about.action(item.action) ||
       this.#homePage.action(item.action) ||
       this.#addonsPage.action(item.action) ||
       this.#homeApps.action(item.action) ||
@@ -2343,19 +2377,27 @@ export class Core {
     return [...listed, ...extra];
   }
 
-  /** What the renderer reported for Home, cut to the shown Apps in the household's order. */
+  /** What the renderer reported for Home, cut to the shown Apps in the household's order; the update icon left of the gear while an update is ready. */
   #homeBase(): GridItem[] {
     const reported = this.#grids.get("home") ?? [];
     if (reported.length === 0) return reported;
     const apps = new Map(reported.filter((i) => i.id !== "settings").map((i) => [i.id, i]));
     const ordered = this.#homeApps.shownIds().flatMap((id) => apps.get(id) ?? []);
     return [
+      ...(this.#about.ready ? [UPDATE_ICON] : []),
       ...reported.filter((i) => i.id === "settings"),
       ...ordered.map((i, c) => {
         const { initial: _initial, ...item } = i;
         return { ...item, c, ...(c === 0 ? { initial: true } : {}) };
       }),
     ];
+  }
+
+  /** Home's update icon: Settings → About, with focus on Restart to update. */
+  #openUpdate(): void {
+    this.#setView("about");
+    const cell = this.#about.restartCell();
+    if (cell) this.#state.focus.about = cell;
   }
 
   /** Idle: nothing playing, so the Remote shows the Apps row. */
@@ -2681,6 +2723,7 @@ export class Core {
       switchPlayback: (id) => void this.#switchPlayback(id),
       toast: (text) => this.#toast(text),
       forgetAllPhones: () => this.forgetAllPhones(),
+      openUpdate: () => this.#openUpdate(),
       toggleListener: () => void this.#toggleListener(),
       quit: () => this.#askQuit(),
     };

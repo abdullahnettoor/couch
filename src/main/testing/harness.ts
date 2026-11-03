@@ -34,7 +34,9 @@ import {
   FakeWallpaperFiles,
   FakeThumbnails,
   FakeYouTube,
+  FakeUpdater,
 } from "../ports/fakes.ts";
+import { startUpdates, type Updates } from "../ports/updates.ts";
 
 /** A pretend phone: a WebSocket client that records every snapshot. */
 export class FakePhone {
@@ -142,6 +144,9 @@ export interface Harness {
   netflix: FakeYouTube;
   mac: FakeMac;
   clock: FakeClock;
+  /** The fake Squirrel behind the real updater (version 0.2.0, build 12), and the beta feed it reads. */
+  updater: FakeUpdater;
+  betaFeed: { version: string };
   thumbnails: FakeThumbnails;
   /** The Mac's wallpaper sources, the converter and the converted copies. */
   wallpapers: { mac: FakeMacWallpapers; converter: FakeConverter; files: FakeWallpaperFiles };
@@ -179,6 +184,10 @@ export async function startHarness(
     metadata?: (fake: FakeMetadata) => void;
     /** More web Apps next to YouTube, each with the entry Home shows for it. */
     apps?: Array<{ entry: AppEntry; app: App }>;
+    /** The updater Couch runs with, instead of the real one over a fake Squirrel (e.g. the one for a run from the repo). */
+    updates?: (store: Store) => Updates;
+    /** The hidden macOS default Beta updates replaced. */
+    legacyBeta?: boolean;
     /** Offer the Mac's pictures as wallpapers: `true` for fresh fakes, or the previous harness's to keep its converted copies across a restart. */
     wallpapers?: true | Harness["wallpapers"];
   } = {},
@@ -221,6 +230,24 @@ export async function startHarness(
     });
   }
   const catalog = [...APP_ENTRIES, ...(options.apps ?? []).map((a) => a.entry)];
+  const updater = new FakeUpdater();
+  const betaFeed = { version: "0.2.0" };
+  let started: CouchApp | undefined;
+  const updates: Updates & { stop?(): void } =
+    options.updates?.(store) ??
+    startUpdates({
+      updater,
+      clock,
+      store,
+      platform: "darwin",
+      arch: "arm64",
+      version: "0.2.0",
+      build: "12",
+      legacyBeta: () => options.legacyBeta === true,
+      toast: (text) => started?.toast(text),
+      fetchJson: async () => betaFeed,
+      log: () => {},
+    });
   const unloader = new IdleUnloader(clock, store);
   youtube.lifecycle = unloader.track("youtube", () => youtube.unload(), { loaded: true });
   netflix.lifecycle = unloader.track("netflix", () => netflix.unload());
@@ -240,6 +267,7 @@ export async function startHarness(
     mac,
     clock,
     store,
+    updates,
     thumbnails,
     ...(options.wallpapers ? { wallpapers } : {}),
     metadata,
@@ -258,6 +286,7 @@ export async function startHarness(
     port: 0,
     host: "127.0.0.1",
   });
+  started = app;
   const screen = new FakeScreen(app, {
     ...DEFAULT_GRIDS,
     home: homeItems(catalog),
@@ -271,6 +300,8 @@ export async function startHarness(
     netflix,
     mac,
     clock,
+    updater,
+    betaFeed,
     thumbnails,
     wallpapers,
     async settle() {
@@ -289,6 +320,7 @@ export async function startHarness(
       return phone;
     },
     async stop() {
+      updates.stop?.();
       for (const p of phones) p.close();
       await app.stop();
       rmSync(thumbDir, { recursive: true, force: true });

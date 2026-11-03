@@ -16,6 +16,7 @@ import type {
 } from "./metadata.ts";
 import type { LoadOptions, Player, PlayerEvent } from "../../shared/player.ts";
 import type { Clock } from "./clock.ts";
+import type { Updater } from "./updates.ts";
 import type { DisplayInfo, Mac, OutputDevice } from "./mac.ts";
 import { RouteTracker, type PageState } from "../apps/youtube/youtube-route.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "./youtube.ts";
@@ -661,5 +662,47 @@ export class FakeWallpaperFiles implements WallpaperFiles {
   }
   thumbUrl(key: string) {
     return `file:///userData/wallpapers/${key}.thumb.jpg`;
+  }
+}
+
+/** Stands in for Electron's autoUpdater (Squirrel.Mac): records the feed, checks and installs; tests play its events. */
+export class FakeUpdater implements Updater {
+  feed?: string;
+  feeds: string[] = [];
+  checks = 0;
+  installs = 0;
+  throwOnCheck = false;
+  #listeners = new Map<string, Array<(...args: never[]) => void>>();
+  setFeedURL(o: { url: string }) {
+    this.feed = o.url;
+    this.feeds.push(o.url);
+  }
+  checkForUpdates() {
+    this.checks++;
+    if (this.throwOnCheck) throw new Error("no network");
+  }
+  quitAndInstall() {
+    this.installs++;
+  }
+  on(event: string, listener: (...args: never[]) => void) {
+    this.#listeners.set(event, [...(this.#listeners.get(event) ?? []), listener]);
+  }
+  #emit(event: string, ...args: unknown[]) {
+    for (const l of this.#listeners.get(event) ?? []) (l as (...a: unknown[]) => void)(...args);
+  }
+  checking() {
+    this.#emit("checking-for-update");
+  }
+  available() {
+    this.#emit("update-available");
+  }
+  notAvailable() {
+    this.#emit("update-not-available");
+  }
+  download(releaseName = "") {
+    this.#emit("update-downloaded", {}, "", releaseName);
+  }
+  fail(message: string) {
+    this.#emit("error", new Error(message));
   }
 }

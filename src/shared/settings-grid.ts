@@ -10,13 +10,14 @@ export const SETTINGS_APP = "settings:app:";
 /** The Interface sounds On/Off row, last on the Sound output page. */
 export const INTERFACE_SOUNDS_ID = "interface-sounds";
 
-/** Settings: six rows, each a group page except Quit. */
+/** Settings: seven rows, each a group page except Quit. */
 export const SETTINGS_ITEMS: GridItem[] = column([
   { id: "remotes", label: "Remotes and Devices", action: "settings:remotes" },
   { id: "library", label: "Library", action: "settings:library" },
   { id: "sound", label: "Sound output", action: "settings:sound" },
   { id: "apps", label: "Apps", action: "settings:apps" },
   { id: "home", label: "Home", action: "settings:home" },
+  { id: "about", label: "About", action: "settings:about" },
   { id: "quit", label: "Quit Couch", action: "settings:quit" },
 ]);
 

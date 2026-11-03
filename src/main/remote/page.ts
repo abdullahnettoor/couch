@@ -245,7 +245,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   <div class="rows" id="np-rows" role="dialog"></div>
 </div>
 <main id="controls">
-  <div class="bar" id="ibar">__BAR_ID__<button id="qs" data-cmd="quickSettings" aria-label="Quick settings" data-i="sliders"></button><button id="gear" data-cmd="openSettings" aria-label="Settings" data-i="gear" hidden></button></div>
+  <div class="bar" id="ibar">__BAR_ID__<button id="qs" data-cmd="quickSettings" aria-label="Quick settings" data-i="sliders"></button><button id="upd" data-cmd="openUpdate" aria-label="Update ready" data-i="update" hidden></button><button id="gear" data-cmd="openSettings" aria-label="Settings" data-i="gear" hidden></button></div>
   <button class="cw" id="cw" data-cmd="resume" hidden><span class="pic" id="cw-pic"><span class="cwapp" id="cw-app" hidden></span></span><span class="txt"><b id="cw-title"></b><span class="l" id="cw-left"></span><span class="l hold" id="cw-hint">Hold to remove</span></span><span class="go" data-i="play"></span></button>
   <div class="note-card" id="playback-note" role="status" hidden><b id="playback-title"></b><ol id="playback-steps"></ol></div>
   <button class="search" id="fixbtn" data-cmd="menu" hidden><span id="fix-label">Fix match</span></button>
@@ -448,6 +448,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     document.body.classList.toggle("np", !!np);
     document.body.classList.toggle("idle", !np);
     $("gear").hidden = L !== "home";
+    $("upd").hidden = L !== "home" || !s.updateReady;
     var noBack = L === "home" && !np && !s.confirm;
     $("id-back").hidden = $("np-back").hidden = $("pad-back").hidden = noBack;
     var padShown = padOpen || !!s.quickSettings;

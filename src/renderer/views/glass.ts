@@ -3,7 +3,7 @@ import { iconSvg, type IconName } from "../../shared/icons.ts";
 import { VIEW_LABELS, type ScreenPayload, type View } from "../../shared/protocol.ts";
 import { el, focusable, root } from "./dom.ts";
 
-/** The top-right strip: phone count, gear (focusable id "settings"), clock. */
+/** The top-right strip: phone count, the update icon on Home while an update is ready (focusable id "update"), gear (focusable id "settings"), clock. */
 export function topbar(payload: ScreenPayload): HTMLElement {
   const n = payload.state.remotes;
   const { time, suffix } = clockParts(payload.now, payload.timeFormat);
@@ -25,6 +25,15 @@ export function topbar(payload: ScreenPayload): HTMLElement {
         "search",
       ),
     );
+  }
+  if (payload.grid.some((i) => i.id === "update")) {
+    const icon = el(
+      "button",
+      `tb-gear${payload.focusedId === "update" ? " focused" : ""}`,
+      iconSvg("update"),
+    );
+    icon.setAttribute("aria-label", "Update ready");
+    bar.append(focusable(icon, "update"));
   }
   bar.append(
     focusable(

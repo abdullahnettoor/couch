@@ -9,6 +9,8 @@ export interface ActionContext {
   openAppMenu(id: string): void;
   toast(text: string): void;
   forgetAllPhones(): void;
+  /** Settings → About, focused on Restart to update (Home's update icon). */
+  openUpdate(): void;
   openApp(id: string): void;
   retryApp(): void;
   restartApp(id: string): void;
@@ -28,6 +30,7 @@ export type ActionHandler = (ctx: ActionContext) => void;
 const homeActions: Record<string, ActionHandler> = {
   "open:settings": (ctx) => ctx.open("settings"),
   "open:library": (ctx) => ctx.open("library"),
+  "open:update": (ctx) => ctx.openUpdate(),
 };
 
 const appActions: Record<string, ActionHandler> = {
@@ -56,6 +59,7 @@ const settingsActions: Record<string, ActionHandler> = {
   "settings:remotes": (ctx) => ctx.open("settingsRemotes"),
   "settings:library": (ctx) => ctx.open("settingsLibrary"),
   "settings:home": (ctx) => ctx.open("settingsHome"),
+  "settings:about": (ctx) => ctx.open("about"),
   "settings:apps": (ctx) => ctx.open("settingsApps"),
   "settings:add-phone": (ctx) => ctx.open("addPhone"),
   "settings:forget-phones": (ctx) => ctx.forgetAllPhones(),
@@ -89,6 +93,7 @@ export const BACK_TARGETS: Partial<Record<View, View>> = {
   details: "settingsLibrary",
   soundOutput: "settings",
   settingsHome: "settings",
+  about: "settings",
   addons: "settingsApps",
   credits: "details",
   library: "home",

@@ -67,7 +67,7 @@ describe("Interface sounds", () => {
   test("a question's buttons tick and bump; Back dismisses it", async () => {
     await start();
     press("openSettings");
-    for (let i = 0; i < 5; i++) press("down");
+    for (let i = 0; i < 6; i++) press("down");
     press("ok");
     expect(h.screen.last.state.confirm?.title).toBe("Quit Couch?");
     expect(heard("right", "right", "left")).toEqual(["move", "blocked", "move"]);

@@ -12,7 +12,7 @@ import {
   WebContentsView,
 } from "electron";
 import { join } from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { screenPointer } from "./pointer-position.ts";
 import { Channel, type GlassRect, type GridReport } from "../shared/ipc.ts";
@@ -66,7 +66,12 @@ import { PROJECT_TMDB_KEY } from "./ports/project-key.ts";
 import { detectListener } from "./frontdoor.ts";
 import { MIGRATION_FAILED_TOAST, migrateListenerLabel } from "./ports/listener-label-migration.ts";
 import { chooseBinding } from "./listener.ts";
-import { restartListenerAfterUpdate, startUpdates } from "./ports/updates.ts";
+import {
+  bundleBuild,
+  devUpdates,
+  restartListenerAfterUpdate,
+  startUpdates,
+} from "./ports/updates.ts";
 import {
   createDrawerGlass,
   createEmbedFactory,
@@ -363,8 +368,30 @@ async function createScreen(): Promise<void> {
     // After a rollback the old job is coming back up under its old label: wait for it too.
     installed: async () => labelMigration === "rolled-back" || (await mac.listenerLoginItem()).on,
   });
+  const build = (() => {
+    try {
+      return bundleBuild(readFileSync(join(process.resourcesPath, "..", "Info.plist"), "utf8"));
+    } catch {
+      return undefined;
+    }
+  })();
+  const updates = app.isPackaged
+    ? startUpdates({
+        updater: autoUpdater,
+        clock: systemClock,
+        store,
+        platform: process.platform,
+        arch: process.arch,
+        version: app.getVersion(),
+        build,
+        // Before Settings → About → Beta updates: `defaults write com.abdullahnettoor.couch updateChannel beta`.
+        legacyBeta: () => systemPreferences.getUserDefault("updateChannel", "string") === "beta",
+        toast: (text) => couch?.toast(text),
+      })
+    : devUpdates({ store, version: app.getVersion() });
   couch = await startApp({
     player,
+    updates,
     apps: [youtubeApp, netflixApp],
     mac,
     clock: systemClock,
@@ -490,18 +517,6 @@ async function createScreen(): Promise<void> {
   });
   let nativeFront = false;
   if (labelMigration === "rolled-back") couch.toast(MIGRATION_FAILED_TOAST);
-  if (app.isPackaged)
-    startUpdates({
-      updater: autoUpdater,
-      clock: systemClock,
-      platform: process.platform,
-      arch: process.arch,
-      version: app.getVersion(),
-      // Hidden switch, set in Terminal: `defaults write com.abdullahnettoor.couch updateChannel beta`.
-      channel:
-        systemPreferences.getUserDefault("updateChannel", "string") === "beta" ? "beta" : "stable",
-      toast: (text) => couch?.toast(text),
-    });
   couch.onScreen((payload) => {
     for (const listener of screenListeners) listener(payload.playing);
     // A native App view is under the window's web contents: Couch's own page goes transparent while it is in front.

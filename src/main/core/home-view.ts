@@ -1,7 +1,7 @@
 import type { GridItem, LibraryEntry } from "../../shared/protocol.ts";
 
 /**
- * Home's grid: gear (row 0); Resume / From start (row 1) only while a film card is focused or was
+ * Home's grid: gear, and the update icon while an update is ready (row 0); Resume / From start (row 1) only while a film card is focused or was
  * last focused; the App row (row 2) in the App list's order. With nothing in progress it is the plain base.
  */
 export function homeGrid(
@@ -10,9 +10,9 @@ export function homeGrid(
   film: LibraryEntry | undefined,
 ): GridItem[] {
   if (videos.length === 0) return base;
-  const apps = base.filter((i) => i.id !== "settings");
+  const apps = base.filter((i) => i.r !== 0);
   return [
-    ...base.filter((i) => i.id === "settings"),
+    ...base.filter((i) => i.r === 0),
     ...(film
       ? [
           {

@@ -21,6 +21,7 @@ export type View =
   | "details"
   | "soundOutput"
   | "settingsHome"
+  | "about"
   | "addons"
   | "credits"
   | "show"
@@ -58,6 +59,7 @@ export const COMMAND_NAMES = [
   "setSpeed",
   "pressPrompt",
   "openSettings",
+  "openUpdate",
   "setPictureOff",
   "quickSettings",
   "confirmAnswer",
@@ -338,6 +340,17 @@ export interface SoundPayload {
   notes?: string[];
 }
 
+/** Settings → About: the version line, and the Check for updates and Beta updates rows' values. */
+export interface AboutPayload {
+  /** "0.2.0 (12)", with " · Beta" while Beta updates is on. */
+  version: string;
+  /** Check for updates' value: where the update is ("Up to date", "Checking…", "0.2.1 is ready"…). */
+  check?: string;
+  beta: boolean;
+  /** A calm line under the rows (a Beta updates switch that waits for the next start). */
+  hint?: string;
+}
+
 /** One row (or button) of the Quick settings drawer. */
 export interface QuickItem {
   id: string;
@@ -399,6 +412,8 @@ export interface ScreenPayload {
   home?: HomePayload;
   /** Settings and the Sound output page. */
   sound?: SoundPayload;
+  /** Settings → About. */
+  about?: AboutPayload;
   /** The Sound output page: whether Interface sounds is on. */
   interfaceSounds?: boolean;
   /** Settings and the YouTube add-ons page: each add-on and whether it is on. */
@@ -489,6 +504,8 @@ export interface RemoteSnapshot {
   /** Home only, when a video is in progress. */
   continueCard?: RemoteContinueCard;
   typeAvailable: boolean;
+  /** An update has downloaded: on Home the phone shows the update icon beside the gear (command `openUpdate`). */
+  updateReady?: true;
   /** Settings → Apps: why the App's other playback engine isn't offered. */
   playbackNote?: RemoteNote;
   /** The Screen's toast, mirrored: the phone shows each `id` once, calmly, whatever view it is in. */
@@ -568,6 +585,7 @@ export const VIEW_LABELS: Record<View, string> = {
   details: "Show and film details",
   soundOutput: "Sound output",
   settingsHome: "Home",
+  about: "About",
   addons: "YouTube add-ons",
   credits: "Credits",
   show: "Show",
