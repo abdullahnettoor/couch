@@ -99,7 +99,22 @@ function writeGplSources(resources, tarball) {
 
   const cache = read("brew", ["--cache"]);
   const started = Date.now() - 2000;
-  run("brew", ["fetch", "--build-from-source", "--force", ...names]);
+  // Upstream servers (ffmpeg.org and others) sometimes fail a download; a retry keeps what was already fetched.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      run("brew", [
+        "fetch",
+        "--build-from-source",
+        ...(attempt === 1 ? ["--force"] : []),
+        ...names,
+      ]);
+      break;
+    } catch (error) {
+      if (attempt === 4) throw error;
+      console.warn(`brew fetch failed (attempt ${attempt}); retrying`);
+      execFileSync("sleep", [String(attempt * 20)]);
+    }
+  }
   const fresh = (path) => statSync(path).mtimeMs >= started;
 
   const root = join("out", basename(tarball, ".tar"));
