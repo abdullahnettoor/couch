@@ -14,7 +14,7 @@ const SEARCH_PATHS = [...ICON_PATHS.search.matchAll(/ d="([^"]+)"/g)].map((m) =>
 const SPEAKER_PATHS = [...ICON_PATHS.speaker.matchAll(/ d="([^"]+)"/g)].map((m) => m[1]);
 
 const HELPERS = `
-var U=innerWidth/1920,SVG='http://www.w3.org/2000/svg';
+var U=Math.min(innerWidth/1920,innerHeight/1080),SVG='http://www.w3.org/2000/svg';
 function css(e,o){for(var k in o)e.style.setProperty(k,String(o[k]))}
 function px(n){return (n*U)+'px'}
 function glass(e){css(e,{position:'fixed','z-index':'2147483647','pointer-events':'none',color:${JSON.stringify(COLORS.t1)},

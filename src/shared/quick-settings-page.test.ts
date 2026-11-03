@@ -229,7 +229,7 @@ describe("the Quick settings page", () => {
 
   test("the native glass starts where the panel starts: at the window's right edge, the same travel", () => {
     const r = drawerGlassRect(1920, 1080);
-    const panelWidth = Number(/width:(\d+)vw/.exec(pageCss())![1]) * 19.2;
+    const panelWidth = Number(/width:calc\(([\d.]+)\*var\(--u\)\)/.exec(pageCss())![1]);
     expect(r.w).toBeCloseTo(panelWidth);
     expect(r.x + r.w).toBeCloseTo(1920);
   });
@@ -253,7 +253,7 @@ describe("the drawer page's design tokens", () => {
 
   test("--r-row resolves on the root to the renderer's own value, so rows are rounded", () => {
     const drawer = rootProps(pageCss());
-    expect(renderer.get("--r-row")).toBe("calc(22 * calc(100vw / 1920))");
+    expect(renderer.get("--r-row")).toBe("calc(22 * min(100vw / 1920, 100vh / 1080))");
     expect(drawer.get("--r-row")).toBe(renderer.get("--r-row"));
     expect(drawer.get("--r-tile")).toBe(renderer.get("--r-tile"));
   });
@@ -303,9 +303,9 @@ describe("the drawer's material", () => {
   });
 
   test("with native glass the dim stops at the panel; without it the dim covers the whole window", () => {
-    expect(rule(pageCss(true), "#scrim")).toContain("inset:0 33vw 0 0");
+    expect(rule(pageCss(true), "#scrim")).toContain("inset:0 calc(633.6*var(--u)) 0 0");
     expect(rule(pageCss(false), "#scrim")).toContain("inset:0 0");
-    expect(rule(pageCss(false), "#scrim")).not.toContain("33vw");
+    expect(rule(pageCss(false), "#scrim")).not.toContain("633.6");
   });
 
   test("a click anywhere outside the panel closes it, with or without glass", () => {
@@ -364,6 +364,10 @@ describe("the drawer's material", () => {
 
   test("the native glass rect is the panel: 33% of the width, full height, on the right", () => {
     expect(drawerGlassRect(1920, 1080)).toEqual({ x: 1286.4, y: 0, w: 633.6, h: 1080, r: 36 });
-    expect(drawerGlassRect(1000, 600)).toEqual({ x: 670, y: 0, w: 330, h: 600, r: 18.75 });
+    {
+      const r = drawerGlassRect(1000, 600);
+      expect([r.x, r.w, r.h, r.r]).toEqual([670, 330, 600, 18.75].map((n) => expect.closeTo(n)));
+    }
+    expect(drawerGlassRect(3440, 1440).w).toBeCloseTo(633.6 * (1440 / 1080));
   });
 });

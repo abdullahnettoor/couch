@@ -65,7 +65,7 @@ export function render(payload: ScreenPayload): void {
   const block = focused.closest<HTMLElement>(".lf-block")!;
   body.scrollTop = block.offsetTop;
   const shelf = focused.closest<HTMLElement>(".lf-shelf")!;
-  const edge = 120 * (window.innerWidth / 1920);
+  const edge = 120 * designUnit(window.innerWidth, window.innerHeight);
   if (focused.offsetLeft < shelf.scrollLeft) shelf.scrollLeft = focused.offsetLeft;
   else if (focused.offsetLeft + focused.offsetWidth + edge > shelf.scrollLeft + shelf.clientWidth)
     shelf.scrollLeft = focused.offsetLeft + focused.offsetWidth + edge - shelf.clientWidth;

@@ -1,3 +1,4 @@
+import { designUnit } from "./design-unit.ts";
 import { CONFIRM_LAYOUT } from "./confirm-layout.ts";
 import { glassTokensCss } from "./glass-tokens.ts";
 import { ICON_PATHS } from "./icons.ts";
@@ -6,13 +7,14 @@ import { rowCss } from "./row-style.ts";
 /** How long the drawer takes to slide in or out. */
 export const QUICK_SLIDE_MS = 250;
 
-/** The panel's width as a share of the Screen's, and its inner corner radius in design pixels. */
-const DRAWER = { widthPercent: 33, radius: 36 } as const;
+/** The panel's width and its inner corner radius in design pixels. */
+const DRAWER = { width: 633.6, radius: 36 } as const;
 
 /** The panel's rectangle in window points, for the native glass behind it. `r` is the corner radius. */
 export function drawerGlassRect(width: number, height: number) {
-  const w = (width * DRAWER.widthPercent) / 100;
-  return { x: width - w, y: 0, w, h: height, r: (DRAWER.radius * width) / 1920 };
+  const u = designUnit(width, height);
+  const w = DRAWER.width * u;
+  return { x: width - w, y: 0, w, h: height, r: DRAWER.radius * u };
 }
 
 const ICONS = JSON.stringify({
@@ -28,10 +30,10 @@ const ICONS = JSON.stringify({
 const css = (glass: boolean) => `
 ${glassTokensCss({ unit: "var(--u)" })}
 html,body { margin:0; height:100%; background:transparent; overflow:hidden; font-family:-apple-system,"SF Pro Display",system-ui,sans-serif; color:var(--t1); user-select:none; cursor:default; }
-:root { --u: calc(100vw / 1920); }
-#scrim { position:fixed; inset:0 ${glass ? `${DRAWER.widthPercent}vw 0 0` : "0"}; background:${CONFIRM_LAYOUT.scrim}; opacity:0; transition:opacity ${QUICK_SLIDE_MS}ms var(--ease); }
+:root { --u: min(100vw / 1920, 100vh / 1080); }
+#scrim { position:fixed; inset:0 ${glass ? `calc(${DRAWER.width}*var(--u)) 0 0` : "0"}; background:${CONFIRM_LAYOUT.scrim}; opacity:0; transition:opacity ${QUICK_SLIDE_MS}ms var(--ease); }
 #scrim.in { opacity:1; }
-#drawer { position:fixed; right:0; top:0; bottom:0; width:${DRAWER.widthPercent}vw; box-sizing:border-box; padding:calc(56*var(--u)) calc(36*var(--u)); display:flex; flex-direction:column; gap:calc(12*var(--u)); ${glass ? "background:transparent;" : "background:var(--glass-strong);"} border-radius:calc(${DRAWER.radius}*var(--u)) 0 0 calc(${DRAWER.radius}*var(--u)); ${glass ? "" : "box-shadow:var(--glass-edge), 0 0 calc(90*var(--u)) rgba(0,0,0,.45); backdrop-filter:blur(40px) saturate(1.8);"} transform:translateX(100%); transition:transform ${QUICK_SLIDE_MS}ms var(--ease); }
+#drawer { position:fixed; right:0; top:0; bottom:0; width:calc(${DRAWER.width}*var(--u)); box-sizing:border-box; padding:calc(56*var(--u)) calc(36*var(--u)); display:flex; flex-direction:column; gap:calc(12*var(--u)); ${glass ? "background:transparent;" : "background:var(--glass-strong);"} border-radius:calc(${DRAWER.radius}*var(--u)) 0 0 calc(${DRAWER.radius}*var(--u)); ${glass ? "" : "box-shadow:var(--glass-edge), 0 0 calc(90*var(--u)) rgba(0,0,0,.45); backdrop-filter:blur(40px) saturate(1.8);"} transform:translateX(100%); transition:transform ${QUICK_SLIDE_MS}ms var(--ease); }
 #drawer.in { transform:none; }
 ${glass ? "" : "#drawer.media { background:var(--glass-solid); }"}
 h2 { margin:calc(14*var(--u)) calc(10*var(--u)) calc(4*var(--u)); font-size:calc(24*var(--u)); font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--t3); }

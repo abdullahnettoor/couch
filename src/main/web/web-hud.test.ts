@@ -31,6 +31,7 @@ describe("the page's confirmation, run for real", () => {
     const body = new Node();
     const sandbox: any = {
       innerWidth: 1920,
+      innerHeight: 1080,
       console: { debug: (m: string) => logs.push(m) },
       document: {
         body,
