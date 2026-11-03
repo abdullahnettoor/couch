@@ -33,6 +33,8 @@ const [appPath] = await packager({
   icon: "build/icon",
   appBundleId: "com.abdullahnettoor.couch",
   appCategoryType: "public.app-category.entertainment",
+  // CFBundleShortVersionString comes from package.json; the release workflow passes its run number as the build.
+  buildVersion: process.env.COUCH_BUILD_NUMBER || undefined,
   overwrite: true,
   // Electron for Content Security (Widevine) comes from castLabs' releases, not electron/electron.
   download: {
@@ -64,6 +66,8 @@ copyFileSync(
 
 // macOS order matters: VMP-sign first, then Apple code signing (which would be broken by a later VMP signature).
 const plan = packagingPlan(evsState());
+// A release must play DRM Apps: COUCH_REQUIRE_VMP=1 (set by the release workflow) refuses a dev-signed build.
+if (plan.warning && process.env.COUCH_REQUIRE_VMP === "1") throw new Error(plan.warning);
 if (plan.warning) console.warn(`\n!! ${plan.warning}\n`);
 for (const step of plan.steps) {
   const ok = step === "vmp-sign" ? signPkg(appPath) : verifyPkg(appPath);
@@ -88,7 +92,8 @@ for (const icon of ["icon-192.png", "icon-512.png", "touch-icon.png"])
 const identity = process.env.COUCH_CODESIGN_IDENTITY || "-";
 const bundled = bundleMpv(join(appPath, "Couch.app", "Contents"), identity);
 console.log(`Bundled ${bundled.length} libraries into Contents/Frameworks/mpv`);
-// COUCH_CODESIGN_IDENTITY: a Developer ID identity; unset means an ad-hoc signature (runs here, can't be notarised).
+// COUCH_CODESIGN_IDENTITY: a signing identity (releases use the self-signed "Couch Release Signing", see SHIPPING.md);
+// unset means an ad-hoc signature, which changes with every build.
 // disable-library-validation lets the Widevine CDM load under the hardened runtime.
 execFileSync(
   "codesign",

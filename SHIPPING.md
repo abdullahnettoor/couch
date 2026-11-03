@@ -1,21 +1,18 @@
 # Shipping Couch to other people
 
-Couch is a personal app today: it runs on the household's Mac, built and installed from this repo. This page lists what has to change before anyone else can download and run it. Nothing here is built yet.
+Couch is a personal app today: it runs on the household's Mac, built and installed from this repo. This page lists what has to change before anyone else can download and run it, and how a release is made.
 
 ## Signing and notarisation
 
-- **What we have now:** local installs are signed with a self-signed certificate, "Couch Local Signing" (see CONTRIBUTING.md). It only works on the Mac that holds it.
-- **What other Macs need:** a **Developer ID Application** certificate from the Apple Developer Program, which costs US$99 a year. Without it, Gatekeeper blocks a downloaded Couch.
-- **Notarisation:** every release must be notarised, so Apple scans it before it opens normally.
-- **What's already in place:**
-  - `scripts/package.mjs` signs with `COUCH_CODESIGN_IDENTITY`, with the hardened runtime and `build/entitlements.plist`.
-  - Notarising (`notarytool submit --wait`, then `stapler staple`) still has to be added after it.
-- **What a stable signature fixes:** WebKit keeps a keychain item, "Couch WebCrypto Master Key". With any stable signature, users approve it at most once. Ad-hoc builds re-ask after every update.
+- **Decision for now: no notarisation.** It needs Apple's Developer Program (US$99 a year). Releases are signed with a self-signed certificate, "Couch Release Signing", and the download page says Couch isn't notarised and how to open it the first time (macOS 15: System Settings → Privacy & Security → Open Anyway; macOS 14: Control-click → Open).
+- **Why a stable certificate, not ad-hoc:** the signature's designated requirement is the certificate's own hash, so it stays the same from release to release. The updater only installs an update whose signature matches the installed app, so every release must be signed with this one certificate. Losing it means installed copies can't update. WebKit's "Couch WebCrypto Master Key" keychain item still asks once per build, since code without an Apple team ID is matched by its build fingerprint.
+- **Making the certificate:** `pnpm release:cert` (once) writes it to `~/couch-release-signing` and prints how to add it to the repo's secrets. Back that folder up.
+- **Later, with a Developer ID** (Apple Developer Program): set `COUCH_CODESIGN_IDENTITY` to it and add notarising (`notarytool submit --wait`, then `stapler staple`) after `scripts/package.mjs`. Moving from the self-signed certificate to a Developer ID changes the signature, so that release has to be installed by hand once.
 
 ## Bundled mpv and GPL source
 
 - **What's in place:** `vp run package` copies libmpv and its Homebrew libraries (FFmpeg, libass, libplacebo and others) into `Contents/Frameworks/mpv`, with licence texts (`licenses/<formula>/`; where a Homebrew keg only has an overview, the full texts come from `scripts/licenses/`, and packaging fails if any bundled formula lacks one) and `THIRD-PARTY-LIBRARIES.md` in `Contents/Resources`. The manifest gives each formula's installed version, licence, source url and what it is pinned to (a checksum for archives, a revision or tag for git sources such as x264), the patches Homebrew applies, and extra sources a formula builds in.
-- **Before a public download:** provide the corresponding source for the GPL parts (mpv, FFmpeg, x264, x265, rubberband, and others in the manifest): either attach the source of each listed version to the release (an archive, or a checkout of the pinned git revision), or include a written offer valid for three years, and link it from the download page. Not every manifest entry is a tarball: git sources are given as a url plus the pinned revision. Homebrew's bottles carry the patches the manifest lists, so keep those patch files with the source.
+- **Before a public download:** provide the corresponding source for the GPL parts (mpv, FFmpeg, x264, x265, rubberband, and others in the manifest). `pnpm release:assets` does this: it fetches each bundled formula's source, resources, patches and formula file from Homebrew into `Couch-<version>-gpl-sources.tar`, which the release workflow attaches to the GitHub Release beside the app (GPLv3 §6(d), so no written offer is needed). It refuses to run if Homebrew would now fetch a different version than the one bundled.
 - **Architecture:** only arm64, the Homebrew on the packaging Mac. An x86_64 or universal build needs an Intel Homebrew (`/usr/local`) run of `vp run package`, or a separate build of each library, and `lipo` to merge them.
 
 ## DRM
@@ -27,7 +24,7 @@ Couch is a personal app today: it runs on the household's Mac, built and install
 
 ## Distribution channel
 
-- **Direct download, signed and notarised, is the realistic channel.**
+- **Direct download (GitHub Releases, and Gumroad linking to them) is the realistic channel.**
 - **Why not the Mac App Store:**
   - the App Store sandbox;
   - the castLabs runtime;
@@ -36,7 +33,18 @@ Couch is a personal app today: it runs on the household's Mac, built and install
 
 ## Updates
 
-Couch needs an updater: Sparkle, or Electron's `autoUpdater` with a feed. It also needs a place to host releases. Both need signed, notarised builds.
+- **Updater (not built yet):** Electron's own `autoUpdater` through update.electronjs.org, which reads this repo's published GitHub Releases. It needs a public repo and the `Couch-darwin-arm64-<version>.zip` asset the workflow attaches.
+- **To check before relying on it:** install one self-signed release, publish the next, and confirm it updates itself.
+
+## Releasing
+
+- **Versions:** SemVer, tagged `v<version>` (`v0.1.0`). `0.x` while Couch is early; `1.0.0` when it's ready for people outside the household. A bug-fix release bumps the last number, new features the middle one. The macOS build number (`CFBundleVersion`) is the workflow's run number.
+- **Secrets** (repo → Settings → Secrets and variables → Actions): `COUCH_SIGNING_P12` and `COUCH_SIGNING_P12_PASSWORD` (from `pnpm release:cert`), `EVS_ACCOUNT_NAME` and `EVS_PASSWD` (castLabs EVS), and optionally `COUCH_TMDB_TOKEN`.
+- **Steps:**
+  1. Set `version` in `package.json`, commit, then `git tag v<version> && git push origin v<version>`.
+  2. `.github/workflows/release.yml` builds on an Apple Silicon runner, VMP-signs, signs, and makes the zip, dmg, GPL source bundle and `SHA256SUMS.txt`. It fails if the tag and `package.json` disagree, or if EVS isn't signed in.
+  3. It creates a **draft** GitHub Release. Download the dmg, check it opens and plays (including a DRM App), then publish the draft. The updater only sees published releases.
+- **Trial build:** Actions → Release → Run workflow builds the same files without a release, kept as an artifact for a week.
 
 ## Accounts and content
 

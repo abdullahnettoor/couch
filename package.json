@@ -1,6 +1,6 @@
 {
   "name": "couch",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "license": "GPL-3.0-or-later",
   "type": "module",
@@ -10,6 +10,8 @@
     "build": "sh native/mpv-embed/build.sh && vp build && vp pack && node scripts/write-remote-page.mjs",
     "start": "vp run build && node scripts/dev-electron.mjs",
     "package": "vp run build && node scripts/package.mjs",
+    "release:assets": "node scripts/release-assets.mjs",
+    "release:cert": "sh scripts/make-release-cert.sh",
     "postinstall": "node scripts/ensure-electron.mjs",
     "bundled-mpv-check": "node scripts/bundled-mpv-check.mjs",
     "sign:dev": "node scripts/sign-dev.mjs",
