@@ -25,7 +25,6 @@ const { version } = JSON.parse(readFileSync("package.json", "utf8"));
 const arch = process.arch;
 const app = join("out", `Couch-darwin-${arch}`, "Couch.app");
 if (!existsSync(app)) throw new Error(`${app} is missing: run \`vp run package\` first`);
-const identity = process.env.COUCH_CODESIGN_IDENTITY || "-";
 const release = join("out", "release");
 rmSync(release, { recursive: true, force: true });
 mkdirSync(release, { recursive: true });
@@ -72,7 +71,8 @@ for (let attempt = 1; ; attempt++) {
   }
 }
 rmSync(stage, { recursive: true, force: true });
-run("codesign", ["--force", "--sign", identity, dmg]);
+// The dmg stays unsigned: Gatekeeper checks a signed dmg on open, and with no Developer ID that is a second
+// "can't verify" warning before the one for Couch itself. The app inside is signed.
 
 writeGplSources(
   join(app, "Contents", "Resources"),
