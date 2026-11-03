@@ -1,4 +1,5 @@
 import type { LibraryRow, ScreenPayload } from "../../shared/protocol.ts";
+import { designUnit } from "../../shared/design-unit.ts";
 import { iconSvg } from "../../shared/icons.ts";
 import { el, focusable, root } from "./dom.ts";
 import { cornerBack, topbar } from "./glass.ts";
