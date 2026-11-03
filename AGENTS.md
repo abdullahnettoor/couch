@@ -39,3 +39,7 @@ re-read whole files.
 After big code changes, refresh the graph with `graft build` (deterministic,
 no API key, $0).
 <!-- graft:end -->
+
+## Agent skills
+
+- **Issue tracker:** GitHub Issues on `abdullahnettoor/couch`. Labels and operations are in `docs/agents/issue-tracker.md`. The local `.issues/` folder is retired; it is kept only as history.
