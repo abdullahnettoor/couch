@@ -33,8 +33,8 @@ Couch is a personal app today: it runs on the household's Mac, built and install
 
 ## Updates
 
-- **Updater (not built yet):** Electron's own `autoUpdater` through update.electronjs.org, which reads this repo's published GitHub Releases. It needs a public repo and the `Couch-darwin-arm64-<version>.zip` asset the workflow attaches.
-- **To check before relying on it:** install one self-signed release, publish the next, and confirm it updates itself.
+- **Updater:** Electron's own `autoUpdater` through update.electronjs.org, which reads this repo's published GitHub Releases (`src/main/ports/updates.ts`). It needs a public repo and the `Couch-darwin-arm64-<version>.zip` asset the workflow attaches. A packaged Couch checks a minute after start and every six hours; a downloaded update installs when Couch quits, with one toast, never a forced restart. On the first start of a new version Couch restarts the Listener's LaunchAgent, which would otherwise keep running the old binary.
+- **To check before relying on it:** install one release that has the updater, publish the next, and confirm it updates itself.
 
 ## Releasing
 

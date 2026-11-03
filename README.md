@@ -28,14 +28,25 @@ So I built Couch. It brings YouTube, Netflix and our own videos to one calm home
 
 ## Requirements
 
-- A Mac on macOS 14 or later.
+- A Mac with Apple silicon (M1 or later) on macOS 14 or later.
 - A TV or monitor connected to the Mac.
 - A phone on the same Wi-Fi as the Mac (for the Remote).
 - Nothing else to play the Library: a packaged Couch carries its own libmpv. Homebrew `mpv` is only needed to build Couch, or to run it from source.
 
+## Download
+
+Get the `.dmg` from the [latest release](https://github.com/abdullahnettoor/couch/releases/latest), open it and drag Couch to Applications. Couch updates itself after that: a new version installs when Couch quits.
+
+Couch isn't notarised by Apple (that needs a paid developer account), so macOS asks before opening it the first time:
+
+- **macOS 15 or later:** open Couch and click **Done** when macOS says it can't verify it. Then go to **System Settings → Privacy & Security**, click **Open Anyway** next to Couch, enter your Mac's password and click **Open**.
+- **macOS 14:** Control-click Couch in Applications, choose **Open**, then click **Open** again.
+
+Each release also carries `SHA256SUMS.txt`, and the source of the bundled libraries (`Couch-<version>-gpl-sources.tar`).
+
 ## Build from source
 
-Couch isn't distributed as a download yet, so you build it yourself. You need Xcode command line tools, Homebrew (with `mpv`, which `vp run package` copies into the app) and [pnpm](https://pnpm.io).
+You need Xcode command line tools, Homebrew (with `mpv`, which `vp run package` copies into the app) and [pnpm](https://pnpm.io).
 
 ```sh
 brew install mpv
@@ -45,7 +56,7 @@ pnpm exec vp run start     # build and run Couch
 pnpm exec vp run package   # or build out/Couch-darwin-<arch>/Couch.app
 ```
 
-[CONTRIBUTING.md](CONTRIBUTING.md) has the details (tests, checks, signing for Netflix and other DRM Apps). [SHIPPING.md](SHIPPING.md) lists what it would take to ship Couch to other people.
+[CONTRIBUTING.md](CONTRIBUTING.md) has the details (tests, checks, signing for Netflix and other DRM Apps). [SHIPPING.md](SHIPPING.md) covers signing, updates and how a release is made.
 
 ## Commands
 

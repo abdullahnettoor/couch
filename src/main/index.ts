@@ -1,5 +1,6 @@
 import {
   app,
+  autoUpdater,
   BrowserWindow,
   clipboard,
   dialog,
@@ -64,6 +65,7 @@ import { PROJECT_TMDB_KEY } from "./ports/project-key.ts";
 import { detectListener } from "./frontdoor.ts";
 import { MIGRATION_FAILED_TOAST, migrateListenerLabel } from "./ports/listener-label-migration.ts";
 import { chooseBinding } from "./listener.ts";
+import { restartListenerAfterUpdate, startUpdates } from "./ports/updates.ts";
 import {
   createDrawerGlass,
   createEmbedFactory,
@@ -344,6 +346,15 @@ async function createScreen(): Promise<void> {
     console.warn(`[couch] Listener label migration crashed: ${(e as Error).message}`);
     return "rolled-back" as const;
   });
+  if (app.isPackaged && labelMigration !== "rolled-back")
+    await restartListenerAfterUpdate({
+      store,
+      version: app.getVersion(),
+      uid: process.getuid?.() ?? 0,
+      listenerOn: async () => (await mac.listenerLoginItem()).on,
+    }).catch((e) =>
+      console.warn(`[couch] Listener restart after update failed: ${(e as Error).message}`),
+    );
   const listener = await detectListener({
     store,
     // After a rollback the old job is coming back up under its old label: wait for it too.
@@ -476,6 +487,15 @@ async function createScreen(): Promise<void> {
   });
   let nativeFront = false;
   if (labelMigration === "rolled-back") couch.toast(MIGRATION_FAILED_TOAST);
+  if (app.isPackaged)
+    startUpdates({
+      updater: autoUpdater,
+      clock: systemClock,
+      platform: process.platform,
+      arch: process.arch,
+      version: app.getVersion(),
+      toast: (text) => couch?.toast(text),
+    });
   couch.onScreen((payload) => {
     for (const listener of screenListeners) listener(payload.playing);
     // A native App view is under the window's web contents: Couch's own page goes transparent while it is in front.
