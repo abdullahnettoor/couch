@@ -362,7 +362,7 @@ describe("the drawer's material", () => {
     expect(drawer).toContain("border-radius:calc(36*var(--u))");
   });
 
-  test("the native glass rect is the panel: 33% of the width, full height, on the right", () => {
+  test("the native glass rect is the panel: 633.6 design units wide, full height, on the right", () => {
     expect(drawerGlassRect(1920, 1080)).toEqual({ x: 1286.4, y: 0, w: 633.6, h: 1080, r: 36 });
     {
       const r = drawerGlassRect(1000, 600);

@@ -576,7 +576,7 @@ svg.i {
     linear-gradient(0deg, #000 0%, rgba(0, 0, 0, 0.85) 38%, rgba(0, 0, 0, 0) 62%);
 }
 /* Laid out from the bottom up: the last line sits a fixed gap above the chips (or the first row).
-   Anchored from the top only, so a bottom offset cannot drift onto the chips. */
+   Anchored from the top, like the chips, so it always ends 28u above them whatever the Screen's shape. */
 .lf-feat {
   position: absolute;
   left: calc(96 * var(--u));
