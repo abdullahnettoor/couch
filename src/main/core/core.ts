@@ -79,7 +79,8 @@ const phoneKey = (url: string | undefined): string | undefined =>
     .pop()
     ?.replace(/\.jpg$/, "");
 
-const HOME_VIDEOS = 3;
+/** Home's row fits this many tiles: its App tiles, then Continue watching. */
+const HOME_ROW_TILES = 5;
 const TILE_COLUMNS = 4;
 const LIBRARY_VIEWS = ["library", "folder", "libraryFolders"];
 /** Views where a phone's Search button opens the Library search. */
@@ -677,6 +678,21 @@ export class Core {
     return [...videos, ...titles].sort((a, b) => b.at - a.at).map((v) => v.entry);
   }
 
+  /**
+   * Home's Continue watching: the newest entry of each App and of the Library, newest first,
+   * as many as fit in the row beside the App tiles (at least one).
+   */
+  #homeContinue(): LibraryEntry[] {
+    const seen = new Set<string>();
+    const newest = this.#continueEntries().filter((e) => {
+      const source = e.app?.id ?? "library";
+      if (seen.has(source)) return false;
+      seen.add(source);
+      return true;
+    });
+    return newest.slice(0, Math.max(1, HOME_ROW_TILES - this.#homeApps.shownIds().length));
+  }
+
   /** The Library's own row: its in-progress videos only. */
   #libraryContinueEntries(): LibraryEntry[] {
     return this.#libraryContinue().map((v) => v.entry);
@@ -773,7 +789,7 @@ export class Core {
   #currentGrid(): GridItem[] {
     if (this.#state.view === "home") {
       const base = this.#homeBase();
-      const videos = base.length ? this.#continueEntries().slice(0, HOME_VIDEOS) : [];
+      const videos = base.length ? this.#homeContinue() : [];
       const gridFor = () =>
         homeGrid(
           base,
@@ -931,7 +947,7 @@ export class Core {
   #continueMenu(): boolean {
     if (this.#state.view !== "home" || this.#state.confirm) return false;
     const id = resolveFocus(this.#currentGrid(), this.#state.focus.home)?.id;
-    const shown = this.#continueEntries().slice(0, HOME_VIDEOS);
+    const shown = this.#homeContinue();
     // The hero's Resume / From start pills belong to the hero's entry.
     const entry = shown.find(
       (v) =>
@@ -1054,7 +1070,7 @@ export class Core {
   /** Back on Home after a video started there: focus returns to its card, so its backdrop shows. */
   #focusHomeCard(path: string): void {
     const base = this.#homeBase();
-    const videos = this.#continueEntries().slice(0, HOME_VIDEOS);
+    const videos = this.#homeContinue();
     const film = videos.find((v) => v.path === path);
     const card = homeGrid(base, videos, film).find((i) => i.id === path);
     this.#homeFilm = card ? path : undefined;
@@ -1343,7 +1359,7 @@ export class Core {
     const grid = this.#currentGrid();
     const focused = resolveFocus(grid, this.#state.focus[this.viewKey]);
     if (this.#state.view === "library") this.#rootFocusId = focused?.id;
-    const homeVideos = this.#continueEntries().slice(0, HOME_VIDEOS);
+    const homeVideos = this.#homeContinue();
     const quick = this.#quick.payload();
     return {
       ...(quick ? { quick } : {}),

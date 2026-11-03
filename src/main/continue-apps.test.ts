@@ -15,6 +15,7 @@ import { ContinueApps } from "./core/continue-apps.ts";
 import { ContinueArt } from "./core/continue-art.ts";
 import { FileStore } from "./ports/store.ts";
 import type { FakeYouTube } from "./ports/fakes.ts";
+import { FakeWebApp } from "./ports/fakes.ts";
 import { startHarness, type FakePhone, type Harness } from "./testing/harness.ts";
 
 let h: Harness;
@@ -101,12 +102,13 @@ describe("remembering App titles", () => {
     expect(stored().items![0]).toMatchObject({ position: 900 });
   });
 
-  test("a second title is a second entry, newest first", async () => {
+  test("a second title is a second entry; Home shows the newer", async () => {
     await start();
     play(h.netflix, { position: 40 });
     h.clock.advance(60_000);
     play(h.netflix, { position: 40, title: "Other", resume: watch("70000001") });
-    expect(videos().map((v) => v.title)).toEqual(["Other", "Arcane · S1 E1"]);
+    expect(stored().items).toHaveLength(2);
+    expect(videos().map((v) => v.title)).toEqual(["Other"]);
   });
 
   test("art from a host that is not the App's own is not kept", async () => {
@@ -377,6 +379,112 @@ describe("showing them", () => {
       app: { id: "netflix", label: "Netflix" },
     });
     expect(JSON.stringify(phone.last)).not.toContain(NETFLIX_ART);
+  });
+});
+
+describe("Home's row: one tile per App and one Library video, as many as fit", () => {
+  const yt = (id: string) => `https://www.youtube.com/tv#/watch?v=${id}&t=300`;
+  const playYouTube = (title: string, id: string) => {
+    play(h.youtube, { title, artwork: undefined, resume: yt(id) });
+    stop(h.youtube);
+  };
+  /** A Library with two half-watched films, B newer than A, both older than anything played. */
+  function library(home?: { order: string[]; hidden: string[] }) {
+    const root = tmp("couch-cont-lib-");
+    mkdirSync(join(root, "Films"));
+    const a = join(root, "Films", "A.Film.2001.mkv");
+    const b = join(root, "Films", "B.Film.2002.mkv");
+    for (const f of [a, b]) writeFileSync(f, "");
+    const store = new FileStore(tmp("couch-cont-store-"));
+    store.write("library", { folders: [root] });
+    const old = Date.UTC(2026, 0, 1);
+    store.write("history", {
+      items: {
+        [a]: { position: 600, duration: 6000, at: old },
+        [b]: { position: 600, duration: 6000, at: old + 1000 },
+      },
+    });
+    if (home) store.write("home.apps", home);
+    return { store, a, b };
+  }
+  const sources = () => videos().map((v) => v.app?.id ?? v.path);
+
+  test("two titles from one App show as one tile, the newer, beside the newest Library video", async () => {
+    const lib = library();
+    await start(lib.store);
+    playYouTube("Cat video", "aaaaaaaaaaa");
+    h.clock.advance(60_000);
+    playYouTube("Dog video", "bbbbbbbbbbb");
+    expect(videos().map((v) => v.title)).toEqual(["Dog video", "B Film (2002)"]);
+    expect(sources()).toEqual(["youtube", lib.b]);
+  });
+
+  test("beside three App tiles two fit: the newest sources, newest first", async () => {
+    const lib = library();
+    await start(lib.store);
+    playYouTube("Cat video", "aaaaaaaaaaa");
+    h.clock.advance(60_000);
+    play(h.netflix, { position: 300 });
+    stop(h.netflix);
+    expect(sources()).toEqual(["netflix", "youtube"]);
+    expect(h.screen.last.grid.filter((i) => i.r === 2)).toHaveLength(5);
+  });
+
+  test("with an App hidden, more fit: every shown source has its tile", async () => {
+    const lib = library({ order: ["youtube", "netflix", "library"], hidden: ["netflix"] });
+    await start(lib.store);
+    playYouTube("Cat video", "aaaaaaaaaaa");
+    h.clock.advance(60_000);
+    play(h.netflix, { position: 300 });
+    stop(h.netflix);
+    expect(sources()).toEqual(["youtube", lib.b]);
+  });
+
+  test("with a fourth App on Home, one fits", async () => {
+    const lib = library();
+    const weather = new FakeWebApp("weather", "Weather");
+    const entry = {
+      id: "weather",
+      label: "Weather",
+      icon: "<svg></svg>",
+      action: "app:open:weather",
+      web: true,
+    };
+    h = await startHarness(lib.store, { apps: [{ entry, app: weather }] });
+    phone = await h.connectPhone();
+    expect(h.screen.last.homeApps?.filter((r) => r.shown)).toHaveLength(4);
+    playYouTube("Cat video", "aaaaaaaaaaa");
+    expect(sources()).toEqual(["youtube"]);
+  });
+
+  test("removing an App's shown title from the menu shows its older one", async () => {
+    await start();
+    playYouTube("Cat video", "aaaaaaaaaaa");
+    h.clock.advance(60_000);
+    playYouTube("Dog video", "bbbbbbbbbbb");
+    const tile = h.screen.last.grid.find((i) => i.id === videos()[0]!.path)!;
+    h.app.screenCommand({ command: "focusAt", args: { r: tile.r, c: tile.c } });
+    h.app.screenCommand({ command: "menu" });
+    expect(h.screen.last.state.confirm?.title).toBe("Dog video");
+    h.app.screenCommand({ command: "ok" });
+    expect(videos().map((v) => v.title)).toEqual(["Cat video"]);
+  });
+
+  test("the Library's own row keeps every Library video, and the Remote's card the newest entry", async () => {
+    const lib = library();
+    await start(lib.store);
+    playYouTube("Cat video", "aaaaaaaaaaa");
+    h.clock.advance(60_000);
+    play(h.netflix, { position: 300 });
+    stop(h.netflix);
+    await h.settle();
+    await phone.waitFor(() => phone.last?.continueCard?.title === "Arcane · S1 E1");
+    expect(h.screen.last.continueCard?.app?.id).toBe("netflix");
+    const tile = h.screen.last.grid.find((i) => i.id === "library")!;
+    h.app.screenCommand({ command: "focusAt", args: { r: tile.r, c: tile.c } });
+    h.app.screenCommand({ command: "ok" });
+    expect(h.screen.last.state.view).toBe("library");
+    expect(h.screen.last.library?.continueWatching?.map((v) => v.path)).toEqual([lib.b, lib.a]);
   });
 });
 

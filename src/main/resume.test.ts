@@ -161,13 +161,24 @@ describe("thresholds", () => {
     phone = await h.connectPhone();
     watchAndLeave(a(), 600);
     h.clock.advance(1000);
-    watchAndLeave(b(), 600);
+    h.netflix.emit({
+      type: "playback",
+      playback: {
+        position: 300,
+        duration: 3000,
+        paused: false,
+        title: "Arcane · S1 E1",
+        resume: "https://www.netflix.com/watch/80100172",
+      },
+    });
+    h.netflix.emit({ type: "playback", playback: undefined });
+    const title = screen().homeVideos!.find((v) => v.app)!.path;
     expect(screen().focusedId).toBe("youtube");
     expect(screen().hero).toBeUndefined();
     await focusViaPhone(a());
     expect(screen().hero?.path).toBe(a());
-    await focusViaPhone(b());
-    expect(screen().hero?.path).toBe(b());
+    await focusViaPhone(title);
+    expect(screen().hero?.path).toBe(title);
     await focusViaPhone("youtube");
     expect(screen().hero).toBeUndefined();
   });
@@ -178,7 +189,7 @@ describe("thresholds", () => {
     expect(screen().hero).toBeUndefined();
   });
 
-  test("up to three in-progress videos, newest first", async () => {
+  test("Home shows the newest in-progress video; the Library's row keeps them all, newest first", async () => {
     await start();
     phone = await h.connectPhone();
     watchAndLeave(a(), 600);
@@ -186,8 +197,11 @@ describe("thresholds", () => {
       h.clock.advance(1000);
       watchAndLeave(p, 600);
     }
-    expect(screen().homeVideos!.map((e) => e.path)).toEqual([d(), c(), b()]);
-    expect(screen().grid.filter((i) => i.r === 2).length).toBe(6);
+    expect(screen().homeVideos!.map((e) => e.path)).toEqual([d()]);
+    expect(screen().grid.filter((i) => i.r === 2).length).toBe(4);
+    focusOn("library");
+    press("ok");
+    expect(screen().library?.continueWatching?.map((e) => e.path)).toEqual([d(), c(), b(), a()]);
   });
 
   test("From start passes no start position; Resume passes the saved one", async () => {
