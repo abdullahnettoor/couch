@@ -35,7 +35,7 @@ So I built Couch. It brings YouTube, Netflix and our own videos to one calm home
 
 ## Download
 
-Get the `.dmg` from the [latest release](https://github.com/abdullahnettoor/couch/releases/latest), open it and drag Couch to Applications. Couch updates itself after that: a new version installs when Couch quits.
+[Download Couch](https://github.com/abdullahnettoor/couch/releases/latest/download/Couch-arm64.dmg) (the `.dmg` from the [latest release](https://github.com/abdullahnettoor/couch/releases/latest)), open it and drag Couch to Applications. Couch updates itself after that: a new version installs when Couch quits.
 
 Couch isn't notarised by Apple (that needs a paid developer account), so macOS asks before opening it the first time:
 

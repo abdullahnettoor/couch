@@ -47,7 +47,8 @@ rmSync(stage, { recursive: true, force: true });
 mkdirSync(stage);
 run("ditto", [app, join(stage, "Couch.app")]);
 symlinkSync("/Applications", join(stage, "Applications"));
-const dmg = join(release, `Couch-${version}-${arch}.dmg`);
+// No version in the name: .../releases/latest/download/Couch-<arch>.dmg then always downloads the newest stable release.
+const dmg = join(release, `Couch-${arch}.dmg`);
 // hdiutil now and then fails with "Resource busy" on CI runners; a retry is enough.
 for (let attempt = 1; ; attempt++) {
   try {
