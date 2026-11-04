@@ -22,6 +22,12 @@ export interface Look {
     danger: string;
     scrim: string;
     buttonFill: string;
+    /** A bright fill: a progress bar, a knob, a text caret. */
+    fillBright: string;
+    /** The groove of a slider or progress bar. */
+    track: string;
+    /** Colours by the job they do (a track, a press, a toast), written as `--<name>`. */
+    role: Record<string, string>;
     palette: Record<string, string>;
   };
   type: {
@@ -29,12 +35,34 @@ export interface Look {
     familyDisplay: string;
     /** Font sizes by design pixel. */
     size: Record<string, number>;
+    /** Sizes TypeScript reads, by the job they do, in design pixels. */
+    role: {
+      dialogTitle: number;
+      dialogBody: number;
+      dialogButton: number;
+      hudBase: number;
+      hudNote: number;
+      hudSearch: number;
+      hudHint: number;
+    };
     weight: Record<string, string>;
     lineHeight: Record<string, string>;
     letterSpacing: Record<string, string>;
   };
   /** Corner radii by role, then `scale`: every radius in use, by design pixel. */
-  radius: { tile: number; row: number; scale: Record<string, number> };
+  radius: {
+    tile: number;
+    row: number;
+    /** Radii TypeScript reads, by the job they do, in design pixels. */
+    role: {
+      dialog: number;
+      dialogButton: number;
+      hudPill: number;
+      hudTrack: number;
+      hudSearch: number;
+    };
+    scale: Record<string, number>;
+  };
   shadow: Record<string, string>;
   blur: Record<string, string>;
   motion: { ease: Record<string, string>; duration: Record<string, string> };
@@ -76,6 +104,34 @@ export const GLASS: Look = {
     danger: "#ff453a",
     scrim: "rgba(0, 0, 0, 0.45)",
     buttonFill: "rgba(255, 255, 255, 0.16)",
+    fillBright: "#fff",
+    track: "rgba(255, 255, 255, 0.2)",
+    role: {
+      backdrop: "#000",
+      accent: "#0a84ff",
+      hairline: "rgba(255, 255, 255, 0.06)",
+      "track-faint": "rgba(255, 255, 255, 0.08)",
+      "press-soft": "rgba(255, 255, 255, 0.12)",
+      press: "rgba(255, 255, 255, 0.14)",
+      "spinner-track": "rgba(255, 255, 255, 0.18)",
+      "scrim-sheet": "rgba(0, 0, 0, 0.6)",
+      "toast-bg": "rgba(0, 0, 0, 0.62)",
+      "toast-strong-bg": "rgba(0, 0, 0, 0.72)",
+      "badge-bg": "rgba(28, 28, 30, 0.75)",
+      field: "#1c1c1e",
+      "card-raised": "#3a3a3c",
+      "card-pressed": "#5a5a5c",
+      "focus-bg-pressed": "#e5e5e5",
+      "on-light": "#1c1c1e",
+      "tick-bg": "#ffb04a",
+      "tick-fg": "#1c1206",
+      "art-youtube-from": "#ff3b30",
+      "art-youtube-to": "#c4141f",
+      "art-netflix-from": "#2a2a2d",
+      "art-netflix-to": "#0b0b0c",
+      "art-library-from": "#f5f5f7",
+      "art-library-to": "#c9c9cf",
+    },
     palette: {
       "hex-000": "#000",
       "hex-050404": "#050404",
@@ -154,22 +210,48 @@ export const GLASS: Look = {
     family: '-apple-system, "SF Pro Text", system-ui, sans-serif',
     familyDisplay: '-apple-system, "SF Pro Display", "SF Pro Text", system-ui, sans-serif',
     size: byPx(sizes),
+    role: {
+      dialogTitle: 44,
+      dialogBody: 30,
+      dialogButton: 30,
+      hudBase: 22,
+      hudNote: 28,
+      hudSearch: 34,
+      hudHint: 22,
+    },
     weight: { regular: "400", medium: "500", semibold: "600", bold: "700" },
     lineHeight: {},
     letterSpacing: {},
   },
-  radius: { tile: 22, row: 22, scale: byPx(radii, (n) => `r${n}`) },
+  radius: {
+    tile: 22,
+    row: 22,
+    role: { dialog: 48, dialogButton: 42, hudPill: 40, hudTrack: 22, hudSearch: 46 },
+    scale: byPx(radii, (n) => `r${n}`),
+  },
   shadow: {
     "glass-edge": "inset 0 1px 0 rgba(255, 255, 255, 0.14)",
     card: "0 calc(24 * {u}) calc(70 * {u}) rgba(0, 0, 0, 0.35)",
     "card-deep": "0 calc(24 * {u}) calc(60 * {u}) rgba(0, 0, 0, 0.45)",
     float: "0 calc(36 * {u}) calc(60 * {u}) rgba(0, 0, 0, 0.6)",
     "focus-ring-soft": "0 0 0 calc(3 * {u}) rgba(255, 255, 255, 0.5)",
+    "key-edge": "inset 0 1px 0 rgba(255, 255, 255, 0.07)",
+    "key-edge-strong": "inset 0 1px 0 rgba(255, 255, 255, 0.12)",
+    pad: "inset 0 0 0 calc(1 * {u}) rgba(255, 255, 255, 0.06), 0 calc(18 * {u}) calc(40 * {u}) rgba(0, 0, 0, 0.4)",
+    art: "0 calc(18 * {u}) calc(40 * {u}) rgba(0, 0, 0, 0.45), inset 0 0 0 calc(1 * {u}) rgba(255, 255, 255, 0.06)",
+    sheet: "0 calc(-20 * {u}) calc(50 * {u}) rgba(0, 0, 0, 0.5)",
+    icon: "0 calc(12 * {u}) calc(30 * {u}) rgba(0, 0, 0, 0.5)",
+    knob: "0 calc(2 * {u}) calc(6 * {u}) rgba(0, 0, 0, 0.4)",
+    prompt: "0 calc(8 * {u}) calc(24 * {u}) rgba(0, 0, 0, 0.4)",
+    "tile-hero": "0 0 0 calc(3 * {u}) #fff, 0 0 calc(24 * {u}) rgba(255, 255, 255, 0.25)",
+    drawer: "inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 0 calc(90 * {u}) rgba(0, 0, 0, 0.45)",
   },
   blur: {
     "glass-light": "blur(calc(20 * {u})) saturate(1.6)",
     "glass-heavy": "blur(calc(40 * {u})) saturate(1.8)",
     glass: "blur(calc(30 * {u})) saturate(1.6)",
+    /** 40 px whatever the Screen's size (the Quick settings drawer's panel). */
+    "glass-heavy-fixed": "blur(40px) saturate(1.8)",
   },
   motion: {
     ease: {
@@ -179,7 +261,16 @@ export const GLASS: Look = {
       settle: "cubic-bezier(0.33, 1, 0.68, 1)",
       standard: "cubic-bezier(0.2, 0.8, 0.2, 1)",
     },
-    duration: { quick: "0.2s", base: "0.3s", slow: "0.45s" },
+    duration: {
+      quick: "0.2s",
+      base: "0.3s",
+      slow: "0.45s",
+      press: "0.12s",
+      fade: "0.15s",
+      rise: "0.22s",
+      spin: "0.9s",
+      sweep: "1.3s",
+    },
   },
   focus: {
     bg: "#fff",
@@ -222,19 +313,22 @@ export function lookCss(
   const add = (name: string, value: string) => out.push([name, value]);
 
   const { color, type, radius, shadow, blur, motion, focus, metrics } = look;
-  const { palette, ...roles } = color;
+  const { palette, role, ...roles } = color;
   for (const [k, v] of Object.entries(roles)) add(kebab(k), v);
+  for (const [k, v] of Object.entries(role)) add(k, v);
   for (const [k, v] of Object.entries(palette)) add(k, v);
 
   add("font-family", type.family);
   add("font-family-display", type.familyDisplay);
   for (const [k, n] of Object.entries(type.size)) add(`type-${k}`, len(n));
+  for (const [k, n] of Object.entries(type.role)) add(`type-${kebab(k)}`, len(n));
   for (const [k, v] of Object.entries(type.weight)) add(`weight-${k}`, v);
   for (const [k, v] of Object.entries(type.lineHeight)) add(`line-height-${k}`, v);
   for (const [k, v] of Object.entries(type.letterSpacing)) add(`letter-spacing-${k}`, v);
 
   add("radius-tile", len(radius.tile));
   add("radius-row", len(radius.row));
+  for (const [k, n] of Object.entries(radius.role)) add(`radius-${kebab(k)}`, len(n));
   for (const [k, n] of Object.entries(radius.scale)) add(`radius-${k}`, len(n));
   for (const [k, v] of Object.entries(shadow)) add(`shadow-${k}`, sub(v));
   for (const [k, v] of Object.entries(blur)) add(`blur-${k}`, sub(v));

@@ -17,7 +17,7 @@ describe("the row look shared with Settings", () => {
 
   test("renders the focus highlight and value style for a selector", () => {
     const css = rowCss(".row", "var(--u)");
-    expect(css).toContain(".row.focus { background:#fff; color:#000; }");
+    expect(css).toContain(".row.focus { background:var(--focus-bg); color:var(--focus-fg); }");
     expect(css).toContain(`height:calc(${ROW.height} * var(--u))`);
   });
 });

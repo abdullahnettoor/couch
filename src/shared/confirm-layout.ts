@@ -3,21 +3,32 @@ import type { Command, Confirmation } from "./protocol.ts";
 
 /** Design pixels (a 1920-wide Screen) and colours of the question box, shared by the Screen and the YouTube page. */
 export const CONFIRM_LAYOUT = {
-  scrim: "rgba(0, 0, 0, 0.45)",
-  box: { gap: 40, padY: 56, padX: 72, radius: 48, fontSize: 44, fontWeight: "700" },
-  body: { fontSize: 30, fontWeight: "400", color: GLASS.color.textSecondary },
+  scrim: GLASS.color.scrim,
+  box: {
+    gap: 40,
+    padY: 56,
+    padX: 72,
+    radius: GLASS.radius.role.dialog,
+    fontSize: GLASS.type.role.dialogTitle,
+    fontWeight: GLASS.type.weight.bold,
+  },
+  body: {
+    fontSize: GLASS.type.role.dialogBody,
+    fontWeight: GLASS.type.weight.regular,
+    color: GLASS.color.textSecondary,
+  },
   row: { gap: 24 },
   button: {
     height: 84,
     padX: 40,
-    radius: 42,
-    fontSize: 30,
-    fontWeight: "600",
-    background: "rgba(255, 255, 255, 0.16)",
+    radius: GLASS.radius.role.dialogButton,
+    fontSize: GLASS.type.role.dialogButton,
+    fontWeight: GLASS.type.weight.semibold,
+    background: GLASS.color.buttonFill,
     color: GLASS.color.textSecondary,
-    focusedBackground: "#fff",
-    focusedColor: "#000",
-    focusedScale: 1.06,
+    focusedBackground: GLASS.focus.bg,
+    focusedColor: GLASS.focus.fg,
+    focusedScale: GLASS.focus.scale,
   },
 } as const;
 

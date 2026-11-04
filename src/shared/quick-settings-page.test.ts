@@ -241,7 +241,7 @@ describe("the Quick settings page", () => {
     expect(rule).not.toMatch(/(^|[;\s])left:/);
     expect(rule).toMatch(/translateX\(100%\)/);
     expect(rule).toMatch(/transition:transform 250ms var\(--ease\)/);
-    expect(rule).toMatch(/border-radius:calc\(36\*var\(--u\)\) 0 0 calc\(36\*var\(--u\)\)/);
+    expect(rule).toMatch(/border-radius:var\(--radius-r36\) 0 0 var\(--radius-r36\)/);
   });
 });
 
@@ -260,10 +260,10 @@ describe("the drawer page's design tokens", () => {
 
   test("the rows, buttons and panel all take their radius from tokens that resolve", () => {
     const css = pageCss();
-    expect(css).toMatch(/\.row \{[^}]*border-radius:var\(--r-row\)/);
-    expect(rule(css, ".btn")).toContain("border-radius:var(--r-row)");
+    expect(css).toMatch(/\.row \{[^}]*border-radius:var\(--radius-row\)/);
+    expect(rule(css, ".btn")).toContain("border-radius:var(--radius-row)");
     expect(rule(css, "#drawer")).toMatch(
-      /border-radius:calc\(36\*var\(--u\)\) 0 0 calc\(36\*var\(--u\)\)/,
+      /border-radius:var\(--radius-r36\) 0 0 var\(--radius-r36\)/,
     );
   });
 });
@@ -295,7 +295,8 @@ describe("the drawer's material", () => {
   test("the scrim dims the Screen like the confirm question and fades over the slide", () => {
     for (const glass of [false, true]) {
       const css = pageCss(glass);
-      expect(rule(css, "#scrim")).toContain(`background:${CONFIRM_LAYOUT.scrim}`);
+      expect(rule(css, "#scrim")).toContain("background:var(--scrim)");
+      expect(GLASS.color.scrim).toBe(CONFIRM_LAYOUT.scrim);
       expect(rule(css, "#scrim")).toContain("opacity:0");
       expect(rule(css, "#scrim")).toContain(`transition:opacity ${QUICK_SLIDE_MS}ms`);
       expect(rule(css, "#scrim.in")).toContain("opacity:1");
@@ -359,7 +360,7 @@ describe("the drawer's material", () => {
     expect(drawer).not.toContain("--glass-strong");
     expect(drawer).not.toContain("backdrop-filter");
     expect(drawer).toContain("background:transparent");
-    expect(drawer).toContain("border-radius:calc(36*var(--u))");
+    expect(drawer).toContain("border-radius:var(--radius-r36)");
   });
 
   test("the native glass rect is the panel: 633.6 design units wide, full height, on the right", () => {

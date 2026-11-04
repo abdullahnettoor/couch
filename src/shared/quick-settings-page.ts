@@ -1,5 +1,4 @@
 import { designUnit } from "./design-unit.ts";
-import { CONFIRM_LAYOUT } from "./confirm-layout.ts";
 import { GLASS, lookCss } from "./look.ts";
 import { ICON_PATHS } from "./icons.ts";
 import { rowCss } from "./row-style.ts";
@@ -8,7 +7,7 @@ import { rowCss } from "./row-style.ts";
 export const QUICK_SLIDE_MS = 250;
 
 /** The panel's width and its inner corner radius in design pixels. */
-const DRAWER = { width: 633.6, radius: 36 } as const;
+const DRAWER = { width: 633.6, radius: 36 } as const; // the radius is `--radius-r36` in the Look
 
 /** The panel's rectangle in window points, for the native glass behind it. `r` is the corner radius. */
 export function drawerGlassRect(width: number, height: number) {
@@ -29,27 +28,27 @@ const ICONS = JSON.stringify({
 
 const css = (glass: boolean) => `
 ${lookCss(GLASS, { unit: "var(--u)" })}
-html,body { margin:0; height:100%; background:transparent; overflow:hidden; font-family:-apple-system,"SF Pro Display",system-ui,sans-serif; color:var(--t1); user-select:none; cursor:default; }
+html,body { margin:0; height:100%; background:transparent; overflow:hidden; font-family:var(--font-family-display); color:var(--text-primary); user-select:none; cursor:default; }
 :root { --u: min(100vw / 1920, 100vh / 1080); }
-#scrim { position:fixed; inset:0 ${glass ? `calc(${DRAWER.width}*var(--u)) 0 0` : "0"}; background:${CONFIRM_LAYOUT.scrim}; opacity:0; transition:opacity ${QUICK_SLIDE_MS}ms var(--ease); }
+#scrim { position:fixed; inset:0 ${glass ? `calc(${DRAWER.width}*var(--u)) 0 0` : "0"}; background:var(--scrim); opacity:0; transition:opacity ${QUICK_SLIDE_MS}ms var(--ease); }
 #scrim.in { opacity:1; }
-#drawer { position:fixed; right:0; top:0; bottom:0; width:calc(${DRAWER.width}*var(--u)); box-sizing:border-box; padding:calc(56*var(--u)) calc(36*var(--u)); display:flex; flex-direction:column; gap:calc(12*var(--u)); ${glass ? "background:transparent;" : "background:var(--glass-strong);"} border-radius:calc(${DRAWER.radius}*var(--u)) 0 0 calc(${DRAWER.radius}*var(--u)); ${glass ? "" : "box-shadow:var(--glass-edge), 0 0 calc(90*var(--u)) rgba(0,0,0,.45); backdrop-filter:blur(40px) saturate(1.8);"} transform:translateX(100%); transition:transform ${QUICK_SLIDE_MS}ms var(--ease); }
+#drawer { position:fixed; right:0; top:0; bottom:0; width:calc(${DRAWER.width}*var(--u)); box-sizing:border-box; padding:calc(56*var(--u)) calc(36*var(--u)); display:flex; flex-direction:column; gap:calc(12*var(--u)); ${glass ? "background:transparent;" : "background:var(--glass-strong);"} border-radius:var(--radius-r${DRAWER.radius}) 0 0 var(--radius-r${DRAWER.radius}); ${glass ? "" : "box-shadow:var(--shadow-drawer); backdrop-filter:var(--blur-glass-heavy-fixed);"} transform:translateX(100%); transition:transform ${QUICK_SLIDE_MS}ms var(--ease); }
 #drawer.in { transform:none; }
 ${glass ? "" : "#drawer.media { background:var(--glass-solid); }"}
-h2 { margin:calc(14*var(--u)) calc(10*var(--u)) calc(4*var(--u)); font-size:calc(24*var(--u)); font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--t3); }
-h1 { margin:0 calc(10*var(--u)) calc(8*var(--u)); font-size:calc(44*var(--u)); font-weight:700; }
+h2 { margin:calc(14*var(--u)) calc(10*var(--u)) calc(4*var(--u)); font-size:var(--type-s24); font-weight:var(--weight-semibold); letter-spacing:.04em; text-transform:uppercase; color:var(--text-tertiary); }
+h1 { margin:0 calc(10*var(--u)) calc(8*var(--u)); font-size:var(--type-s44); font-weight:var(--weight-bold); }
 ${rowCss(".row", "var(--u)")}
-.row.note { color:var(--t3); }
+.row.note { color:var(--text-tertiary); }
 .end { margin-top:auto; }
 .row .l { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
 .row svg { width:calc(34*var(--u)); height:calc(34*var(--u)); fill:currentColor; flex:none; }
 .row .l { flex:1; }
 .row .sp { width:calc(34*var(--u)); height:calc(34*var(--u)); }
 .row.vol { gap:calc(12*var(--u)); padding-right:calc(12*var(--u)); }
-.row.vol .num { min-width:calc(110*var(--u)); text-align:center; font-size:calc(36*var(--u)); font-weight:600; font-variant-numeric:tabular-nums; }
-.btn { width:calc(72*var(--u)); height:calc(72*var(--u)); border-radius:var(--r-row); display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.14); }
+.row.vol .num { min-width:calc(110*var(--u)); text-align:center; font-size:var(--type-s36); font-weight:var(--weight-semibold); font-variant-numeric:tabular-nums; }
+.btn { width:calc(72*var(--u)); height:calc(72*var(--u)); border-radius:var(--radius-row); display:flex; align-items:center; justify-content:center; background:var(--press); }
 .btn svg { width:calc(32*var(--u)); height:calc(32*var(--u)); fill:currentColor; }
-.btn.on { background:var(--danger); color:#fff; }
+.btn.on { background:var(--danger); color:var(--text-primary); }
 `;
 
 /**
