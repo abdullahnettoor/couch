@@ -228,6 +228,40 @@ describe("moving through Setup", () => {
   });
 });
 
+describe("⌘Q during Setup", () => {
+  const quits = () => h.mac.calls.filter((c) => c.call === "quit");
+
+  test("Quit Couch? takes the keys over Setup; dismissing it returns to Setup at the same step", async () => {
+    await fresh();
+    h.app.screenCommand({ command: "ok" });
+    h.app.screenCommand({ command: "right" });
+    expect(h.screen.last.setup).toMatchObject({ id: "listener", focus: 1 });
+    h.app.askQuit();
+    expect(h.screen.last.state.confirm).toEqual({
+      title: "Quit Couch?",
+      buttons: ["Cancel", "Quit"],
+      focus: 0,
+    });
+    h.app.screenCommand({ command: "right" });
+    expect(h.screen.last.state.confirm?.focus).toBe(1);
+    h.app.screenCommand({ command: "left" });
+    h.app.screenCommand({ command: "ok" });
+    expect(h.screen.last.state.confirm).toBeUndefined();
+    expect(quits()).toHaveLength(0);
+    expect(h.screen.last.setup).toMatchObject({ id: "listener", focus: 1 });
+
+    h.app.askQuit();
+    h.app.screenCommand({ command: "back" });
+    expect(h.screen.last.state.confirm).toBeUndefined();
+    expect(h.screen.last.setup).toMatchObject({ id: "listener", focus: 1 });
+
+    h.app.askQuit();
+    h.app.screenCommand({ command: "right" });
+    h.app.screenCommand({ command: "ok" });
+    expect(quits()).toHaveLength(1);
+  });
+});
+
 describe("the Listener step", () => {
   const toListener = async () => {
     const store = await fresh();

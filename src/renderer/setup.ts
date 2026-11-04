@@ -72,11 +72,9 @@ export function renderSetup(payload: ScreenPayload): void {
   lastPairing = pairing;
   open();
   const page = build(s, lastPairing);
-  shell!.box.classList.toggle("final", s.final === true);
-  shell!.box.classList.toggle("connected", s.connected === true);
   drawDots(s);
   const turned = before && (before.id !== s.id || before.title !== s.title);
-  swap(page, turned ? Math.sign(s.step - before.step) || 1 : 0);
+  swap(page, turned ? Math.sign(s.step - before.step) || 1 : 0, s);
   if (s.intro && !introPlayed && !before) playIntro();
   else if (before) intro?.skip();
 }
@@ -102,10 +100,12 @@ function open(): void {
   const img = el("img", "");
   img.src = sofa;
   img.alt = "";
-  mark.append(el("i", "s-glow"), img);
+  mark.append(img);
+  const halo = el("div", "s-halo");
+  halo.append(el("i", "s-glow"));
   const stage = el("div", "s-stage");
   const dots = el("div", "dots");
-  box.append(mark, stage, dots);
+  box.append(halo, mark, stage, dots);
   panel.replaceChildren(el("div", "s-veil"), el("div", "s-light"), box);
   shell = { box, stage, dots, mark };
 }
@@ -212,24 +212,55 @@ function update(page: HTMLElement, s: SetupPayload): void {
   });
 }
 
-/** The new page comes in: a crossfade with a slight slide in the direction of travel, and the panel eases to its new height. */
-function swap(next: HTMLElement, direction: number): void {
-  const { box, stage } = shell!;
+type Size = { width: number; height: number };
+/** Layout size, unaffected by the intro's transforms. */
+const size = (node: HTMLElement): Size => ({ width: node.offsetWidth, height: node.offsetHeight });
+
+/** The box's and the mark's running size animations, so a quick second press starts from where they are. */
+let sizing: Animation[] = [];
+
+/**
+ * The new page comes in: a crossfade with a slight slide in the direction of travel. The new layout,
+ * the mark's size included, settles at once and is measured, so the panel and the mark ease from where
+ * they are to where they end up starting in the same frame as the crossfade, never after it.
+ */
+function swap(next: HTMLElement, direction: number, s: SetupPayload): void {
+  const { box, stage, mark } = shell!;
   const old = stage.firstElementChild as HTMLElement | null;
-  const from = box.getBoundingClientRect().height;
+  const from = size(box);
+  const markFrom = size(mark);
+  const markFade = getComputedStyle(mark).opacity;
+  for (const x of sizing) x.cancel();
+  sizing = [];
+  box.classList.remove("s-sizing");
   for (const leaving of stage.querySelectorAll(".s-leaving")) leaving.remove();
-  if (!old || direction === 0) {
-    old?.remove();
-    stage.append(next);
-    return;
-  }
-  old.classList.add("s-leaving");
-  old.removeAttribute("aria-live");
-  for (const node of old.querySelectorAll("[data-i]")) node.removeAttribute("data-i");
+  box.classList.add("s-measure");
+  box.classList.toggle("final", s.final === true);
+  box.classList.toggle("connected", s.connected === true);
+  const turning = old !== null && direction !== 0;
+  if (old && turning) {
+    // The leaving page keeps its own width, centred, while the panel changes size under it.
+    const width = old.offsetWidth;
+    old.classList.add("s-leaving");
+    if (width)
+      Object.assign(old.style, {
+        width: `${width}px`,
+        left: "50%",
+        right: "auto",
+        marginLeft: `${-width / 2}px`,
+      });
+    old.removeAttribute("aria-live");
+    for (const node of old.querySelectorAll("[data-i]")) node.removeAttribute("data-i");
+  } else old?.remove();
   stage.append(next);
-  const to = box.getBoundingClientRect().height;
-  const u = unit();
+  const to = size(box);
+  const markTo = size(mark);
+  const markShow = getComputedStyle(mark).opacity;
+  box.classList.remove("s-measure");
   const still = calm();
+  if (old && !still) resize(box, mark, { from, to, markFrom, markTo, markFade, markShow });
+  if (!old || !turning) return;
+  const u = unit();
   const shift = still ? 0 : 56 * u * direction;
   const out = animate(
     old,
@@ -253,11 +284,46 @@ function swap(next: HTMLElement, direction: number): void {
     ],
     { duration: still ? 300 : 520, delay: 90, easing: EASE, fill: "backwards" },
   );
-  if (!still && Math.abs(to - from) > 1)
-    animate(box, [{ height: `${from}px` }, { height: `${to}px` }], {
-      duration: 520,
-      easing: EASE,
-    });
+}
+
+/** The panel and the mark ease from their old size to the measured new one, clipped to the panel while they move. */
+function resize(
+  box: HTMLElement,
+  mark: HTMLElement,
+  m: { from: Size; to: Size; markFrom: Size; markTo: Size; markFade: string; markShow: string },
+): void {
+  const timing = { duration: 520, easing: EASE };
+  const px = (n: number) => `${n}px`;
+  const moved = (a: number, b: number) => Math.abs(a - b) > 1;
+  if (moved(m.from.height, m.to.height) || moved(m.from.width, m.to.width)) {
+    const run = animate(
+      box,
+      [
+        { width: px(m.from.width), height: px(m.from.height) },
+        { width: px(m.to.width), height: px(m.to.height) },
+      ],
+      timing,
+    );
+    if (run) {
+      box.classList.add("s-sizing");
+      const done = () => {
+        if (sizing.includes(run)) box.classList.remove("s-sizing");
+      };
+      void run.finished.then(done, () => {});
+      sizing.push(run);
+    }
+  }
+  if (moved(m.markFrom.height, m.markTo.height) || m.markFade !== m.markShow) {
+    const run = animate(
+      mark,
+      [
+        { width: px(m.markFrom.width), height: px(m.markFrom.height), opacity: m.markFade },
+        { width: px(m.markTo.width), height: px(m.markTo.height), opacity: m.markShow },
+      ],
+      timing,
+    );
+    if (run) sizing.push(run);
+  }
 }
 
 /**

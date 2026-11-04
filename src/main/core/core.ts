@@ -1789,6 +1789,7 @@ export class Core {
       }
     }
     this.#armAmbient();
+    if (this.#setup.isOpen && this.#confirmCommand(command)) return;
     if (this.#setup.handle(command)) return;
     if (command.command === "openApp") {
       this.#openFromAnywhere(command.args?.app ?? "");
