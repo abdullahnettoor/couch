@@ -30,9 +30,9 @@ const css = (glass: boolean) => `
 ${lookCss(GLASS, { unit: "var(--u)" })}
 html,body { margin:0; height:100%; background:transparent; overflow:hidden; font-family:var(--font-family-display); color:var(--text-primary); user-select:none; cursor:default; }
 :root { --u: min(100vw / 1920, 100vh / 1080); }
-#scrim { position:fixed; inset:0 ${glass ? `calc(${DRAWER.width}*var(--u)) 0 0` : "0"}; background:var(--scrim); opacity:0; transition:opacity ${QUICK_SLIDE_MS}ms var(--ease); }
+#scrim { position:fixed; inset:0 ${glass ? `calc(${DRAWER.width}*var(--u)) 0 0` : "0"}; background:var(--scrim); opacity:0; transition:opacity ${QUICK_SLIDE_MS}ms var(--ease-glass); }
 #scrim.in { opacity:1; }
-#drawer { position:fixed; right:0; top:0; bottom:0; width:calc(${DRAWER.width}*var(--u)); box-sizing:border-box; padding:calc(56*var(--u)) calc(36*var(--u)); display:flex; flex-direction:column; gap:calc(12*var(--u)); ${glass ? "background:transparent;" : "background:var(--glass-strong);"} border-radius:var(--radius-r${DRAWER.radius}) 0 0 var(--radius-r${DRAWER.radius}); ${glass ? "" : "box-shadow:var(--shadow-drawer); backdrop-filter:var(--blur-glass-heavy-fixed);"} transform:translateX(100%); transition:transform ${QUICK_SLIDE_MS}ms var(--ease); }
+#drawer { position:fixed; right:0; top:0; bottom:0; width:calc(${DRAWER.width}*var(--u)); box-sizing:border-box; padding:calc(56*var(--u)) calc(36*var(--u)); display:flex; flex-direction:column; gap:calc(12*var(--u)); ${glass ? "background:transparent;" : "background:var(--glass-strong);"} border-radius:var(--radius-r${DRAWER.radius}) 0 0 var(--radius-r${DRAWER.radius}); ${glass ? "" : "box-shadow:var(--shadow-drawer); backdrop-filter:var(--blur-glass-heavy-fixed);"} transform:translateX(100%); transition:transform ${QUICK_SLIDE_MS}ms var(--ease-glass); }
 #drawer.in { transform:none; }
 ${glass ? "" : "#drawer.media { background:var(--glass-solid); }"}
 h2 { margin:calc(14*var(--u)) calc(10*var(--u)) calc(4*var(--u)); font-size:var(--type-s24); font-weight:var(--weight-semibold); letter-spacing:.04em; text-transform:uppercase; color:var(--text-tertiary); }

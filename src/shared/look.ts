@@ -48,6 +48,10 @@ export interface Look {
     weight: Record<string, string>;
     lineHeight: Record<string, string>;
     letterSpacing: Record<string, string>;
+    /** Sizes relative to the element's own (`em`), for glyphs inside a sized box. */
+    relativeSize: Record<string, string>;
+    /** Line heights in design pixels (`--line-height-s<n>`). */
+    lineHeightSize: Record<string, number>;
   };
   /** Corner radii by role, then `scale`: every radius in use, by design pixel. */
   radius: {
@@ -66,7 +70,18 @@ export interface Look {
   shadow: Record<string, string>;
   blur: Record<string, string>;
   motion: { ease: Record<string, string>; duration: Record<string, string> };
-  focus: { bg: string; fg: string; scale: number; scaleTile: number; lift: number; ring: string };
+  focus: {
+    bg: string;
+    fg: string;
+    scale: number;
+    scaleTile: number;
+    lift: number;
+    ring: string;
+    /** Scales other focused controls use (`--focus-scale-<name>`). */
+    scales: Record<string, number>;
+    /** Backgrounds, text colours and shadows of the focus styles that differ (`--focus-<name>`; `{u}` is the unit). */
+    variant: Record<string, string>;
+  };
   metrics: {
     base: { width: number; height: number };
     row: { height: number; padX: number; font: number; gap: number; valueFont: number };
@@ -224,8 +239,24 @@ export const GLASS: Look = {
       hudHint: 22,
     },
     weight: { regular: "400", medium: "500", semibold: "600", bold: "700" },
-    lineHeight: {},
-    letterSpacing: {},
+    lineHeight: {
+      "100": "1",
+      "105": "1.05",
+      "110": "1.1",
+      "138": "1.38",
+      "140": "1.4",
+      "145": "1.45",
+    },
+    letterSpacing: {
+      "neg-15": "-0.015em",
+      "neg-20": "-0.02em",
+      "neg-25": "-0.025em",
+      "neg-30": "-0.03em",
+      "neg-40": "-0.04em",
+      "pos-20": "0.02em",
+    },
+    relativeSize: { "22": "0.22em", "55": "0.55em" },
+    lineHeightSize: { s45: 45 },
   },
   radius: {
     tile: 22,
@@ -336,6 +367,30 @@ export const GLASS: Look = {
     scaleTile: 1.09,
     lift: 6,
     ring: "0 0 0 calc(5 * {u}) #fff",
+    scales: { row: 1.04, gear: 1.12, dock: 1.08, wallpaper: 1.04, episode: 1.015 },
+    variant: {
+      "bg-danger": "#ff453a",
+      "fg-danger": "#fff",
+      "caption-fg": "#fff",
+      "value-fg": "rgba(0, 0, 0, 0.55)",
+      "value-fg-danger": "rgba(255, 255, 255, 0.8)",
+      "bg-episode": "rgba(255, 255, 255, 0.14)",
+      "bg-field": "rgba(36, 36, 40, 0.72)",
+      "bg-dock-native": "rgba(255, 255, 255, 0.34)",
+      "poster-bg": "rgba(0, 0, 0, 0.12)",
+      "switch-off-bg": "rgba(0, 0, 0, 0.25)",
+      "shadow-pill": "0 calc(20 * {u}) calc(40 * {u}) rgba(0, 0, 0, 0.4)",
+      "shadow-gear": "0 calc(18 * {u}) calc(40 * {u}) rgba(0, 0, 0, 0.5)",
+      "shadow-setup-button":
+        "0 calc(18 * {u}) calc(40 * {u}) rgba(0, 0, 0, 0.4), 0 0 calc(56 * {u}) rgba(255, 255, 255, 0.2)",
+      "shadow-tile": "0 calc(36 * {u}) calc(60 * {u}) rgba(0, 0, 0, 0.6)",
+      "shadow-dock": "0 calc(10 * {u}) calc(26 * {u}) rgba(0, 0, 0, 0.4)",
+      "shadow-dock-native":
+        "inset 0 0 0 calc(1.5 * {u}) rgba(255, 255, 255, 0.45), 0 calc(8 * {u}) calc(22 * {u}) rgba(0, 0, 0, 0.25)",
+      "shadow-field":
+        "inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 0 0 calc(3 * {u}) rgba(255, 255, 255, 0.85), 0 calc(16 * {u}) calc(40 * {u}) rgba(0, 0, 0, 0.45)",
+      "shadow-slider": "0 0 0 calc(3 * {u}) rgba(255, 255, 255, 0.5)",
+    },
   },
   metrics: {
     base: { width: 1920, height: 1080 },
@@ -361,7 +416,7 @@ export interface LookCssOptions {
 
 const kebab = (s: string) => s.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 
-/** The CSS custom properties for a Look, as one rule. Old token names stay as aliases until the rules move over. */
+/** The CSS custom properties for a Look, as one rule. */
 export function lookCss(
   look: Look,
   { selector = ":root", unit, prefix = "", defineUnit = false }: LookCssOptions,
@@ -384,6 +439,8 @@ export function lookCss(
   for (const [k, v] of Object.entries(type.weight)) add(`weight-${k}`, v);
   for (const [k, v] of Object.entries(type.lineHeight)) add(`line-height-${k}`, v);
   for (const [k, v] of Object.entries(type.letterSpacing)) add(`letter-spacing-${k}`, v);
+  for (const [k, n] of Object.entries(type.lineHeightSize)) add(`line-height-${k}`, len(n));
+  for (const [k, v] of Object.entries(type.relativeSize)) add(`type-em-${k}`, v);
 
   add("radius-tile", len(radius.tile));
   add("radius-row", len(radius.row));
@@ -400,6 +457,8 @@ export function lookCss(
   add("focus-scale-tile", String(focus.scaleTile));
   add("focus-lift", len(focus.lift));
   add("focus-ring", sub(focus.ring));
+  for (const [k, n] of Object.entries(focus.scales)) add(`focus-scale-${k}`, String(n));
+  for (const [k, v] of Object.entries(focus.variant)) add(`focus-${k}`, sub(v));
 
   if (defineUnit) add("u", `min(100vw / ${metrics.base.width}, 100vh / ${metrics.base.height})`);
   add("design-width", String(metrics.base.width));
@@ -413,16 +472,6 @@ export function lookCss(
   add("scroll-margin-block", len(metrics.library.scrollMarginBlock));
   add("scroll-margin-edge", len(metrics.library.scrollMarginEdge));
   add("scroll-margin-search", len(metrics.library.scrollMarginSearch));
-
-  // Old names, kept until every rule has moved to the role names above (glass, glass-strong, glass-solid, card, live and danger are the same in both).
-  add("t1", color.textPrimary);
-  add("t2", color.textSecondary);
-  add("t3", color.textTertiary);
-  add("glass-edge", sub(shadow["glass-edge"]!));
-  add("card-2", color.card2);
-  add("ease", motion.ease.glass!);
-  add("r-tile", len(radius.tile));
-  add("r-row", len(radius.row));
 
   return `${selector} { ${out.map(([n, v]) => `--${prefix}${n}: ${v};`).join(" ")} }`;
 }

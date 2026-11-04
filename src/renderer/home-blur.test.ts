@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vite-plus/test";
+import { GLASS } from "../shared/look.ts";
 
 const css = readFileSync(new URL("./home.css", import.meta.url), "utf8");
 /** Every rule written exactly for `selector`, joined. */
@@ -25,11 +26,11 @@ describe("the blur behind the clock (1920 × 1080: 1 u = 1 px)", () => {
 
   test("the clock sits at the shared top and its box is the time, the gap and the date line", () => {
     expect(prop(rule(".h-clock"), "top")).toBe("var(--clock-top)");
-    expect(
-      unit(`calc(${rule(".h-clock .t").match(/font-size: calc\((\d+)/)![1]} * var(--u))`),
-    ).toBe(200);
+    expect(prop(rule(".h-clock .t"), "font-size")).toBe("var(--type-s200)");
+    expect(GLASS.type.size.s200).toBe(200);
     const date = rule(".h-clock .d");
-    expect(height).toBe(200 + unit(prop(date, "margin-top")) + unit(prop(date, "line-height")));
+    expect(prop(date, "line-height")).toBe("var(--line-height-s45)");
+    expect(height).toBe(200 + unit(prop(date, "margin-top")) + GLASS.type.lineHeightSize.s45!);
     expect(top).toBe(210);
   });
 

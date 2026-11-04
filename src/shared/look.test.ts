@@ -1,23 +1,17 @@
 import { describe, expect, it } from "vite-plus/test";
 import { GLASS, lookCss, type Look } from "./look.ts";
 
-/** The output of the retired `glassTokensCss`, frozen here so "no visual change" stays provable. */
+/** The output of the retired `glassTokensCss`, frozen here (less the aliases since removed: `--t1`–`--t3`, `--ease`, `--card-2`, `--r-tile`, `--r-row`, `--glass-edge`) so "no visual change" stays provable. */
 const OLD = {
   colors: {
-    t1: "#fff",
-    t2: "rgba(235, 235, 245, 0.74)",
-    t3: "rgba(235, 235, 245, 0.52)",
     glass: "rgba(44, 44, 48, 0.46)",
     "glass-strong": "rgba(36, 36, 40, 0.72)",
     "glass-solid": "rgba(30, 30, 34, 0.92)",
-    "glass-edge": "inset 0 1px 0 rgba(255, 255, 255, 0.14)",
     card: "#2c2c2e",
-    "card-2": "#48484a",
     live: "#30d158",
     danger: "#ff453a",
-    ease: "cubic-bezier(0.16, 1, 0.3, 1)",
   } as Record<string, string>,
-  radii: { "r-tile": 22, "r-row": 22 } as Record<string, number>,
+  radii: {} as Record<string, number>,
 };
 
 function oldCss(unit: string, prefix = "", selector = ":root"): string {
@@ -81,6 +75,11 @@ describe("lookCss", () => {
       "ease-glass",
       "duration-base",
       "focus-bg",
+      "focus-scale-gear",
+      "focus-shadow-pill",
+      "line-height-140",
+      "letter-spacing-neg-30",
+      "type-em-55",
       "row-height",
       "lib-cols",
       "design-width",
@@ -88,6 +87,17 @@ describe("lookCss", () => {
     ]) {
       expect(joined).toContain(`--x-${p}`);
     }
+  });
+
+  it("writes the focus variants and type tokens with values in use today", () => {
+    const d = declarations(lookCss(GLASS, { unit: "var(--u)" }));
+    expect(d.get("--focus-scale-gear")).toBe("1.12");
+    expect(d.get("--focus-shadow-pill")).toBe(
+      "0 calc(20 * var(--u)) calc(40 * var(--u)) rgba(0, 0, 0, 0.4)",
+    );
+    expect(d.get("--line-height-s45")).toBe("calc(45 * var(--u))");
+    expect(d.get("--letter-spacing-neg-30")).toBe("-0.03em");
+    expect(d.get("--type-em-55")).toBe("0.55em");
   });
 
   it("writes the role colours, the 40 px drawer blur, and the roles TypeScript reads", () => {

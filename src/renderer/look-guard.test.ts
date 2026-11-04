@@ -49,16 +49,37 @@ export function rawValues(css: string): string[] {
       if (!/^(none|0|var\(--[\w-]+\))$/.test(layer)) found.push(`${m[1]}: ${layer}`);
     }
   }
+  for (const m of css.matchAll(
+    /(?:^|[\s;{])(font-size|font-weight|font-family|line-height|letter-spacing|border-radius)\s*:\s*([^;}]+)/g,
+  )) {
+    const value = m[2]!.trim();
+    if (!/^(0|50%|inherit|(var\(--[\w-]+\)\s*)+)$/.test(value)) found.push(`${m[1]}: ${value}`);
+  }
   return found;
 }
 
 describe("the Screen's CSS takes its look from the Look", () => {
   for (const file of FILES) {
-    it(`${file} has no raw colour, shadow, blur, easing or duration`, () => {
+    it(`${file} has no raw colour, shadow, blur, easing, duration, type or radius`, () => {
       const raw = rawValues(read(file)).filter((v) => !ALLOWED[`${file}: ${v}`]);
       expect(raw).toEqual([]);
     });
   }
+
+  it("the guard catches a raw font size, weight, line height, letter spacing and radius", () => {
+    expect(rawValues("a { font-size: calc(22 * var(--u)); }")).toEqual([
+      "font-size: calc(22 * var(--u))",
+    ]);
+    expect(rawValues("a { border-radius: 12px; }")).toEqual(["border-radius: 12px"]);
+    expect(rawValues("a { font-weight: 600; line-height: 1.4; letter-spacing: -0.02em; }")).toEqual(
+      ["font-weight: 600", "line-height: 1.4", "letter-spacing: -0.02em"],
+    );
+    expect(
+      rawValues(
+        "a { font-size: var(--type-s22); border-radius: 50%; letter-spacing: 0; font: inherit; border-radius: var(--a) var(--b); }",
+      ),
+    ).toEqual([]);
+  });
 
   it("the guard catches a raw colour, shadow and blur", () => {
     expect(rawValues("a { color: #abc; }")).toEqual(["#abc"]);
@@ -68,7 +89,9 @@ describe("the Screen's CSS takes its look from the Look", () => {
     ]);
     expect(rawValues("a { backdrop-filter: blur(4px); }")).toEqual(["backdrop-filter: blur(4px)"]);
     expect(rawValues("a { transition: opacity 0.3s; }")).toEqual(["0.3s"]);
-    expect(rawValues("a { box-shadow: var(--glass-edge), none; color: var(--t1); }")).toEqual([]);
+    expect(
+      rawValues("a { box-shadow: var(--shadow-glass-edge), none; color: var(--text-primary); }"),
+    ).toEqual([]);
     expect(rawValues("#setup.setup { color: rgba(var(--warm), 0.3); }")).toEqual([]);
   });
 

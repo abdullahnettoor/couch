@@ -164,14 +164,14 @@
   pointer-events: none;
 }
 .h-clock .t small {
-  font-size: 0.22em;
-  font-weight: 600;
+  font-size: var(--type-em-22);
+  font-weight: var(--weight-semibold);
   letter-spacing: 0;
   margin-left: 0.2em;
   color: var(--text-secondary);
 }
 .topbar .clock small {
-  font-size: 0.55em;
+  font-size: var(--type-em-55);
   margin-left: 0.2em;
   color: var(--text-secondary);
 }
@@ -229,18 +229,18 @@
   width: calc(920 * var(--u));
 }
 .h-hero .k {
-  font-size: calc(30 * var(--u));
-  font-weight: 600;
+  font-size: var(--type-s30);
+  font-weight: var(--weight-semibold);
   color: var(--text-secondary);
   margin-bottom: calc(14 * var(--u));
 }
 .h-hero h1 {
-  font-size: calc(116 * var(--u));
-  line-height: 1.05;
-  letter-spacing: -0.03em;
+  font-size: var(--type-s116);
+  line-height: var(--line-height-105);
+  letter-spacing: var(--letter-spacing-neg-30);
   margin: 0 0 calc(20 * var(--u));
   padding-bottom: calc(4 * var(--u));
-  font-weight: 700;
+  font-weight: var(--weight-bold);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -249,23 +249,23 @@
   overflow-wrap: anywhere;
 }
 .h-hero h1.s1 {
-  font-size: calc(92 * var(--u));
+  font-size: var(--type-s92);
 }
 .h-hero h1.s2 {
-  font-size: calc(76 * var(--u));
+  font-size: var(--type-s76);
 }
 .h-hero .m {
-  font-size: calc(28 * var(--u));
+  font-size: var(--type-s28);
   color: var(--text-secondary);
   display: flex;
   gap: calc(16 * var(--u));
   align-items: center;
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 .h-bar {
   width: calc(200 * var(--u));
   height: calc(6 * var(--u));
-  border-radius: calc(3 * var(--u));
+  border-radius: var(--radius-r3);
   background: var(--rgb-255-255-255-a025);
   overflow: hidden;
 }
@@ -324,7 +324,7 @@
   top: calc(14 * var(--u));
   width: calc(44 * var(--u));
   height: calc(44 * var(--u));
-  border-radius: calc(12 * var(--u));
+  border-radius: var(--radius-r12);
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -341,7 +341,7 @@
   right: calc(18 * var(--u));
   bottom: calc(16 * var(--u));
   height: calc(6 * var(--u));
-  border-radius: calc(3 * var(--u));
+  border-radius: var(--radius-r3);
   background: var(--rgb-255-255-255-a03);
   overflow: hidden;
 }
@@ -352,8 +352,8 @@
 }
 .h-app .g-cap small {
   display: block;
-  font-size: calc(20 * var(--u));
-  font-weight: 500;
+  font-size: var(--type-s20);
+  font-weight: var(--weight-medium);
   color: var(--text-tertiary);
   margin-top: calc(4 * var(--u));
 }
@@ -362,7 +362,7 @@
   height: calc(120 * var(--u));
   margin-top: calc(25 * var(--u));
   background: var(--rgb-255-255-255-a014);
-  border-radius: calc(1 * var(--u));
+  border-radius: var(--radius-r1);
 }
 .h-clock {
   position: absolute;
@@ -370,17 +370,17 @@
   top: var(--clock-top);
 }
 .h-clock .t {
-  font-size: calc(200 * var(--u));
-  font-weight: 600;
-  letter-spacing: -0.04em;
-  line-height: 1;
+  font-size: var(--type-s200);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--letter-spacing-neg-40);
+  line-height: var(--line-height-100);
 }
 .h-clock .d {
-  font-size: calc(36 * var(--u));
+  font-size: var(--type-s36);
   color: var(--text-secondary);
   margin-top: calc(18 * var(--u));
-  line-height: calc(45 * var(--u));
-  font-weight: 500;
+  line-height: var(--line-height-s45);
+  font-weight: var(--weight-medium);
 }
 .home.empty .h-row {
   bottom: calc(120 * var(--u));
@@ -403,26 +403,26 @@
   width: calc(220 * var(--u));
   padding: calc(15 * var(--u));
   box-sizing: border-box;
-  border-radius: calc(28 * var(--u));
+  border-radius: var(--radius-r28);
   background: var(--glass);
   backdrop-filter: var(--blur-60px-saturate-1-8);
-  box-shadow: var(--glass-edge);
-  font-size: calc(20 * var(--u));
+  box-shadow: var(--shadow-glass-edge);
+  font-size: var(--type-s20);
   color: var(--text-secondary);
   text-align: center;
 }
 .h-qr .qr svg {
   display: block;
   width: 100%;
-  border-radius: calc(16 * var(--u));
+  border-radius: var(--radius-r16);
 }
 .h-qr .c {
   margin-top: calc(12 * var(--u));
 }
 .h-hero .ov {
   margin: 0 0 calc(18 * var(--u));
-  font-size: calc(26 * var(--u));
-  line-height: 1.4;
+  font-size: var(--type-s26);
+  line-height: var(--line-height-140);
   color: var(--text-secondary);
   display: -webkit-box;
   -webkit-line-clamp: 2;

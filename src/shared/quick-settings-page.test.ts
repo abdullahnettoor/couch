@@ -239,7 +239,7 @@ describe("the Quick settings page", () => {
     expect(rule).toMatch(/right:0/);
     expect(rule).not.toMatch(/(^|[;\s])left:/);
     expect(rule).toMatch(/translateX\(100%\)/);
-    expect(rule).toMatch(/transition:transform 250ms var\(--ease\)/);
+    expect(rule).toMatch(/transition:transform 250ms var\(--ease-glass\)/);
     expect(rule).toMatch(/border-radius:var\(--radius-r36\) 0 0 var\(--radius-r36\)/);
   });
 });
@@ -247,11 +247,11 @@ describe("the Quick settings page", () => {
 describe("the drawer page's design tokens", () => {
   const renderer = rootProps(lookCss(GLASS, { unit: "var(--u)", defineUnit: true }));
 
-  test("--r-row resolves on the root to the renderer's own value, so rows are rounded", () => {
+  test("--radius-row resolves on the root to the renderer's own value, so rows are rounded", () => {
     const drawer = rootProps(pageCss());
-    expect(renderer.get("--r-row")).toBe("calc(22 * min(100vw / 1920, 100vh / 1080))");
-    expect(drawer.get("--r-row")).toBe(renderer.get("--r-row"));
-    expect(drawer.get("--r-tile")).toBe(renderer.get("--r-tile"));
+    expect(renderer.get("--radius-row")).toBe("calc(22 * min(100vw / 1920, 100vh / 1080))");
+    expect(drawer.get("--radius-row")).toBe(renderer.get("--radius-row"));
+    expect(drawer.get("--radius-tile")).toBe(renderer.get("--radius-tile"));
   });
 
   test("the rows, buttons and panel all take their radius from tokens that resolve", () => {

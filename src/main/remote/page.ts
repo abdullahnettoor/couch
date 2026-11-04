@@ -214,10 +214,10 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 <div class="sheet" id="ask" hidden>
   <div class="form" role="dialog" aria-labelledby="ask-title">
     <b id="ask-title" style="font-size:19px"></b>
-    <span id="ask-body" style="color:var(--t3);font-size:15px;white-space:pre-line"></span>
+    <span id="ask-body" style="color:var(--text-tertiary);font-size:15px;white-space:pre-line"></span>
     <div class="tiles" id="ask-tiles" hidden></div>
     <div class="stack" id="ask-btns"></div>
-    <span id="ask-foot" style="color:var(--t3);font-size:13px" hidden></span>
+    <span id="ask-foot" style="color:var(--text-tertiary);font-size:13px" hidden></span>
     <div class="btns" id="ask-nav" hidden><button type="button" class="k txt" data-cmd="back" aria-label="Back">Back</button><button type="button" class="k txt" data-cmd="home" aria-label="Home">Home</button></div>
   </div>
 </div>
