@@ -200,7 +200,7 @@ export function render(payload: ScreenPayload): void {
   view.classList.toggle("empty", videos.length === 0);
   view.classList.toggle("film", !!hero);
   view.classList.toggle("ambient", !!payload.ambient);
-  view.classList.toggle("setup", !!payload.setup);
+  view.classList.toggle("in-setup", !!payload.setup);
   view.classList.toggle("no-art", payload.home?.artwork === false);
   // Under the Wallpaper page's blurred panel a moving Home is re-blurred every frame; hold it still there.
   view.classList.toggle("still", payload.state.view === "settingsHome");

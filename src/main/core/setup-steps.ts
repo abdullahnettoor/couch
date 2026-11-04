@@ -9,6 +9,8 @@ export interface SetupButton {
 export interface SetupContext {
   /** Phones connected right now. */
   phones: number;
+  /** A phone has paired with this Mac at some point. */
+  phonePaired: boolean;
   /** A phone has just connected on this step, which is about to move on. */
   justConnected: boolean;
   /** "Add another phone" was pressed on the pairing step. */
@@ -55,6 +57,8 @@ export interface SetupStep {
   page(ctx: SetupContext, c: SetupControls): SetupPage;
   /** The choice behind this step has been made (a phone paired, a folder added), so Setup resumes past it. */
   done(ctx: SetupContext, c: SetupControls): boolean;
+  /** A phone connecting while this step shows moves Setup on (after saying so). */
+  advanceOnPhone?: true;
   /** The last step: it closes Setup itself, with no Skip or Set up later beside it. */
   final?: true;
 }
@@ -67,13 +71,14 @@ export const SETUP_STEPS: SetupStep[] = [
     done: () => false,
     page: () => ({
       title: "Welcome to Couch",
-      body: "Your Mac, made into a TV. Your phone is the remote.",
+      body: "Your Mac, made into a TV. Your phone is the Remote.",
       buttons: [{ label: "Use the Mac's keyboard or mouse for now", run: next }],
     }),
   },
   {
     id: "pair",
-    done: () => false,
+    advanceOnPhone: true,
+    done: ({ phonePaired }) => phonePaired,
     page: ({ phones, justConnected, addingPhone }) => {
       if (justConnected)
         return { title: "Phone connected", buttons: [{ label: "Continue", run: next }] };

@@ -1,5 +1,6 @@
 import { confirmMouseCommand, describeConfirm } from "../shared/confirm-layout.ts";
 import type { ScreenPayload } from "../shared/protocol.ts";
+import { setupControls } from "../shared/setup-controls.ts";
 import { qrSvg } from "./views/dom.ts";
 
 const panel = document.getElementById("setup")!;
@@ -58,7 +59,8 @@ export function renderSetup(payload: ScreenPayload): void {
     }
     box.append(list);
   }
-  const lead = s.switches?.length ?? 0;
+  const controls = setupControls(s);
+  const lead = controls.filter((c) => c.on !== undefined).length;
   if (s.switches?.length) {
     const list = document.createElement("div");
     list.className = "switches";

@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { readFileSync } from "node:fs";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 import type { Command, ScreenPayload, SetupPayload } from "../shared/protocol.ts";
 
@@ -174,5 +175,20 @@ describe("the Apps step's switches", () => {
       { command: "confirmAt", args: { index: 0 } },
       { command: "confirmAt", args: { index: 2 } },
     ]);
+  });
+});
+
+describe("Home under Setup", () => {
+  const read = (f: string) => readFileSync(new URL(f, import.meta.url), "utf8");
+  const css = read("./glass.css");
+
+  test("only the panel is hidden when it is closed; Home takes its own modifier, so its wallpaper stays", () => {
+    const home = read("./views/home.ts");
+    expect(home).toContain('toggle("in-setup"');
+    expect(home).not.toContain('toggle("setup"');
+    expect(css).not.toMatch(/\.home\.setup/);
+    const hides = /\.home\.in-setup[^{]*\{[^}]*display: none/.exec(css)?.[0] ?? "";
+    expect(hides).not.toContain(".h-photo");
+    expect(css).not.toMatch(/\n\.setup \{[^}]*opacity: 0/);
   });
 });

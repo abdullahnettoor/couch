@@ -1,5 +1,6 @@
 import { glassTokensCss } from "../../shared/glass-tokens.ts";
 import { ICON_MARKUP } from "../../shared/icons.ts";
+import { setupControls } from "../../shared/setup-controls.ts";
 import { trackCode } from "../../shared/track-code.ts";
 
 /** Back, Home and Mute: the top of Now Playing, its D-pad view and the idle Remote; `p` keeps the Back ids apart. */
@@ -181,6 +182,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .sheet .btns .k.hero { background:#fff; }
   .sheet .stack { display:grid; gap:10px; }
   .sheet .stack .k { background:var(--card-2); border-radius:16px; min-height:56px; font-size:17px; padding:0 16px; }
+  .sheet .stack .k.sw { display:flex; align-items:center; justify-content:space-between; }
   .sheet .stack .k.hero { background:#fff; color:#000; }
 </style>
 </head>
@@ -205,6 +207,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     <b id="ask-title" style="font-size:19px"></b>
     <span id="ask-body" style="color:var(--t3);font-size:15px;white-space:pre-line"></span>
     <div class="stack" id="ask-btns"></div>
+    <div class="btns" id="ask-nav" hidden><button type="button" class="k txt" data-cmd="back" aria-label="Back">Back</button><button type="button" class="k txt" data-cmd="home" aria-label="Home">Home</button></div>
   </div>
 </div>
 <div class="ptoast" id="phone-toast" role="status" aria-live="polite"></div>
@@ -317,6 +320,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   function esc(t) { return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
   function speedLabel(x) { return x + "×"; }
   var trackCode = __TRACK_CODE__;
+  var setupControls = __SETUP_CONTROLS__;
   function current(tracks) {
     return (tracks || []).filter(function (t) { return t.on; })[0];
   }
@@ -481,13 +485,15 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       $("cw-app").hidden = !cc.app;
     }
     var su = s.setup;
-    var q = su ? { title: su.title, body: [su.body].concat(su.tips || []).filter(Boolean).join("\n"), buttons: su.buttons, focus: su.focus, key: su.id } : s.confirm && s.confirm.phone ? s.confirm : null;
+    var q = su ? { title: su.title, body: [su.body].concat(su.list || [], su.tips || []).filter(Boolean).join("\n"), controls: setupControls(su), focus: su.focus, key: su.id } : s.confirm && s.confirm.phone ? { title: s.confirm.title, body: s.confirm.body, controls: s.confirm.buttons.map(function (b) { return { label: b }; }), focus: s.confirm.focus } : null;
     $("ask").hidden = !q;
+    $("ask-nav").hidden = !su;
     if (q) {
       $("ask-title").textContent = q.title;
       $("ask-body").textContent = q.body || "";
-      $("ask-btns").innerHTML = q.buttons.map(function (b, i) {
-        return '<button type="button" class="k txt' + (i === q.focus ? " hero" : "") + '" data-cmd="confirmAnswer" data-args="' + esc(JSON.stringify({ index: i, text: q.key || q.title })) + '">' + esc(b) + "</button>";
+      $("ask-btns").innerHTML = q.controls.map(function (c, i) {
+        var state = c.on === undefined ? "" : '<span>' + (c.on ? "On" : "Off") + "</span>";
+        return '<button type="button" class="k txt' + (i === q.focus ? " hero" : "") + (c.on === undefined ? "" : " sw") + '" data-cmd="confirmAnswer" data-args="' + esc(JSON.stringify({ index: i, text: q.key || q.title })) + '">' + esc(c.label) + state + '</button>';
       }).join("");
     }
     $("playback-note").hidden = !s.playbackNote;
@@ -827,4 +833,5 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .replace("__VPILL_ID__", vpill("id"))
   .replace("__ICONS__", JSON.stringify(ICON_MARKUP))
   .replace("__TRACK_CODE__", () => trackCode.toString())
+  .replace("__SETUP_CONTROLS__", () => setupControls.toString())
   .replace("__TOKENS__", glassTokensCss({ unit: "1px" }));

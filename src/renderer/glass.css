@@ -276,13 +276,13 @@ svg.i {
   color: #fff;
   background: var(--glass-strong);
 }
-.home.setup .h-clock,
-.home.setup .h-hero,
-.home.setup .h-chrome,
-.home.setup .h-bg {
+.home.in-setup .h-clock,
+.home.in-setup .h-hero,
+.home.in-setup .h-chrome,
+.home.in-setup .h-bg {
   display: none;
 }
-.setup {
+#setup.setup {
   position: fixed;
   inset: 0;
   display: grid;
@@ -292,7 +292,7 @@ svg.i {
   transition: opacity 0.25s var(--ease);
   z-index: 35;
 }
-.setup.show {
+#setup.setup.show {
   opacity: 1;
   pointer-events: auto;
 }

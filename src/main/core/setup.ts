@@ -27,6 +27,8 @@ export interface SetupHost {
   version(): string;
   /** Phones connected right now. */
   phones(): number;
+  /** A phone has paired with this Mac at some point (kept in the pairing record). */
+  phonePaired(): boolean;
   /** The Library folders already added. */
   folders(): string[];
   /** Opens the Mac's folder picker and adds what it returns, as Settings → Library does. */
@@ -179,7 +181,8 @@ export class Setup {
     if (!b) return false;
     this.#before = undefined;
     this.#steps = b.steps;
-    this.#open = b.open;
+    // The update's panel waits for the next start; finishing a re-run must not pop it open at once.
+    this.#open = b.open && !b.whatsNew;
     this.#whatsNew = b.whatsNew;
     this.#seen = b.seen;
     this.#goTo(Math.min(b.index, b.steps.length - 1));
@@ -217,6 +220,7 @@ export class Setup {
   #ctx(): SetupContext {
     return {
       phones: this.#h.phones(),
+      phonePaired: this.#h.phonePaired(),
       justConnected: this.#justConnected,
       addingPhone: this.#addingPhone,
       apps: this.#h.apps,
@@ -225,23 +229,20 @@ export class Setup {
     };
   }
 
-  /** A phone connected: on the pairing step, say so and move on about 1.5 s later. */
+  /** A phone connected: on a step that waits for one, say so and move on about 1.5 s later. */
   phoneConnected(): void {
-    if (!this.#open) return;
-    this.#seen.add("pair");
-    this.#save(false);
-    if (this.#steps[this.#index]!.id !== "pair" || this.#justConnected) return;
+    if (!this.#open || !this.#steps[this.#index]!.advanceOnPhone || this.#justConnected) return;
     this.#justConnected = true;
     this.#cancelAdvance = this.#h.later(() => {
       this.#cancelAdvance = undefined;
-      if (this.#open && this.#steps[this.#index]!.id === "pair") this.#next();
+      if (this.#open && this.#steps[this.#index]!.advanceOnPhone) this.#next();
       this.#h.changed();
     }, 1500);
     this.#h.changed();
   }
 
-  /** The switches, then the buttons: one list for focus, and the Screen's `index`. */
-  #buttons(): Array<{ label: string; run(): void }> {
+  /** The switches, then the buttons: the one list that focus and every `index` (Screen or phone) count in. */
+  #controls(): Array<{ label: string; run(): void }> {
     const step = this.#steps[this.#index]!;
     const page = step.page(this.#ctx(), this.#control);
     const switches = (page.switches ?? []).map((s) => ({ label: s.label, run: () => s.toggle() }));
@@ -283,7 +284,7 @@ export class Setup {
       step: this.#index,
       steps: this.#steps.length,
       ...(switches.length ? { switches: switches.map((x) => ({ label: x.label, on: x.on })) } : {}),
-      buttons: this.#buttons()
+      buttons: this.#controls()
         .slice(switches.length)
         .map((b) => b.label),
       focus: this.#focus,
@@ -294,33 +295,34 @@ export class Setup {
   handle(command: Command): boolean {
     if (!this.isOpen || !TAKEN.includes(command.command)) return false;
     if (this.#whatsNew && command.command === "resume") return false;
-    const buttons = this.#buttons();
+    const controls = this.#controls();
     const index = command.args?.index;
     const valid =
-      index !== undefined && Number.isInteger(index) && index >= 0 && index < buttons.length;
+      index !== undefined && Number.isInteger(index) && index >= 0 && index < controls.length;
     switch (command.command) {
       case "focusAt": {
         const c = command.args?.c;
-        if (c !== undefined && Number.isInteger(c) && c >= 0 && c < buttons.length) this.#focus = c;
+        if (c !== undefined && Number.isInteger(c) && c >= 0 && c < controls.length)
+          this.#focus = c;
         break;
       }
       case "confirmAt":
-        if (valid) this.#press(buttons, index);
+        if (valid) this.#press(controls, index);
         break;
       case "confirmAnswer":
         if (valid && command.args?.text === this.#steps[this.#index]!.id)
-          this.#press(buttons, index + this.#switchCount());
+          this.#press(controls, index);
         break;
       case "left":
       case "up":
-        this.#move(-1, buttons.length);
+        this.#move(-1, controls.length);
         break;
       case "right":
       case "down":
-        this.#move(1, buttons.length);
+        this.#move(1, controls.length);
         break;
       case "ok":
-        this.#press(buttons, this.#focus);
+        this.#press(controls, this.#focus);
         break;
       case "back":
         if (this.#index === 0) this.#h.cue("blocked");
@@ -337,13 +339,9 @@ export class Setup {
     return true;
   }
 
-  #switchCount(): number {
-    return this.#steps[this.#index]!.page(this.#ctx(), this.#control).switches?.length ?? 0;
-  }
-
-  #press(buttons: Array<{ run(): void }>, index: number): void {
+  #press(controls: Array<{ run(): void }>, index: number): void {
     this.#h.cue("select");
-    buttons[index]?.run();
+    controls[index]?.run();
   }
 
   #move(delta: number, count: number): void {

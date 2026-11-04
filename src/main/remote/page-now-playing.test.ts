@@ -748,6 +748,56 @@ describe("a question with answers on the phone", () => {
   });
 });
 
+describe("Setup on the phone", () => {
+  const apps = {
+    id: "apps",
+    title: "Which Apps show on Home?",
+    body: "Each one can be changed later in Settings.",
+    step: 3,
+    steps: 6,
+    switches: [
+      { label: "YouTube", on: true },
+      { label: "Netflix", on: false },
+    ],
+    buttons: ["Continue", "Skip", "Set up later"],
+    focus: 2,
+  };
+  const show = (setup: unknown) =>
+    page.send({ ...page.base, layout: "home", where: "Home", typeAvailable: false, setup });
+  const args = () =>
+    [...page.els.get("ask-btns")!.innerHTML.matchAll(/data-args="([^"]*)"/g)].map((m) =>
+      JSON.parse(m[1]!.replace(/&quot;/g, '"').replace(/&amp;/g, "&")),
+    );
+
+  test("draws the switches and then the buttons, one index space, the focused one highlighted", () => {
+    show(apps);
+    const html = page.els.get("ask-btns")!.innerHTML;
+    expect(html.match(/<button/g)).toHaveLength(5);
+    expect(html).toContain("YouTube");
+    expect(html).toContain("On");
+    expect(html).toContain("Off");
+    expect(args()).toEqual([0, 1, 2, 3, 4].map((index) => ({ index, text: "apps" })));
+    expect(html.match(/hero/g)).toHaveLength(1);
+    expect(html.indexOf("hero")).toBeGreaterThan(html.indexOf("Netflix"));
+    expect(html.indexOf("hero")).toBeLessThan(html.indexOf("Continue"));
+  });
+
+  test("lists the folders already added", () => {
+    show({ ...apps, id: "videos", switches: undefined, list: ["/Movies", "/Shows"], focus: 0 });
+    expect(page.els.get("ask-body")!.textContent).toContain("/Movies");
+    expect(page.els.get("ask-body")!.textContent).toContain("/Shows");
+  });
+
+  test("keeps Back and Home reachable, only while Setup shows", () => {
+    show(apps);
+    const nav = page.els.get("ask-nav")!;
+    expect(nav.hidden).toBe(false);
+    expect(PAGE_HTML).toMatch(/id="ask-nav"[\s\S]*data-cmd="back"[\s\S]*data-cmd="home"/);
+    show(undefined);
+    expect(nav.hidden).toBe(true);
+  });
+});
+
 describe("the Apps row", () => {
   const icon = (n: string) => `<svg class="i" data-n="${n}"></svg>`;
   const apps = ["YouTube", "Netflix", "Library"].map((label) => ({

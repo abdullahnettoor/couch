@@ -490,6 +490,7 @@ export class Core {
         turnListenerOn: () => void this.#turnListenerOn(),
         usedBefore: () => this.#usedBefore(),
         phones: () => this.#remotes.size,
+        phonePaired: () => this.#phonePaired(),
         folders: () => this.#libraryFolders,
         addFolder: () => this.#addFolder(),
         anyAppOn: () => this.#homeApps.shownIds().some((id) => id !== "library"),
@@ -523,17 +524,22 @@ export class Core {
     return this.#state.view === "app" ? this.#apps.get(this.#state.app ?? "") : undefined;
   }
 
-  /** Couch has been used before: a pairing from an earlier start, Library folders, or watch history (Library or Continue watching for Apps). */
+  /** Couch has been used before: a phone that paired earlier, Library folders, or watch history (Library or Continue watching for Apps). */
   #usedBefore(): boolean {
     const store = this.#ports.store;
     const some = (v: unknown) =>
       typeof v === "object" && v !== null && Object.keys(v as object).length > 0;
     return (
-      store.read("pairing", undefined) !== undefined ||
+      this.#phonePaired() ||
       some(store.read<{ folders?: unknown }>("library", {}).folders) ||
       some(store.read<{ items?: unknown }>("history", {}).items) ||
       some(store.read<{ items?: unknown }>("continue-apps", {}).items)
     );
+  }
+
+  /** A phone has paired at some point; the pairing record only exists from the first start, so it alone says nothing. */
+  #phonePaired(): boolean {
+    return this.#ports.store.read<{ phonesPaired?: unknown }>("pairing", {}).phonesPaired === true;
   }
 
   #newKey(): string {
@@ -1713,6 +1719,8 @@ export class Core {
     this.#remotes.add(remote);
     this.#state.remotes = this.#remotes.size;
     this.#toast("Phone connected");
+    if (!this.#phonePaired())
+      this.#ports.store.write("pairing", { key: this.#key, phonesPaired: true });
     this.#setup.phoneConnected();
     this.#emit();
   }
