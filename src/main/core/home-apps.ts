@@ -24,25 +24,33 @@ interface Stored {
 /**
  * Every App in the household's order with whether Home shows it (Store key `home.apps`, the file
  * `home.apps.json`). Startup and Core both read it here, so they always agree:
- * new Apps go last and shown, unknown ids are dropped, hidden applies only to ids in the stored
- * order, and when everything is hidden the first App is shown.
+ * new Apps go last, shown only if they are on by default, unknown ids are dropped, hidden applies only
+ * to ids in the stored order, and every App may be hidden.
  */
 export function resolveHomeApps(
   store: Store,
-  catalog: Array<Pick<AppEntry, "id" | "label" | "icon">>,
+  catalog: Array<Pick<AppEntry, "id" | "label" | "icon" | "onByDefault">>,
 ): HomeAppRow[] {
   const raw = store.read<Partial<Stored> | null>(KEY, {}) ?? {};
   const list = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string") : []);
   const byId = new Map(catalog.map((k) => [k.id, k]));
   const ids = [...new Set<string>(list(raw.order))].filter((id) => byId.has(id));
   const hidden = new Set(list(raw.hidden).filter((id) => ids.includes(id)));
-  for (const k of catalog) if (!ids.includes(k.id)) ids.push(k.id);
-  const rows = ids.map((id) => {
+  const added = new Set<string>();
+  for (const k of catalog)
+    if (!ids.includes(k.id)) {
+      ids.push(k.id);
+      added.add(k.id);
+    }
+  return ids.map((id) => {
     const k = byId.get(id)!;
-    return { id, label: k.label, icon: k.icon, shown: !hidden.has(id) };
+    return {
+      id,
+      label: k.label,
+      icon: k.icon,
+      shown: added.has(id) ? k.onByDefault === true : !hidden.has(id),
+    };
   });
-  if (rows.length && !rows.some((r) => r.shown)) rows[0]!.shown = true;
-  return rows;
 }
 
 const LIBRARY_VIEWS: View[] = [
@@ -133,10 +141,6 @@ export class HomeApps {
     const rows = this.rows();
     const row = rows.find((r) => r.id === id);
     if (!row || row.shown === shown) return !!row;
-    if (!shown && rows.filter((r) => r.shown).length <= 1) {
-      this.#h.toast("Keep at least one App on Home");
-      return false;
-    }
     row.shown = shown;
     this.#save(rows);
     if (!shown) this.#h.hidden(id);

@@ -217,7 +217,7 @@ describe("Home Apps: choose and order", () => {
     expect(homeLabels()).toEqual(["Library", "Netflix"]);
   });
 
-  test("the last shown App can't be hidden", async () => {
+  test("every App can be hidden, and Home shows no App tiles", async () => {
     h = await startHarness();
     const phone = await h.connectPhone();
     await openMenu(phone, "YouTube");
@@ -230,10 +230,9 @@ describe("Home Apps: choose and order", () => {
     await focusLabel(phone, "Library");
     await phone.press("ok");
     await pick(phone, "Hide from Home");
-    expect(h.screen.last.state.toast).toBe("Keep at least one App on Home");
-    expect(labels()[0]).toBe("Hide from Home");
+    await phone.press("back");
     await toHome(phone);
-    expect(homeLabels()).toEqual(["Library"]);
+    expect(homeLabels()).toEqual([]);
   });
 
   test("a hidden App has no tile to open, and the others still open", async () => {
@@ -296,14 +295,14 @@ describe("Home Apps: choose and order", () => {
 describe("resolveHomeApps (startup and Core)", () => {
   const catalog = APP_ENTRIES;
 
-  test("all-hidden storage resolves to one shown App", () => {
+  test("all-hidden storage stays all hidden", () => {
     const store = new MemoryStore();
     store.write("home.apps", {
       order: ["netflix", "youtube", "library"],
       hidden: ["netflix", "youtube", "library"],
     });
     const rows = resolveHomeApps(store, catalog);
-    expect(rows.filter((r) => r.shown).map((r) => r.id)).toEqual(["netflix"]);
+    expect(rows.filter((r) => r.shown)).toEqual([]);
   });
 
   test("Core's Home agrees with the resolver on all-hidden storage", async () => {
@@ -319,7 +318,7 @@ describe("resolveHomeApps (startup and Core)", () => {
         .filter((r) => r.shown)
         .map((r) => r.label),
     );
-    expect(homeLabels()).toEqual(["Netflix"]);
+    expect(homeLabels()).toEqual([]);
   });
 
   test("an id missing from the stored order is appended and shown, even if stored hidden", () => {
@@ -368,13 +367,13 @@ describe("HomeApps module boundary", () => {
     expect(apps.isShown("youtube")).toBe(false);
   });
 
-  test("hiding the last shown App is refused with a toast and no hidden call", () => {
+  test("hiding the last shown App is allowed", () => {
     const { apps, log } = make({
       order: ["youtube", "netflix", "library"],
       hidden: ["netflix", "library"],
     });
-    expect(apps.setShown("youtube", false)).toBe(false);
-    expect(log).toEqual(["toast:Keep at least one App on Home"]);
+    expect(apps.setShown("youtube", false)).toBe(true);
+    expect(log).toEqual(["hidden:youtube", "changed"]);
   });
 
   test("a hidden App isn't shown, so core can't open it; an unknown id isn't shown either", () => {

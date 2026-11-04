@@ -13,6 +13,11 @@ export interface SetupContext {
   justConnected: boolean;
   /** "Add another phone" was pressed on the pairing step. */
   addingPhone: boolean;
+  /** Home's Apps: the same setting as Settings → Apps. */
+  apps: {
+    rows(): Array<{ id: string; label: string; shown: boolean }>;
+    setShown(id: string, shown: boolean): void;
+  };
   /** The Library folders already added. */
   folders: string[];
   /** Whether any App is on for Home (the Library is not an App). */
@@ -30,6 +35,14 @@ export interface SetupPage {
   skip?: string;
   /** The step's own answers, before the Skip and Set up later every step ends with. */
   buttons: SetupButton[];
+  /** On/off rows ahead of the buttons; Up and Down move through them, OK flips one. */
+  switches?: SetupSwitch[];
+}
+
+export interface SetupSwitch {
+  label: string;
+  on: boolean;
+  toggle(): void;
 }
 
 /**
@@ -39,9 +52,9 @@ export interface SetupPage {
  */
 export interface SetupStep {
   id: string;
-  page(ctx: SetupContext): SetupPage;
+  page(ctx: SetupContext, c: SetupControls): SetupPage;
   /** The choice behind this step has been made (a phone paired, a folder added), so Setup resumes past it. */
-  done(ctx: SetupContext): boolean;
+  done(ctx: SetupContext, c: SetupControls): boolean;
   /** The last step: it closes Setup itself, with no Skip or Set up later beside it. */
   final?: true;
 }
@@ -81,6 +94,45 @@ export const SETUP_STEPS: SetupStep[] = [
         buttons: [],
       };
     },
+  },
+  {
+    id: "listener",
+    done: (_ctx, c) => c.listenerOn(),
+    page: (_ctx, c) =>
+      c.listenerOn()
+        ? {
+            title: "Couch is on from your phone",
+            body: "The phone's Power button can start Couch when it's closed.",
+            buttons: [{ label: "Continue", run: next }],
+          }
+        : {
+            title: "Turn Couch on from your phone?",
+            body: "Then the phone's Power button can start Couch when it's closed.",
+            buttons: [
+              {
+                label: "Yes",
+                run: (c) => {
+                  c.turnListenerOn();
+                  c.next();
+                },
+              },
+              { label: "No", run: next },
+            ],
+          },
+  },
+  {
+    id: "apps",
+    done: () => false,
+    page: ({ apps }) => ({
+      title: "Which Apps show on Home?",
+      body: "Each one can be changed later in Settings.",
+      switches: apps.rows().map((row) => ({
+        label: row.label,
+        on: row.shown,
+        toggle: () => apps.setShown(row.id, !row.shown),
+      })),
+      buttons: [{ label: "Continue", run: next }],
+    }),
   },
   {
     id: "videos",
