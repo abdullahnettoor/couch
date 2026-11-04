@@ -59,10 +59,11 @@ import { History } from "./history.ts";
 import { ContinueApps, fromStartUrl, titleId, titleKey } from "./continue-apps.ts";
 import { ContinueArt, type ArtFetch } from "./continue-art.ts";
 import { ShowView } from "./show-view.ts";
-import { AddonsPage } from "./addons-page.ts";
+import { AddonsPage } from "./pages/addons-page.ts";
+import type { Page, PageContext } from "./pages/page.ts";
 import { APPS_MENU_KEY, HomeApps, leavesOnHide } from "./home-apps.ts";
 import { DetailsPage } from "./details-page.ts";
-import { AboutPage } from "./about-page.ts";
+import { AboutPage } from "./pages/about-page.ts";
 import type { Updates } from "../ports/updates.ts";
 import { HomePage } from "./home-page.ts";
 import type { WallpaperPorts } from "../ports/pictures.ts";
@@ -262,6 +263,8 @@ export class Core {
   #about: AboutPage;
   #offUpdates: () => void;
   #addonsPage: AddonsPage;
+  /** The Pages by view. A view with no Page yet falls back to the branches in this class. */
+  #pages = new Map<View, Page>();
   #homePage: HomePage;
   #homeApps: HomeApps;
   /** Apps whose Couch-Chromium sign-in exists, asked each time their menu opens. */
@@ -419,26 +422,32 @@ export class Core {
         this.#emit();
       },
     });
-    this.#addonsPage = new AddonsPage({
+    const pageContext: PageContext = {
+      state: this.#state,
+      go: (view) => this.#setView(view),
+      toast: (text) => this.#toast(text),
+      ask: (title, buttons, answers, more) => this.#ask(title, buttons, answers, more),
+      cue: (sound) => this.#cue(sound),
+      emit: () => this.#emit(),
+    };
+    this.#addonsPage = new AddonsPage(pageContext, {
       store: ports.store,
       apply: (app, ids, note) => this.#apps.get(app)?.setAddons?.(ids, note),
       isFront: (app) => this.#front()?.id === app,
-      toast: (text) => this.#toast(text),
-      changed: () => this.#emit(),
     });
-    this.#about = new AboutPage({
+    this.#about = new AboutPage(pageContext, {
       updates: ports.updates,
-      ask: (title, buttons, answers, more) => this.#ask(title, buttons, answers, more),
       restart: () => {
         this.savePlayingPosition();
         ports.updates.restart();
       },
-      toast: (text) => this.#toast(text),
       runSetup: () => {
         this.#setView("home");
         this.#setup.rerun();
       },
     });
+    this.#pages.set("about", this.#about);
+    this.#pages.set("addons", this.#addonsPage);
     this.#offUpdates = ports.updates.onChange(() => this.#emit());
     this.#detailsPage = new DetailsPage(this.#state, {
       details: this.details,
@@ -886,6 +895,8 @@ export class Core {
       grid = gridFor();
       return grid;
     }
+    const page = this.#pages.get(this.#state.view);
+    if (page) return page.grid();
     if (this.#state.view === "player") return this.#controls.grid();
     if (this.#state.view === "details") return this.#detailsPage.grid();
     if (this.#state.view === "soundOutput") {
@@ -893,8 +904,6 @@ export class Core {
       return [...devices, this.#uiSounds.row(devices.length)];
     }
     if (this.#state.view === "settingsHome") return this.#homePage.grid();
-    if (this.#state.view === "about") return this.#about.grid();
-    if (this.#state.view === "addons") return this.#addonsPage.grid();
     if (this.#state.view === "settingsApps")
       return this.#homeApps.menuId
         ? this.#homeApps.menuGrid()
@@ -1471,11 +1480,9 @@ export class Core {
         ? { sound: this.#sound.payload() }
         : {}),
       ...(this.#state.view === "soundOutput" ? { interfaceSounds: this.#uiSounds.on } : {}),
-      ...(this.#state.view === "about" ? { about: this.#about.payload() } : {}),
+      ...this.#pages.get(this.#state.view)?.payload(focused?.id),
       homeApps: this.#homeApps.rows(),
-      ...(this.#state.view === "settingsApps" || this.#state.view === "addons"
-        ? { addons: this.#addonsPage.payload() }
-        : {}),
+      ...(this.#state.view === "settingsApps" ? { addons: this.#addonsPage.rows() } : {}),
       ...(this.#state.view === "settingsRemotes" ? { listener: { ...this.#loginItem } } : {}),
       ...(this.#state.view === "settingsApps" ? this.#appMenuPayload() : {}),
       home: this.#homePage.payload(this.#state.view === "settingsHome" ? focused?.id : undefined),
@@ -2264,7 +2271,10 @@ export class Core {
     const front = this.#front();
     if (front) return front.sendKey(direction);
     if (!current) return;
-    if (this.#state.view === "show") {
+    const page = this.#pages.get(this.#state.view);
+    if (page?.move) {
+      page.move(direction);
+    } else if (this.#state.view === "show") {
       this.#show.move(direction);
       this.#show.syncTab();
     } else {
@@ -2296,13 +2306,12 @@ export class Core {
     this.#cue("select");
     if (item.action === "back") return this.#back();
     if (
+      this.#pages.get(this.#state.view)?.action(item.action, this.#source) ||
       this.#libraryAction(item.action) ||
       this.#detailsPage.action(item.action, this.#source) ||
       this.#sound.action(item.action) ||
       this.#uiSounds.action(item.action) ||
-      this.#about.action(item.action) ||
       this.#homePage.action(item.action) ||
-      this.#addonsPage.action(item.action) ||
       this.#homeApps.action(item.action) ||
       this.#search.action(item.action, this.#source) ||
       this.#show.action(item.action)
@@ -2340,6 +2349,18 @@ export class Core {
         },
       };
     }
+    const page = this.#pages.get(view);
+    if (page) {
+      const back = page.back();
+      if (!back) return undefined;
+      return {
+        ...(back.label ? { label: back.label } : {}),
+        act: () => {
+          back.act();
+          this.#keepLibraryFocus();
+        },
+      };
+    }
     const go = (label: string, act: () => void) => ({ label, act });
     if (view === "folder") {
       const path = this.#state.folderPath ?? "";
@@ -2370,7 +2391,7 @@ export class Core {
     }
     const target = BACK_TARGETS[view];
     if (!target) return undefined;
-    return go(view === "addons" ? "YouTube" : VIEW_LABELS[target], () => {
+    return go(VIEW_LABELS[target], () => {
       this.#setView(target);
       this.#keepLibraryFocus();
     });
@@ -2418,6 +2439,8 @@ export class Core {
     this.#armAmbient();
     this.#releaseStrayTyping();
     if (from === "details") this.#detailsPage.cancel();
+    this.#pages.get(from)?.leave?.(view);
+    this.#pages.get(view)?.enter?.(from);
     this.#homePage.watch(view === "home" || view === "settingsHome");
     if (view === "home" || view === "settingsHome") this.#homePage.refresh(view === "settingsHome");
     if (view === "library") void this.library.refresh(this.#libraryFolders);

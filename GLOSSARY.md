@@ -16,6 +16,10 @@ _Avoid_: controller, phone app, mobile app
 The first page the Screen shows: a simple launcher with a clock and the Apps.
 _Avoid_: launcher, dashboard, main menu
 
+**Page**:
+One of Couch's own full-screen places on the Screen: Home, the Library, a folder, a show, Settings and its pages, About, Now Playing's controls. It is not a Web App's website, and not an overlay (Quick settings, Setup, a question, Picture off). In code, `View` is the id of a Page.
+_Avoid_: screen (that is the whole app), view (in prose), menu
+
 **Wallpaper**:
 The calm background Home draws behind the clock and tiles; the household picks one in Settings → Home (six built-in ones, Couch by default, or a picture from the Mac: its desktop picture, one from a chosen folder, or one of Apple's wallpapers).
 

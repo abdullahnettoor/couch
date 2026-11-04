@@ -1,7 +1,8 @@
-import type { GridItem, ScreenPayload } from "../../shared/protocol.ts";
-import { YOUTUBE_ADDONS } from "../apps/youtube/addons/index.ts";
-import type { Store } from "../ports/store.ts";
-import { enabledAddons, readChoices, writeChoice } from "../web/addon.ts";
+import type { GridItem, ScreenPayload } from "../../../shared/protocol.ts";
+import { YOUTUBE_ADDONS } from "../../apps/youtube/addons/index.ts";
+import type { Page, PageBack, PageContext } from "./page.ts";
+import type { Store } from "../../ports/store.ts";
+import { enabledAddons, readChoices, writeChoice } from "../../web/addon.ts";
 
 const APP = "youtube";
 const TOGGLE = "addons:toggle:";
@@ -12,19 +13,28 @@ export interface AddonsPageHost {
   apply(app: string, ids: string[], note?: string): void;
   /** The App is on the Screen now. */
   isFront(app: string): boolean;
-  toast(text: string): void;
-  changed(): void;
 }
 
 /** Settings → YouTube add-ons: one row per add-on; OK turns it on or off. */
-export class AddonsPage {
+export class AddonsPage implements Page {
+  #ctx: PageContext;
   #h: AddonsPageHost;
 
-  constructor(host: AddonsPageHost) {
+  constructor(ctx: PageContext, host: AddonsPageHost) {
+    this.#ctx = ctx;
     this.#h = host;
   }
 
-  payload(): NonNullable<ScreenPayload["addons"]> {
+  back(): PageBack {
+    return { label: "YouTube", act: () => this.#ctx.go("settingsApps") };
+  }
+
+  payload(): Pick<ScreenPayload, "addons"> {
+    return { addons: this.rows() };
+  }
+
+  /** One row per add-on with whether it is on; Settings → Apps shows them too. */
+  rows(): NonNullable<ScreenPayload["addons"]> {
     const on = new Set(
       enabledAddons(YOUTUBE_ADDONS, readChoices(this.#h.store, APP)).map((a) => a.id),
     );
@@ -55,7 +65,7 @@ export class AddonsPage {
 
   /** Turns one add-on on or off: Store, then the App reloads (with the note over it when it is in front). */
   toggle(id: string): void {
-    const row = this.payload().find((a) => a.id === id);
+    const row = this.rows().find((a) => a.id === id);
     if (!row) return;
     writeChoice(this.#h.store, YOUTUBE_ADDONS, APP, id, !row.on);
     const note = `${row.label} is ${row.on ? "off" : "on"}`;
@@ -64,6 +74,6 @@ export class AddonsPage {
       enabledAddons(YOUTUBE_ADDONS, readChoices(this.#h.store, APP)).map((a) => a.id),
       this.#h.isFront(APP) ? note : undefined,
     );
-    this.#h.toast(note);
+    this.#ctx.toast(note);
   }
 }

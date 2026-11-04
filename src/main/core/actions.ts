@@ -93,8 +93,6 @@ export const BACK_TARGETS: Partial<Record<View, View>> = {
   details: "settingsLibrary",
   soundOutput: "settings",
   settingsHome: "settings",
-  about: "settings",
-  addons: "settingsApps",
   credits: "details",
   library: "home",
   show: "library",

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "vite-plus/test";
 import { startHarness, type FakePhone, type Harness } from "./testing/harness.ts";
 import { devUpdates } from "./ports/updates.ts";
-import { NOT_INSTALLED } from "./core/about-page.ts";
+import { NOT_INSTALLED } from "./core/pages/about-page.ts";
 
 let h: Harness;
 afterEach(() => h.stop());
