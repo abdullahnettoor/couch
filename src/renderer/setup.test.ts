@@ -84,3 +84,30 @@ describe("the Setup panel", () => {
     expect(panel.children.length).toBe(0);
   });
 });
+
+describe("the pairing step", () => {
+  const pair: SetupPayload = {
+    id: "pair",
+    title: "Pair your phone",
+    body: "Scan this with your phone's camera. Your phone must be on the same Wi-Fi as this Mac.",
+    qr: true,
+    step: 1,
+    steps: 3,
+    buttons: ["Skip for now", "Set up later"],
+    focus: 0,
+  };
+  const drawPair = (setup: SetupPayload) =>
+    renderSetup({ setup, pairingUrl: "http://mac.local:4747/?key=k" } as unknown as ScreenPayload);
+
+  test("draws the QR code and the same-Wi-Fi note", () => {
+    drawPair(pair);
+    expect(panel.querySelector(".qr svg")).not.toBeNull();
+    expect(panel.querySelector("p")?.textContent).toContain("same Wi-Fi");
+  });
+
+  test("draws the connected state without a QR code", () => {
+    drawPair({ ...pair, title: "Phone connected", body: undefined, qr: undefined });
+    expect(panel.querySelector("b")?.textContent).toBe("Phone connected");
+    expect(panel.querySelector(".qr")).toBeNull();
+  });
+});
