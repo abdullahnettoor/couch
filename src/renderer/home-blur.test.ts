@@ -35,8 +35,8 @@ describe("the blur behind the clock (1920 × 1080: 1 u = 1 px)", () => {
 
   test("the top blur is fully opaque to below the date, then fades", () => {
     const blur = rule(".h-photo-blur.top");
-    expect(prop(blur, "mask-image")).toBe(
-      "linear-gradient(180deg, #000 0, #000 var(--clock-clear), transparent)",
+    expect(prop(blur, "mask-image").replace(/\s+/g, "")).toBe(
+      "linear-gradient(180deg,var(--black)0,var(--black)var(--clock-clear),transparent)",
     );
     expect(prop(home, "--clock-clear")).toBe(
       "calc(var(--clock-top) + var(--clock-h) + var(--clock-pad))",

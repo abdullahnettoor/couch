@@ -5,7 +5,7 @@ body.video-visible {
 }
 html:has(body.video-pending),
 body.video-pending {
-  background: #000;
+  background: var(--black);
 }
 /* The player draws its own vertical level; the shared one stays out of the way. */
 body.video-visible #volume,
@@ -15,7 +15,7 @@ body.video-pending #volume {
 #player-overlay {
   position: fixed;
   inset: 0;
-  color: var(--t1);
+  color: var(--text-primary);
   user-select: none;
 }
 #player-overlay[hidden] {
@@ -25,9 +25,9 @@ body.video-pending #volume {
   position: absolute;
   inset: auto 0 0 0;
   height: calc(520 * var(--u));
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.6));
+  background: linear-gradient(180deg, var(--rgb-0-0-0-a0), var(--rgb-0-0-0-a06));
   opacity: 0;
-  transition: opacity 0.5s var(--ease);
+  transition: opacity var(--duration-ms500) var(--ease-glass);
   pointer-events: none;
 }
 .controls .po-scrim {
@@ -44,12 +44,12 @@ body.video-pending #volume {
   font-size: calc(48 * var(--u));
   font-weight: 700;
   letter-spacing: -0.015em;
-  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
+  text-shadow: var(--shadow-0-2px-20px-black5);
   opacity: 0;
   transform: translateY(calc(-16 * var(--u)));
   transition:
-    opacity 0.45s var(--ease),
-    transform 0.5s var(--ease);
+    opacity var(--duration-slow) var(--ease-glass),
+    transform var(--duration-ms500) var(--ease-glass);
 }
 .po-title small,
 .po-cap small {
@@ -71,7 +71,7 @@ body.video-pending #volume {
   font-size: calc(28 * var(--u));
   font-weight: 600;
   opacity: 0;
-  transition: opacity 0.4s;
+  transition: opacity var(--duration-ms400);
 }
 .po-note.show {
   opacity: 1;
@@ -88,7 +88,7 @@ body.video-pending #volume {
   font-size: calc(64 * var(--u));
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.8);
-  transition: all 0.35s var(--ease);
+  transition: all var(--duration-ms350) var(--ease-glass);
   pointer-events: none;
 }
 .po-pause.show {
@@ -113,8 +113,8 @@ body.video-pending #volume {
   align-items: center;
   gap: calc(8 * var(--u));
   transition:
-    opacity 0.4s var(--ease),
-    transform 0.5s var(--ease);
+    opacity var(--duration-ms400) var(--ease-glass),
+    transform var(--duration-ms500) var(--ease-glass);
   opacity: 0;
   transform: translate(-50%, calc(40 * var(--u)));
   pointer-events: none;
@@ -133,9 +133,9 @@ body.video-pending #volume {
   flex: none;
   font-size: calc(38 * var(--u));
   transition:
-    background 0.2s,
-    transform 0.28s var(--ease),
-    color 0.2s;
+    background var(--duration-quick),
+    transform var(--duration-ms280) var(--ease-glass),
+    color var(--duration-quick);
 }
 .db[hidden] {
   display: none;
@@ -146,16 +146,16 @@ body.video-pending #volume {
   font-size: calc(44 * var(--u));
 }
 .db:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--rgb-255-255-255-a014);
 }
 .db.on:not(.focused) {
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--rgb-255-255-255-a022);
 }
 .db.focused {
-  background: #fff;
-  color: #000;
+  background: var(--focus-bg);
+  color: var(--focus-fg);
   transform: scale(1.08);
-  box-shadow: 0 calc(10 * var(--u)) calc(26 * var(--u)) rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-0-10-26-black4);
 }
 
 .po-scrub {
@@ -166,7 +166,7 @@ body.video-pending #volume {
   padding: 0 calc(10 * var(--u));
   font-size: calc(22 * var(--u));
   font-weight: 600;
-  color: var(--t2);
+  color: var(--text-secondary);
 }
 .po-hit {
   position: relative;
@@ -181,17 +181,17 @@ body.video-pending #volume {
   top: calc(17 * var(--u));
   height: calc(10 * var(--u));
   border-radius: calc(5 * var(--u));
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--rgb-255-255-255-a02);
   overflow: hidden;
-  transition: all 0.2s var(--ease);
+  transition: all var(--duration-quick) var(--ease-glass);
 }
 .po-fill {
   position: absolute;
   inset: 0 auto 0 0;
-  background: #fff;
+  background: var(--white);
 }
 .po-vslider .po-fill {
-  transition: width 0.2s var(--ease);
+  transition: width var(--duration-quick) var(--ease-glass);
 }
 .po-scrub:hover .po-track,
 .po-scrub.focused .po-track,
@@ -208,10 +208,10 @@ body.video-pending #volume {
   height: calc(30 * var(--u));
   margin-left: calc(-15 * var(--u));
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 calc(3 * var(--u)) calc(12 * var(--u)) rgba(0, 0, 0, 0.45);
+  background: var(--white);
+  box-shadow: var(--shadow-0-3-12-black45);
   transform: scale(0);
-  transition: transform 0.25s var(--ease);
+  transition: transform var(--duration-ms250) var(--ease-glass);
   pointer-events: none;
 }
 .po-scrub:hover .po-knob,
@@ -229,9 +229,9 @@ body.video-pending #volume {
   font-size: calc(22 * var(--u));
   font-weight: 700;
   text-align: center;
-  color: #fff;
+  color: var(--white);
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity var(--duration-quick);
   pointer-events: none;
 }
 .po-scrub:hover .po-tip,
@@ -251,7 +251,7 @@ body.video-pending #volume {
   flex: none;
 }
 .po-vslider.focused {
-  box-shadow: 0 0 0 calc(3 * var(--u)) rgba(255, 255, 255, 0.5);
+  box-shadow: var(--shadow-focus-ring-soft);
 }
 
 /* Up next: a row of 16:9 tiles above the dock */
@@ -263,8 +263,8 @@ body.video-pending #volume {
   opacity: 0;
   transform: translateY(calc(30 * var(--u)));
   transition:
-    opacity 0.45s var(--ease),
-    transform 0.55s var(--ease);
+    opacity var(--duration-slow) var(--ease-glass),
+    transform var(--duration-ms550) var(--ease-glass);
   pointer-events: none;
 }
 .po-shelf.show {
@@ -278,10 +278,10 @@ body.video-pending #volume {
   font-weight: 700;
   display: flex;
   justify-content: space-between;
-  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.6);
+  text-shadow: var(--shadow-0-1px-10px-black6);
 }
 .po-shelf h3 span + span {
-  color: var(--t2);
+  color: var(--text-secondary);
   font-weight: 600;
 }
 .po-eps {
@@ -294,7 +294,7 @@ body.video-pending #volume {
 .po-strip {
   display: flex;
   gap: calc(28 * var(--u));
-  transition: transform 0.45s var(--ease);
+  transition: transform var(--duration-slow) var(--ease-glass);
 }
 .po-ep {
   width: calc(300 * var(--u));
@@ -310,7 +310,7 @@ body.video-pending #volume {
 .po-pic {
   height: calc(169 * var(--u));
   border-radius: calc(16 * var(--u));
-  background: #222;
+  background: var(--hex-222);
 }
 .po-pic img,
 .po-plain {
@@ -332,12 +332,12 @@ body.video-pending #volume {
   border-radius: calc(9 * var(--u));
   font-size: calc(17 * var(--u));
   font-weight: 700;
-  background: #fff;
-  color: #000;
+  background: var(--white);
+  color: var(--black);
 }
 .po-watched {
-  background: rgba(0, 0, 0, 0.55);
-  color: var(--t1);
+  background: var(--rgb-0-0-0-a055);
+  color: var(--text-primary);
 }
 .po-prog {
   position: absolute;
@@ -345,17 +345,17 @@ body.video-pending #volume {
   right: 0;
   bottom: 0;
   height: calc(6 * var(--u));
-  background: rgba(255, 255, 255, 0.25);
+  background: var(--rgb-255-255-255-a025);
 }
 .po-prog i {
   display: block;
   height: 100%;
-  background: #fff;
+  background: var(--white);
 }
 .po-cap {
   margin-top: calc(14 * var(--u));
   font-size: calc(22 * var(--u));
-  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.6);
+  text-shadow: var(--shadow-0-1px-10px-black6);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -370,10 +370,10 @@ body.video-pending #volume {
   gap: calc(10 * var(--u));
   font-size: calc(22 * var(--u));
   font-weight: 600;
-  color: var(--t2);
-  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.7);
+  color: var(--text-secondary);
+  text-shadow: var(--shadow-0-1px-10px-black7);
   opacity: 0;
-  transition: opacity 0.4s;
+  transition: opacity var(--duration-ms400);
   pointer-events: none;
 }
 .po-peek.show {
@@ -400,20 +400,18 @@ html:not(.native-glass) .po-shelf {
   box-shadow: var(--glass-edge);
 }
 .native-glass #player-overlay .glass {
-  background: rgba(20, 20, 24, 0.1);
+  background: var(--rgb-20-20-24-a01);
   backdrop-filter: none;
   box-shadow: var(--glass-edge);
 }
 /* Glass on glass: dock buttons light up as a lighter glass, not a white disc. */
 .native-glass .db:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--button-fill);
 }
 .native-glass .db.focused {
-  background: rgba(255, 255, 255, 0.34);
-  color: #fff;
-  box-shadow:
-    inset 0 0 0 calc(1.5 * var(--u)) rgba(255, 255, 255, 0.45),
-    0 calc(8 * var(--u)) calc(22 * var(--u)) rgba(0, 0, 0, 0.25);
+  background: var(--rgb-255-255-255-a034);
+  color: var(--white);
+  box-shadow: var(--shadow-inset-0-0-0-1_5-white45), var(--shadow-0-8-22-black25);
 }
 .native-glass .po-shelf {
   box-shadow: var(--glass-edge);
@@ -426,7 +424,7 @@ html:not(.native-glass) .po-shelf {
   align-items: center;
   justify-content: center;
   gap: calc(64 * var(--u));
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--rgb-0-0-0-a055);
 }
 .po-next.show {
   display: flex;
@@ -445,7 +443,7 @@ html:not(.native-glass) .po-shelf {
   aspect-ratio: 16 / 9;
   border-radius: var(--r-tile);
   overflow: hidden;
-  background: #222;
+  background: var(--hex-222);
 }
 .po-nx-pic img,
 .po-nx-pic .po-plain {
@@ -459,7 +457,7 @@ html:not(.native-glass) .po-shelf {
   display: block;
   font-size: calc(26 * var(--u));
   font-weight: 600;
-  color: var(--t3);
+  color: var(--text-tertiary);
 }
 .po-nx-body h3 {
   margin: calc(8 * var(--u)) 0 0;
@@ -470,7 +468,7 @@ html:not(.native-glass) .po-shelf {
 .po-nx-line {
   margin-top: calc(8 * var(--u));
   font-size: calc(30 * var(--u));
-  color: var(--t2);
+  color: var(--text-secondary);
 }
 .po-nx-btns {
   display: flex;

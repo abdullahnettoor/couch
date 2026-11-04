@@ -155,7 +155,7 @@ function scrollChips(row: HTMLElement, track: HTMLElement): void {
   left = Math.max(0, Math.min(left, track.scrollWidth - row.clientWidth));
   track.style.transform = `translateX(${-chipScroll}px)`;
   void track.offsetHeight;
-  track.style.transition = "transform 0.45s var(--ease)";
+  track.style.transition = "transform var(--duration-slow) var(--ease-glass)";
   track.style.transform = `translateX(${-left}px)`;
   chipScroll = left;
 }
@@ -303,7 +303,7 @@ function renderRoot(payload: ScreenPayload): void {
     left = Math.max(0, Math.min(left, track.offsetWidth + edge - shelf.clientWidth));
     track.style.transform = `translateX(${-(prev ?? left)}px)`;
     void track.offsetHeight;
-    track.style.transition = "transform 0.45s var(--ease)";
+    track.style.transition = "transform var(--duration-slow) var(--ease-glass)";
     track.style.transform = `translateX(${-left}px)`;
     shelfScroll.set(id, left);
   }

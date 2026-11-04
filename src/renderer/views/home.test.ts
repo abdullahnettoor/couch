@@ -313,10 +313,12 @@ describe("Home with a picture from the Mac", () => {
   test("the stylesheet: dim comes from --wp-dim, a blur sits behind the clock and the tiles, and the drift is 1.0 to 1.06 over 120 s", () => {
     home.render(withPhoto({ kind: "mac" }));
     expect(rule(".h-photo-dim")!.style.getPropertyValue("opacity")).toBe("var(--wp-dim, 0.5)");
-    expect(rule(".h-photo-blur")!.style.getPropertyValue("backdrop-filter")).toContain("blur(");
+    expect(rule(".h-photo-blur")!.style.getPropertyValue("backdrop-filter")).toContain("--blur-");
     expect(rule(".h-photo-blur.top")!.style.getPropertyValue("top")).toBe("0px");
     expect(rule(".h-photo-blur.bottom")!.style.getPropertyValue("bottom")).toBe("0px");
-    expect(rule(".h-photo-img")!.style.getPropertyValue("animation")).toContain("120s");
+    expect(rule(".h-photo-img")!.style.getPropertyValue("animation")).toContain(
+      "--duration-ms120000",
+    );
     const css = document.head.querySelector("style")!.textContent!;
     expect(css).toMatch(/@keyframes h-kenburns\s*{\s*from\s*{\s*transform: scale\(1\)/);
     expect(css).toMatch(/to\s*{\s*transform: scale\(1\.06\)/);

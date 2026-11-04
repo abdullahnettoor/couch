@@ -1,6 +1,6 @@
 /* Home: Cinema layout (hero frame, Resume / From start, Apps and in-progress videos) and the empty clock layout. */
 .home {
-  background: var(--wp-base, #000);
+  background: var(--wp-base, var(--black));
   overflow: hidden;
   /* The clock's box (time, gap, date line), shared by the clock and the blur behind it so the blur follows the clock. */
   --clock-top: calc(210 * var(--u));
@@ -13,7 +13,7 @@
   position: absolute;
   inset: -20%;
   background: var(--wp-glow, none);
-  animation: h-drift var(--wp-drift, 90s) ease-in-out infinite alternate;
+  animation: h-drift var(--wp-drift, var(--duration-ms90000)) var(--ease-in-out) infinite alternate;
 }
 .home.still .h-drift,
 .home.still .h-photo-img,
@@ -42,34 +42,39 @@
 }
 .h-photo-img {
   background: var(--wp-photo, none) center / cover no-repeat;
-  animation: h-kenburns 120s ease-in-out infinite alternate;
+  animation: h-kenburns var(--duration-ms120000) var(--ease-in-out) infinite alternate;
 }
 .h-photo-prev {
   animation: none;
   opacity: 1;
-  transition: opacity 2.5s ease-in-out;
+  transition: opacity var(--duration-ms2500) var(--ease-in-out);
 }
 .h-photo-dim {
-  background: #000;
+  background: var(--black);
   opacity: var(--wp-dim, 0.5);
 }
 .h-photo-blur {
   inset: auto 0;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: var(--blur-14px);
+  -webkit-backdrop-filter: var(--blur-14px);
 }
 /* Fully blurred from the top edge past the date, then fading out below it. */
 .h-photo-blur.top {
   top: 0;
   height: calc(var(--clock-clear) + var(--clock-fade));
-  -webkit-mask-image: linear-gradient(180deg, #000 0, #000 var(--clock-clear), transparent);
-  mask-image: linear-gradient(180deg, #000 0, #000 var(--clock-clear), transparent);
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    var(--black) 0,
+    var(--black) var(--clock-clear),
+    transparent
+  );
+  mask-image: linear-gradient(180deg, var(--black) 0, var(--black) var(--clock-clear), transparent);
 }
 .h-photo-blur.bottom {
   bottom: 0;
   height: 48%;
-  -webkit-mask-image: linear-gradient(0deg, #000 50%, transparent);
-  mask-image: linear-gradient(0deg, #000 50%, transparent);
+  -webkit-mask-image: linear-gradient(0deg, var(--black) 50%, transparent);
+  mask-image: linear-gradient(0deg, var(--black) 50%, transparent);
 }
 @keyframes h-kenburns {
   from {
@@ -84,9 +89,14 @@
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(0deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.2) 35%, rgba(0, 0, 0, 0) 55%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0) 22%),
-    radial-gradient(110% 100% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.45) 100%);
+    linear-gradient(
+      0deg,
+      var(--rgb-0-0-0-a055) 0%,
+      var(--rgb-0-0-0-a02) 35%,
+      var(--rgb-0-0-0-a0) 55%
+    ),
+    linear-gradient(180deg, var(--rgb-0-0-0-a03) 0%, var(--rgb-0-0-0-a0) 22%),
+    radial-gradient(110% 100% at 50% 45%, var(--rgb-0-0-0-a0) 55%, var(--scrim) 100%);
 }
 @keyframes h-drift {
   to {
@@ -96,9 +106,19 @@
 /* Artwork off: the hero's text sits straight on the wallpaper, so the scrim also darkens its side. */
 .home.no-art.film .h-scrim {
   background:
-    linear-gradient(90deg, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.3) 40%, rgba(0, 0, 0, 0) 65%),
-    linear-gradient(0deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.3) 40%, rgba(0, 0, 0, 0) 60%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0) 22%);
+    linear-gradient(
+      90deg,
+      var(--rgb-0-0-0-a06) 0%,
+      var(--rgb-0-0-0-a03) 40%,
+      var(--rgb-0-0-0-a0) 65%
+    ),
+    linear-gradient(
+      0deg,
+      var(--rgb-0-0-0-a07) 0%,
+      var(--rgb-0-0-0-a03) 40%,
+      var(--rgb-0-0-0-a0) 60%
+    ),
+    linear-gradient(180deg, var(--rgb-0-0-0-a03) 0%, var(--rgb-0-0-0-a0) 22%);
 }
 .h-bg,
 .h-frame {
@@ -107,7 +127,7 @@
 }
 .h-bg {
   opacity: 0;
-  transition: opacity 0.7s var(--ease);
+  transition: opacity var(--duration-ms700) var(--ease-glass);
 }
 .h-bg.on {
   opacity: 1;
@@ -115,7 +135,7 @@
 .h-chrome {
   position: absolute;
   inset: 0;
-  transition: opacity 1.2s var(--ease);
+  transition: opacity var(--duration-ms1200) var(--ease-glass);
 }
 .home.ambient .h-chrome {
   opacity: 0;
@@ -124,7 +144,7 @@
 .h-hero,
 .h-clock {
   opacity: 0;
-  transition: opacity 0.7s var(--ease);
+  transition: opacity var(--duration-ms700) var(--ease-glass);
   pointer-events: none;
 }
 .h-hero.on,
@@ -148,19 +168,19 @@
   font-weight: 600;
   letter-spacing: 0;
   margin-left: 0.2em;
-  color: var(--t2);
+  color: var(--text-secondary);
 }
 .topbar .clock small {
   font-size: 0.55em;
   margin-left: 0.2em;
-  color: var(--t2);
+  color: var(--text-secondary);
 }
 /* The big clock is the time here; dropping the small one puts the gear flush with the QR card's edge. */
 .home:not(.film) .topbar .clock {
   display: none;
 }
 .home.film .topbar .clock {
-  animation: h-in 0.7s var(--ease);
+  animation: h-in var(--duration-ms700) var(--ease-glass);
 }
 @keyframes h-in {
   from {
@@ -168,7 +188,7 @@
   }
 }
 .home.ambient .h-clock {
-  animation: h-clock-drift 1200s ease-in-out infinite alternate;
+  animation: h-clock-drift var(--duration-ms1200000) var(--ease-in-out) infinite alternate;
 }
 @keyframes h-clock-drift {
   to {
@@ -178,7 +198,7 @@
 .h-frame {
   opacity: 0;
   background: hsl(var(--hue), 18%, 22%) center / cover;
-  transition: opacity 0.7s var(--ease);
+  transition: opacity var(--duration-ms700) var(--ease-glass);
 }
 .h-frame.on {
   opacity: 1;
@@ -188,9 +208,19 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0) 18%),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.86) 0%, rgba(0, 0, 0, 0.55) 32%, rgba(0, 0, 0, 0) 62%),
-    linear-gradient(0deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.4) 30%, rgba(0, 0, 0, 0) 50%);
+    linear-gradient(180deg, var(--rgb-0-0-0-a05) 0%, var(--rgb-0-0-0-a0) 18%),
+    linear-gradient(
+      90deg,
+      var(--rgb-0-0-0-a086) 0%,
+      var(--rgb-0-0-0-a055) 32%,
+      var(--rgb-0-0-0-a0) 62%
+    ),
+    linear-gradient(
+      0deg,
+      var(--rgb-0-0-0-a09) 0%,
+      var(--rgb-0-0-0-a04) 30%,
+      var(--rgb-0-0-0-a0) 50%
+    );
 }
 .h-hero {
   position: absolute;
@@ -201,7 +231,7 @@
 .h-hero .k {
   font-size: calc(30 * var(--u));
   font-weight: 600;
-  color: var(--t2);
+  color: var(--text-secondary);
   margin-bottom: calc(14 * var(--u));
 }
 .h-hero h1 {
@@ -226,7 +256,7 @@
 }
 .h-hero .m {
   font-size: calc(28 * var(--u));
-  color: var(--t2);
+  color: var(--text-secondary);
   display: flex;
   gap: calc(16 * var(--u));
   align-items: center;
@@ -236,13 +266,13 @@
   width: calc(200 * var(--u));
   height: calc(6 * var(--u));
   border-radius: calc(3 * var(--u));
-  background: rgba(255, 255, 255, 0.25);
+  background: var(--rgb-255-255-255-a025);
   overflow: hidden;
 }
 .h-bar i {
   display: block;
   height: 100%;
-  background: #fff;
+  background: var(--white);
 }
 .h-acts {
   display: flex;
@@ -272,7 +302,7 @@
 }
 .youtube-face,
 .netflix-face {
-  background: linear-gradient(160deg, #3a3a3e, #17171a);
+  background: linear-gradient(160deg, var(--hex-3a3a3e), var(--hex-17171a));
 }
 .h-app .youtube-face svg {
   width: calc(112 * var(--u));
@@ -282,8 +312,8 @@
   height: calc(112 * var(--u));
 }
 .library-face {
-  background: linear-gradient(160deg, #f5f5f7, #c9c9cf);
-  color: #1c1c1e;
+  background: linear-gradient(160deg, var(--hex-f5f5f7), var(--hex-c9c9cf));
+  color: var(--hex-1c1c1e);
 }
 .h-film-art {
   background: hsl(var(--hue), 18%, 22%) center / cover;
@@ -298,7 +328,7 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: rgba(30, 30, 32, 0.7);
+  background: var(--rgb-30-30-32-a07);
 }
 /* Beats the App tile's own logo sizes (.h-app .g-tile svg, .h-app .youtube-face svg), which the badge also matches. */
 .h-app .g-tile .h-badge svg {
@@ -312,26 +342,26 @@
   bottom: calc(16 * var(--u));
   height: calc(6 * var(--u));
   border-radius: calc(3 * var(--u));
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--rgb-255-255-255-a03);
   overflow: hidden;
 }
 .h-prog i {
   display: block;
   height: 100%;
-  background: #fff;
+  background: var(--white);
 }
 .h-app .g-cap small {
   display: block;
   font-size: calc(20 * var(--u));
   font-weight: 500;
-  color: var(--t3);
+  color: var(--text-tertiary);
   margin-top: calc(4 * var(--u));
 }
 .h-divider {
   width: calc(2 * var(--u));
   height: calc(120 * var(--u));
   margin-top: calc(25 * var(--u));
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--rgb-255-255-255-a014);
   border-radius: calc(1 * var(--u));
 }
 .h-clock {
@@ -347,7 +377,7 @@
 }
 .h-clock .d {
   font-size: calc(36 * var(--u));
-  color: var(--t2);
+  color: var(--text-secondary);
   margin-top: calc(18 * var(--u));
   line-height: calc(45 * var(--u));
   font-weight: 500;
@@ -375,10 +405,10 @@
   box-sizing: border-box;
   border-radius: calc(28 * var(--u));
   background: var(--glass);
-  backdrop-filter: blur(60px) saturate(1.8);
+  backdrop-filter: var(--blur-60px-saturate-1-8);
   box-shadow: var(--glass-edge);
   font-size: calc(20 * var(--u));
-  color: var(--t2);
+  color: var(--text-secondary);
   text-align: center;
 }
 .h-qr .qr svg {
@@ -393,7 +423,7 @@
   margin: 0 0 calc(18 * var(--u));
   font-size: calc(26 * var(--u));
   line-height: 1.4;
-  color: var(--t2);
+  color: var(--text-secondary);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
