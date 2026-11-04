@@ -19,7 +19,7 @@ beforeEach(() => {
 afterEach(() => send.mockClear());
 
 function payload(view: View, extra: object = {}): ScreenPayload {
-  const grid = views[view]?.grid ?? [{ id: "x", label: "X", r: 0, c: 0 }];
+  const grid = [{ id: "x", label: "X", r: 0, c: 0 }];
   return {
     state: { view, remotes: 0 },
     focusedId: grid[0]?.id,

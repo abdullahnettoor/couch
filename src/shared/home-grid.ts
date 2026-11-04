@@ -1,8 +1,9 @@
-import { APP_ENTRIES, type AppEntry } from "../main/apps/index.ts";
 import type { GridItem } from "./protocol.ts";
 
-/** Home's focusable items: the gear, then one tile per App. The renderer draws these and reports them to the core. */
-export function homeItems(entries: AppEntry[]): GridItem[] {
+/** Home's focusable items: the gear, then one tile per App. The core builds these from its App catalog. */
+export function homeItems(
+  entries: Array<{ id: string; label: string; action: string }>,
+): GridItem[] {
   return [
     { id: "settings", r: 0, c: 0, label: "Settings", action: "open:settings" },
     ...entries.map((app, c) => ({
@@ -15,5 +16,3 @@ export function homeItems(entries: AppEntry[]): GridItem[] {
     })),
   ];
 }
-
-export const HOME_ITEMS: GridItem[] = homeItems(APP_ENTRIES);

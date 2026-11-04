@@ -1,11 +1,9 @@
-import type { Command, GridItem, QuickPayload, ScreenPayload, UiSoundEvent } from "./protocol.ts";
+import type { Command, QuickPayload, ScreenPayload, UiSoundEvent } from "./protocol.ts";
 
 /** Channel names and payloads between the Screen renderer and the main process. */
 export const Channel = {
   /** renderer → main: a keyboard command */
   command: "couch:command",
-  /** renderer → main: the grid of focusable items it drew */
-  grid: "couch:grid",
   /** main → renderer: what to draw */
   screen: "couch:screen",
   /** main → the Quick settings view: the drawer to draw, or nothing to slide it out */
@@ -23,11 +21,6 @@ export const Channel = {
   /** main → renderer: an Interface sound to play */
   sound: "couch:sound",
 } as const;
-
-export interface GridReport {
-  viewKey: string;
-  items: GridItem[];
-}
 
 /** A glass panel's rectangle in window (CSS) pixels, corner radius and opacity (0 hides it). */
 export interface GlassRect {
@@ -48,7 +41,6 @@ export interface MpvStatus {
 
 export interface CouchApi {
   send(command: Command): void;
-  reportGrid(report: GridReport): void;
   onScreen(listener: (payload: ScreenPayload) => void): void;
   onMpv(listener: (status: MpvStatus) => void): void;
   /** One entry per panel slot (0 dock, 1 Up next); missing slots are hidden. */

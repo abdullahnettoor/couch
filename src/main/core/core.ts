@@ -44,7 +44,15 @@ import type { Store } from "../ports/store.ts";
 import type { Thumbnails } from "../ports/thumbnails.ts";
 import { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
 import { confirmMouseCommand } from "../../shared/confirm-layout.ts";
-import { SETTINGS_APP } from "../../shared/settings-grid.ts";
+import { homeItems } from "../../shared/home-grid.ts";
+import { APP_ERROR_ITEMS } from "../../shared/app-grid.ts";
+import {
+  ADD_PHONE_ITEMS,
+  LIBRARY_ITEMS,
+  REMOTES_ITEMS,
+  SETTINGS_APP,
+  SETTINGS_ITEMS,
+} from "../../shared/settings-grid.ts";
 import { actionFor, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
 import { MediaLibrary } from "./media-library.ts";
@@ -88,6 +96,15 @@ const phoneKey = (url: string | undefined): string | undefined =>
     ?.replace(/\.jpg$/, "");
 
 /** Home's update icon, in the top strip left of the gear (as the Library's search icon is). */
+/** The grids of the views with no Page yet; a Page's own grid() replaces its line. */
+const STATIC_GRIDS: Record<string, GridItem[]> = {
+  settings: SETTINGS_ITEMS,
+  settingsRemotes: REMOTES_ITEMS,
+  settingsLibrary: LIBRARY_ITEMS,
+  addPhone: ADD_PHONE_ITEMS,
+  appError: APP_ERROR_ITEMS,
+};
+
 const UPDATE_ICON: GridItem = {
   id: "update",
   r: 0,
@@ -198,7 +215,6 @@ export class Core {
     remotes: 0,
     pictureOff: false,
   };
-  #grids = new Map<string, GridItem[]>();
   #remotes = new Set<RemoteId>();
   #listeners = new Set<() => void>();
   #soundListeners = new Set<(event: UiSoundEvent) => void>();
@@ -913,7 +929,7 @@ export class Core {
     if (this.#state.view === "librarySearch") return this.#search.grid();
     if (this.#state.view === "credits")
       return [{ id: "done", r: 0, c: 0, label: "Done", action: "back", initial: true }];
-    if (!this.#isLibraryView()) return this.#grids.get(this.viewKey) ?? [];
+    if (!this.#isLibraryView()) return STATIC_GRIDS[this.viewKey] ?? [];
     const lib = this.#library()!;
     if (lib.folders) {
       return [
@@ -1738,12 +1754,6 @@ export class Core {
     this.#emit();
   }
 
-  /** The renderer reports the grid of focusable items it drew for a view. */
-  reportGrid(viewKey: string, items: GridItem[]): void {
-    this.#grids.set(viewKey, items);
-    this.#emit();
-  }
-
   /** The Screen's Interface sounds, one per command at most. */
   onSound(listener: (event: UiSoundEvent) => void): () => void {
     this.#soundListeners.add(listener);
@@ -2462,10 +2472,9 @@ export class Core {
     return [...listed, ...extra];
   }
 
-  /** What the renderer reported for Home, cut to the shown Apps in the household's order; the update icon left of the gear while an update is ready. */
+  /** Home's gear and the catalog's Apps, cut to the shown Apps in the household's order; the update icon left of the gear while an update is ready. */
   #homeBase(): GridItem[] {
-    const reported = this.#grids.get("home") ?? [];
-    if (reported.length === 0) return reported;
+    const reported = homeItems(this.#catalog());
     const apps = new Map(reported.filter((i) => i.id !== "settings").map((i) => [i.id, i]));
     const ordered = this.#homeApps.shownIds().flatMap((id) => apps.get(id) ?? []);
     return [

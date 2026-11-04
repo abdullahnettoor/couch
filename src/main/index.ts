@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { screenPointer } from "./pointer-position.ts";
-import { Channel, type GlassRect, type GridReport } from "../shared/ipc.ts";
+import { Channel, type GlassRect } from "../shared/ipc.ts";
 import type { Command } from "../shared/protocol.ts";
 import type { PlayerEvent } from "../shared/player.ts";
 import { startApp, type CouchApp } from "./app.ts";
@@ -546,9 +546,6 @@ async function createScreen(): Promise<void> {
 }
 
 ipcMain.on(Channel.command, (_event, command: Command) => couch?.screenCommand(command));
-ipcMain.on(Channel.grid, (_event, report: GridReport) =>
-  couch?.reportGrid(report.viewKey, report.items),
-);
 
 ipcMain.on(Channel.glass, (_event, rects: GlassRect[]) => player?.setGlass(rects));
 
