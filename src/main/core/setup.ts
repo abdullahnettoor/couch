@@ -5,12 +5,17 @@ import { SETUP_STEPS, type SetupStep } from "./setup-steps.ts";
 export interface SetupControls {
   next(): void;
   close(): void;
+  /** The Start Couch Listener at login setting, the one Settings → Remotes and Devices shows. */
+  listenerOn(): boolean;
+  turnListenerOn(): void;
 }
 
 export interface SetupHost {
   store: Store;
   /** Couch has been used before: a pairing from an earlier start, Library folders or watch history. */
   usedBefore(): boolean;
+  listenerOn(): boolean;
+  turnListenerOn(): void;
   cue(sound: UiSound): void;
   changed(): void;
 }
@@ -55,9 +60,16 @@ export class Setup {
   #index = 0;
   #focus = 0;
   #seen: Set<string>;
+  #control: SetupControls;
 
   constructor(host: SetupHost, steps: SetupStep[] = SETUP_STEPS) {
     this.#h = host;
+    this.#control = {
+      next: () => this.#next(),
+      close: () => this.#finish(),
+      listenerOn: () => host.listenerOn(),
+      turnListenerOn: () => host.turnListenerOn(),
+    };
     this.#steps = steps;
     const saved = host.store.read<Partial<Saved> | undefined>("setup", undefined);
     if (saved === undefined) {
@@ -78,7 +90,7 @@ export class Setup {
   }
 
   #start(): void {
-    const first = this.#steps.findIndex((s) => !this.#seen.has(s.id) && !s.done());
+    const first = this.#steps.findIndex((s) => !this.#seen.has(s.id) && !s.done(this.#control));
     this.#open = true;
     this.#goTo(first < 0 ? this.#steps.length - 1 : first);
   }
@@ -101,8 +113,9 @@ export class Setup {
 
   #buttons(): Array<{ label: string; run(): void }> {
     const step = this.#steps[this.#index]!;
-    const control: SetupControls = { next: () => this.#next(), close: () => this.#finish() };
-    const own = step.page().buttons.map((b) => ({ label: b.label, run: () => b.run(control) }));
+    const own = step
+      .page(this.#control)
+      .buttons.map((b) => ({ label: b.label, run: () => b.run(this.#control) }));
     if (step.final) return own;
     return [
       ...own,
@@ -122,7 +135,7 @@ export class Setup {
   payload(): SetupPayload | undefined {
     if (!this.#open) return undefined;
     const step = this.#steps[this.#index]!;
-    const page = step.page();
+    const page = step.page(this.#control);
     return {
       id: step.id,
       title: page.title,

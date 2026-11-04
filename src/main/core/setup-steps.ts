@@ -20,9 +20,9 @@ export interface SetupPage {
  */
 export interface SetupStep {
   id: string;
-  page(): SetupPage;
+  page(c: SetupControls): SetupPage;
   /** The choice behind this step has been made (a phone paired, a folder added), so Setup resumes past it. */
-  done(): boolean;
+  done(c: SetupControls): boolean;
   /** The last step: it closes Setup itself, with no Skip or Set up later beside it. */
   final?: true;
 }
@@ -38,6 +38,31 @@ export const SETUP_STEPS: SetupStep[] = [
       body: "Your Mac, made into a TV. Your phone is the remote.",
       buttons: [{ label: "Use the Mac's keyboard or mouse for now", run: next }],
     }),
+  },
+  {
+    id: "listener",
+    done: (c) => c.listenerOn(),
+    page: (c) =>
+      c.listenerOn()
+        ? {
+            title: "Couch is on from your phone",
+            body: "The phone's Power button can start Couch when it's closed.",
+            buttons: [{ label: "Continue", run: next }],
+          }
+        : {
+            title: "Turn Couch on from your phone?",
+            body: "Then the phone's Power button can start Couch when it's closed.",
+            buttons: [
+              {
+                label: "Yes",
+                run: (c) => {
+                  c.turnListenerOn();
+                  c.next();
+                },
+              },
+              { label: "No", run: next },
+            ],
+          },
   },
   {
     id: "done",

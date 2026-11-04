@@ -193,6 +193,8 @@ export async function startHarness(
     wallpapers?: true | Harness["wallpapers"];
     /** "fresh" leaves Setup to decide for itself; otherwise a Store with no `setup` record gets one saying Setup is finished, so other tests start on Home. */
     setup?: "fresh";
+    /** The Listener login item starts out on. */
+    loginItemOn?: boolean;
   } = {},
 ): Promise<Harness> {
   const tmp = given ? undefined : mkdtempSync(join(tmpdir(), "couch-store-"));
@@ -201,6 +203,7 @@ export async function startHarness(
   const youtube = new FakeYouTube();
   const netflix = new FakeYouTube();
   const mac = new FakeMac();
+  if (options.loginItemOn) mac.loginItem.on = true;
   const clock = new FakeClock();
   const thumbnails = new FakeThumbnails();
   const wallpapers =

@@ -368,6 +368,8 @@ export class Core {
     this.#setup = new Setup({
       store: ports.store,
       usedBefore: () => this.#usedBefore(),
+      listenerOn: () => this.#loginItem.on,
+      turnListenerOn: () => void this.#turnListenerOn(),
       cue: (sound) => this.#cue(sound),
       changed: () => this.#emit(),
     });
@@ -2786,6 +2788,11 @@ export class Core {
       ));
     this.#loginItem = { available: item.available, on: item.on, running };
     this.#emit();
+  }
+
+  async #turnListenerOn(): Promise<void> {
+    await this.refreshLoginItem();
+    if (!this.#loginItem.on) await this.#toggleListener();
   }
 
   async #toggleListener(): Promise<void> {
