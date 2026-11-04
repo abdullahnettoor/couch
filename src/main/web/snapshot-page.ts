@@ -226,7 +226,7 @@ export function snapshotPage(snap: Snapshot) {
     // The topmost element under the point: highest stacking order, then the later in the page.
     elementsFromPoint: (x: number, y: number) => {
       const hits: FakeEl[] = [];
-      all.forEach((e, i) => {
+      all.forEach((e) => {
         const r = e.getBoundingClientRect();
         if (!e.connected || e.hiddenStyle) return;
         if (x >= r.left && x < r.right && y >= r.top && y < r.bottom) hits.push(e);
