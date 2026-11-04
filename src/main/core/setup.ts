@@ -1,9 +1,11 @@
 import type { Command, SetupPayload, UiSound } from "../../shared/protocol.ts";
 import type { Store } from "../ports/store.ts";
-import { SETUP_STEPS, type SetupStep } from "./setup-steps.ts";
+import { SETUP_STEPS, type SetupContext, type SetupStep } from "./setup-steps.ts";
 
 export interface SetupControls {
   next(): void;
+  /** Show the pairing QR code again on the pairing step. */
+  addPhone(): void;
   close(): void;
 }
 
@@ -11,6 +13,10 @@ export interface SetupHost {
   store: Store;
   /** Couch has been used before: a pairing from an earlier start, Library folders or watch history. */
   usedBefore(): boolean;
+  /** Phones connected right now. */
+  phones(): number;
+  /** A timer on the Clock port; returns its canceller. */
+  later(fn: () => void, ms: number): () => void;
   cue(sound: UiSound): void;
   changed(): void;
 }
@@ -55,6 +61,9 @@ export class Setup {
   #index = 0;
   #focus = 0;
   #seen: Set<string>;
+  #justConnected = false;
+  #addingPhone = false;
+  #cancelAdvance?: () => void;
 
   constructor(host: SetupHost, steps: SetupStep[] = SETUP_STEPS) {
     this.#h = host;
@@ -84,6 +93,10 @@ export class Setup {
   }
 
   #goTo(index: number): void {
+    this.#cancelAdvance?.();
+    this.#cancelAdvance = undefined;
+    this.#justConnected = false;
+    this.#addingPhone = false;
     this.#index = index;
     this.#focus = 0;
   }
@@ -99,14 +112,42 @@ export class Setup {
     this.#save(true);
   }
 
+  #ctx(): SetupContext {
+    return {
+      phones: this.#h.phones(),
+      justConnected: this.#justConnected,
+      addingPhone: this.#addingPhone,
+    };
+  }
+
+  /** A phone connected: on the pairing step, say so and move on about 1.5 s later. */
+  phoneConnected(): void {
+    if (!this.#open) return;
+    this.#seen.add("pair");
+    this.#save(false);
+    if (this.#steps[this.#index]!.id !== "pair" || this.#justConnected) return;
+    this.#justConnected = true;
+    this.#cancelAdvance = this.#h.later(() => {
+      this.#cancelAdvance = undefined;
+      if (this.#open && this.#steps[this.#index]!.id === "pair") this.#next();
+      this.#h.changed();
+    }, 1500);
+    this.#h.changed();
+  }
+
   #buttons(): Array<{ label: string; run(): void }> {
     const step = this.#steps[this.#index]!;
-    const control: SetupControls = { next: () => this.#next(), close: () => this.#finish() };
-    const own = step.page().buttons.map((b) => ({ label: b.label, run: () => b.run(control) }));
+    const control: SetupControls = {
+      next: () => this.#next(),
+      addPhone: () => (this.#addingPhone = true),
+      close: () => this.#finish(),
+    };
+    const page = step.page(this.#ctx());
+    const own = page.buttons.map((b) => ({ label: b.label, run: () => b.run(control) }));
     if (step.final) return own;
     return [
       ...own,
-      { label: "Skip", run: () => this.#next() },
+      { label: page.skip ?? "Skip", run: () => this.#next() },
       { label: "Set up later", run: () => this.#finish() },
     ];
   }
@@ -122,12 +163,13 @@ export class Setup {
   payload(): SetupPayload | undefined {
     if (!this.#open) return undefined;
     const step = this.#steps[this.#index]!;
-    const page = step.page();
+    const page = step.page(this.#ctx());
     return {
       id: step.id,
       title: page.title,
       ...(page.body ? { body: page.body } : {}),
       ...(page.tips ? { tips: page.tips } : {}),
+      ...(page.qr ? { qr: true } : {}),
       step: this.#index,
       steps: this.#steps.length,
       buttons: this.#buttons().map((b) => b.label),
