@@ -23,10 +23,14 @@ describe("the committed screenshot fixtures", () => {
         "overlay-toast",
         "overlay-volume",
         "player",
+        "player-next",
+        "player-up-next",
         "settings",
+        "settings-addons",
         "settings-about",
         "settings-add-phone",
         "settings-apps",
+        "settings-credits",
         "settings-details",
         "settings-home",
         "settings-library",
@@ -58,6 +62,13 @@ describe("the committed screenshot fixtures", () => {
     expect(view("app-error")).toBe("appError");
     expect(view("player")).toBe("player");
     expect(fixtures.screen["player"].overlay?.controls).toBe("dock");
+    expect(fixtures.screen["player-up-next"].overlay?.controls).toBe("upnext");
+    expect(fixtures.screen["player-up-next"].overlay?.upNext?.tiles.length).toBeGreaterThan(1);
+    expect(fixtures.screen["player-next"].overlay?.controls).toBe("next");
+    expect(fixtures.screen["player-next"].overlay?.next).toBeDefined();
+    expect(view("settings-addons")).toBe("addons");
+    expect(fixtures.screen["settings-addons"].addons?.length).toBeGreaterThan(0);
+    expect(view("settings-credits")).toBe("credits");
     expect(fixtures.screen["overlay-quick-settings"].quick).toBeDefined();
     expect(fixtures.screen["overlay-setup"].setup).toBeDefined();
     expect(fixtures.screen["overlay-confirm"].state.confirm).toBeDefined();

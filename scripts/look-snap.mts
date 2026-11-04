@@ -8,7 +8,12 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { quickSettingsPage } from "../src/shared/quick-settings-page.ts";
-import { confirmScript, noteScript, volumeScript } from "../src/main/web/web-hud.ts";
+import {
+  confirmScript,
+  noteScript,
+  searchBarScript,
+  volumeScript,
+} from "../src/main/web/web-hud.ts";
 import { DEFAULT_TOLERANCE, decodePng, diffFolders, isBlank } from "./look-diff.ts";
 import { loadFixtures } from "./look-fixture-data.ts";
 
@@ -21,7 +26,6 @@ process.env.TZ = "UTC";
 app.commandLine.appendSwitch("force-device-scale-factor", "1");
 app.commandLine.appendSwitch("disable-gpu-vsync");
 app.dock?.hide();
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 if (mode === "diff") {
   const [base, head] = args;
@@ -93,7 +97,7 @@ async function snapAll(dir: string): Promise<number> {
     return win;
   };
 
-  /** Lets `load` fill the window, waits for fonts and paint, checks the page didn't throw or draw nothing, and saves the capture. */
+  /** Lets `load` fill the window, waits until the page is ready (fonts, pictures) and painted, checks the page didn't throw or draw nothing, and saves the capture. */
   async function shot(
     name: string,
     size: { width: number; height: number },
@@ -111,11 +115,13 @@ async function snapAll(dir: string): Promise<number> {
     try {
       await Promise.race([load(win), gone]);
       log("loaded");
-      await wc.executeJavaScript(
-        "document.fonts.ready.then(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))",
-      );
-      log("fonts");
-      await sleep(300);
+      await wc.executeJavaScript("window.__ready()");
+      log("ready");
+      // A frame composited after the page was ready, so the capture can't be an older one.
+      const painted = new Promise<void>((r) => wc.once("paint", () => r()));
+      wc.invalidate();
+      await Promise.race([painted, gone]);
+      log("painted");
       const errors: string[] = await wc.executeJavaScript("window.__errors");
       if (errors.length) throw new Error(`${name}: the page threw: ${errors.join("; ")}`);
       log("capturing");
@@ -174,9 +180,8 @@ async function snapAll(dir: string): Promise<number> {
   await shot("quick-drawer", SCREEN, async (win) => {
     await win.loadFile(drawerPage);
     await win.webContents.executeJavaScript(
-      `document.documentElement.style.background=${JSON.stringify(BACKDROP)};window.__quick(${JSON.stringify(quick)});0`,
+      `document.documentElement.style.background=${JSON.stringify(BACKDROP)};window.__quick(${JSON.stringify(quick)});window.__drawerIn`,
     );
-    await sleep(100);
   });
 
   // A Web App's own controls drawn over a plain page by the scripts Couch injects.
@@ -186,6 +191,8 @@ async function snapAll(dir: string): Promise<number> {
     ["web-volume", volumeScript(65)],
     ["web-note", noteScript("Phone connected")],
     ["web-confirm", confirmScript(confirm)],
+    ["web-search", searchBarScript("arcane", "Search YouTube")],
+    ["web-search-empty", searchBarScript("", "Search YouTube")],
   ];
   for (const [name, script] of controls) {
     await shot(name, SCREEN, async (win) => {

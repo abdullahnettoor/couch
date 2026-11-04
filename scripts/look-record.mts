@@ -259,6 +259,44 @@ await phone.press({ command: "setPictureOff", args: { on: true } });
 await settled();
 await snap("overlay-picture-off");
 await phone.press({ command: "setPictureOff", args: { on: false } });
+await settled();
+
+// Up next: the list of the folder's videos, opened from the dock (Right on the progress bar seeks, so focus it directly)
+const upNext = screen().grid.find((x) => x.id === "upnext")!;
+h.app.screenCommand({ command: "focusAt", args: { r: upNext.r, c: upNext.c } });
+await press("ok");
+await settled();
+await snap("player-up-next");
+await press("back");
+await settled();
+
+// The end of the video: the card offering the next one in the folder
+h.player.emit?.({ type: "ended", reason: "eof" });
+await settled();
+await snap("player-next");
+
+// Leave the end card, then the Settings pages that only these images draw
+await press("home");
+await h.settle();
+// Credits: Settings → Library → Show and film details → Credits
+await toHome();
+await press("openSettings");
+await open("library");
+await open("details");
+await settled();
+await open("credits");
+await settled();
+await snap("settings-credits");
+
+// Settings → Apps → YouTube's menu → Add-ons
+await toHome();
+await press("openSettings");
+await open("apps");
+await open("youtube");
+await settled();
+await open("addons");
+await settled();
+await snap("settings-addons");
 
 await h.stop();
 phone.close();
