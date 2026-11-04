@@ -33,7 +33,6 @@ function fakeContext(): PageContext & {
     go: (view) => void went.push(view),
     focusOf: () => undefined,
     viewKey: () => "",
-    set: () => {},
     startTyping: () => {},
     stopTyping: () => {},
     toast: () => {},
@@ -136,9 +135,6 @@ describe("Settings Pages Back", () => {
         new DetailsPage(c, {
           details: { settings: () => ({}) as never } as never,
           connectedPhone: () => undefined,
-          startTyping: () => {},
-          endTyping: () => {},
-          toast: () => {},
         }),
       "Library",
       "settingsLibrary",

@@ -458,4 +458,142 @@ async function tour(): Promise<void> {
   expectView("appError");
   await back("App error: Back");
   expectView("home");
+
+  // Review round: paths the first tour missed
+  const tile = (name: string) => {
+    const t = screen().grid.find((g) => g.id.includes(name));
+    if (!t)
+      throw new Error(
+        `no ${name}: ${screen()
+          .grid.map((g) => g.id)
+          .join(" | ")}`,
+      );
+    return t.id;
+  };
+
+  await cmd("Home button before Back-from-playback checks", "home");
+  await focus(tile("Arcane S01E01"), "Continue watching again");
+  await focus("resume", "Resume again");
+  await cmd("Resume again: ok", "ok");
+  expectView("player");
+  await event("Resume again: duration", () => h.player.emit({ type: "duration", seconds: 2400 }));
+  await back("Back from playback started on Home");
+  expectView("home");
+  await event("the ambient delay passes with no Home press", () => h.clock.advance(2 * MIN));
+  await cmd("input after the delay", "left");
+
+  await focus(tile("Arcane S01E01"), "Arcane tile before removal");
+  await cmd("Arcane tile: menu", "menu");
+  await cmd("Arcane tile: Remove from Continue watching", "ok");
+  await focus(tile("Heat.1995"), "Heat tile");
+  await focus("resume", "Heat: Resume");
+  await cmd("Heat: menu", "menu");
+  await cmd("Heat: menu down", "down");
+  await cmd("Heat: Fix match", "ok");
+  expectView("fixMatch");
+  await phone.waitFor(() => !screen().fixMatch!.loading);
+  await event("Fix match from Home: loaded", () => {});
+  await back("Fix match from Home (Resume): Back");
+  expectView("home");
+  await focus("fromstart", "Heat: From start");
+  await cmd("Heat: menu from From start", "menu");
+  await cmd("Heat: menu down", "down");
+  await cmd("Heat: Fix match", "ok");
+  expectView("fixMatch");
+  await phone.waitFor(() => !screen().fixMatch!.loading);
+  await back("Fix match from Home (From start): Back");
+  expectView("home");
+  await focus(tile("Heat.1995"), "Heat tile again");
+  await cmd("Heat tile: menu", "menu");
+  await cmd("Heat tile: menu down", "down");
+  await cmd("Heat tile: Fix match", "ok");
+  await phone.waitFor(() => !screen().fixMatch!.loading);
+  await back("Fix match from Home (tile): Back");
+  expectView("home");
+
+  // Library search, a show, Back
+  await open("library", "Library tile again");
+  await focus("search", "Library search again");
+  await cmd("Library search again: ok", "ok");
+  expectView("librarySearch");
+  await cmd("search again: typeOpen", "typeOpen");
+  await cmd("search again: text", { command: "typeText", args: { text: "arc" } });
+  await event("search again: results settle", () => h.clock.advance(150));
+  await cmd("search again: submit", "typeSubmit");
+  await focus("search:shows:show:arcane", "search result Arcane");
+  await cmd("search result: ok", "ok");
+  expectView("show");
+  await back("show from search: Back");
+  await back("search: Back again");
+
+  // Applying a Fix match
+  await open("shows:show:arcane", "show Arcane again");
+  await open("fix", "Fix match again");
+  await phone.waitFor(() => !screen().fixMatch!.loading);
+  await cmd("Fix match: down to the second", "down");
+  await cmd("Fix match: apply", "ok");
+  await event("Fix match applied", () => {});
+  await back("show: Back after applying");
+  expectView("library");
+
+  // Folder playback
+  await focus(root, "Folders row again");
+  await cmd("Folders row again: ok", "ok");
+  await open(sub("Home videos"), "folder Home videos again");
+  await open(sub("Home videos", "Garden.mp4"), "Garden");
+  expectView("player");
+  await event("folder playback: duration", () => h.player.emit({ type: "duration", seconds: 600 }));
+  await back("folder playback: Back shows controls");
+  await back("folder playback: Back stops");
+  await event("folder playback: settled", () => {});
+
+  // Up next and the end of a video
+  await cmd("Home before Up next", "home");
+  await open("library", "Library tile third");
+  await open("shows:show:arcane", "show Arcane third");
+  await open("play", "Play third");
+  expectView("player");
+  await event("Up next: duration", () => h.player.emit({ type: "duration", seconds: 2400 }));
+  await cmd("Up next: down", "down");
+  await cmd("Up next: right", "right");
+  await back("Up next: Back to the dock");
+  await cmd("Up next: down again", "down");
+  await cmd("Up next: right again", "right");
+  await cmd("Up next: play the chosen", "ok");
+  await event("next video: duration", () => h.player.emit({ type: "duration", seconds: 2400 }));
+  await event("video ends", () => h.player.emit({ type: "ended", reason: "eof" }));
+  await event("end card settles", () => h.clock.advance(10_000));
+  await cmd("end card: ok", "ok");
+  await event("after end: duration", () => h.player.emit({ type: "duration", seconds: 2400 }));
+
+  // Settings during playback
+  await cmd("playback: quick settings", "quickSettings");
+  for (let i = 0; i < 20 && screen().quick?.focusedId !== "settings"; i++)
+    await cmd("quick settings: down", "down");
+  await cmd("quick settings: All settings", "ok");
+  expectView("settings");
+  await back("Settings after quick settings: Back");
+  expectView("home");
+  await open("library", "Library tile fourth");
+  await open("shows:show:arcane", "show Arcane fourth");
+  await open("play", "Play fourth");
+  expectView("player");
+  await event("fourth playback: duration", () =>
+    h.player.emit({ type: "duration", seconds: 2400 }),
+  );
+  await cmd("fourth playback: quick settings", "quickSettings");
+  await cmd("fourth playback: quick settings Back", "back");
+  await back("fourth playback: Back shows controls");
+  await back("fourth playback: Back stops");
+  await cmd("Home after playback", "home");
+  expectView("home");
+
+  // App error: Try again
+  await open("youtube", "YouTube tile third");
+  await event("YouTube: failed again", () => h.youtube.emit({ type: "failed" }));
+  expectView("appError");
+  await cmd("App error: Try again", "ok");
+  await event("YouTube: failed after retry", () => h.youtube.emit({ type: "failed" }));
+  await back("App error again: Back");
+  expectView("home");
 }

@@ -1,7 +1,7 @@
-import type { Confirmation, GridItem, ScreenState } from "../../../shared/protocol.ts";
+import type { Confirmation, GridItem, ScreenState, View } from "../../../shared/protocol.ts";
 import { APP_ERROR_ITEMS } from "../../../shared/app-grid.ts";
 import type { App } from "../../apps/app.ts";
-import { backTo, type Page, type PageBack, type PageContext } from "./page.ts";
+import { backTo, type AppContext, type Page, type PageBack } from "./page.ts";
 
 const APP_NOTE = "Press Home on your phone to come back";
 
@@ -21,7 +21,7 @@ export interface AppPageHost {
  * through the context), opening the App (with its welcome question) and letting it go when the view leaves.
  */
 export class AppPage implements Page {
-  #ctx: PageContext;
+  #ctx: AppContext;
   #h: AppPageHost;
   /** Apps that failed to load, with why when the App said so; cleared when one loads. */
   readonly failed = new Map<string, string | undefined>();
@@ -35,7 +35,7 @@ export class AppPage implements Page {
   /** The App this Page was entered for. */
   #id: string | undefined;
 
-  constructor(ctx: PageContext, host: AppPageHost) {
+  constructor(ctx: AppContext, host: AppPageHost) {
     this.#ctx = ctx;
     this.#h = host;
   }
@@ -82,9 +82,10 @@ export class AppPage implements Page {
     this.#id = this.#ctx.state.app;
   }
 
-  /** Leaving an App hides it (pausing playback). */
-  leave(): void {
+  /** Leaving an App hides it (pausing playback). Its error page keeps the App and its note. */
+  leave(to: View): void {
     const id = this.#id ?? "";
+    if (to !== "appError") this.#ctx.setApp(undefined);
     if (this.#leaveConfirm && this.#ctx.state.confirm === this.#leaveConfirm)
       this.#h.dismissConfirm();
     this.#ctx.stopTyping();
@@ -167,11 +168,11 @@ export class AppPage implements Page {
     const app = this.#h.apps.get(id);
     if (!app) return;
     if (this.failed.has(id)) {
-      this.#ctx.set({ app: id, appNote: this.failed.get(id) });
+      this.#ctx.setApp(id, this.failed.get(id));
       this.#ctx.go("appError");
       return;
     }
-    this.#ctx.set({ app: id });
+    this.#ctx.setApp(id);
     this.#ctx.go("app");
     if (at) app.openAt?.(at);
     app.show(APP_NOTE);
@@ -180,10 +181,10 @@ export class AppPage implements Page {
 
 /** The page shown when an App failed to load: Retry, and Back to Home. */
 export class AppErrorPage implements Page {
-  #ctx: PageContext;
+  #ctx: AppContext;
   #app: AppPage;
 
-  constructor(ctx: PageContext, app: AppPage) {
+  constructor(ctx: AppContext, app: AppPage) {
     this.#ctx = ctx;
     this.#app = app;
   }
@@ -204,6 +205,11 @@ export class AppErrorPage implements Page {
 
   back(): PageBack {
     return backTo(this.#ctx, "home");
+  }
+
+  /** The note goes with the page; the App stays only when it is being tried again. */
+  leave(to: View): void {
+    this.#ctx.setApp(to === "app" ? this.#ctx.state.app : undefined);
   }
 }
 

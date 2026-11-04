@@ -17,7 +17,7 @@ import { libraryRows, tileAction } from "../library-rows.ts";
 import type { MediaLibrary } from "../media-library.ts";
 import type { MetadataService } from "../metadata-service.ts";
 import type { ThumbnailScheduler } from "../thumbnail-scheduler.ts";
-import type { Page, PageBack, PageContext } from "./page.ts";
+import type { FolderContext, Page, PageBack } from "./page.ts";
 
 /** The Library's first page wraps its tiles at this many a row, and so does a folder. */
 export const TILE_COLUMNS = 4;
@@ -48,7 +48,7 @@ export interface LibraryPageHost {
  * the grid, the payload, the `library:*` actions, Back, and refreshing on arrival.
  */
 export class LibraryPage implements Page {
-  #ctx: PageContext;
+  #ctx: FolderContext;
   #h: LibraryPageHost;
   /** The folder open now: its entries. */
   #listing: LibraryEntry[] = [];
@@ -61,7 +61,7 @@ export class LibraryPage implements Page {
   /** The last tile focused on the first page; the featured area keeps showing it while a chip or icon has focus. */
   #lastTile: string | undefined;
 
-  constructor(ctx: PageContext, host: LibraryPageHost) {
+  constructor(ctx: FolderContext, host: LibraryPageHost) {
     this.#ctx = ctx;
     this.#h = host;
   }
@@ -148,7 +148,7 @@ export class LibraryPage implements Page {
       paths.push(...m.sources);
     }
     this.#h.thumbs.want(paths);
-    this.#ctx.set({ folderPath: path });
+    this.#ctx.setFolder(path);
     this.#ctx.go("folder");
   }
 

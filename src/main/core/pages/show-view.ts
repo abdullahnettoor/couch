@@ -14,7 +14,7 @@ import { EXTRAS_TAB, allEpisodes, primaryFor, tabIds, tabOf } from "../show-page
 import type { PathArt } from "../art.ts";
 import { topGenres } from "../library-rows.ts";
 import type { ThumbnailScheduler } from "../thumbnail-scheduler.ts";
-import type { Page, PageBack, PageContext } from "./page.ts";
+import type { Page, PageBack, ShowContext } from "./page.ts";
 
 /** What the show page and Fix match ask of the core. */
 export interface ShowViewHost {
@@ -36,12 +36,12 @@ export interface ShowViewHost {
  * grids and payloads. It is two Pages (`page` and `fixPage`) over one state; it changes view only with `go`.
  */
 export class ShowView {
-  #ctx: PageContext;
+  #ctx: ShowContext;
   #h: ShowViewHost;
   /** Where Back from a show page goes: the Library, or the search it was opened from. */
   #from: "library" | "librarySearch" = "library";
 
-  constructor(ctx: PageContext, host: ShowViewHost) {
+  constructor(ctx: ShowContext, host: ShowViewHost) {
     this.#ctx = ctx;
     this.#h = host;
   }
@@ -77,25 +77,27 @@ export class ShowView {
     const show = this.#h.library.show(id);
     if (!show) return;
     this.#from = this.#ctx.state.view === "librarySearch" ? "librarySearch" : "library";
-    this.#ctx.set({ showId: id });
+    this.#ctx.setShow(id);
     const primary = primaryFor(show, this.#h.history);
     if (primary) this.#focusShowEpisode(primary.episode.path);
-    else this.#ctx.set({ showTab: tabIds(show)[0] });
+    else this.#ctx.setShowTab(tabIds(show)[0]);
     this.#ctx.go("show");
     this.#wantShowPictures();
   }
 
-  /** Back on the show page after playback: focus the episode played, or the next one after an end. */
-  returnTo(path: string, ended: boolean): void {
+  /** After playback, focus the episode played, or the next one after an end. */
+  focusPlayed(path: string, ended: boolean): void {
     const show = this.#h.library.show(this.#ctx.state.showId!);
-    if (!show) {
-      this.#ctx.go("library");
-      return;
-    }
+    if (!show) return;
     const next = ended ? this.#h.library.nextEpisode(path) : undefined;
     this.#focusShowEpisode(next?.path ?? path);
-    this.#ctx.go("show");
-    this.#wantShowPictures();
+  }
+
+  /** Back on the show page after playback (or the Library when the show is gone). */
+  returnTo(): void {
+    const show = this.#h.library.show(this.#ctx.state.showId!);
+    this.#ctx.go(show ? "show" : "library", { returning: true });
+    if (show) this.#wantShowPictures();
   }
 
   /** Select the episode's season tab and focus its row. */
@@ -104,7 +106,7 @@ export class ShowView {
     const episode = show && allEpisodes(show).find((e) => e.path === path);
     if (!show || !episode) return;
     const tab = tabOf(episode);
-    this.#ctx.set({ showTab: tab });
+    this.#ctx.setShowTab(tab);
     const index = show.seasons.find((se) => String(se.number) === tab)!.episodes.indexOf(episode);
     this.#ctx.setFocus(`show:${show.id}`, { r: 1 + index, c: 1 + tabIds(show).indexOf(tab) });
   }
@@ -244,7 +246,7 @@ export class ShowView {
       const primary = primaryFor(show, this.#h.history);
       if (primary) this.#h.play(primary.episode.path, primary.fromStart);
     } else if (verb === "tab") {
-      this.#ctx.set({ showTab: arg });
+      this.#ctx.setShowTab(arg);
       this.#wantShowPictures();
       const list = this.#showList(show);
       const c = 1 + tabIds(show).indexOf(arg);
@@ -287,11 +289,9 @@ export class ShowView {
     this.#leaveFixTo(this.#fixBack);
   }
 
-  /** Going Home is the Home button's trip (it forgets Home's focus); coming back from Fix match keeps it. */
+  /** Going Home is the Home button's trip (it forgets Home's focus); coming back from Fix match keeps it, with its hero. */
   #leaveFixTo(view: "show" | "library" | "home"): void {
-    const home = this.#ctx.focusOf("home");
-    this.#ctx.go(view);
-    if (view === "home" && home) this.#ctx.setFocus("home", home);
+    this.#ctx.go(view, { returning: true });
   }
 
   /** Fix match for a film on Home's Continue watching; Back returns to Home. */
@@ -327,7 +327,7 @@ export class ShowView {
     if (focused?.id.startsWith("tab:")) {
       const tab = focused.id.slice(4);
       if (tab !== this.#ctx.state.showTab) {
-        this.#ctx.set({ showTab: tab });
+        this.#ctx.setShowTab(tab);
         this.#wantShowPictures();
       }
     }

@@ -1,5 +1,5 @@
 import { basename, dirname } from "node:path";
-import type { GridItem, LibraryEntry, ScreenPayload } from "../../../shared/protocol.ts";
+import type { GridItem, LibraryEntry, ScreenPayload, View } from "../../../shared/protocol.ts";
 import { homeItems } from "../../../shared/home-grid.ts";
 import type { AppEntry } from "../../apps/index.ts";
 import type { App, NowPlayingHint } from "../../apps/app.ts";
@@ -42,6 +42,10 @@ export interface HomeScreenHost {
   decorate(entry: LibraryEntry): LibraryEntry;
   /** The Library's chip goes back to All when Home opens. */
   resetChip(): void;
+  /** Home's wallpaper folder is watched while Home shows. */
+  watchWallpapers(on: boolean): void;
+  /** Home's wallpapers are read again as Home opens. */
+  refreshWallpapers(): void;
   /** What Fix match offers for a Library film, or undefined. */
   fixTargetFor(entry: LibraryEntry): string | undefined;
   openFixFromHome(target: string): void;
@@ -81,8 +85,15 @@ export class HomeScreenPage implements Page {
     this.#film = undefined;
   }
 
-  enter(): void {
-    this.#reset();
+  /** Coming back from playback or Fix match keeps Home as it was, with its hero and its Resume and From start pills. */
+  enter(_from: View, returning?: boolean): void {
+    if (!returning) this.#reset();
+    this.#h.watchWallpapers(true);
+    this.#h.refreshWallpapers();
+  }
+
+  leave(): void {
+    this.#h.watchWallpapers(false);
   }
 
   /** Going Home while already on Home starts it over too. */
@@ -92,12 +103,12 @@ export class HomeScreenPage implements Page {
 
   /** Home's gear and the catalog's Apps, cut to the shown Apps in the household's order; the update icon left of the gear while an update is ready. */
   #base(): GridItem[] {
-    const reported = homeItems(this.#h.catalog());
-    const apps = new Map(reported.filter((i) => i.id !== "settings").map((i) => [i.id, i]));
+    const catalogItems = homeItems(this.#h.catalog());
+    const apps = new Map(catalogItems.filter((i) => i.id !== "settings").map((i) => [i.id, i]));
     const ordered = this.#h.homeApps.shownIds().flatMap((id) => apps.get(id) ?? []);
     return [
       ...(this.#h.updateReady() ? [UPDATE_ICON] : []),
-      ...reported.filter((i) => i.id === "settings"),
+      ...catalogItems.filter((i) => i.id === "settings"),
       ...ordered.map((i, c) => {
         const { initial: _initial, ...item } = i;
         return { ...item, c, ...(c === 0 ? { initial: true } : {}) };

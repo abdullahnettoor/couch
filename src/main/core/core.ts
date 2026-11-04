@@ -44,7 +44,6 @@ import { topGenres } from "./library-rows.ts";
 import { presentation, hueFor, listFolder } from "./library.ts";
 import { applyEdit, type TextEdit } from "../../shared/keyboard.ts";
 import type { TrackList, UpNextItem } from "../../shared/protocol.ts";
-import type { PlayerControls } from "./player-controls.ts";
 import { LibraryFolders } from "./library-folders.ts";
 import { ListenerLogin } from "./listener-login.ts";
 import { PlayerPage } from "./pages/player-page.ts";
@@ -56,7 +55,7 @@ import { ContinueArt, type ArtFetch } from "./continue-art.ts";
 import { ShowView } from "./pages/show-view.ts";
 import { LibraryPage } from "./pages/library-page.ts";
 import { AddonsPage } from "./pages/addons-page.ts";
-import type { Page, PageContext } from "./pages/page.ts";
+import type { AppContext, FolderContext, Page, PageContext, ShowContext } from "./pages/page.ts";
 import { HomeApps, leavesOnHide } from "./home-apps.ts";
 import { DetailsPage } from "./pages/details-page.ts";
 import {
@@ -229,7 +228,6 @@ export class Core {
   #thumbs: ThumbnailScheduler;
   #player: PlayerPage;
   #login: ListenerLogin;
-  #controls: PlayerControls;
   #home: HomeScreenPage;
   #app: AppPage;
   #overlays: AppOverlays;
@@ -311,29 +309,55 @@ export class Core {
     });
     void this.#login.refresh();
     this.#thumbs = new ThumbnailScheduler(ports.thumbnails, () => this.#emit());
-    const pageContext: PageContext = {
-      state: this.#state,
-      focusOf: (key) => this.#state.focus[key],
-      setFocus: (key, at) => {
-        if (at) this.#state.focus[key] = at;
-        else delete this.#state.focus[key];
-      },
-      viewKey: () => this.viewKey,
-      set: (patch) => void Object.assign(this.#state, patch),
-      startTyping: (by, purpose) => {
-        this.#state.typingBy = by;
-        this.#typingFor = purpose;
-      },
-      stopTyping: () => {
-        this.#state.typingBy = undefined;
-      },
-      go: (view) => this.#setView(view),
-      toast: (text) => this.#toast(text),
-      ask: (title, buttons, answers, more) => this.#ask(title, buttons, answers, more),
-      cue: (sound) => this.#cue(sound),
-      emit: () => this.#emit(),
+    // Every Page gets its own context: the focus keys it owns, and only the state capabilities it needs.
+    const contextFor = (...own: string[]): PageContext => {
+      const check = (key: string) => {
+        if (!own.some((k) => key === k || key.startsWith(`${k}:`)))
+          throw new Error(`Focus key "${key}" belongs to another Page`);
+        return key;
+      };
+      return {
+        state: this.#state,
+        focusOf: (key) => this.#state.focus[check(key)],
+        setFocus: (key, at) => {
+          if (at) this.#state.focus[check(key)] = at;
+          else delete this.#state.focus[check(key)];
+        },
+        viewKey: () => this.viewKey,
+        startTyping: (by, purpose) => {
+          this.#state.typingBy = by;
+          this.#typingFor = purpose;
+        },
+        stopTyping: () => {
+          this.#state.typingBy = undefined;
+        },
+        go: (view, options) => this.#setView(view, options),
+        toast: (text) => this.#toast(text),
+        ask: (title, buttons, answers, more) => this.#ask(title, buttons, answers, more),
+        cue: (sound) => this.#cue(sound),
+        emit: () => this.#emit(),
+      };
     };
-    this.#show = new ShowView(pageContext, {
+    const pageContext = contextFor();
+    const showContext: ShowContext = {
+      ...contextFor("show", "fixMatch"),
+      setShow: (id) => void (this.#state.showId = id),
+      setShowTab: (tab) => void (this.#state.showTab = tab),
+    };
+    const libraryContext: FolderContext = {
+      ...contextFor("library", "folder"),
+      setFolder: (path) => void (this.#state.folderPath = path),
+    };
+    const appContext: AppContext = {
+      ...contextFor(),
+      setApp: (id, note) => {
+        if (id === undefined) delete this.#state.app;
+        else this.#state.app = id;
+        if (note === undefined) delete this.#state.appNote;
+        else this.#state.appNote = note;
+      },
+    };
+    this.#show = new ShowView(showContext, {
       library: this.library,
       history: this.#history,
       details: this.details,
@@ -417,16 +441,8 @@ export class Core {
         this.#lastFrom !== undefined && this.#remotes.has(this.#lastFrom)
           ? this.#lastFrom
           : undefined,
-      startTyping: (remote) => {
-        this.#state.typingBy = remote;
-        this.#typingFor = "tmdbKey";
-      },
-      endTyping: () => {
-        this.#state.typingBy = undefined;
-      },
-      toast: (text) => this.#toast(text),
     });
-    this.#search = new LibrarySearchPage(pageContext, {
+    this.#search = new LibrarySearchPage(contextFor("librarySearch"), {
       library: this.library,
       history: this.#history,
       details: (id) => this.details.detailsFor(id),
@@ -440,7 +456,7 @@ export class Core {
           ? this.#lastFrom
           : undefined,
     });
-    this.#libraryPage = new LibraryPage(pageContext, {
+    this.#libraryPage = new LibraryPage(libraryContext, {
       library: this.library,
       details: this.details,
       history: this.#history,
@@ -456,14 +472,14 @@ export class Core {
       },
     });
     const settingsHost = { details: this.details, sound: this.#sound };
-    this.#settingsApps = new SettingsAppsPage(pageContext, {
+    this.#settingsApps = new SettingsAppsPage(contextFor("settingsApps"), {
       homeApps: this.#homeApps,
       apps: this.#apps,
       clearFailure: (id) => this.#app.failed.delete(id),
       catalog: () => this.#catalog(),
       addons: () => this.#addonsPage.rows(),
     });
-    this.#home = new HomeScreenPage(pageContext, {
+    this.#home = new HomeScreenPage(contextFor("home"), {
       catalog: () => this.#catalog(),
       apps: this.#apps,
       homeApps: this.#homeApps,
@@ -478,11 +494,13 @@ export class Core {
       resetChip: () => this.#libraryPage.resetChip(),
       fixTargetFor: (entry) => this.#show.fixTargetFor(entry),
       openFixFromHome: (id) => this.#show.openFixFromHome(id),
+      watchWallpapers: (on) => this.#homePage.watch(on),
+      refreshWallpapers: () => this.#homePage.refresh(false),
       setHint: (app, hint) => this.setNowPlayingHint(app, hint),
       openApp: (id, at) => this.#app.open(id, at),
       play: (path, fromStart) => this.#play(path, fromStart),
     });
-    this.#player = new PlayerPage(pageContext, {
+    this.#player = new PlayerPage(contextFor("player"), {
       clock: ports.clock,
       playing: () => {
         const p = this.#state.player;
@@ -494,6 +512,13 @@ export class Core {
       setVolume: (percent) => this.#setVolume(percent),
       play: (path) => this.#play(path),
       leave: () => this.#endPlayback(undefined, true),
+      stopVideo: () => this.#stopPlayback(),
+      endPlayback: (ended) => this.#endPlayback(undefined, ended),
+      leavePlayback: () => {
+        if (!this.#state.player) return;
+        this.#stopPlayback();
+        this.#releasePlayback(false);
+      },
       changed: () => this.#emit(),
       present: (path) => this.#present(path),
       still: (path) => this.#still(path, (p) => this.#thumbs.lookup(p)),
@@ -501,8 +526,7 @@ export class Core {
       level: () => this.#level(),
       resumeNote: () => this.#resumeNote,
     });
-    this.#controls = this.#player.controls;
-    this.#app = new AppPage(pageContext, {
+    this.#app = new AppPage(appContext, {
       apps: this.#apps,
       isShown: (id) => this.#homeApps.isShown(id),
       front: () => this.#front(),
@@ -523,7 +547,7 @@ export class Core {
       home: this.#home,
       player: this.#player,
       app: this.#app,
-      appError: new AppErrorPage(pageContext, this.#app),
+      appError: new AppErrorPage(appContext, this.#app),
       about: this.#about,
       addons: this.#addonsPage,
       library: this.#libraryPage,
@@ -760,8 +784,8 @@ export class Core {
     if (p) this.#history.save(p.path, p.pos, p.dur, this.#ports.clock.now());
   }
 
-  /** Leave playback for a view, saving the position first. */
-  #endPlayback(toast?: string, ended = false): void {
+  /** Lets the video go: saves where it was and resets the controls, with focus put back on what played. Never changes view. */
+  #releasePlayback(ended: boolean): void {
     const p = this.#state.player;
     if (!p) return;
     this.#cancelSaves?.();
@@ -770,14 +794,24 @@ export class Core {
     this.#resumeNote = undefined;
     this.#history.save(p.path, p.pos, p.dur, this.#ports.clock.now(), ended);
     this.#state.player = undefined;
-    this.#controls.end();
-    if (this.#playedFrom === "folder") {
-      this.#libraryPage.focusEntry(p.path, ended);
-      this.#setView(this.#state.folderPath ? "folder" : "library");
-    } else if (this.#playedFrom === "show" && this.#state.showId) {
-      this.#show.returnTo(p.path, ended);
+    this.#player.end();
+    if (this.#playedFrom === "folder") this.#libraryPage.focusEntry(p.path, ended);
+    else if (this.#playedFrom === "show" && this.#state.showId)
+      this.#show.focusPlayed(p.path, ended);
+  }
+
+  /** Leave playback for where it started, saving the position first. */
+  #endPlayback(toast?: string, ended = false): void {
+    const p = this.#state.player;
+    if (!p) return;
+    const from = this.#playedFrom;
+    this.#releasePlayback(ended);
+    if (from === "folder") {
+      this.#setView(this.#state.folderPath ? "folder" : "library", { returning: true });
+    } else if (from === "show" && this.#state.showId) {
+      this.#show.returnTo();
     } else {
-      this.#setView(this.#playedFrom === "show" ? "library" : this.#playedFrom);
+      this.#setView(from === "show" ? "library" : from, { returning: true });
       if (this.#state.view === "home") this.#home.focusCard(p.path);
     }
     if (toast) this.#toast(toast);
@@ -829,7 +863,7 @@ export class Core {
       case "pause":
         if (p && p.paused !== event.paused) {
           p.paused = event.paused;
-          this.#controls.show();
+          this.#player.show();
           this.#emit();
         }
         break;
@@ -843,7 +877,7 @@ export class Core {
       this.#state.pictureOff = false;
       this.#pictureOffScope = undefined;
     }
-    if (!p || !this.#controls.offerNext()) return this.#endPlayback(undefined, true);
+    if (!p || !this.#player.offerNext()) return this.#endPlayback(undefined, true);
     this.#cancelSaves?.();
     this.#cancelSaves = undefined;
     if (p.dur > 0) p.pos = p.dur;
@@ -918,50 +952,6 @@ export class Core {
     this.#emit();
   }
 
-  /** Commands while a video plays. Returns false for the ones handled like anywhere else. */
-  #playbackCommand(command: Command): boolean {
-    const p = this.#state.player!;
-    const name = command.command;
-    if (this.#controls.mode === "next") {
-      if (name === "playNext") this.#controls.playNext();
-      else if (name === "back" || name === "home") {
-        this.#endPlayback(undefined, true);
-        if (name === "home") this.#setView("home");
-      } else return this.#controls.command(command);
-      return true;
-    }
-    if (name === "playNext") return true;
-    if (name === "playUpNext") {
-      this.#controls.playUpNext(command.args?.index);
-      return true;
-    }
-    if (name === "back" && this.#controls.back()) return true;
-    if (name === "back" || name === "home") {
-      this.#stopPlayback();
-      this.#endPlayback();
-      if (name === "home") this.#setView("home");
-      return true;
-    }
-    if (name === "playpause" || name === "seekBy" || name === "seekTo" || name === "subtitles")
-      this.#controls.show();
-    switch (name) {
-      case "playpause":
-        this.#togglePause();
-        return true;
-      case "seekBy":
-        this.#seekTo(p.pos + (command.args?.seconds ?? 0));
-        return true;
-      case "seekTo":
-        this.#seekTo(command.args?.seconds ?? 0);
-        return true;
-      case "subtitles":
-        this.#toggleSubtitles();
-        return true;
-      default:
-        return this.#controls.command(command);
-    }
-  }
-
   /** The phone fetches pictures by key: a frame's, or a cached TMDB still or poster's. */
   #thumbKey(path: string): string | undefined {
     const { details, episode } = this.#art(path);
@@ -977,7 +967,7 @@ export class Core {
 
   #upNextItems(): UpNextItem[] {
     const playing = this.#state.player?.path;
-    return this.#controls.upNext.map((e) => {
+    return this.#player.upNext.map((e) => {
       const key = this.#thumbKey(e.path);
       const progress = this.#history.progress(e.path);
       return {
@@ -1014,7 +1004,7 @@ export class Core {
       ...(this.#state.typingBy === "screen" && this.#typingFor
         ? { screenTyping: this.#typingFor }
         : {}),
-      state: { ...structuredClone(this.#state), controls: this.#controls.mode },
+      state: { ...structuredClone(this.#state), controls: this.#player.mode },
       viewKey: this.viewKey,
       grid,
       focusedId: focused?.id,
@@ -1073,12 +1063,12 @@ export class Core {
             },
           }
         : {}),
-      ...(this.#controls.mode === "next" && this.#controls.next
+      ...(this.#player.mode === "next" && this.#player.next
         ? {
             next: {
-              ...this.#present(this.#controls.next.path),
-              ...(this.#thumbKey(this.#controls.next.path)
-                ? { thumbKey: this.#thumbKey(this.#controls.next.path) }
+              ...this.#present(this.#player.next.path),
+              ...(this.#thumbKey(this.#player.next.path)
+                ? { thumbKey: this.#thumbKey(this.#player.next.path) }
                 : {}),
             },
           }
@@ -1109,7 +1099,7 @@ export class Core {
               : "other",
       nowPlaying: s.player
         ? {
-            active: this.#controls.mode !== "next",
+            active: this.#player.mode !== "next",
             ...this.#present(s.player.path),
             folder: basename(dirname(s.player.path)),
             position: s.player.pos,
@@ -1124,7 +1114,7 @@ export class Core {
             app: this.#appFace("library", "Library"),
           }
         : this.#appNowPlaying(front),
-      ...(s.player && this.#controls.upNextAvailable ? { upNext: this.#upNextItems() } : {}),
+      ...(s.player && this.#player.upNextAvailable ? { upNext: this.#upNextItems() } : {}),
       volume: s.volume,
       muted: this.#sound.muted,
       pictureOff: s.pictureOff,
@@ -1322,7 +1312,7 @@ export class Core {
     if (this.#confirmCommand(command)) return;
     if (command.command === "focusAt") return this.#focusAt(command.args?.r, command.args?.c);
     if (this.#typingKeys(command, from)) return;
-    if (this.#state.player && this.#playbackCommand(command)) {
+    if (this.#state.player && this.#player.command(command)) {
       this.#emit();
       return;
     }
@@ -1765,7 +1755,7 @@ export class Core {
     this.#cancelMinute?.();
     this.#cancelAmbient?.();
     this.#offTimeFormat?.();
-    this.#controls.dispose();
+    this.#player.dispose();
     this.#cancelSaves?.();
     this.#cancelNote?.();
     this.#cancelVolume?.();
@@ -1799,7 +1789,7 @@ export class Core {
     if (!item) return;
     this.#state.focus[this.viewKey] = { r: item.r, c: item.c };
     this.#show.syncTab();
-    this.#controls.cardActivity();
+    this.#player.cardActivity();
     this.#emit();
   }
 
@@ -1841,29 +1831,21 @@ export class Core {
     } else this.#keepLibraryFocus();
   }
 
-  /** Stops what is playing (saving its position), then opens `view`. */
+  /** Opens `view`; the player Page stops what is playing (saving its position) as the view leaves it. */
   #leavePlaybackFor(view: View): void {
-    if (this.#state.player) {
-      this.#stopPlayback();
-      this.#endPlayback();
-    }
     this.#setView(view);
   }
 
-  /** Changes view; leaving an App hides it (pausing playback) and lets the display sleep again. */
-  #setView(view: View): void {
+  /** Changes view: the Pages leave and enter, and the idle timers restart (not when `returning` to where the household was). */
+  #setView(view: View, options?: { returning?: true }): void {
     const from = this.#state.view;
     if (from === view) return this.#pages[view].reenter?.();
-    if (view !== "app" && view !== "appError") delete this.#state.app;
-    if (view !== "appError") delete this.#state.appNote;
     this.#state.view = view;
     this.#ambient = false;
-    this.#armAmbient();
+    if (!options?.returning) this.#armAmbient();
     this.#releaseStrayTyping();
-    this.#homePage.watch(view === "home");
-    if (view === "home") this.#homePage.refresh(false);
     this.#pages[from].leave?.(view);
-    this.#pages[view].enter?.(from);
+    this.#pages[view].enter?.(from, options?.returning === true);
   }
 
   /** The one App catalog: Home tiles, icons and Settings actions all come from it, injected Apps included. */
@@ -2095,13 +2077,13 @@ export class Core {
     this.#syncPictureOff();
     this.#releaseStrayTyping();
     const raised =
-      this.#controls.mode !== "hidden" &&
-      this.#controls.mode !== "next" &&
+      this.#player.mode !== "hidden" &&
+      this.#player.mode !== "next" &&
       this.#state.player !== undefined;
-    const level = `${raised}${this.#controls.mode === "upnext"}`;
+    const level = `${raised}${this.#player.mode === "upnext"}`;
     if (level !== this.#subtitlesRaised) {
       this.#subtitlesRaised = level;
-      this.#ports.player.setSubtitlesRaised(raised, this.#controls.mode === "upnext");
+      this.#ports.player.setSubtitlesRaised(raised, this.#player.mode === "upnext");
     }
     this.#syncDisplayAwake();
     this.#overlays.sync();

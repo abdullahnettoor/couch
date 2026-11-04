@@ -8,11 +8,6 @@ export interface DetailsPageHost {
   details: Pick<MetadataService, "settings" | "setKey" | "setEnabled" | "refresh">;
   /** The phone that last sent a command, if it is still connected. */
   connectedPhone(): RemoteId | undefined;
-  /** A phone (or the Screen) starts typing the key: it owns the typing session, for the key only. */
-  startTyping(source: Source): void;
-  /** Ends the typing session (the Screen's field or a phone's sheet). */
-  endTyping(): void;
-  toast(text: string): void;
 }
 
 /**
@@ -65,19 +60,19 @@ export class DetailsPage implements Page {
         const phone = this.#h.connectedPhone();
         if (from === "screen") this.startTyping(from);
         else if (phone !== undefined) this.startTyping(phone);
-        else this.#h.toast("Open Couch's Remote on your phone to type the key");
+        else this.#ctx.toast("Open Couch's Remote on your phone to type the key");
         break;
       }
       case "details:remove-key":
         this.#h.details.setKey(undefined);
-        this.#h.toast("Using the built-in key");
+        this.#ctx.toast("Using the built-in key");
         break;
       case "details:toggle":
         this.#h.details.setEnabled(!this.#h.details.settings().enabled);
         break;
       case "details:refresh":
         this.#h.details.refresh();
-        this.#h.toast("Refreshing details");
+        this.#ctx.toast("Refreshing details");
         break;
       case "details:credits":
         this.#ctx.go("credits");
@@ -89,13 +84,13 @@ export class DetailsPage implements Page {
   }
 
   startTyping(source: Source): void {
-    this.#h.startTyping(source);
+    this.#ctx.startTyping(source, "tmdbKey");
     this.#draft = "";
   }
 
   /** The page was left (or its typing sheet closed): forget the key being typed. */
   cancel(): void {
-    this.#h.endTyping();
+    this.#ctx.stopTyping();
     this.#draft = "";
   }
 
@@ -112,16 +107,16 @@ export class DetailsPage implements Page {
         break;
       case "typeSubmit":
         if (owner !== from) return;
-        this.#h.endTyping();
+        this.#ctx.stopTyping();
         if (this.#draft.trim()) {
           this.#h.details.setKey(this.#draft);
-          this.#h.toast("TMDB key saved");
+          this.#ctx.toast("TMDB key saved");
         }
         this.#draft = "";
         break;
       case "typeCancel":
         if (owner !== from) return;
-        this.#h.endTyping();
+        this.#ctx.stopTyping();
         this.#draft = "";
         break;
     }
