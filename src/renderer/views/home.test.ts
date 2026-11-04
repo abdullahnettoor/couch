@@ -317,7 +317,7 @@ describe("Home with a picture from the Mac", () => {
     expect(rule(".h-photo-blur.top")!.style.getPropertyValue("top")).toBe("0px");
     expect(rule(".h-photo-blur.bottom")!.style.getPropertyValue("bottom")).toBe("0px");
     expect(rule(".h-photo-img")!.style.getPropertyValue("animation")).toContain(
-      "--duration-ms120000",
+      "--duration-photo-pan",
     );
     const css = document.head.querySelector("style")!.textContent!;
     expect(css).toMatch(/@keyframes h-kenburns\s*{\s*from\s*{\s*transform: scale\(1\)/);

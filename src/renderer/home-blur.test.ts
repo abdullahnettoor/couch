@@ -26,18 +26,18 @@ describe("the blur behind the clock (1920 × 1080: 1 u = 1 px)", () => {
 
   test("the clock sits at the shared top and its box is the time, the gap and the date line", () => {
     expect(prop(rule(".h-clock"), "top")).toBe("var(--clock-top)");
-    expect(prop(rule(".h-clock .t"), "font-size")).toBe("var(--type-s200)");
-    expect(GLASS.type.size.s200).toBe(200);
+    expect(prop(rule(".h-clock .t"), "font-size")).toBe("var(--type-clock)");
+    expect(GLASS.type.size.clock).toBe(200);
     const date = rule(".h-clock .d");
-    expect(prop(date, "line-height")).toBe("var(--line-height-s45)");
-    expect(height).toBe(200 + unit(prop(date, "margin-top")) + GLASS.type.lineHeightSize.s45!);
+    expect(prop(date, "line-height")).toBe("var(--line-height-clock-date)");
+    expect(height).toBe(200 + unit(prop(date, "margin-top")) + GLASS.type.lineHeightSize.clockDate);
     expect(top).toBe(210);
   });
 
   test("the top blur is fully opaque to below the date, then fades", () => {
     const blur = rule(".h-photo-blur.top");
     expect(prop(blur, "mask-image").replace(/\s+/g, "")).toBe(
-      "linear-gradient(180deg,var(--black)0,var(--black)var(--clock-clear),transparent)",
+      "linear-gradient(180deg,var(--mask-opaque)0,var(--mask-opaque)var(--clock-clear),transparent)",
     );
     expect(prop(home, "--clock-clear")).toBe(
       "calc(var(--clock-top) + var(--clock-h) + var(--clock-pad))",

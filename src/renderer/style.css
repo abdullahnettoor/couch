@@ -2,7 +2,7 @@ html,
 body {
   margin: 0;
   height: 100%;
-  background: var(--black);
+  background: var(--backdrop);
   color: var(--text-primary);
   overflow: hidden;
 }

@@ -1,6 +1,6 @@
 /* Home: Cinema layout (hero frame, Resume / From start, Apps and in-progress videos) and the empty clock layout. */
 .home {
-  background: var(--wp-base, var(--black));
+  background: var(--wp-base, var(--backdrop));
   overflow: hidden;
   /* The clock's box (time, gap, date line), shared by the clock and the blur behind it so the blur follows the clock. */
   --clock-top: calc(210 * var(--u));
@@ -13,7 +13,8 @@
   position: absolute;
   inset: -20%;
   background: var(--wp-glow, none);
-  animation: h-drift var(--wp-drift, var(--duration-ms90000)) var(--ease-in-out) infinite alternate;
+  animation: h-drift var(--wp-drift, var(--duration-wallpaper-drift)) var(--ease-ambient) infinite
+    alternate;
 }
 .home.still .h-drift,
 .home.still .h-photo-img,
@@ -42,21 +43,21 @@
 }
 .h-photo-img {
   background: var(--wp-photo, none) center / cover no-repeat;
-  animation: h-kenburns var(--duration-ms120000) var(--ease-in-out) infinite alternate;
+  animation: h-kenburns var(--duration-photo-pan) var(--ease-ambient) infinite alternate;
 }
 .h-photo-prev {
   animation: none;
   opacity: 1;
-  transition: opacity var(--duration-ms2500) var(--ease-in-out);
+  transition: opacity var(--duration-photo-crossfade) var(--ease-ambient);
 }
 .h-photo-dim {
-  background: var(--black);
+  background: var(--photo-dim);
   opacity: var(--wp-dim, 0.5);
 }
 .h-photo-blur {
   inset: auto 0;
-  backdrop-filter: var(--blur-14px);
-  -webkit-backdrop-filter: var(--blur-14px);
+  backdrop-filter: var(--blur-photo);
+  -webkit-backdrop-filter: var(--blur-photo);
 }
 /* Fully blurred from the top edge past the date, then fading out below it. */
 .h-photo-blur.top {
@@ -64,17 +65,22 @@
   height: calc(var(--clock-clear) + var(--clock-fade));
   -webkit-mask-image: linear-gradient(
     180deg,
-    var(--black) 0,
-    var(--black) var(--clock-clear),
+    var(--mask-opaque) 0,
+    var(--mask-opaque) var(--clock-clear),
     transparent
   );
-  mask-image: linear-gradient(180deg, var(--black) 0, var(--black) var(--clock-clear), transparent);
+  mask-image: linear-gradient(
+    180deg,
+    var(--mask-opaque) 0,
+    var(--mask-opaque) var(--clock-clear),
+    transparent
+  );
 }
 .h-photo-blur.bottom {
   bottom: 0;
   height: 48%;
-  -webkit-mask-image: linear-gradient(0deg, var(--black) 50%, transparent);
-  mask-image: linear-gradient(0deg, var(--black) 50%, transparent);
+  -webkit-mask-image: linear-gradient(0deg, var(--mask-opaque) 50%, transparent);
+  mask-image: linear-gradient(0deg, var(--mask-opaque) 50%, transparent);
 }
 @keyframes h-kenburns {
   from {
@@ -88,15 +94,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background:
-    linear-gradient(
-      0deg,
-      var(--rgb-0-0-0-a055) 0%,
-      var(--rgb-0-0-0-a02) 35%,
-      var(--rgb-0-0-0-a0) 55%
-    ),
-    linear-gradient(180deg, var(--rgb-0-0-0-a03) 0%, var(--rgb-0-0-0-a0) 22%),
-    radial-gradient(110% 100% at 50% 45%, var(--rgb-0-0-0-a0) 55%, var(--scrim) 100%);
+  background: var(--scrim-home);
 }
 @keyframes h-drift {
   to {
@@ -105,20 +103,7 @@
 }
 /* Artwork off: the hero's text sits straight on the wallpaper, so the scrim also darkens its side. */
 .home.no-art.film .h-scrim {
-  background:
-    linear-gradient(
-      90deg,
-      var(--rgb-0-0-0-a06) 0%,
-      var(--rgb-0-0-0-a03) 40%,
-      var(--rgb-0-0-0-a0) 65%
-    ),
-    linear-gradient(
-      0deg,
-      var(--rgb-0-0-0-a07) 0%,
-      var(--rgb-0-0-0-a03) 40%,
-      var(--rgb-0-0-0-a0) 60%
-    ),
-    linear-gradient(180deg, var(--rgb-0-0-0-a03) 0%, var(--rgb-0-0-0-a0) 22%);
+  background: var(--scrim-home-no-art);
 }
 .h-bg,
 .h-frame {
@@ -127,7 +112,7 @@
 }
 .h-bg {
   opacity: 0;
-  transition: opacity var(--duration-ms700) var(--ease-glass);
+  transition: opacity var(--duration-scene) var(--ease-glass);
 }
 .h-bg.on {
   opacity: 1;
@@ -135,7 +120,7 @@
 .h-chrome {
   position: absolute;
   inset: 0;
-  transition: opacity var(--duration-ms1200) var(--ease-glass);
+  transition: opacity var(--duration-chrome-fade) var(--ease-glass);
 }
 .home.ambient .h-chrome {
   opacity: 0;
@@ -144,7 +129,7 @@
 .h-hero,
 .h-clock {
   opacity: 0;
-  transition: opacity var(--duration-ms700) var(--ease-glass);
+  transition: opacity var(--duration-scene) var(--ease-glass);
   pointer-events: none;
 }
 .h-hero.on,
@@ -164,14 +149,14 @@
   pointer-events: none;
 }
 .h-clock .t small {
-  font-size: var(--type-em-22);
+  font-size: var(--type-em-clock-period);
   font-weight: var(--weight-semibold);
   letter-spacing: 0;
   margin-left: 0.2em;
   color: var(--text-secondary);
 }
 .topbar .clock small {
-  font-size: var(--type-em-55);
+  font-size: var(--type-em-small);
   margin-left: 0.2em;
   color: var(--text-secondary);
 }
@@ -180,7 +165,7 @@
   display: none;
 }
 .home.film .topbar .clock {
-  animation: h-in var(--duration-ms700) var(--ease-glass);
+  animation: h-in var(--duration-scene) var(--ease-glass);
 }
 @keyframes h-in {
   from {
@@ -188,7 +173,7 @@
   }
 }
 .home.ambient .h-clock {
-  animation: h-clock-drift var(--duration-ms1200000) var(--ease-in-out) infinite alternate;
+  animation: h-clock-drift var(--duration-clock-wander) var(--ease-ambient) infinite alternate;
 }
 @keyframes h-clock-drift {
   to {
@@ -198,7 +183,7 @@
 .h-frame {
   opacity: 0;
   background: hsl(var(--hue), 18%, 22%) center / cover;
-  transition: opacity var(--duration-ms700) var(--ease-glass);
+  transition: opacity var(--duration-scene) var(--ease-glass);
 }
 .h-frame.on {
   opacity: 1;
@@ -207,20 +192,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(180deg, var(--rgb-0-0-0-a05) 0%, var(--rgb-0-0-0-a0) 18%),
-    linear-gradient(
-      90deg,
-      var(--rgb-0-0-0-a086) 0%,
-      var(--rgb-0-0-0-a055) 32%,
-      var(--rgb-0-0-0-a0) 62%
-    ),
-    linear-gradient(
-      0deg,
-      var(--rgb-0-0-0-a09) 0%,
-      var(--rgb-0-0-0-a04) 30%,
-      var(--rgb-0-0-0-a0) 50%
-    );
+  background: var(--scrim-film);
 }
 .h-hero {
   position: absolute;
@@ -229,15 +201,15 @@
   width: calc(920 * var(--u));
 }
 .h-hero .k {
-  font-size: var(--type-s30);
+  font-size: var(--type-body);
   font-weight: var(--weight-semibold);
   color: var(--text-secondary);
   margin-bottom: calc(14 * var(--u));
 }
 .h-hero h1 {
-  font-size: var(--type-s116);
-  line-height: var(--line-height-105);
-  letter-spacing: var(--letter-spacing-neg-30);
+  font-size: var(--type-hero-title);
+  line-height: var(--line-height-hero);
+  letter-spacing: var(--letter-spacing-display);
   margin: 0 0 calc(20 * var(--u));
   padding-bottom: calc(4 * var(--u));
   font-weight: var(--weight-bold);
@@ -249,13 +221,13 @@
   overflow-wrap: anywhere;
 }
 .h-hero h1.s1 {
-  font-size: var(--type-s92);
+  font-size: var(--type-hero-title-medium);
 }
 .h-hero h1.s2 {
-  font-size: var(--type-s76);
+  font-size: var(--type-hero-title-small);
 }
 .h-hero .m {
-  font-size: var(--type-s28);
+  font-size: var(--type-meta);
   color: var(--text-secondary);
   display: flex;
   gap: calc(16 * var(--u));
@@ -265,14 +237,14 @@
 .h-bar {
   width: calc(200 * var(--u));
   height: calc(6 * var(--u));
-  border-radius: var(--radius-r3);
-  background: var(--rgb-255-255-255-a025);
+  border-radius: var(--radius-progress);
+  background: var(--progress-track);
   overflow: hidden;
 }
 .h-bar i {
   display: block;
   height: 100%;
-  background: var(--white);
+  background: var(--fill-bright);
 }
 .h-acts {
   display: flex;
@@ -302,7 +274,7 @@
 }
 .youtube-face,
 .netflix-face {
-  background: linear-gradient(160deg, var(--hex-3a3a3e), var(--hex-17171a));
+  background: var(--app-face);
 }
 .h-app .youtube-face svg {
   width: calc(112 * var(--u));
@@ -312,8 +284,8 @@
   height: calc(112 * var(--u));
 }
 .library-face {
-  background: linear-gradient(160deg, var(--hex-f5f5f7), var(--hex-c9c9cf));
-  color: var(--hex-1c1c1e);
+  background: linear-gradient(160deg, var(--art-library-from), var(--art-library-to));
+  color: var(--on-light);
 }
 .h-film-art {
   background: hsl(var(--hue), 18%, 22%) center / cover;
@@ -324,11 +296,11 @@
   top: calc(14 * var(--u));
   width: calc(44 * var(--u));
   height: calc(44 * var(--u));
-  border-radius: var(--radius-r12);
+  border-radius: var(--radius-app-badge);
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: var(--rgb-30-30-32-a07);
+  background: var(--app-badge-bg);
 }
 /* Beats the App tile's own logo sizes (.h-app .g-tile svg, .h-app .youtube-face svg), which the badge also matches. */
 .h-app .g-tile .h-badge svg {
@@ -341,18 +313,18 @@
   right: calc(18 * var(--u));
   bottom: calc(16 * var(--u));
   height: calc(6 * var(--u));
-  border-radius: var(--radius-r3);
-  background: var(--rgb-255-255-255-a03);
+  border-radius: var(--radius-progress);
+  background: var(--tile-progress-track);
   overflow: hidden;
 }
 .h-prog i {
   display: block;
   height: 100%;
-  background: var(--white);
+  background: var(--fill-bright);
 }
 .h-app .g-cap small {
   display: block;
-  font-size: var(--type-s20);
+  font-size: var(--type-caption-small);
   font-weight: var(--weight-medium);
   color: var(--text-tertiary);
   margin-top: calc(4 * var(--u));
@@ -361,8 +333,8 @@
   width: calc(2 * var(--u));
   height: calc(120 * var(--u));
   margin-top: calc(25 * var(--u));
-  background: var(--rgb-255-255-255-a014);
-  border-radius: var(--radius-r1);
+  background: var(--divider);
+  border-radius: var(--radius-hairline);
 }
 .h-clock {
   position: absolute;
@@ -370,16 +342,16 @@
   top: var(--clock-top);
 }
 .h-clock .t {
-  font-size: var(--type-s200);
+  font-size: var(--type-clock);
   font-weight: var(--weight-semibold);
-  letter-spacing: var(--letter-spacing-neg-40);
-  line-height: var(--line-height-100);
+  letter-spacing: var(--letter-spacing-clock);
+  line-height: var(--line-height-display);
 }
 .h-clock .d {
-  font-size: var(--type-s36);
+  font-size: var(--type-clock-date);
   color: var(--text-secondary);
   margin-top: calc(18 * var(--u));
-  line-height: var(--line-height-s45);
+  line-height: var(--line-height-clock-date);
   font-weight: var(--weight-medium);
 }
 .home.empty .h-row {
@@ -403,26 +375,26 @@
   width: calc(220 * var(--u));
   padding: calc(15 * var(--u));
   box-sizing: border-box;
-  border-radius: var(--radius-r28);
+  border-radius: var(--radius-qr);
   background: var(--glass);
-  backdrop-filter: var(--blur-60px-saturate-1-8);
+  backdrop-filter: var(--blur-glass-panel);
   box-shadow: var(--shadow-glass-edge);
-  font-size: var(--type-s20);
+  font-size: var(--type-qr-label);
   color: var(--text-secondary);
   text-align: center;
 }
 .h-qr .qr svg {
   display: block;
   width: 100%;
-  border-radius: var(--radius-r16);
+  border-radius: var(--radius-qr-code);
 }
 .h-qr .c {
   margin-top: calc(12 * var(--u));
 }
 .h-hero .ov {
   margin: 0 0 calc(18 * var(--u));
-  font-size: var(--type-s26);
-  line-height: var(--line-height-140);
+  font-size: var(--type-overview);
+  line-height: var(--line-height-body);
   color: var(--text-secondary);
   display: -webkit-box;
   -webkit-line-clamp: 2;

@@ -3,73 +3,43 @@
  * Each surface (the Screen, the phone, Quick settings, a Web App's controls) injects it as CSS custom
  * properties with `lookCss`; TypeScript that needs the same numbers imports them from here.
  *
+ * Every token is named for the job it does, never for its value: two jobs that share a value get two
+ * tokens, so either can change alone. Keys are camelCase here and kebab-case in CSS
+ * (`textPrimary` → `--text-primary`, `type.size.caption` → `--type-caption`).
+ *
  * Lengths are in design pixels (a 1920-wide Screen) and scale by the surface's own unit
  * (the Screen's `--u`, the phone's `1px`, a Web App page's `--couch-u`). Strings that carry lengths
  * write them as `{u}`, e.g. `calc(24 * {u})`.
  */
 export interface Look {
-  /** Role colours, then `palette`: every other colour literal in use, named by its value (to be given roles later). */
-  color: {
-    textPrimary: string;
-    textSecondary: string;
-    textTertiary: string;
-    glass: string;
-    glassStrong: string;
-    glassSolid: string;
-    card: string;
-    card2: string;
-    live: string;
-    danger: string;
-    scrim: string;
-    buttonFill: string;
-    /** A bright fill: a progress bar, a knob, a text caret. */
-    fillBright: string;
-    /** The groove of a slider or progress bar. */
-    track: string;
-    /** Colours by the job they do (a track, a press, a toast), written as `--<name>`. */
-    role: Record<string, string>;
-    palette: Record<string, string>;
-  };
+  /** Colours, written as `--<name>`. `warm` is an RGB triple for `rgba(var(--warm), a)`. */
+  color: Record<ColorName, string>;
+  /** Whole gradients (scrims and painted faces), written as `--<name>`. */
+  gradient: Record<GradientName, string>;
   type: {
     family: string;
     familyDisplay: string;
-    /** Font sizes by design pixel. */
-    size: Record<string, number>;
-    /** Sizes TypeScript reads, by the job they do, in design pixels. */
-    role: {
-      dialogTitle: number;
-      dialogBody: number;
-      dialogButton: number;
-      hudBase: number;
-      hudNote: number;
-      hudSearch: number;
-      hudHint: number;
-    };
-    weight: Record<string, string>;
-    lineHeight: Record<string, string>;
-    letterSpacing: Record<string, string>;
-    /** Sizes relative to the element's own (`em`), for glyphs inside a sized box. */
-    relativeSize: Record<string, string>;
-    /** Line heights in design pixels (`--line-height-s<n>`). */
-    lineHeightSize: Record<string, number>;
+    /** Font sizes in design pixels (`--type-<name>`). */
+    size: Record<TypeSizeName, number>;
+    /** Sizes relative to the element's own (`--type-em-<name>`), for runs inside a sized line. */
+    relativeSize: Record<RelativeSizeName, string>;
+    weight: Record<WeightName, string>;
+    /** Unitless line heights (`--line-height-<name>`). */
+    lineHeight: Record<LineHeightName, string>;
+    /** Line heights in design pixels (`--line-height-<name>`). */
+    lineHeightSize: Record<LineHeightSizeName, number>;
+    letterSpacing: Record<LetterSpacingName, string>;
   };
-  /** Corner radii by role, then `scale`: every radius in use, by design pixel. */
-  radius: {
-    tile: number;
-    row: number;
-    /** Radii TypeScript reads, by the job they do, in design pixels. */
-    role: {
-      dialog: number;
-      dialogButton: number;
-      hudPill: number;
-      hudTrack: number;
-      hudSearch: number;
-    };
-    scale: Record<string, number>;
+  /** Corner radii in design pixels (`--radius-<name>`). */
+  radius: Record<RadiusName, number>;
+  /** Box, text and drop shadows (`--shadow-<name>`). */
+  shadow: Record<ShadowName, string>;
+  /** Backdrop filters (`--blur-<name>`). */
+  blur: Record<BlurName, string>;
+  motion: {
+    ease: Record<EaseName, string>;
+    duration: Record<DurationName, string>;
   };
-  shadow: Record<string, string>;
-  blur: Record<string, string>;
-  motion: { ease: Record<string, string>; duration: Record<string, string> };
   focus: {
     bg: string;
     fg: string;
@@ -78,9 +48,9 @@ export interface Look {
     lift: number;
     ring: string;
     /** Scales other focused controls use (`--focus-scale-<name>`). */
-    scales: Record<string, number>;
+    scales: Record<FocusScaleName, number>;
     /** Backgrounds, text colours and shadows of the focus styles that differ (`--focus-<name>`; `{u}` is the unit). */
-    variant: Record<string, string>;
+    variant: Record<FocusVariantName, string>;
   };
   metrics: {
     base: { width: number; height: number };
@@ -94,16 +64,387 @@ export interface Look {
   };
 }
 
-const sizes = [
-  11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 28, 30, 32, 34, 36, 38, 40, 44,
-  48, 52, 56, 60, 64, 72, 76, 88, 92, 116, 132, 200, 280,
-];
-const radii = [
-  1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 28, 30, 32, 36, 40, 42, 44, 46, 48,
-  60, 62, 64, 120,
-];
-const byPx = (list: number[], key = (n: number) => `s${n}`) =>
-  Object.fromEntries(list.map((n) => [key(n), n]));
+export type ColorName =
+  | "textPrimary"
+  | "textSecondary"
+  | "textTertiary"
+  | "glass"
+  | "glassStrong"
+  | "glassSolid"
+  | "glassNativeTint"
+  | "backdrop"
+  | "showBackdrop"
+  | "card"
+  | "cardRaised"
+  | "cardPressed"
+  | "cardKey"
+  | "cardActive"
+  | "field"
+  | "live"
+  | "danger"
+  | "accent"
+  | "warm"
+  | "scrim"
+  | "scrimSheet"
+  | "scrimUpNext"
+  | "photoDim"
+  | "maskOpaque"
+  | "buttonFill"
+  | "buttonFillSoft"
+  | "press"
+  | "pressSoft"
+  | "hoverFill"
+  | "rowMarked"
+  | "divider"
+  | "hairline"
+  | "fillBright"
+  | "track"
+  | "trackFaint"
+  | "progressTrack"
+  | "tileProgressTrack"
+  | "spinnerTrack"
+  | "sheen"
+  | "sheenClear"
+  | "chipFill"
+  | "chipOnFill"
+  | "tabSelected"
+  | "toggleOnFill"
+  | "stepDot"
+  | "switchTrack"
+  | "listItemFill"
+  | "gearFill"
+  | "keyCapFill"
+  | "toastBg"
+  | "toastStrongBg"
+  | "badgeBg"
+  | "libraryBadgeBg"
+  | "appBadgeBg"
+  | "menuBg"
+  | "wallpaperPanel"
+  | "tilePlaceholder"
+  | "thumbPlaceholder"
+  | "artworkPlaceholder"
+  | "posterPlaceholder"
+  | "qrPaper"
+  | "onLight"
+  | "focusBgPressed"
+  | "watchedTagBg"
+  | "watchedTagFg"
+  | "watchedTagDim"
+  | "tickBg"
+  | "tickFg"
+  | "artYoutubeFrom"
+  | "artYoutubeTo"
+  | "artNetflixFrom"
+  | "artNetflixTo"
+  | "artLibraryFrom"
+  | "artLibraryTo"
+  | "setupAccent"
+  | "setupAccentInk"
+  | "setupCheckLight"
+  | "setupTag"
+  | "splitArtGlyph"
+  | "phoneTheme"
+  | "pictureOffMark"
+  | "pictureOffHint";
+
+export type GradientName =
+  | "scrimHome"
+  | "scrimHomeNoArt"
+  | "scrimFilm"
+  | "scrimFeature"
+  | "scrimTileLabel"
+  | "scrimShow"
+  | "scrimPlayer"
+  | "appFace"
+  | "setupVeil"
+  | "splitArtFace";
+
+export type TypeSizeName =
+  // The Screen and Quick settings
+  | "caption"
+  | "captionSmall"
+  | "footnote"
+  | "subhead"
+  | "body"
+  | "callout"
+  | "heading"
+  | "title"
+  | "titleLarge"
+  | "display"
+  | "button"
+  | "search"
+  | "section"
+  | "meta"
+  | "overview"
+  | "chip"
+  | "genre"
+  | "badge"
+  | "watchedTag"
+  | "qrLabel"
+  | "keyCap"
+  | "listItem"
+  | "tileCaption"
+  | "tileLabel"
+  | "posterCaption"
+  | "episodeSummary"
+  | "volumeLevel"
+  | "icon"
+  | "iconLarge"
+  | "iconHero"
+  | "noticeIcon"
+  | "pauseIcon"
+  | "emptyIcon"
+  | "topbarClock"
+  | "clock"
+  | "clockDate"
+  | "playerTitle"
+  | "heroTitle"
+  | "heroTitleMedium"
+  | "heroTitleSmall"
+  | "featureTitle"
+  | "featureTitleMedium"
+  | "featureTitleSmall"
+  | "showTitleCompact"
+  | "setupName"
+  | "setupTag"
+  | "splitArt"
+  | "pictureOffMark"
+  | "pictureOffHint"
+  // The phone
+  | "phoneFine"
+  | "phoneLabel"
+  | "phoneCaption"
+  | "phoneSmall"
+  | "phoneSubhead"
+  | "phoneBody"
+  | "phoneControl"
+  | "phoneField"
+  | "phoneHeading"
+  | "phoneTitle"
+  | "phoneTitleLarge"
+  | "phoneKeyText"
+  | "phoneKeyOk"
+  | "phoneIconCompact"
+  | "phoneIconSmall"
+  | "phoneIcon"
+  | "phoneIconMedium"
+  | "phoneIconDpad"
+  | "phoneIconApp"
+  | "phoneIconTransport"
+  | "phoneIconTile"
+  | "phoneIconPlay"
+  | "phoneIconPower";
+
+export type RelativeSizeName = "clockPeriod" | "small";
+export type WeightName = "regular" | "medium" | "semibold" | "bold";
+export type LineHeightName =
+  | "display"
+  | "hero"
+  | "title"
+  | "intro"
+  | "body"
+  | "overview"
+  | "phoneTitle"
+  | "webControls"
+  | "pictureOff";
+export type LineHeightSizeName = "clockDate";
+export type LetterSpacingName =
+  | "snug"
+  | "heading"
+  | "setupTitle"
+  | "display"
+  | "clock"
+  | "kicker"
+  | "counter"
+  | "section"
+  | "pictureOff"
+  | "pictureOffHint";
+
+export type RadiusName =
+  | "tile"
+  | "row"
+  | "hairline"
+  | "progress"
+  | "dot"
+  | "seek"
+  | "track"
+  | "trackFocused"
+  | "stepDot"
+  | "badgeSmall"
+  | "badge"
+  | "appBadge"
+  | "watchedTag"
+  | "poster"
+  | "posterTile"
+  | "thumbSmall"
+  | "thumb"
+  | "still"
+  | "tick"
+  | "knob"
+  | "cardSmall"
+  | "card"
+  | "sheetControl"
+  | "sheetTile"
+  | "sheet"
+  | "qrCode"
+  | "qrCodeLarge"
+  | "qr"
+  | "tooltip"
+  | "keyCap"
+  | "key"
+  | "switch"
+  | "phoneToast"
+  | "listItem"
+  | "genre"
+  | "artwork"
+  | "art"
+  | "roundButton"
+  | "appIcon"
+  | "appIconPhone"
+  | "note"
+  | "level"
+  | "phonePill"
+  | "phonePillLarge"
+  | "episode"
+  | "prompt"
+  | "search"
+  | "emptyState"
+  | "tab"
+  | "panel"
+  | "pill"
+  | "button"
+  | "shelf"
+  | "searchField"
+  | "dialog"
+  | "powerButton"
+  | "dock"
+  | "upNext"
+  | "splitArt";
+
+export type ShadowName =
+  | "glassEdge"
+  | "glassPanel"
+  | "card"
+  | "cardDeep"
+  | "float"
+  | "focusRingSoft"
+  | "tile"
+  | "tileHero"
+  | "artwork"
+  | "splitArt"
+  | "splitArtDrop"
+  | "menu"
+  | "drawer"
+  | "wallpaperPanel"
+  | "swatch"
+  | "qrGlow"
+  | "stepGlow"
+  | "checkGlow"
+  | "tick"
+  | "keyCap"
+  | "scrubKnob"
+  | "textTitle"
+  | "textCaption"
+  | "textPeek"
+  | "textOverview"
+  | "keyEdge"
+  | "keyEdgeStrong"
+  | "pad"
+  | "art"
+  | "sheet"
+  | "icon"
+  | "knob"
+  | "prompt";
+
+export type BlurName =
+  | "glass"
+  | "glassLight"
+  | "glassHeavy"
+  | "glassPanel"
+  | "overlay"
+  | "pill"
+  | "button"
+  | "popover"
+  | "badge"
+  | "wallpaperPanel"
+  | "photo";
+
+export type EaseName =
+  | "glass"
+  | "back"
+  | "exit"
+  | "settle"
+  | "standard"
+  | "ambient"
+  | "sweep"
+  | "rise"
+  | "spin"
+  | "drift"
+  | "blink";
+
+export type DurationName =
+  | "quick"
+  | "base"
+  | "slow"
+  | "press"
+  | "fade"
+  | "sweep"
+  | "tint"
+  | "knob"
+  | "level"
+  | "dialogFade"
+  | "drawer"
+  | "focus"
+  | "popup"
+  | "sheen"
+  | "dim"
+  | "tickFade"
+  | "tickPop"
+  | "dropIn"
+  | "dockButton"
+  | "overlayFade"
+  | "overlay"
+  | "shelfSlide"
+  | "markFade"
+  | "markGrow"
+  | "featureFade"
+  | "scene"
+  | "checkPop"
+  | "glowFade"
+  | "spinner"
+  | "caretBlink"
+  | "chromeFade"
+  | "farewellDelay"
+  | "farewell"
+  | "farewellLight"
+  | "photoCrossfade"
+  | "wallpaperDrift"
+  | "photoPan"
+  | "clockWander"
+  | "pictureOffBreathe"
+  | "pictureOffDrift";
+
+export type FocusScaleName = "row" | "gear" | "dock" | "wallpaper" | "episode";
+export type FocusVariantName =
+  | "bgDanger"
+  | "fgDanger"
+  | "captionFg"
+  | "valueFg"
+  | "valueFgDanger"
+  | "bgEpisode"
+  | "bgField"
+  | "bgDockNative"
+  | "posterBg"
+  | "switchOffBg"
+  | "shadowPill"
+  | "shadowGear"
+  | "shadowSetupButton"
+  | "shadowTile"
+  | "shadowDock"
+  | "shadowDockNative"
+  | "shadowField"
+  | "shadowSlider";
 
 export const GLASS: Look = {
   color: {
@@ -113,215 +454,315 @@ export const GLASS: Look = {
     glass: "rgba(44, 44, 48, 0.46)",
     glassStrong: "rgba(36, 36, 40, 0.72)",
     glassSolid: "rgba(30, 30, 34, 0.92)",
+    glassNativeTint: "rgba(20, 20, 24, 0.1)",
+    backdrop: "#000",
+    showBackdrop: "#1c1c1e",
     card: "#2c2c2e",
-    card2: "#48484a",
+    cardRaised: "#3a3a3c",
+    cardPressed: "#5a5a5c",
+    cardKey: "#48484a",
+    cardActive: "#48484a",
+    field: "#1c1c1e",
     live: "#30d158",
     danger: "#ff453a",
+    accent: "#0a84ff",
+    warm: "255, 150, 70",
     scrim: "rgba(0, 0, 0, 0.45)",
+    scrimSheet: "rgba(0, 0, 0, 0.6)",
+    scrimUpNext: "rgba(0, 0, 0, 0.55)",
+    photoDim: "#000",
+    maskOpaque: "#000",
     buttonFill: "rgba(255, 255, 255, 0.16)",
+    buttonFillSoft: "rgba(255, 255, 255, 0.14)",
+    press: "rgba(255, 255, 255, 0.14)",
+    pressSoft: "rgba(255, 255, 255, 0.12)",
+    hoverFill: "rgba(255, 255, 255, 0.14)",
+    rowMarked: "rgba(255, 255, 255, 0.14)",
+    divider: "rgba(255, 255, 255, 0.14)",
+    hairline: "rgba(255, 255, 255, 0.06)",
     fillBright: "#fff",
     track: "rgba(255, 255, 255, 0.2)",
-    role: {
-      backdrop: "#000",
-      accent: "#0a84ff",
-      hairline: "rgba(255, 255, 255, 0.06)",
-      "track-faint": "rgba(255, 255, 255, 0.08)",
-      "press-soft": "rgba(255, 255, 255, 0.12)",
-      press: "rgba(255, 255, 255, 0.14)",
-      "spinner-track": "rgba(255, 255, 255, 0.18)",
-      "scrim-sheet": "rgba(0, 0, 0, 0.6)",
-      "toast-bg": "rgba(0, 0, 0, 0.62)",
-      "toast-strong-bg": "rgba(0, 0, 0, 0.72)",
-      "badge-bg": "rgba(28, 28, 30, 0.75)",
-      field: "#1c1c1e",
-      "card-raised": "#3a3a3c",
-      "card-pressed": "#5a5a5c",
-      "focus-bg-pressed": "#e5e5e5",
-      "on-light": "#1c1c1e",
-      "tick-bg": "#ffb04a",
-      "tick-fg": "#1c1206",
-      "art-youtube-from": "#ff3b30",
-      "art-youtube-to": "#c4141f",
-      "art-netflix-from": "#2a2a2d",
-      "art-netflix-to": "#0b0b0c",
-      "art-library-from": "#f5f5f7",
-      "art-library-to": "#c9c9cf",
-    },
-    palette: {
-      "hex-000": "#000",
-      "hex-050404": "#050404",
-      "hex-0a84ff": "#0a84ff",
-      "hex-0b0b0c": "#0b0b0c",
-      "hex-0c0907": "#0c0907",
-      "hex-161412": "#161412",
-      "hex-17171a": "#17171a",
-      "hex-1b130c": "#1b130c",
-      "hex-1c1206": "#1c1206",
-      "hex-1c1c1e": "#1c1c1e",
-      "hex-222": "#222",
-      "hex-241405": "#241405",
-      "hex-2a2a2d": "#2a2a2d",
-      "hex-2c2c2e": "#2c2c2e",
-      "hex-30d158": "#30d158",
-      "hex-3a3a3c": "#3a3a3c",
-      "hex-3a3a3e": "#3a3a3e",
-      "hex-5a5a5c": "#5a5a5c",
-      "hex-8e8e93": "#8e8e93",
-      "hex-c4141f": "#c4141f",
-      "hex-c9c9cf": "#c9c9cf",
-      "hex-e5e5e5": "#e5e5e5",
-      "hex-e5e5ea": "#e5e5ea",
-      "hex-f4efe6": "#f4efe6",
-      "hex-f5f5f7": "#f5f5f7",
-      "hex-ff3b30": "#ff3b30",
-      "hex-ffb04a": "#ffb04a",
-      "hex-ffd08a": "#ffd08a",
-      "hex-fff": "#fff",
-      white: "#fff",
-      black: "#000",
-      warm: "255, 150, 70",
-      "rgb-0-0-0-a0": "rgba(0, 0, 0, 0)",
-      "rgb-0-0-0-a012": "rgba(0, 0, 0, 0.12)",
-      "rgb-0-0-0-a02": "rgba(0, 0, 0, 0.2)",
-      "rgb-0-0-0-a025": "rgba(0, 0, 0, 0.25)",
-      "rgb-0-0-0-a03": "rgba(0, 0, 0, 0.3)",
-      "rgb-0-0-0-a035": "rgba(0, 0, 0, 0.35)",
-      "rgb-0-0-0-a04": "rgba(0, 0, 0, 0.4)",
-      "rgb-0-0-0-a045": "rgba(0, 0, 0, 0.45)",
-      "rgb-0-0-0-a05": "rgba(0, 0, 0, 0.5)",
-      "rgb-0-0-0-a055": "rgba(0, 0, 0, 0.55)",
-      "rgb-0-0-0-a06": "rgba(0, 0, 0, 0.6)",
-      "rgb-0-0-0-a062": "rgba(0, 0, 0, 0.62)",
-      "rgb-0-0-0-a07": "rgba(0, 0, 0, 0.7)",
-      "rgb-0-0-0-a072": "rgba(0, 0, 0, 0.72)",
-      "rgb-0-0-0-a085": "rgba(0, 0, 0, 0.85)",
-      "rgb-0-0-0-a086": "rgba(0, 0, 0, 0.86)",
-      "rgb-0-0-0-a088": "rgba(0, 0, 0, 0.88)",
-      "rgb-0-0-0-a09": "rgba(0, 0, 0, 0.9)",
-      "rgb-14-14-18-a062": "rgba(14, 14, 18, 0.62)",
-      "rgb-20-20-24-a01": "rgba(20, 20, 24, 0.1)",
-      "rgb-255-255-255-a0": "rgba(255, 255, 255, 0)",
-      "rgb-255-255-255-a006": "rgba(255, 255, 255, 0.06)",
-      "rgb-255-255-255-a007": "rgba(255, 255, 255, 0.07)",
-      "rgb-255-255-255-a008": "rgba(255, 255, 255, 0.08)",
-      "rgb-255-255-255-a01": "rgba(255, 255, 255, 0.1)",
-      "rgb-255-255-255-a012": "rgba(255, 255, 255, 0.12)",
-      "rgb-255-255-255-a014": "rgba(255, 255, 255, 0.14)",
-      "rgb-255-255-255-a016": "rgba(255, 255, 255, 0.16)",
-      "rgb-255-255-255-a018": "rgba(255, 255, 255, 0.18)",
-      "rgb-255-255-255-a02": "rgba(255, 255, 255, 0.2)",
-      "rgb-255-255-255-a022": "rgba(255, 255, 255, 0.22)",
-      "rgb-255-255-255-a025": "rgba(255, 255, 255, 0.25)",
-      "rgb-255-255-255-a03": "rgba(255, 255, 255, 0.3)",
-      "rgb-255-255-255-a032": "rgba(255, 255, 255, 0.32)",
-      "rgb-255-255-255-a034": "rgba(255, 255, 255, 0.34)",
-      "rgb-255-255-255-a045": "rgba(255, 255, 255, 0.45)",
-      "rgb-255-255-255-a05": "rgba(255, 255, 255, 0.5)",
-      "rgb-255-255-255-a08": "rgba(255, 255, 255, 0.8)",
-      "rgb-255-255-255-a085": "rgba(255, 255, 255, 0.85)",
-      "rgb-28-28-30-a075": "rgba(28, 28, 30, 0.75)",
-      "rgb-30-30-32-a06": "rgba(30, 30, 32, 0.6)",
-      "rgb-30-30-32-a07": "rgba(30, 30, 32, 0.7)",
-      "rgb-40-40-44-a092": "rgba(40, 40, 44, 0.92)",
-    },
+    trackFaint: "rgba(255, 255, 255, 0.08)",
+    progressTrack: "rgba(255, 255, 255, 0.25)",
+    tileProgressTrack: "rgba(255, 255, 255, 0.3)",
+    spinnerTrack: "rgba(255, 255, 255, 0.18)",
+    sheen: "rgba(255, 255, 255, 0.32)",
+    sheenClear: "rgba(255, 255, 255, 0)",
+    chipFill: "rgba(255, 255, 255, 0.12)",
+    chipOnFill: "rgba(255, 255, 255, 0.3)",
+    tabSelected: "rgba(255, 255, 255, 0.2)",
+    toggleOnFill: "rgba(255, 255, 255, 0.22)",
+    stepDot: "rgba(255, 255, 255, 0.22)",
+    switchTrack: "rgba(255, 255, 255, 0.22)",
+    listItemFill: "rgba(255, 255, 255, 0.08)",
+    gearFill: "rgba(255, 255, 255, 0.1)",
+    keyCapFill: "rgba(255, 255, 255, 0.14)",
+    toastBg: "rgba(0, 0, 0, 0.62)",
+    toastStrongBg: "rgba(0, 0, 0, 0.72)",
+    badgeBg: "rgba(28, 28, 30, 0.75)",
+    libraryBadgeBg: "rgba(30, 30, 32, 0.6)",
+    appBadgeBg: "rgba(30, 30, 32, 0.7)",
+    menuBg: "rgba(40, 40, 44, 0.92)",
+    wallpaperPanel: "rgba(14, 14, 18, 0.62)",
+    tilePlaceholder: "#1c1c1e",
+    thumbPlaceholder: "#222",
+    artworkPlaceholder: "rgba(255, 255, 255, 0.06)",
+    posterPlaceholder: "rgba(255, 255, 255, 0.12)",
+    qrPaper: "#fff",
+    onLight: "#1c1c1e",
+    focusBgPressed: "#e5e5e5",
+    watchedTagBg: "#fff",
+    watchedTagFg: "#000",
+    watchedTagDim: "rgba(0, 0, 0, 0.55)",
+    tickBg: "#ffb04a",
+    tickFg: "#1c1206",
+    artYoutubeFrom: "#ff3b30",
+    artYoutubeTo: "#c4141f",
+    artNetflixFrom: "#2a2a2d",
+    artNetflixTo: "#0b0b0c",
+    artLibraryFrom: "#f5f5f7",
+    artLibraryTo: "#c9c9cf",
+    setupAccent: "#ffb04a",
+    setupAccentInk: "#241405",
+    setupCheckLight: "#ffd08a",
+    setupTag: "#f4efe6",
+    splitArtGlyph: "#e5e5ea",
+    phoneTheme: "#161412",
+    pictureOffMark: "rgba(255, 255, 255, 0.32)",
+    pictureOffHint: "rgba(255, 255, 255, 0.26)",
+  },
+  gradient: {
+    scrimHome:
+      "linear-gradient(0deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.2) 35%, rgba(0, 0, 0, 0) 55%), linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0) 22%), radial-gradient(110% 100% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.45) 100%)",
+    scrimHomeNoArt:
+      "linear-gradient(90deg, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.3) 40%, rgba(0, 0, 0, 0) 65%), linear-gradient(0deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.3) 40%, rgba(0, 0, 0, 0) 60%), linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0) 22%)",
+    scrimFilm:
+      "linear-gradient(180deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0) 18%), linear-gradient(90deg, rgba(0, 0, 0, 0.86) 0%, rgba(0, 0, 0, 0.55) 32%, rgba(0, 0, 0, 0) 62%), linear-gradient(0deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.4) 30%, rgba(0, 0, 0, 0) 50%)",
+    scrimFeature:
+      "linear-gradient(90deg, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.4) 40%, rgba(0, 0, 0, 0) 65%), linear-gradient(0deg, #000 0%, rgba(0, 0, 0, 0.85) 38%, rgba(0, 0, 0, 0) 62%)",
+    scrimTileLabel: "linear-gradient(0deg, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0))",
+    scrimShow:
+      "linear-gradient(90deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.72) 45%, rgba(0, 0, 0, 0.88) 100%)",
+    scrimPlayer: "linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.6))",
+    appFace: "linear-gradient(160deg, #3a3a3e, #17171a)",
+    setupVeil: "radial-gradient(70% 70% at 50% 34%, #1b130c 0%, #0c0907 58%, #050404 100%)",
+    splitArtFace: "linear-gradient(160deg, #8e8e93, #3a3a3c)",
   },
   type: {
     family: '-apple-system, "SF Pro Text", system-ui, sans-serif',
     familyDisplay: '-apple-system, "SF Pro Display", "SF Pro Text", system-ui, sans-serif',
-    size: byPx(sizes),
-    role: {
-      dialogTitle: 44,
-      dialogBody: 30,
-      dialogButton: 30,
-      hudBase: 22,
-      hudNote: 28,
-      hudSearch: 34,
-      hudHint: 22,
+    size: {
+      caption: 22,
+      captionSmall: 20,
+      footnote: 24,
+      subhead: 26,
+      body: 30,
+      callout: 28,
+      heading: 30,
+      title: 44,
+      titleLarge: 56,
+      display: 60,
+      button: 30,
+      search: 34,
+      section: 24,
+      meta: 28,
+      overview: 26,
+      chip: 28,
+      genre: 20,
+      badge: 18,
+      watchedTag: 17,
+      qrLabel: 20,
+      keyCap: 24,
+      listItem: 27,
+      tileCaption: 25,
+      tileLabel: 24,
+      posterCaption: 21,
+      episodeSummary: 21,
+      volumeLevel: 36,
+      icon: 34,
+      iconLarge: 38,
+      iconHero: 44,
+      noticeIcon: 40,
+      pauseIcon: 64,
+      emptyIcon: 48,
+      topbarClock: 40,
+      clock: 200,
+      clockDate: 36,
+      playerTitle: 48,
+      heroTitle: 116,
+      heroTitleMedium: 92,
+      heroTitleSmall: 76,
+      featureTitle: 88,
+      featureTitleMedium: 72,
+      featureTitleSmall: 60,
+      showTitleCompact: 64,
+      setupName: 132,
+      setupTag: 56,
+      splitArt: 280,
+      pictureOffMark: 49.92,
+      pictureOffHint: 22.08,
+      phoneFine: 11,
+      phoneLabel: 12,
+      phoneCaption: 13,
+      phoneSmall: 14,
+      phoneSubhead: 15,
+      phoneBody: 16,
+      phoneControl: 17,
+      phoneField: 19,
+      phoneHeading: 19,
+      phoneTitle: 20,
+      phoneTitleLarge: 26,
+      phoneKeyText: 15,
+      phoneKeyOk: 19,
+      phoneIconCompact: 16,
+      phoneIconSmall: 20,
+      phoneIcon: 22,
+      phoneIconMedium: 24,
+      phoneIconDpad: 26,
+      phoneIconApp: 30,
+      phoneIconTransport: 34,
+      phoneIconTile: 34,
+      phoneIconPlay: 36,
+      phoneIconPower: 52,
     },
+    relativeSize: { clockPeriod: "0.22em", small: "0.55em" },
     weight: { regular: "400", medium: "500", semibold: "600", bold: "700" },
     lineHeight: {
-      "100": "1",
-      "105": "1.05",
-      "110": "1.1",
-      "138": "1.38",
-      "140": "1.4",
-      "145": "1.45",
+      display: "1",
+      hero: "1.05",
+      title: "1.1",
+      intro: "1.38",
+      body: "1.4",
+      overview: "1.45",
+      phoneTitle: "1.2",
+      webControls: "1",
+      pictureOff: "1",
     },
+    lineHeightSize: { clockDate: 45 },
     letterSpacing: {
-      "neg-15": "-0.015em",
-      "neg-20": "-0.02em",
-      "neg-25": "-0.025em",
-      "neg-30": "-0.03em",
-      "neg-40": "-0.04em",
-      "pos-20": "0.02em",
+      snug: "-0.015em",
+      heading: "-0.02em",
+      setupTitle: "-0.025em",
+      display: "-0.03em",
+      clock: "-0.04em",
+      kicker: "0.02em",
+      counter: "0.02em",
+      section: "0.04em",
+      pictureOff: "0.04em",
+      pictureOffHint: "0.02em",
     },
-    relativeSize: { "22": "0.22em", "55": "0.55em" },
-    lineHeightSize: { s45: 45 },
   },
   radius: {
     tile: 22,
     row: 22,
-    role: { dialog: 48, dialogButton: 42, hudPill: 40, hudTrack: 22, hudSearch: 46 },
-    scale: byPx(radii, (n) => `r${n}`),
+    hairline: 1,
+    progress: 3,
+    dot: 4,
+    seek: 4,
+    track: 5,
+    trackFocused: 8,
+    stepDot: 6,
+    badgeSmall: 7,
+    badge: 10,
+    appBadge: 12,
+    watchedTag: 9,
+    poster: 8,
+    posterTile: 18,
+    thumbSmall: 10,
+    thumb: 16,
+    still: 14,
+    tick: 10,
+    knob: 11,
+    cardSmall: 14,
+    card: 20,
+    sheetControl: 16,
+    sheetTile: 18,
+    sheet: 30,
+    qrCode: 16,
+    qrCodeLarge: 24,
+    qr: 28,
+    tooltip: 16,
+    keyCap: 16,
+    key: 32,
+    switch: 18,
+    phoneToast: 18,
+    listItem: 20,
+    genre: 20,
+    artwork: 20,
+    art: 22,
+    roundButton: 20,
+    appIcon: 20,
+    appIconPhone: 28,
+    note: 22,
+    level: 22,
+    phonePill: 22,
+    phonePillLarge: 28,
+    episode: 24,
+    prompt: 24,
+    search: 28,
+    emptyState: 32,
+    tab: 32,
+    panel: 36,
+    pill: 40,
+    button: 42,
+    shelf: 44,
+    searchField: 46,
+    dialog: 48,
+    powerButton: 60,
+    dock: 62,
+    upNext: 64,
+    splitArt: 120,
   },
   shadow: {
-    "glass-edge": "inset 0 1px 0 rgba(255, 255, 255, 0.14)",
+    glassEdge: "inset 0 1px 0 rgba(255, 255, 255, 0.14)",
+    glassPanel: "0 24px 70px rgba(0, 0, 0, 0.35)",
     card: "0 calc(24 * {u}) calc(70 * {u}) rgba(0, 0, 0, 0.35)",
-    "card-deep": "0 calc(24 * {u}) calc(60 * {u}) rgba(0, 0, 0, 0.45)",
+    cardDeep: "0 calc(24 * {u}) calc(60 * {u}) rgba(0, 0, 0, 0.45)",
     float: "0 calc(36 * {u}) calc(60 * {u}) rgba(0, 0, 0, 0.6)",
-    "focus-ring-soft": "0 0 0 calc(3 * {u}) rgba(255, 255, 255, 0.5)",
-    "0-24px-70px-black35": "0 24px 70px rgba(0, 0, 0, 0.35)",
-    "0-20-40-black4": "0 calc(20 * {u}) calc(40 * {u}) rgba(0, 0, 0, 0.4)",
-    "0-10-30-black35": "0 calc(10 * {u}) calc(30 * {u}) rgba(0, 0, 0, 0.35)",
-    "0-18-40-black5": "0 calc(18 * {u}) calc(40 * {u}) rgba(0, 0, 0, 0.5)",
-    "0-0-90-warm16": "0 0 calc(90 * {u}) rgba(var(--warm), 0.16)",
-    "0-18-40-black4": "0 calc(18 * {u}) calc(40 * {u}) rgba(0, 0, 0, 0.4)",
-    "0-0-56-white2": "0 0 calc(56 * {u}) rgba(255, 255, 255, 0.2)",
-    "0-0-18-warm45": "0 0 calc(18 * {u}) rgba(var(--warm), 0.45)",
-    "0-0-70-warm55": "0 0 calc(70 * {u}) rgba(var(--warm), 0.55)",
-    "0-0-160-warm3": "0 0 calc(160 * {u}) rgba(var(--warm), 0.3)",
-    "0-4-12-black35": "0 calc(4 * {u}) calc(12 * {u}) rgba(0, 0, 0, 0.35)",
-    "inset-0-1-0-white18": "inset 0 calc(1 * {u}) 0 rgba(255, 255, 255, 0.18)",
-    "0-3-0-black35": "0 calc(3 * {u}) 0 rgba(0, 0, 0, 0.35)",
-    "0-40-100-black6": "0 calc(40 * {u}) calc(100 * {u}) rgba(0, 0, 0, 0.6)",
-    "drop-0-32-60-black6": "drop-shadow(0 calc(32 * {u}) calc(60 * {u}) rgba(0, 0, 0, 0.6))",
-    "0-30-60-black6": "0 calc(30 * {u}) calc(60 * {u}) rgba(0, 0, 0, 0.6)",
-    "0-2-18-black55": "0 calc(2 * {u}) calc(18 * {u}) rgba(0, 0, 0, 0.55)",
-    "0-0-0-3-white85": "0 0 0 calc(3 * {u}) rgba(255, 255, 255, 0.85)",
-    "0-16-40-black45": "0 calc(16 * {u}) calc(40 * {u}) rgba(0, 0, 0, 0.45)",
-    "inset-0-0-0-1_5-white1": "inset 0 0 0 calc(1.5 * {u}) rgba(255, 255, 255, 0.1)",
-    "inset-0-0-0-2-white12": "inset 0 0 0 calc(2 * {u}) rgba(255, 255, 255, 0.12)",
-    "0-2px-20px-black5": "0 2px 20px rgba(0, 0, 0, 0.5)",
-    "0-10-26-black4": "0 calc(10 * {u}) calc(26 * {u}) rgba(0, 0, 0, 0.4)",
-    "0-3-12-black45": "0 calc(3 * {u}) calc(12 * {u}) rgba(0, 0, 0, 0.45)",
-    "0-1px-10px-black6": "0 1px 10px rgba(0, 0, 0, 0.6)",
-    "0-1px-10px-black7": "0 1px 10px rgba(0, 0, 0, 0.7)",
-    "inset-0-0-0-1_5-white45": "inset 0 0 0 calc(1.5 * {u}) rgba(255, 255, 255, 0.45)",
-    "0-8-22-black25": "0 calc(8 * {u}) calc(22 * {u}) rgba(0, 0, 0, 0.25)",
-    "key-edge": "inset 0 1px 0 rgba(255, 255, 255, 0.07)",
-    "key-edge-strong": "inset 0 1px 0 rgba(255, 255, 255, 0.12)",
+    focusRingSoft: "0 0 0 calc(3 * {u}) rgba(255, 255, 255, 0.5)",
+    tile: "0 calc(10 * {u}) calc(30 * {u}) rgba(0, 0, 0, 0.35)",
+    tileHero: "0 0 0 calc(3 * {u}) #fff, 0 0 calc(24 * {u}) rgba(255, 255, 255, 0.25)",
+    artwork: "0 calc(30 * {u}) calc(60 * {u}) rgba(0, 0, 0, 0.6)",
+    splitArt: "0 calc(40 * {u}) calc(100 * {u}) rgba(0, 0, 0, 0.6)",
+    splitArtDrop: "drop-shadow(0 calc(32 * {u}) calc(60 * {u}) rgba(0, 0, 0, 0.6))",
+    menu: "0 calc(40 * {u}) calc(100 * {u}) rgba(0, 0, 0, 0.6)",
+    drawer: "inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 0 calc(90 * {u}) rgba(0, 0, 0, 0.45)",
+    wallpaperPanel: "inset 0 0 0 calc(1.5 * {u}) rgba(255, 255, 255, 0.1)",
+    swatch: "inset 0 0 0 calc(2 * {u}) rgba(255, 255, 255, 0.12)",
+    qrGlow: "0 0 calc(90 * {u}) rgba(255, 150, 70, 0.16)",
+    stepGlow: "0 0 calc(18 * {u}) rgba(255, 150, 70, 0.45)",
+    checkGlow:
+      "0 0 calc(70 * {u}) rgba(255, 150, 70, 0.55), 0 0 calc(160 * {u}) rgba(255, 150, 70, 0.3)",
+    tick: "0 calc(4 * {u}) calc(12 * {u}) rgba(0, 0, 0, 0.35)",
+    keyCap:
+      "inset 0 calc(1 * {u}) 0 rgba(255, 255, 255, 0.18), 0 calc(3 * {u}) 0 rgba(0, 0, 0, 0.35)",
+    scrubKnob: "0 calc(3 * {u}) calc(12 * {u}) rgba(0, 0, 0, 0.45)",
+    textTitle: "0 2px 20px rgba(0, 0, 0, 0.5)",
+    textCaption: "0 1px 10px rgba(0, 0, 0, 0.6)",
+    textPeek: "0 1px 10px rgba(0, 0, 0, 0.7)",
+    textOverview: "0 calc(2 * {u}) calc(18 * {u}) rgba(0, 0, 0, 0.55)",
+    keyEdge: "inset 0 1px 0 rgba(255, 255, 255, 0.07)",
+    keyEdgeStrong: "inset 0 1px 0 rgba(255, 255, 255, 0.12)",
     pad: "inset 0 0 0 calc(1 * {u}) rgba(255, 255, 255, 0.06), 0 calc(18 * {u}) calc(40 * {u}) rgba(0, 0, 0, 0.4)",
     art: "0 calc(18 * {u}) calc(40 * {u}) rgba(0, 0, 0, 0.45), inset 0 0 0 calc(1 * {u}) rgba(255, 255, 255, 0.06)",
     sheet: "0 calc(-20 * {u}) calc(50 * {u}) rgba(0, 0, 0, 0.5)",
     icon: "0 calc(12 * {u}) calc(30 * {u}) rgba(0, 0, 0, 0.5)",
     knob: "0 calc(2 * {u}) calc(6 * {u}) rgba(0, 0, 0, 0.4)",
     prompt: "0 calc(8 * {u}) calc(24 * {u}) rgba(0, 0, 0, 0.4)",
-    "tile-hero": "0 0 0 calc(3 * {u}) #fff, 0 0 calc(24 * {u}) rgba(255, 255, 255, 0.25)",
-    drawer: "inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 0 calc(90 * {u}) rgba(0, 0, 0, 0.45)",
   },
   blur: {
-    "glass-light": "blur(calc(20 * {u})) saturate(1.6)",
-    "glass-heavy": "blur(calc(40 * {u})) saturate(1.8)",
     glass: "blur(calc(30 * {u})) saturate(1.6)",
-    "60px-saturate-1-8": "blur(60px) saturate(1.8)",
-    "30px": "blur(30px)",
-    "20px": "blur(20px)",
-    "40px": "blur(40px)",
-    "20px-saturate-1-6": "blur(20px) saturate(1.6)",
-    "40u-saturate-12": "blur(calc(40 * {u})) saturate(1.2)",
-    "14px": "blur(14px)",
-    /** 40 px whatever the Screen's size (the Quick settings drawer's panel). */
-    "glass-heavy-fixed": "blur(40px) saturate(1.8)",
+    glassLight: "blur(calc(20 * {u})) saturate(1.6)",
+    glassHeavy: "blur(calc(40 * {u})) saturate(1.8)",
+    glassPanel: "blur(60px) saturate(1.8)",
+    /** 40 px whatever the Screen's size: the Quick settings drawer's panel and a Web App's controls. */
+    overlay: "blur(40px) saturate(1.8)",
+    pill: "blur(30px)",
+    button: "blur(20px)",
+    popover: "blur(40px)",
+    badge: "blur(20px) saturate(1.6)",
+    wallpaperPanel: "blur(calc(40 * {u})) saturate(1.2)",
+    photo: "blur(14px)",
   },
   motion: {
     ease: {
@@ -330,34 +771,54 @@ export const GLASS: Look = {
       exit: "cubic-bezier(0.4, 0, 1, 1)",
       settle: "cubic-bezier(0.33, 1, 0.68, 1)",
       standard: "cubic-bezier(0.2, 0.8, 0.2, 1)",
-      "in-out": "ease-in-out",
+      ambient: "ease-in-out",
+      sweep: "ease-in-out",
+      rise: "ease-out",
+      spin: "linear",
+      drift: "linear",
+      blink: "steps(2, start)",
     },
     duration: {
       quick: "0.2s",
       base: "0.3s",
       slow: "0.45s",
-      ms250: "0.25s",
-      ms380: "0.38s",
-      ms350: "0.35s",
-      ms1400: "1.4s",
-      ms900: "0.9s",
-      ms600: "0.6s",
-      ms400: "0.4s",
-      ms800: "0.8s",
-      ms700: "0.7s",
-      ms220: "0.22s",
-      ms1000: "1s",
-      ms90000: "90s",
-      ms120000: "120s",
-      ms2500: "2.5s",
-      ms1200: "1.2s",
-      ms1200000: "1200s",
-      ms500: "0.5s",
-      ms280: "0.28s",
       press: "0.12s",
       fade: "0.15s",
       sweep: "1.3s",
-      ms550: "0.55s",
+      tint: "0.25s",
+      knob: "0.25s",
+      level: "0.25s",
+      dialogFade: "0.25s",
+      drawer: "0.25s",
+      focus: "0.38s",
+      popup: "0.35s",
+      sheen: "0.35s",
+      dim: "0.35s",
+      tickFade: "0.25s",
+      tickPop: "0.35s",
+      dropIn: "0.22s",
+      dockButton: "0.28s",
+      overlayFade: "0.4s",
+      overlay: "0.5s",
+      shelfSlide: "0.55s",
+      markFade: "0.4s",
+      markGrow: "0.6s",
+      featureFade: "0.6s",
+      scene: "0.7s",
+      checkPop: "0.7s",
+      glowFade: "0.8s",
+      spinner: "0.9s",
+      caretBlink: "1s",
+      chromeFade: "1.2s",
+      farewellDelay: "0.25s",
+      farewell: "0.9s",
+      farewellLight: "1.4s",
+      photoCrossfade: "2.5s",
+      wallpaperDrift: "90s",
+      photoPan: "120s",
+      clockWander: "1200s",
+      pictureOffBreathe: "12s",
+      pictureOffDrift: "240s",
     },
   },
   focus: {
@@ -369,27 +830,27 @@ export const GLASS: Look = {
     ring: "0 0 0 calc(5 * {u}) #fff",
     scales: { row: 1.04, gear: 1.12, dock: 1.08, wallpaper: 1.04, episode: 1.015 },
     variant: {
-      "bg-danger": "#ff453a",
-      "fg-danger": "#fff",
-      "caption-fg": "#fff",
-      "value-fg": "rgba(0, 0, 0, 0.55)",
-      "value-fg-danger": "rgba(255, 255, 255, 0.8)",
-      "bg-episode": "rgba(255, 255, 255, 0.14)",
-      "bg-field": "rgba(36, 36, 40, 0.72)",
-      "bg-dock-native": "rgba(255, 255, 255, 0.34)",
-      "poster-bg": "rgba(0, 0, 0, 0.12)",
-      "switch-off-bg": "rgba(0, 0, 0, 0.25)",
-      "shadow-pill": "0 calc(20 * {u}) calc(40 * {u}) rgba(0, 0, 0, 0.4)",
-      "shadow-gear": "0 calc(18 * {u}) calc(40 * {u}) rgba(0, 0, 0, 0.5)",
-      "shadow-setup-button":
+      bgDanger: "#ff453a",
+      fgDanger: "#fff",
+      captionFg: "#fff",
+      valueFg: "rgba(0, 0, 0, 0.55)",
+      valueFgDanger: "rgba(255, 255, 255, 0.8)",
+      bgEpisode: "rgba(255, 255, 255, 0.14)",
+      bgField: "rgba(36, 36, 40, 0.72)",
+      bgDockNative: "rgba(255, 255, 255, 0.34)",
+      posterBg: "rgba(0, 0, 0, 0.12)",
+      switchOffBg: "rgba(0, 0, 0, 0.25)",
+      shadowPill: "0 calc(20 * {u}) calc(40 * {u}) rgba(0, 0, 0, 0.4)",
+      shadowGear: "0 calc(18 * {u}) calc(40 * {u}) rgba(0, 0, 0, 0.5)",
+      shadowSetupButton:
         "0 calc(18 * {u}) calc(40 * {u}) rgba(0, 0, 0, 0.4), 0 0 calc(56 * {u}) rgba(255, 255, 255, 0.2)",
-      "shadow-tile": "0 calc(36 * {u}) calc(60 * {u}) rgba(0, 0, 0, 0.6)",
-      "shadow-dock": "0 calc(10 * {u}) calc(26 * {u}) rgba(0, 0, 0, 0.4)",
-      "shadow-dock-native":
+      shadowTile: "0 calc(36 * {u}) calc(60 * {u}) rgba(0, 0, 0, 0.6)",
+      shadowDock: "0 calc(10 * {u}) calc(26 * {u}) rgba(0, 0, 0, 0.4)",
+      shadowDockNative:
         "inset 0 0 0 calc(1.5 * {u}) rgba(255, 255, 255, 0.45), 0 calc(8 * {u}) calc(22 * {u}) rgba(0, 0, 0, 0.25)",
-      "shadow-field":
+      shadowField:
         "inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 0 0 calc(3 * {u}) rgba(255, 255, 255, 0.85), 0 calc(16 * {u}) calc(40 * {u}) rgba(0, 0, 0, 0.45)",
-      "shadow-slider": "0 0 0 calc(3 * {u}) rgba(255, 255, 255, 0.5)",
+      shadowSlider: "0 0 0 calc(3 * {u}) rgba(255, 255, 255, 0.5)",
     },
   },
   metrics: {
@@ -404,6 +865,18 @@ export const GLASS: Look = {
   },
 };
 
+/** A Look duration (`"0.25s"`, `"1s"`) in milliseconds, for timers and the Web Animations API. */
+export function durationMs(duration: string): number {
+  const m = /^(\d*\.?\d+)(ms|s)$/.exec(duration);
+  if (!m) throw new Error(`not a duration: ${duration}`);
+  return Math.round(Number(m[1]) * (m[2] === "s" ? 1000 : 1));
+}
+
+/** The CSS length of one design pixel for a viewport: `min(100vw / 1920, 100vh / 1080)`. */
+export function viewportUnit(look: Look): string {
+  return `min(100vw / ${look.metrics.base.width}, 100vh / ${look.metrics.base.height})`;
+}
+
 export interface LookCssOptions {
   selector?: string;
   /** What one design pixel is, e.g. "var(--u)" or "1px". */
@@ -415,41 +888,33 @@ export interface LookCssOptions {
 }
 
 const kebab = (s: string) => s.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+const entries = <K extends string, V>(r: Record<K, V>) => Object.entries(r) as [K, V][];
 
-/** The CSS custom properties for a Look, as one rule. */
-export function lookCss(
-  look: Look,
-  { selector = ":root", unit, prefix = "", defineUnit = false }: LookCssOptions,
-): string {
+/** The name of every custom property `lookCss` writes, without the dashes or a prefix, with its value. */
+export function lookTokens(look: Look, unit: string, defineUnit = false): [string, string][] {
   const len = (n: number) => `calc(${n} * ${unit})`;
   const sub = (s: string) => s.replaceAll("{u}", unit);
   const out: [string, string][] = [];
   const add = (name: string, value: string) => out.push([name, value]);
 
-  const { color, type, radius, shadow, blur, motion, focus, metrics } = look;
-  const { palette, role, ...roles } = color;
-  for (const [k, v] of Object.entries(roles)) add(kebab(k), v);
-  for (const [k, v] of Object.entries(role)) add(k, v);
-  for (const [k, v] of Object.entries(palette)) add(k, v);
+  const { color, gradient, type, radius, shadow, blur, motion, focus, metrics } = look;
+  for (const [k, v] of entries(color)) add(kebab(k), v);
+  for (const [k, v] of entries(gradient)) add(kebab(k), v);
 
   add("font-family", type.family);
   add("font-family-display", type.familyDisplay);
-  for (const [k, n] of Object.entries(type.size)) add(`type-${k}`, len(n));
-  for (const [k, n] of Object.entries(type.role)) add(`type-${kebab(k)}`, len(n));
-  for (const [k, v] of Object.entries(type.weight)) add(`weight-${k}`, v);
-  for (const [k, v] of Object.entries(type.lineHeight)) add(`line-height-${k}`, v);
-  for (const [k, v] of Object.entries(type.letterSpacing)) add(`letter-spacing-${k}`, v);
-  for (const [k, n] of Object.entries(type.lineHeightSize)) add(`line-height-${k}`, len(n));
-  for (const [k, v] of Object.entries(type.relativeSize)) add(`type-em-${k}`, v);
+  for (const [k, n] of entries(type.size)) add(`type-${kebab(k)}`, len(n));
+  for (const [k, v] of entries(type.relativeSize)) add(`type-em-${kebab(k)}`, v);
+  for (const [k, v] of entries(type.weight)) add(`weight-${k}`, v);
+  for (const [k, v] of entries(type.lineHeight)) add(`line-height-${kebab(k)}`, v);
+  for (const [k, n] of entries(type.lineHeightSize)) add(`line-height-${kebab(k)}`, len(n));
+  for (const [k, v] of entries(type.letterSpacing)) add(`letter-spacing-${kebab(k)}`, v);
 
-  add("radius-tile", len(radius.tile));
-  add("radius-row", len(radius.row));
-  for (const [k, n] of Object.entries(radius.role)) add(`radius-${kebab(k)}`, len(n));
-  for (const [k, n] of Object.entries(radius.scale)) add(`radius-${k}`, len(n));
-  for (const [k, v] of Object.entries(shadow)) add(`shadow-${k}`, sub(v));
-  for (const [k, v] of Object.entries(blur)) add(`blur-${k}`, sub(v));
-  for (const [k, v] of Object.entries(motion.ease)) add(`ease-${k}`, v);
-  for (const [k, v] of Object.entries(motion.duration)) add(`duration-${k}`, v);
+  for (const [k, n] of entries(radius)) add(`radius-${kebab(k)}`, len(n));
+  for (const [k, v] of entries(shadow)) add(`shadow-${kebab(k)}`, sub(v));
+  for (const [k, v] of entries(blur)) add(`blur-${kebab(k)}`, sub(v));
+  for (const [k, v] of entries(motion.ease)) add(`ease-${kebab(k)}`, v);
+  for (const [k, v] of entries(motion.duration)) add(`duration-${kebab(k)}`, v);
 
   add("focus-bg", focus.bg);
   add("focus-fg", focus.fg);
@@ -457,10 +922,10 @@ export function lookCss(
   add("focus-scale-tile", String(focus.scaleTile));
   add("focus-lift", len(focus.lift));
   add("focus-ring", sub(focus.ring));
-  for (const [k, n] of Object.entries(focus.scales)) add(`focus-scale-${k}`, String(n));
-  for (const [k, v] of Object.entries(focus.variant)) add(`focus-${k}`, sub(v));
+  for (const [k, n] of entries(focus.scales)) add(`focus-scale-${kebab(k)}`, String(n));
+  for (const [k, v] of entries(focus.variant)) add(`focus-${kebab(k)}`, sub(v));
 
-  if (defineUnit) add("u", `min(100vw / ${metrics.base.width}, 100vh / ${metrics.base.height})`);
+  if (defineUnit) add("u", viewportUnit(look));
   add("design-width", String(metrics.base.width));
   add("design-height", String(metrics.base.height));
   add("row-height", len(metrics.row.height));
@@ -472,6 +937,14 @@ export function lookCss(
   add("scroll-margin-block", len(metrics.library.scrollMarginBlock));
   add("scroll-margin-edge", len(metrics.library.scrollMarginEdge));
   add("scroll-margin-search", len(metrics.library.scrollMarginSearch));
+  return out;
+}
 
+/** The CSS custom properties for a Look, as one rule. */
+export function lookCss(
+  look: Look,
+  { selector = ":root", unit, prefix = "", defineUnit = false }: LookCssOptions,
+): string {
+  const out = lookTokens(look, unit, defineUnit);
   return `${selector} { ${out.map(([n, v]) => `--${prefix}${n}: ${v};`).join(" ")} }`;
 }

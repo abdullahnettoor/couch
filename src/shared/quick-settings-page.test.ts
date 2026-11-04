@@ -239,8 +239,8 @@ describe("the Quick settings page", () => {
     expect(rule).toMatch(/right:0/);
     expect(rule).not.toMatch(/(^|[;\s])left:/);
     expect(rule).toMatch(/translateX\(100%\)/);
-    expect(rule).toMatch(/transition:transform 250ms var\(--ease-glass\)/);
-    expect(rule).toMatch(/border-radius:var\(--radius-r36\) 0 0 var\(--radius-r36\)/);
+    expect(rule).toMatch(/transition:transform var\(--duration-drawer\) var\(--ease-glass\)/);
+    expect(rule).toMatch(/border-radius:var\(--radius-panel\) 0 0 var\(--radius-panel\)/);
   });
 });
 
@@ -259,7 +259,7 @@ describe("the drawer page's design tokens", () => {
     expect(css).toMatch(/\.row \{[^}]*border-radius:var\(--radius-row\)/);
     expect(rule(css, ".btn")).toContain("border-radius:var(--radius-row)");
     expect(rule(css, "#drawer")).toMatch(
-      /border-radius:var\(--radius-r36\) 0 0 var\(--radius-r36\)/,
+      /border-radius:var\(--radius-panel\) 0 0 var\(--radius-panel\)/,
     );
   });
 });
@@ -294,7 +294,8 @@ describe("the drawer's material", () => {
       expect(rule(css, "#scrim")).toContain("background:var(--scrim)");
       expect(GLASS.color.scrim).toBe(CONFIRM_LAYOUT.scrim);
       expect(rule(css, "#scrim")).toContain("opacity:0");
-      expect(rule(css, "#scrim")).toContain(`transition:opacity ${QUICK_SLIDE_MS}ms`);
+      expect(rule(css, "#scrim")).toContain("transition:opacity var(--duration-drawer)");
+      expect(QUICK_SLIDE_MS).toBe(250);
       expect(rule(css, "#scrim.in")).toContain("opacity:1");
     }
   });
@@ -356,7 +357,7 @@ describe("the drawer's material", () => {
     expect(drawer).not.toContain("--glass-strong");
     expect(drawer).not.toContain("backdrop-filter");
     expect(drawer).toContain("background:transparent");
-    expect(drawer).toContain("border-radius:var(--radius-r36)");
+    expect(drawer).toContain("border-radius:var(--radius-panel)");
   });
 
   test("the native glass rect is the panel: 633.6 design units wide, full height, on the right", () => {
