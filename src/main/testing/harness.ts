@@ -36,6 +36,7 @@ import {
   FakeYouTube,
   FakeUpdater,
 } from "../ports/fakes.ts";
+import { SETUP_STEPS } from "../core/setup-steps.ts";
 import { startUpdates, type Updates } from "../ports/updates.ts";
 
 /** A pretend phone: a WebSocket client that records every snapshot. */
@@ -190,6 +191,8 @@ export async function startHarness(
     legacyBeta?: boolean;
     /** Offer the Mac's pictures as wallpapers: `true` for fresh fakes, or the previous harness's to keep its converted copies across a restart. */
     wallpapers?: true | Harness["wallpapers"];
+    /** "fresh" leaves Setup to decide for itself; otherwise a Store with no `setup` record gets one saying Setup is finished, so other tests start on Home. */
+    setup?: "fresh";
   } = {},
 ): Promise<Harness> {
   const tmp = given ? undefined : mkdtempSync(join(tmpdir(), "couch-store-"));
@@ -220,6 +223,8 @@ export async function startHarness(
         headers: { "content-type": "image/jpeg" },
       }),
   };
+  if (options.setup !== "fresh" && store.read("setup", undefined) === undefined)
+    store.write("setup", { finished: true, seen: SETUP_STEPS.map((step) => step.id) });
   const listenerUp = { alive: !!options.listener };
   if (options.listener) {
     store.write("listener", {

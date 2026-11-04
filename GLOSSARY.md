@@ -40,6 +40,13 @@ What a Web App's page runs on: WebKit (FairPlay) or Chromium (Widevine); the hou
 **Welcome**:
 The one question Couch asks, only of someone who already has a Netflix sign-in in Couch's Chromium, the first time Netflix opens on WebKit and before its page loads: copy the sign-in from Couch, sign in on Netflix, or keep using Chromium; Back means sign in on Netflix, and it is never asked again. A new user gets no welcome: Netflix opens straight to its own sign-in page.
 
+**Setup**:
+The short first-run flow on the Screen: one centred glass panel over Home's wallpaper that walks a new household through what makes Couch feel like a TV, starting with the Mac's keyboard and mouse and mirrored on a paired phone. Every step can be skipped; "Set up later" or Home closes it for good. Not the **Welcome** question, and not Settings.
+_Avoid_: onboarding, wizard, tour (in UI copy)
+
+**Setup step**:
+One screen of Setup (Welcome, Pair your phone, You're set…). It shows its words and buttons, changes the same setting Settings does, and knows whether that choice is already made, so a restart resumes at the first step that isn't.
+
 **YouTube**:
 The App that presents YouTube's TV experience inside the Screen, looking and behaving like the YouTube app on a smart TV.
 _Avoid_: YouTube TV (the paid live-TV product), Leanback

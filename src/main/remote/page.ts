@@ -203,7 +203,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 <div class="sheet" id="ask" hidden>
   <div class="form" role="dialog" aria-labelledby="ask-title">
     <b id="ask-title" style="font-size:19px"></b>
-    <span id="ask-body" style="color:var(--t3);font-size:15px"></span>
+    <span id="ask-body" style="color:var(--t3);font-size:15px;white-space:pre-line"></span>
     <div class="stack" id="ask-btns"></div>
   </div>
 </div>
@@ -449,7 +449,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     document.body.classList.toggle("idle", !np);
     $("gear").hidden = L !== "home";
     $("upd").hidden = L !== "home" || !s.updateReady;
-    var noBack = L === "home" && !np && !s.confirm;
+    var noBack = L === "home" && !np && !s.confirm && !s.setup;
     $("id-back").hidden = $("np-back").hidden = $("pad-back").hidden = noBack;
     var padShown = padOpen || !!s.quickSettings;
     $("nowp").hidden = !np || padShown;
@@ -480,13 +480,14 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       $("cw-app").innerHTML = cc.app ? cc.app.icon : "";
       $("cw-app").hidden = !cc.app;
     }
-    var q = s.confirm && s.confirm.phone ? s.confirm : null;
+    var su = s.setup;
+    var q = su ? { title: su.title, body: [su.body].concat(su.tips || []).filter(Boolean).join("\n"), buttons: su.buttons, focus: su.focus, key: su.id } : s.confirm && s.confirm.phone ? s.confirm : null;
     $("ask").hidden = !q;
     if (q) {
       $("ask-title").textContent = q.title;
       $("ask-body").textContent = q.body || "";
       $("ask-btns").innerHTML = q.buttons.map(function (b, i) {
-        return '<button type="button" class="k txt' + (i === q.focus ? " hero" : "") + '" data-cmd="confirmAnswer" data-args="' + esc(JSON.stringify({ index: i, text: q.title })) + '">' + esc(b) + "</button>";
+        return '<button type="button" class="k txt' + (i === q.focus ? " hero" : "") + '" data-cmd="confirmAnswer" data-args="' + esc(JSON.stringify({ index: i, text: q.key || q.title })) + '">' + esc(b) + "</button>";
       }).join("");
     }
     $("playback-note").hidden = !s.playbackNote;

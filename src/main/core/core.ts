@@ -69,6 +69,7 @@ import type { WallpaperPorts } from "../ports/pictures.ts";
 import { SoundOutput } from "./sound-output.ts";
 import { InterfaceSounds } from "./interface-sounds.ts";
 import { QuickSettings } from "./quick-settings.ts";
+import { Setup } from "./setup.ts";
 import { LibrarySearchView } from "./library-search-view.ts";
 import { AMBIENT_MS, filmAfterFocus, homeGrid } from "./home-view.ts";
 import type { TimeFormat } from "../../shared/clock-format.ts";
@@ -266,6 +267,7 @@ export class Core {
   #sound: SoundOutput;
   #uiSounds: InterfaceSounds;
   #quick: QuickSettings;
+  #setup: Setup;
   #search: LibrarySearchView;
   /** Where Back from a show page goes: the Library, or the search it was opened from. */
   /** The active filter chip on the Library's first page (a chip key), if any. */
@@ -363,6 +365,12 @@ export class Core {
     });
     this.#state.volume = this.#sound.volume;
     this.#uiSounds = new InterfaceSounds(ports.store);
+    this.#setup = new Setup({
+      store: ports.store,
+      usedBefore: () => this.#usedBefore(),
+      cue: (sound) => this.#cue(sound),
+      changed: () => this.#emit(),
+    });
     this.#quick = new QuickSettings({
       clock: ports.clock,
       sound: this.#sound,
@@ -490,6 +498,19 @@ export class Core {
   /** The App the Screen is showing, if any. */
   #front(): App | undefined {
     return this.#state.view === "app" ? this.#apps.get(this.#state.app ?? "") : undefined;
+  }
+
+  /** Couch has been used before: a pairing from an earlier start, Library folders, or watch history (Library or Continue watching for Apps). */
+  #usedBefore(): boolean {
+    const store = this.#ports.store;
+    const some = (v: unknown) =>
+      typeof v === "object" && v !== null && Object.keys(v as object).length > 0;
+    return (
+      store.read("pairing", undefined) !== undefined ||
+      some(store.read<{ folders?: unknown }>("library", {}).folders) ||
+      some(store.read<{ items?: unknown }>("history", {}).items) ||
+      some(store.read<{ items?: unknown }>("continue-apps", {}).items)
+    );
   }
 
   #newKey(): string {
@@ -1397,8 +1418,10 @@ export class Core {
     if (this.#state.view === "library") this.#rootFocusId = focused?.id;
     const homeVideos = this.#homeContinue();
     const quick = this.#quick.payload();
+    const setup = this.#setup.payload();
     return {
       ...(quick ? { quick } : {}),
+      ...(setup ? { setup } : {}),
       playing: this.#pictureScope() !== undefined,
       muted: this.#sound.muted,
       ...this.#backPayload(),
@@ -1450,6 +1473,7 @@ export class Core {
     const searchable = SEARCH_FROM.includes(s.view);
     const front = this.#front();
     const searching = s.typingBy === remote && this.#typingFor === "librarySearch";
+    const setup = this.#setup.payload();
     return {
       type: "snapshot",
       where:
@@ -1549,6 +1573,7 @@ export class Core {
       muted: this.#sound.muted,
       pictureOff: s.pictureOff,
       quickSettings: this.#quick.isOpen,
+      ...(setup ? { setup } : {}),
       remotes: s.remotes,
     };
   }
@@ -1729,6 +1754,7 @@ export class Core {
       }
     }
     this.#armAmbient();
+    if (this.#setup.handle(command)) return;
     if (command.command === "openApp") {
       this.#openFromAnywhere(command.args?.app ?? "");
       this.#emit();
@@ -2137,7 +2163,7 @@ export class Core {
   #armAmbient(): void {
     this.#cancelAmbient?.();
     this.#cancelAmbient = undefined;
-    if (this.#state.view !== "home") return;
+    if (this.#state.view !== "home" || this.#setup.isOpen) return;
     this.#cancelAmbient = this.#ports.clock.setTimeout(() => {
       this.#cancelAmbient = undefined;
       if (this.#state.view !== "home") return;

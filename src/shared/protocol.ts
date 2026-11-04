@@ -159,6 +159,21 @@ export interface Confirmation {
   phone?: true;
 }
 
+/** One Setup step as the Screen and a paired phone both draw it; `focus` is the highlighted button. */
+export interface SetupPayload {
+  /** The step's id; a phone's answer (`confirmAnswer`) names it in `text`. */
+  id: string;
+  title: string;
+  body?: string;
+  /** The "You're set" tips, one per line. */
+  tips?: string[];
+  /** Which step this is (from 0) of how many, for the dots. */
+  step: number;
+  steps: number;
+  buttons: string[];
+  focus: number;
+}
+
 export interface ScreenState {
   view: View;
   /** Focused cell per view key, e.g. "home" or "folder:<path>". */
@@ -395,6 +410,8 @@ export interface ScreenPayload {
   back?: { label: string };
   /** The Quick settings drawer, present while it is open. */
   quick?: QuickPayload;
+  /** Setup's current step, present while Setup is open: the Screen shows only its panel over Home's wallpaper. */
+  setup?: SetupPayload;
   /** A video is on screen (the Library's, or a web App's playing one), so the idle cursor hides. */
   playing: boolean;
   /** Couch is muted (the level is `state.volume`). */
@@ -512,6 +529,8 @@ export interface RemoteSnapshot {
   toast?: { text: string; id: number };
   /** A question is up on the Screen; the D-pad, OK and Back answer it. */
   confirm?: Confirmation;
+  /** Setup is open: the same step and buttons as the Screen (answered with `confirmAnswer`, `text` the step's id). */
+  setup?: SetupPayload;
   /** A show or film tile is focused and details are on: the phone offers Fix match (command `menu`). */
   fixAvailable?: boolean;
   /** The Type button's label when it isn't a search. */

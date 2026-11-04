@@ -276,6 +276,76 @@ svg.i {
   color: #fff;
   background: var(--glass-strong);
 }
+.home.setup .h-clock,
+.home.setup .h-hero,
+.home.setup .h-chrome,
+.home.setup .h-bg {
+  display: none;
+}
+.setup {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s var(--ease);
+  z-index: 35;
+}
+.setup.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+.setup .box {
+  box-sizing: border-box;
+  width: calc(1100 * var(--u));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(32 * var(--u));
+  padding: calc(64 * var(--u)) calc(72 * var(--u));
+  border-radius: calc(48 * var(--u));
+  color: #fff;
+  background: var(--glass-strong);
+  text-align: center;
+}
+.setup b {
+  font-size: calc(56 * var(--u));
+  font-weight: 700;
+}
+.setup p,
+.setup li {
+  margin: 0;
+  font-size: calc(32 * var(--u));
+  color: var(--t2);
+}
+.setup ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: calc(14 * var(--u));
+}
+.setup .dots {
+  display: flex;
+  gap: calc(14 * var(--u));
+}
+.setup .dots i {
+  width: calc(14 * var(--u));
+  height: calc(14 * var(--u));
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+}
+.setup .dots i.on {
+  background: #fff;
+}
+.setup .buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(24 * var(--u));
+}
 .volhud {
   position: fixed;
   right: calc(60 * var(--u));

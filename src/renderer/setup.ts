@@ -1,0 +1,62 @@
+import { confirmMouseCommand, describeConfirm } from "../shared/confirm-layout.ts";
+import type { ScreenPayload } from "../shared/protocol.ts";
+
+const panel = document.getElementById("setup")!;
+let drawn = "";
+
+const px = (n: number) => `calc(${n} * var(--u))`;
+
+/** Setup's panel: step dots, the step's words and Couch's usual question buttons, over Home's wallpaper. */
+export function renderSetup(payload: ScreenPayload): void {
+  const s = payload.setup;
+  const key = s ? JSON.stringify(s) : "";
+  if (key === drawn) return;
+  drawn = key;
+  panel.classList.toggle("show", Boolean(s));
+  panel.replaceChildren();
+  if (!s) return;
+  const box = document.createElement("div");
+  box.className = "box glass";
+  const dots = document.createElement("div");
+  dots.className = "dots";
+  for (let i = 0; i < s.steps; i++) {
+    const dot = document.createElement("i");
+    dot.className = i === s.step ? "on" : "";
+    dots.append(dot);
+  }
+  const title = document.createElement("b");
+  title.textContent = s.title;
+  box.append(dots, title);
+  if (s.body) {
+    const body = document.createElement("p");
+    body.textContent = s.body;
+    box.append(body);
+  }
+  if (s.tips) {
+    const tips = document.createElement("ul");
+    for (const tip of s.tips) {
+      const item = document.createElement("li");
+      item.textContent = tip;
+      tips.append(item);
+    }
+    box.append(tips);
+  }
+  const row = document.createElement("div");
+  row.className = "buttons";
+  const view = describeConfirm({ title: s.title, buttons: s.buttons, focus: s.focus }, px);
+  for (const button of view.buttons) {
+    const b = document.createElement("span");
+    b.textContent = button.label;
+    for (const [k, v] of Object.entries(button.style)) b.style.setProperty(k, v);
+    b.addEventListener("mouseenter", () =>
+      window.couch.send(confirmMouseCommand("hover", button.index)),
+    );
+    b.addEventListener("click", (event) => {
+      event.stopPropagation();
+      window.couch.send(confirmMouseCommand("click", button.index));
+    });
+    row.append(b);
+  }
+  box.append(row);
+  panel.append(box);
+}

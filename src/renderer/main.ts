@@ -5,6 +5,7 @@ import { keyCommand } from "./picture-off-keys.ts";
 import { VIEWS } from "./views/index.ts";
 import { showing } from "./views/glass.ts";
 import { renderConfirm, renderHud } from "./hud.ts";
+import { renderSetup } from "./setup.ts";
 import { renderPictureOff } from "./picture-off.ts";
 import { interfaceSounds } from "./interface-sounds.ts";
 import { isTypingTarget, syncTyping } from "./views/typing.ts";
@@ -146,6 +147,7 @@ window.couch.onScreen((payload) => {
   document.body.classList.toggle("video-pending", payload.state.view === "player" && !playing);
   renderOverlay(payload.state.view === "player" ? payload.overlay : undefined);
   renderHud(payload);
+  renderSetup(payload);
   renderConfirm(payload);
   renderPictureOff(payload);
 });
