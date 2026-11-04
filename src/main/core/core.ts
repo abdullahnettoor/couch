@@ -70,6 +70,7 @@ import { SoundOutput } from "./sound-output.ts";
 import { InterfaceSounds } from "./interface-sounds.ts";
 import { QuickSettings } from "./quick-settings.ts";
 import { Setup } from "./setup.ts";
+import type { SetupStep } from "./setup-steps.ts";
 import { LibrarySearchView } from "./library-search-view.ts";
 import { AMBIENT_MS, filmAfterFocus, homeGrid } from "./home-view.ts";
 import type { TimeFormat } from "../../shared/clock-format.ts";
@@ -152,6 +153,8 @@ export interface Ports {
   wallpapers?: WallpaperPorts;
   /** The updater: Settings → About and Home's update icon (an inert one when Couch runs from the repo). */
   updates: Updates;
+  /** Setup's steps; the real list unless a test adds a fake one. */
+  setupSteps?: SetupStep[];
   /** Show and film details (TMDB). Without it, everything uses frames. */
   metadata?: Metadata;
   /** The project's TMDB key, built into release builds; used when the household has none of its own. */
@@ -365,18 +368,25 @@ export class Core {
     });
     this.#state.volume = this.#sound.volume;
     this.#uiSounds = new InterfaceSounds(ports.store);
-    this.#setup = new Setup({
-      store: ports.store,
-      apps: {
-        rows: () => this.#homeApps.rows(),
-        setShown: (id, shown) => void this.#homeApps.setShown(id, shown),
+    this.#setup = new Setup(
+      {
+        store: ports.store,
+        apps: {
+          rows: () => this.#homeApps.rows(),
+          setShown: (id, shown) => void this.#homeApps.setShown(id, shown),
+        },
+        atHome: () => this.#state.view === "home",
+        version: () => ports.updates.version,
+        listenerOn: () => this.#loginItem.on,
+        turnListenerOn: () => void this.#turnListenerOn(),
+        usedBefore: () => this.#usedBefore(),
+        phones: () => this.#remotes.size,
+        later: (fn, ms) => ports.clock.setTimeout(fn, ms),
+        cue: (sound) => this.#cue(sound),
+        changed: () => this.#emit(),
       },
-      usedBefore: () => this.#usedBefore(),
-      phones: () => this.#remotes.size,
-      later: (fn, ms) => ports.clock.setTimeout(fn, ms),
-      cue: (sound) => this.#cue(sound),
-      changed: () => this.#emit(),
-    });
+      ports.setupSteps,
+    );
     this.#quick = new QuickSettings({
       clock: ports.clock,
       sound: this.#sound,
@@ -2793,6 +2803,11 @@ export class Core {
       ));
     this.#loginItem = { available: item.available, on: item.on, running };
     this.#emit();
+  }
+
+  async #turnListenerOn(): Promise<void> {
+    await this.refreshLoginItem();
+    if (!this.#loginItem.on) await this.#toggleListener();
   }
 
   async #toggleListener(): Promise<void> {

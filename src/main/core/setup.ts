@@ -7,6 +7,9 @@ export interface SetupControls {
   /** Show the pairing QR code again on the pairing step. */
   addPhone(): void;
   close(): void;
+  /** The Start Couch Listener at login setting, the one Settings → Remotes and Devices shows. */
+  listenerOn(): boolean;
+  turnListenerOn(): void;
 }
 
 export interface SetupHost {
@@ -14,6 +17,12 @@ export interface SetupHost {
   apps: SetupContext["apps"];
   /** Couch has been used before: a pairing from an earlier start, Library folders or watch history. */
   usedBefore(): boolean;
+  listenerOn(): boolean;
+  turnListenerOn(): void;
+  /** Home is what the Screen shows now (not the player, an App or another page). */
+  atHome(): boolean;
+  /** Couch's version, for "New in Couch <version>". */
+  version(): string;
   /** Phones connected right now. */
   phones(): number;
   /** A timer on the Clock port; returns its canceller. */
@@ -26,6 +35,8 @@ interface Saved {
   finished: boolean;
   /** Steps already gone through, so a restart resumes at the first one that isn't. */
   seen: string[];
+  /** How many starts the steps of an update were put off ("Set up later" or Home); a second one marks them seen. */
+  deferred?: number;
 }
 
 /** Commands Setup takes while it is open; Power, volume and the like keep their usual meaning. */
@@ -62,12 +73,23 @@ export class Setup {
   #index = 0;
   #focus = 0;
   #seen: Set<string>;
+  #control: SetupControls;
+  /** Steps an update added to a household that had finished Setup: shown only while Home shows. */
+  #whatsNew = false;
+  #deferred = 0;
   #justConnected = false;
   #addingPhone = false;
   #cancelAdvance?: () => void;
 
   constructor(host: SetupHost, steps: SetupStep[] = SETUP_STEPS) {
     this.#h = host;
+    this.#control = {
+      next: () => this.#next(),
+      addPhone: () => (this.#addingPhone = true),
+      close: () => this.#finish(),
+      listenerOn: () => host.listenerOn(),
+      turnListenerOn: () => host.turnListenerOn(),
+    };
     this.#steps = steps;
     const saved = host.store.read<Partial<Saved> | undefined>("setup", undefined);
     if (saved === undefined) {
@@ -81,14 +103,25 @@ export class Setup {
     }
     this.#seen = new Set(Array.isArray(saved.seen) ? saved.seen.map(String) : []);
     if (saved.finished !== true) this.#start();
+    else this.#startNew(saved.deferred);
   }
 
   get isOpen(): boolean {
-    return this.#open;
+    return this.#open && (!this.#whatsNew || this.#h.atHome());
+  }
+
+  #startNew(deferred: unknown): void {
+    const pending = this.#steps.filter((s) => !this.#seen.has(s.id));
+    if (pending.length === 0) return;
+    this.#deferred = typeof deferred === "number" ? deferred : 0;
+    this.#steps = pending;
+    this.#whatsNew = true;
+    this.#open = true;
+    this.#goTo(0);
   }
 
   #start(): void {
-    const first = this.#steps.findIndex((s) => !this.#seen.has(s.id) && !s.done());
+    const first = this.#steps.findIndex((s) => !this.#seen.has(s.id) && !s.done(this.#control));
     this.#open = true;
     this.#goTo(first < 0 ? this.#steps.length - 1 : first);
   }
@@ -103,12 +136,26 @@ export class Setup {
   }
 
   #save(finished: boolean): void {
-    this.#h.store.write("setup", { finished, seen: [...this.#seen] });
+    this.#h.store.write("setup", {
+      finished,
+      seen: [...this.#seen],
+      ...(this.#deferred > 0 ? { deferred: this.#deferred } : {}),
+    });
   }
 
-  /** Setup ends, or is closed with "Set up later": every step counts as seen. */
+  /** Setup ends: every step counts as seen. */
   #finish(): void {
     for (const s of this.#steps) this.#seen.add(s.id);
+    this.#deferred = 0;
+    this.#open = false;
+    this.#save(true);
+  }
+
+  /** "Set up later" or Home: a fresh Setup is over; an update's steps ask once more next start, then count as seen. */
+  #later(): void {
+    if (!this.#whatsNew) return this.#finish();
+    this.#deferred++;
+    if (this.#deferred >= 2) return this.#finish();
     this.#open = false;
     this.#save(true);
   }
@@ -140,40 +187,40 @@ export class Setup {
   /** The switches, then the buttons: one list for focus, and the Screen's `index`. */
   #buttons(): Array<{ label: string; run(): void }> {
     const step = this.#steps[this.#index]!;
-    const control: SetupControls = {
-      next: () => this.#next(),
-      addPhone: () => (this.#addingPhone = true),
-      close: () => this.#finish(),
-    };
-    const page = step.page(this.#ctx());
+    const page = step.page(this.#ctx(), this.#control);
     const switches = (page.switches ?? []).map((s) => ({ label: s.label, run: () => s.toggle() }));
-    const own = page.buttons.map((b) => ({ label: b.label, run: () => b.run(control) }));
+    const own = page.buttons.map((b) => ({ label: b.label, run: () => b.run(this.#control) }));
     if (step.final) return [...switches, ...own];
     return [
       ...switches,
       ...own,
       { label: page.skip ?? "Skip", run: () => this.#next() },
-      { label: "Set up later", run: () => this.#finish() },
+      { label: "Set up later", run: () => this.#later() },
     ];
   }
 
   #next(): void {
     const step = this.#steps[this.#index]!;
     this.#seen.add(step.id);
-    this.#save(false);
+    this.#save(this.#whatsNew);
     if (this.#index + 1 >= this.#steps.length) this.#finish();
     else this.#goTo(this.#index + 1);
   }
 
   payload(): SetupPayload | undefined {
-    if (!this.#open) return undefined;
+    if (!this.isOpen) return undefined;
     const step = this.#steps[this.#index]!;
-    const page = step.page(this.#ctx());
+    const page = step.page(this.#ctx(), this.#control);
     const switches = page.switches ?? [];
+    const body = this.#whatsNew
+      ? page.body
+        ? `${page.title}. ${page.body}`
+        : page.title
+      : page.body;
     return {
       id: step.id,
-      title: page.title,
-      ...(page.body ? { body: page.body } : {}),
+      title: this.#whatsNew ? `New in Couch ${this.#h.version()}` : page.title,
+      ...(body ? { body } : {}),
       ...(page.tips ? { tips: page.tips } : {}),
       ...(page.qr ? { qr: true } : {}),
       step: this.#index,
@@ -188,7 +235,8 @@ export class Setup {
 
   /** Takes the command when Setup is open and it is one of Setup's; returns whether it did. */
   handle(command: Command): boolean {
-    if (!this.#open || !TAKEN.includes(command.command)) return false;
+    if (!this.isOpen || !TAKEN.includes(command.command)) return false;
+    if (this.#whatsNew && command.command === "resume") return false;
     const buttons = this.#buttons();
     const index = command.args?.index;
     const valid =
@@ -225,7 +273,7 @@ export class Setup {
         }
         break;
       case "home":
-        this.#finish();
+        this.#later();
         break;
     }
     this.#h.changed();
@@ -233,7 +281,7 @@ export class Setup {
   }
 
   #switchCount(): number {
-    return this.#steps[this.#index]!.page(this.#ctx()).switches?.length ?? 0;
+    return this.#steps[this.#index]!.page(this.#ctx(), this.#control).switches?.length ?? 0;
   }
 
   #press(buttons: Array<{ run(): void }>, index: number): void {

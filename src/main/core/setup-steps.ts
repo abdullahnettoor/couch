@@ -47,9 +47,9 @@ export interface SetupSwitch {
  */
 export interface SetupStep {
   id: string;
-  page(ctx: SetupContext): SetupPage;
+  page(ctx: SetupContext, c: SetupControls): SetupPage;
   /** The choice behind this step has been made (a phone paired, a folder added), so Setup resumes past it. */
-  done(): boolean;
+  done(c: SetupControls): boolean;
   /** The last step: it closes Setup itself, with no Skip or Set up later beside it. */
   final?: true;
 }
@@ -89,6 +89,31 @@ export const SETUP_STEPS: SetupStep[] = [
         buttons: [],
       };
     },
+  },
+  {
+    id: "listener",
+    done: (c) => c.listenerOn(),
+    page: (_ctx, c) =>
+      c.listenerOn()
+        ? {
+            title: "Couch is on from your phone",
+            body: "The phone's Power button can start Couch when it's closed.",
+            buttons: [{ label: "Continue", run: next }],
+          }
+        : {
+            title: "Turn Couch on from your phone?",
+            body: "Then the phone's Power button can start Couch when it's closed.",
+            buttons: [
+              {
+                label: "Yes",
+                run: (c) => {
+                  c.turnListenerOn();
+                  c.next();
+                },
+              },
+              { label: "No", run: next },
+            ],
+          },
   },
   {
     id: "apps",

@@ -1,6 +1,10 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 import { FakeWebApp } from "./ports/fakes.ts";
 import { MemoryStore } from "./ports/store.ts";
+import { SETUP_STEPS, type SetupStep } from "./core/setup-steps.ts";
 import { startHarness, type Harness } from "./testing/harness.ts";
 
 let h: Harness;
@@ -19,7 +23,7 @@ describe("Setup on a fresh install", () => {
       title: "Welcome to Couch",
       body: "Your Mac, made into a TV. Your phone is the remote.",
       step: 0,
-      steps: 4,
+      steps: 5,
       buttons: ["Use the Mac's keyboard or mouse for now", "Skip", "Set up later"],
       focus: 0,
     };
@@ -30,7 +34,7 @@ describe("Setup on a fresh install", () => {
 });
 
 describe("Setup for a household that already uses Couch", () => {
-  const SEEN = ["welcome", "pair", "apps", "done"];
+  const SEEN = ["welcome", "pair", "listener", "apps", "done"];
   const used: Array<[string, (s: MemoryStore) => void]> = [
     ["a pairing from an earlier start", (s) => s.write("pairing", { key: "k" })],
     ["a Library folder", (s) => s.write("library", { folders: ["/Movies"] })],
@@ -58,9 +62,11 @@ describe("moving through Setup", () => {
     h.app.screenCommand({ command: "ok" });
     expect(h.screen.last.setup).toMatchObject({ id: "pair", step: 1, focus: 0 });
     h.app.screenCommand({ command: "ok" });
-    expect(h.screen.last.setup).toMatchObject({ id: "apps", step: 2, focus: 0 });
+    expect(h.screen.last.setup).toMatchObject({ id: "listener", step: 2, focus: 0 });
+    h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
+    expect(h.screen.last.setup).toMatchObject({ id: "apps", step: 3, focus: 0 });
     h.app.screenCommand({ command: "confirmAt", args: { index: 3 } });
-    expect(h.screen.last.setup).toMatchObject({ id: "done", step: 3, focus: 0 });
+    expect(h.screen.last.setup).toMatchObject({ id: "done", step: 4, focus: 0 });
     await phone.settle();
     expect(phone.last?.setup?.id).toBe("done");
     expect(h.screen.last.setup?.tips).toEqual([
@@ -72,10 +78,10 @@ describe("moving through Setup", () => {
     await phone.press("back");
     expect(h.screen.last.setup?.id).toBe("apps");
     await phone.press("back");
-    expect(h.screen.last.setup?.id).toBe("pair");
+    expect(h.screen.last.setup?.id).toBe("listener");
     await phone.press({
       command: "confirmAnswer",
-      args: { index: 0, text: "pair" },
+      args: { index: 2, text: "listener" },
     });
     expect(h.screen.last.setup?.id).toBe("apps");
     await phone.press({ command: "confirmAnswer", args: { index: 0, text: "welcome" } });
@@ -96,7 +102,7 @@ describe("moving through Setup", () => {
     expect(h.screen.last.setup).toBeUndefined();
     expect(store.read("setup", undefined)).toEqual({
       finished: true,
-      seen: ["welcome", "pair", "apps", "done"],
+      seen: ["welcome", "pair", "listener", "apps", "done"],
     });
     await h.stop();
     await fresh(store);
@@ -107,9 +113,13 @@ describe("moving through Setup", () => {
     const store = await fresh();
     h.app.screenCommand({ command: "ok" });
     expect(h.screen.last.setup?.id).toBe("pair");
+    h.app.screenCommand({ command: "confirmAt", args: { index: 0 } });
+    expect(h.screen.last.setup?.id).toBe("listener");
+    h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
+    expect(h.screen.last.setup?.id).toBe("apps");
     await h.stop();
     await fresh(store);
-    expect(h.screen.last.setup).toMatchObject({ id: "pair", step: 1 });
+    expect(h.screen.last.setup).toMatchObject({ id: "apps", step: 3 });
   });
 
   test("while open, keys never reach Home or an App", async () => {
@@ -124,6 +134,201 @@ describe("moving through Setup", () => {
     expect(h.screen.last.state.view).toBe(view);
     expect(h.screen.last.focusedId).toBe(focused);
     expect(h.youtube.calls.filter((c) => c.call === "show")).toEqual([]);
+  });
+});
+
+describe("the Listener step", () => {
+  const toListener = async () => {
+    const store = await fresh();
+    h.app.screenCommand({ command: "ok" });
+    h.app.screenCommand({ command: "confirmAt", args: { index: 0 } });
+    expect(h.screen.last.setup?.id).toBe("listener");
+    return store;
+  };
+  const loginItemCalls = () => h.mac.calls.filter((c) => c.call === "setListenerLoginItem");
+
+  test("Yes is first and focused, and turns the login item on; Settings shows it on", async () => {
+    await toListener();
+    expect(h.screen.last.setup).toMatchObject({
+      title: "Turn Couch on from your phone?",
+      buttons: ["Yes", "No", "Skip", "Set up later"],
+      focus: 0,
+    });
+    h.app.screenCommand({ command: "ok" });
+    const p = await h.connectPhone();
+    await p.settle();
+    expect(h.mac.loginItem.on).toBe(true);
+    expect(h.screen.last.setup?.id).toBe("apps");
+    h.app.screenCommand({ command: "home" });
+    await p.press("down");
+    await p.press("right");
+    await p.press("right");
+    await p.press("ok");
+    await p.press("up");
+    await p.press("ok");
+    await p.press("ok");
+    await p.settle();
+    expect(h.screen.last.state.view).toBe("settingsRemotes");
+    expect(h.screen.last.listener?.on).toBe(true);
+  });
+
+  test("No leaves it off, and the answer survives a restart", async () => {
+    const store = await toListener();
+    h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
+    await h.app.core.refreshLoginItem();
+    expect(loginItemCalls()).toEqual([]);
+    expect(h.mac.loginItem.on).toBe(false);
+    await h.stop();
+    await fresh(store);
+    expect(h.screen.last.setup?.id).toBe("apps");
+  });
+
+  test("Skip leaves it off", async () => {
+    await toListener();
+    h.app.screenCommand({ command: "confirmAt", args: { index: 2 } });
+    expect(loginItemCalls()).toEqual([]);
+    expect(h.screen.last.setup?.id).toBe("apps");
+  });
+
+  test("with the Listener already on, the step says so and offers Continue", async () => {
+    const store = new MemoryStore();
+    h = await startHarness(store, { setup: "fresh", loginItemOn: true });
+    await h.app.core.refreshLoginItem();
+    h.app.screenCommand({ command: "ok" });
+    h.app.screenCommand({ command: "confirmAt", args: { index: 0 } });
+    expect(h.screen.last.setup).toMatchObject({
+      id: "listener",
+      title: "Couch is on from your phone",
+      buttons: ["Continue", "Skip", "Set up later"],
+    });
+    h.app.screenCommand({ command: "ok" });
+    expect(h.screen.last.setup?.id).toBe("apps");
+    expect(loginItemCalls()).toEqual([]);
+  });
+});
+
+describe("New in Couch: steps added by an update", () => {
+  const fake: SetupStep = {
+    id: "remote-style",
+    done: () => false,
+    page: () => ({ title: "Remote style", buttons: [{ label: "Pick one", run: (c) => c.next() }] }),
+  };
+  const steps = [...SETUP_STEPS.slice(0, -1), fake, SETUP_STEPS.at(-1)!];
+  const start = async (store: MemoryStore, options: { setup?: "fresh" } = {}) => {
+    h = await startHarness(store, { ...options, setupSteps: steps });
+  };
+  const finished = () => {
+    const store = new MemoryStore();
+    store.write("setup", { finished: true, seen: ["welcome", "pair", "listener", "apps", "done"] });
+    return store;
+  };
+  const later = () => h.app.screenCommand({ command: "confirmAt", args: { index: 2 } });
+
+  test("a restart shows only the new step, titled with the version, and marks it seen when done", async () => {
+    const store = finished();
+    await start(store);
+    expect(h.screen.last.setup).toEqual({
+      id: "remote-style",
+      title: "New in Couch 0.2.0",
+      body: "Remote style",
+      step: 0,
+      steps: 1,
+      buttons: ["Pick one", "Skip", "Set up later"],
+      focus: 0,
+    });
+    h.app.screenCommand({ command: "ok" });
+    expect(h.screen.last.setup).toBeUndefined();
+    expect(store.read("setup", undefined)).toMatchObject({
+      finished: true,
+      seen: ["welcome", "pair", "listener", "apps", "done", "remote-style"],
+    });
+    await h.stop();
+    await start(store);
+    expect(h.screen.last.setup).toBeUndefined();
+  });
+
+  test("Skip marks the step seen too", async () => {
+    const store = finished();
+    await start(store);
+    h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
+    expect(h.screen.last.setup).toBeUndefined();
+    expect(store.read<{ seen?: string[] }>("setup", {}).seen).toContain("remote-style");
+  });
+
+  test("with no new step nothing shows", async () => {
+    h = await startHarness(finished());
+    expect(h.screen.last.setup).toBeUndefined();
+  });
+
+  test("waits behind the Library player after Power and Resume", async () => {
+    const root = mkdtempSync(join(tmpdir(), "couch-setup-"));
+    const file = join(root, "A.Film.2001.mkv");
+    writeFileSync(file, "");
+    const store = finished();
+    store.write("library", { folders: [root] });
+    store.write("history", { items: { [file]: { at: 1, position: 600, duration: 7200 } } });
+    try {
+      await start(store);
+      h.app.screenCommand({ command: "resume" });
+      expect(h.screen.last.state.view).toBe("player");
+      expect(h.screen.last.setup).toBeUndefined();
+      h.app.screenCommand({ command: "back" });
+      expect(h.screen.last.state.view).toBe("home");
+      expect(h.screen.last.setup?.id).toBe("remote-style");
+    } finally {
+      await h?.stop();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("waits behind a web App after Power and Resume", async () => {
+    const store = finished();
+    store.write("continue-apps", {
+      items: [
+        {
+          app: "youtube",
+          title: "Cat video",
+          url: "https://www.youtube.com/tv#/watch?v=dQw4w9WgXcQ&t=300",
+          position: 300,
+          duration: 3000,
+          at: 1,
+        },
+      ],
+    });
+    await start(store);
+    h.app.screenCommand({ command: "resume" });
+    expect(h.screen.last.state.view).toBe("app");
+    expect(h.screen.last.setup).toBeUndefined();
+    h.app.screenCommand({ command: "home" });
+    expect(h.screen.last.setup?.id).toBe("remote-style");
+  });
+
+  test.each([
+    ["Later", later],
+    ["Home", () => h.app.screenCommand({ command: "home" })],
+  ])("%s once asks again on the next start; a second time doesn't", async (_, defer) => {
+    const store = finished();
+    await start(store);
+    defer();
+    expect(h.screen.last.setup).toBeUndefined();
+    await h.stop();
+    await start(store);
+    expect(h.screen.last.setup?.id).toBe("remote-style");
+    defer();
+    await h.stop();
+    await start(store);
+    expect(h.screen.last.setup).toBeUndefined();
+    expect(store.read<{ seen?: string[] }>("setup", {}).seen).toContain("remote-style");
+  });
+
+  test("a fresh install that finishes Setup never sees New in Couch for its steps", async () => {
+    const store = new MemoryStore();
+    await start(store, { setup: "fresh" });
+    expect(h.screen.last.setup?.title).toBe("Welcome to Couch");
+    later();
+    await h.stop();
+    await start(store);
+    expect(h.screen.last.setup).toBeUndefined();
   });
 });
 
@@ -147,9 +352,9 @@ describe("the Pair your phone step", () => {
     h.clock.advance(1400);
     expect(h.screen.last.setup?.id).toBe("pair");
     h.clock.advance(100);
-    expect(h.screen.last.setup?.id).toBe("apps");
+    expect(h.screen.last.setup?.id).toBe("listener");
     await phone.settle();
-    expect(phone.last?.setup?.id).toBe("apps");
+    expect(phone.last?.setup?.id).toBe("listener");
   });
 
   test("with a phone already connected it waits, with Continue and Add another phone", async () => {
@@ -167,7 +372,7 @@ describe("the Pair your phone step", () => {
     h.app.screenCommand({ command: "back" });
     h.app.screenCommand({ command: "ok" });
     h.app.screenCommand({ command: "confirmAt", args: { index: 0 } });
-    expect(h.screen.last.setup?.id).toBe("apps");
+    expect(h.screen.last.setup?.id).toBe("listener");
   });
 
   test("a restart after pairing resumes past it", async () => {
@@ -176,14 +381,14 @@ describe("the Pair your phone step", () => {
     await h.connectPhone();
     await h.stop();
     await fresh(store);
-    expect(h.screen.last.setup?.id).toBe("apps");
+    expect(h.screen.last.setup?.id).toBe("listener");
   });
 
   test("Skip for now moves on", async () => {
     await fresh();
     toPair();
     h.app.screenCommand({ command: "confirmAt", args: { index: 0 } });
-    expect(h.screen.last.setup?.id).toBe("apps");
+    expect(h.screen.last.setup?.id).toBe("listener");
   });
 });
 
@@ -192,6 +397,7 @@ describe("the Apps step", () => {
     h = await startHarness(store, { setup: "fresh", ...options });
     h.app.screenCommand({ command: "ok" });
     h.app.screenCommand({ command: "ok" });
+    h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
     expect(h.screen.last.setup?.id).toBe("apps");
   };
   const homeLabels = () =>
