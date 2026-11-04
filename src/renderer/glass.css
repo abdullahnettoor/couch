@@ -1,7 +1,7 @@
 /*
  * Glass: the shared look of the Screen (material, focus language, top-right strip, toast, volume level).
  * Sizes are written in prototype pixels (a 1920 × 1080 Screen, scaled by the tighter side) through --u, so they read like the design.
- * Colours, radii and motion come from src/shared/glass-tokens.ts, injected by main.ts.
+ * Colours, radii and motion come from src/shared/look.ts, injected by main.ts.
  */
 :root {
   --u: min(100vw / 1920, 100vh / 1080);

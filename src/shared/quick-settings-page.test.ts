@@ -3,7 +3,7 @@ import { describe, expect, test } from "vite-plus/test";
 import type { QuickPayload } from "./protocol.ts";
 import { readFileSync } from "node:fs";
 import { CONFIRM_LAYOUT } from "./confirm-layout.ts";
-import { COLORS, glassTokensCss } from "./glass-tokens.ts";
+import { GLASS, lookCss } from "./look.ts";
 import { QUICK_SLIDE_MS, drawerGlassRect, quickSettingsPage } from "./quick-settings-page.ts";
 import { ICON_PATHS } from "./icons.ts";
 
@@ -248,7 +248,7 @@ describe("the Quick settings page", () => {
 describe("the drawer page's design tokens", () => {
   const renderer = rootProps(
     readFileSync(new URL("../renderer/glass.css", import.meta.url), "utf8") +
-      glassTokensCss({ unit: "var(--u)" }),
+      lookCss(GLASS, { unit: "var(--u)" }),
   );
 
   test("--r-row resolves on the root to the renderer's own value, so rows are rounded", () => {
@@ -275,8 +275,8 @@ describe("the drawer's material", () => {
       expect(rule(css, "#drawer")).toContain("backdrop-filter");
       expect(rule(css, "#drawer.media")).toContain("background:var(--glass-solid)");
     }
-    expect(Number(/rgba\([^)]*,\s*([\d.]+)\)/.exec(COLORS["glass-solid"])![1])).toBeGreaterThan(
-      Number(/rgba\([^)]*,\s*([\d.]+)\)/.exec(COLORS["glass-strong"])![1]),
+    expect(Number(/rgba\([^)]*,\s*([\d.]+)\)/.exec(GLASS.color.glassSolid)![1])).toBeGreaterThan(
+      Number(/rgba\([^)]*,\s*([\d.]+)\)/.exec(GLASS.color.glassStrong)![1]),
     );
   });
 

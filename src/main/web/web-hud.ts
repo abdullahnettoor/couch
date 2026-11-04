@@ -1,4 +1,4 @@
-import { COLORS } from "../../shared/glass-tokens.ts";
+import { GLASS } from "../../shared/look.ts";
 import { describeConfirm } from "../../shared/confirm-layout.ts";
 import type { Confirmation } from "../../shared/protocol.ts";
 import { ICON_PATHS, ICON_VIEWBOX } from "../../shared/icons.ts";
@@ -17,10 +17,10 @@ const HELPERS = `
 var U=Math.min(innerWidth/1920,innerHeight/1080),SVG='http://www.w3.org/2000/svg';
 function css(e,o){for(var k in o)e.style.setProperty(k,String(o[k]))}
 function px(n){return (n*U)+'px'}
-function glass(e){css(e,{position:'fixed','z-index':'2147483647','pointer-events':'none',color:${JSON.stringify(COLORS.t1)},
-font:'600 '+px(22)+'/1 -apple-system,"SF Pro Text",system-ui,sans-serif',background:${JSON.stringify(COLORS["glass-strong"])},
+function glass(e){css(e,{position:'fixed','z-index':'2147483647','pointer-events':'none',color:${JSON.stringify(GLASS.color.textPrimary)},
+font:'600 '+px(22)+'/1 -apple-system,"SF Pro Text",system-ui,sans-serif',background:${JSON.stringify(GLASS.color.glassStrong)},
 'backdrop-filter':'blur(40px) saturate(1.8)','-webkit-backdrop-filter':'blur(40px) saturate(1.8)',
-'box-shadow':${JSON.stringify(COLORS["glass-edge"])}+',0 24px 70px rgba(0,0,0,.35)'})}
+'box-shadow':${JSON.stringify(GLASS.shadow["glass-edge"])}+',0 24px 70px rgba(0,0,0,.35)'})}
 `;
 
 /** Console messages the page's confirmation buttons send: `couch:confirm:N` (click), `couch:confirm-hover:N`. */
@@ -70,13 +70,13 @@ var s=document.createElementNS(SVG,'svg');s.setAttribute('viewBox',${JSON.string
 ${JSON.stringify(SEARCH_PATHS)}.forEach(function(v){var q=document.createElementNS(SVG,'path');q.setAttribute('d',v);s.appendChild(q)});
 var t=document.createElement('span');t.setAttribute('data-role','text');css(t,{overflow:'hidden','text-overflow':'ellipsis'});
 var c=document.createElement('i');c.setAttribute('data-role','caret');css(c,{width:px(3),height:px(44),background:'#fff',flex:'none','margin-left':px(-14)});
-var g=document.createElement('span');g.textContent=${JSON.stringify("Enter to search · Esc to close")};css(g,{'margin-left':'auto','font-size':px(22),'font-weight':'600',color:${JSON.stringify(COLORS.t3)}});
+var g=document.createElement('span');g.textContent=${JSON.stringify("Enter to search · Esc to close")};css(g,{'margin-left':'auto','font-size':px(22),'font-weight':'600',color:${JSON.stringify(GLASS.color.textTertiary)}});
 d.appendChild(s);d.appendChild(t);d.appendChild(c);d.appendChild(g);document.body.appendChild(d);
 c.animate([{opacity:1},{opacity:0}],{duration:1000,iterations:Infinity,easing:'steps(2,start)'});
 d.animate([{opacity:0,transform:'translateX(-50%) translateY('+px(-40)+')'},{opacity:1,transform:'translateX(-50%) translateY(0)'}],{duration:220,easing:'cubic-bezier(.2,.8,.2,1)'});
 }
 var tx=d.querySelector('[data-role=text]'),ph=${JSON.stringify(text)}==='';
-tx.textContent=ph?${JSON.stringify(placeholder)}:${JSON.stringify(text)};tx.style.setProperty('color',ph?${JSON.stringify(COLORS.t3)}:'inherit');
+tx.textContent=ph?${JSON.stringify(placeholder)}:${JSON.stringify(text)};tx.style.setProperty('color',ph?${JSON.stringify(GLASS.color.textTertiary)}:'inherit');
 })()`;
 }
 
