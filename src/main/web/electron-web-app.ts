@@ -92,6 +92,7 @@ export class ElectronWebApp implements YouTube {
         run: (script) => this.#view.webContents.executeJavaScript(script),
         press: (keyCode) => this.#press(keyCode),
         goBack: () => this.#goBack(),
+        canGoBack: () => this.#canGoBack(),
         url: () => this.#view.webContents.getURL(),
         load: (url) =>
           void this.#view.webContents
@@ -482,10 +483,14 @@ export class ElectronWebApp implements YouTube {
     this.#core.sendKey(key);
   }
 
-  #goBack(): void {
-    // The blank page the view starts on is not somewhere to go back to.
+  /** The blank page the view starts on is not somewhere to go back to. */
+  #canGoBack(): boolean {
     const history = this.#view.webContents.navigationHistory;
-    if (!backIsSafe(history.getAllEntries(), history.getActiveIndex())) return;
+    return backIsSafe(history.getAllEntries(), history.getActiveIndex());
+  }
+
+  #goBack(): void {
+    if (!this.#canGoBack()) return;
     // The page's own history.back(): after Netflix pushes a page on top of a Back, the view's native goBack lands on the first (blank) entry.
     void this.#view.webContents.executeJavaScript("history.back()").catch(() => {});
   }

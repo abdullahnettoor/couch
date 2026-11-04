@@ -276,7 +276,7 @@ function webkitRig(description: WebAppDescription): HostRig {
       for (const l of Array.from(view.listeners))
         l({ type: "loaded", url: "https://www.netflix.com/browse" });
     },
-    allowHistoryBack: () => {},
+    allowHistoryBack: () => void view.answers.push(["__couchCanGoBack", true]),
     couchSend: (message, frame = { main: true, origin: "https://www.netflix.com" }) => {
       const sandbox: any = {
         webkit: {

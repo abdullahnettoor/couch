@@ -25,6 +25,8 @@ export interface HostEngine {
   press(keyCode: string): void;
   /** History back in the page; the engine knows when that is safe. */
   goBack(): void;
+  /** Whether history back has a page of the App's to go to (not the engine's blank start). */
+  canGoBack(): boolean | Promise<boolean>;
   /** The address the page is at. */
   url(): string;
   load(url: string): void;
@@ -59,6 +61,8 @@ export class WebHostCore {
   /** A Continue open is on its way: until the page has loaded, navigation off the App's own sites is cancelled. */
   #pendingOpen = false;
   #homeTimer: ReturnType<typeof setTimeout> | undefined;
+  /** The page is at the App's home, as its route last said. */
+  #atHome = true;
   #guard: (on: boolean) => void;
 
   /** `pollsRoute`: ask the page for its state every tick (otherwise the engine pushes it with `setPage`). */
@@ -85,7 +89,9 @@ export class WebHostCore {
   /** Tells the core whether the App is on its home screen (a Short keeps Home's URL, so the page state is part of it). */
   syncRoute(url: string): void {
     const route = this.#routes.update(url, this.#page);
-    if (route) this.#emit({ type: "route", ...route });
+    if (!route) return;
+    this.#atHome = route.home;
+    this.#emit({ type: "route", ...route });
   }
 
   /** The page went to `url` (a navigation or a route report): the route, and arriving at search. */
@@ -169,6 +175,7 @@ export class WebHostCore {
     this.#inSearch = false;
     this.#page = this.#desc.route.idle;
     this.#routes = this.#desc.route.tracker();
+    this.#atHome = true;
     this.#startUrl = undefined;
     this.#setPending(false);
     this.#emit({ type: "route", home: true });
@@ -294,13 +301,23 @@ export class WebHostCore {
         .catch(() => "")
         .then((answer) => {
           const todo = backAction(answer);
-          if (todo === "history") return this.#engine.goBack();
+          if (todo === "history") return this.#historyBack();
           if (todo === "press") this.#engine.press(keyCode);
           this.#emit({ type: "backHandled" });
         });
       return;
     }
     this.#engine.press(keyCode);
+  }
+
+  /**
+   * History back, or the App's home when there is no page behind this one: a title that was the page's first load
+   * (a Continue open, a deep link) has nothing to go back to, and Back must still reach home.
+   */
+  async #historyBack(): Promise<void> {
+    const can = await Promise.resolve(this.#engine.canGoBack()).catch(() => false);
+    if (can) this.#engine.goBack();
+    else if (!this.#atHome) this.#engine.load(this.#desc.url);
   }
 
   scrollToTop(): void {

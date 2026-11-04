@@ -471,6 +471,7 @@ describe("keys", () => {
   test("Back with nothing open goes back in the page's history", async () => {
     const { web, view } = make();
     web.show();
+    view().answers.push(["__couchCanGoBack", true]);
     web.sendKey("back");
     await vi.waitFor(() => expect(view().evaluated.at(-1)).toBe("history.back()"));
     expect(view().keys).toEqual([]);

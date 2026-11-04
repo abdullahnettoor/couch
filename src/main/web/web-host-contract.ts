@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vite-plus/test";
+import { NetflixApp } from "../apps/netflix/netflix-app.ts";
 import { netflixDescription } from "../apps/netflix/netflix-web.ts";
+import { FakeClock } from "../ports/fakes.ts";
 import type { YouTube, YouTubeEvent } from "../ports/youtube.ts";
 import type { PlaybackAdapter, WebAppDescription } from "./web-app.ts";
 import { urlRoute } from "./url-route.ts";
@@ -616,6 +618,46 @@ export function describeWebHostContract(
         rig.host.sendKey("back");
         await vi.waitFor(() => expect(rig.scripts().at(-1)).toBe("history.back()"));
         expect(rig.keys()).toEqual([]);
+      });
+
+      test("Back on a title opened as the page's first load, with no history behind it, loads the App's home", async () => {
+        const rig = makeRig();
+        const title = "https://www.netflix.com/watch/80100172";
+        rig.host.openAt(title);
+        await rig.show();
+        rig.navigate(title);
+        rig.host.sendKey("back");
+        await vi.waitFor(() => expect(rig.loads().at(-1)).toBe(netflix.url));
+        expect(rig.scripts()).not.toContain("history.back()");
+        expect(rig.keys()).toEqual([]);
+      });
+
+      test("Netflix: Back from a resumed title reaches Netflix's home, and only then asks to leave", async () => {
+        const rig = makeRig();
+        const clock = new FakeClock();
+        const app = new NetflixApp(rig.host, clock);
+        const title = "https://www.netflix.com/watch/80100172";
+        rig.host.openAt(title);
+        await rig.show();
+        rig.navigate(title);
+        expect(app.back()).toBe("handled");
+        await vi.waitFor(() => expect(rig.loads().at(-1)).toBe(netflix.url));
+        rig.navigate(netflix.url);
+        clock.advance(1000);
+        expect(app.back()).toBe("leave");
+      });
+
+      test("Back at the App's home with no history behind it loads nothing", async () => {
+        const rig = makeRig();
+        await rig.show();
+        rig.navigate(netflix.url);
+        const before = rig.loads().length;
+        rig.host.sendKey("back");
+        await vi.waitFor(() =>
+          expect(rig.scripts().some((s) => s.includes("__couchPlayerBack"))).toBe(true),
+        );
+        await Promise.resolve();
+        expect(rig.loads()).toHaveLength(before);
       });
 
       test("Back with a pop-up open presses Escape", async () => {

@@ -28,6 +28,14 @@ import { soundScript } from "./web-sound.ts";
 /** The one script message handler Couch's own scripts (in the `couch` content world) talk to the host through. */
 export const MESSAGE_HANDLER = MESSAGE_HANDLER_NAME;
 
+/** Whether the page has one of its own pages behind it: the Navigation API where WebKit has it, else the history's length. */
+export const CAN_GO_BACK = `(function __couchCanGoBack() {
+  try {
+    if (window.navigation && typeof navigation.canGoBack === "boolean") return navigation.canGoBack;
+  } catch (e) {}
+  return history.length > 1;
+})()`;
+
 /** What the host needs of Couch's Screen window. */
 export interface WebKitHostWindow {
   /** The text on the clipboard, for ⌘V while Couch is capturing typed text. */
@@ -140,6 +148,8 @@ export class WebKitWebApp implements YouTube {
             : Promise.reject(new Error("no view")),
         press: (keyCode) => this.#press(keyCode),
         goBack: () => this.#run("history.back()"),
+        canGoBack: async () =>
+          (await this.#view?.evaluate(CAN_GO_BACK, { kind: "expression" })) === true,
         url: () => this.#url,
         load: (url) => this.#view?.load(url),
         focus: () => this.#view?.focus(),
