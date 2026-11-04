@@ -5,10 +5,16 @@ import { SETUP_STEPS, type SetupStep } from "./setup-steps.ts";
 export interface SetupControls {
   next(): void;
   close(): void;
+  /** Home's Apps: the same setting as Settings → Apps. */
+  apps: {
+    rows(): Array<{ id: string; label: string; shown: boolean }>;
+    setShown(id: string, shown: boolean): void;
+  };
 }
 
 export interface SetupHost {
   store: Store;
+  apps: SetupControls["apps"];
   /** Couch has been used before: a pairing from an earlier start, Library folders or watch history. */
   usedBefore(): boolean;
   cue(sound: UiSound): void;
@@ -99,12 +105,20 @@ export class Setup {
     this.#save(true);
   }
 
+  #controls(): SetupControls {
+    return { next: () => this.#next(), close: () => this.#finish(), apps: this.#h.apps };
+  }
+
+  /** The switches, then the buttons: one list for focus, and the Screen's `index`. */
   #buttons(): Array<{ label: string; run(): void }> {
     const step = this.#steps[this.#index]!;
-    const control: SetupControls = { next: () => this.#next(), close: () => this.#finish() };
-    const own = step.page().buttons.map((b) => ({ label: b.label, run: () => b.run(control) }));
-    if (step.final) return own;
+    const c = this.#controls();
+    const page = step.page(c);
+    const switches = (page.switches ?? []).map((s) => ({ label: s.label, run: () => s.toggle(c) }));
+    const own = page.buttons.map((b) => ({ label: b.label, run: () => b.run(c) }));
+    if (step.final) return [...switches, ...own];
     return [
+      ...switches,
       ...own,
       { label: "Skip", run: () => this.#next() },
       { label: "Set up later", run: () => this.#finish() },
@@ -122,7 +136,8 @@ export class Setup {
   payload(): SetupPayload | undefined {
     if (!this.#open) return undefined;
     const step = this.#steps[this.#index]!;
-    const page = step.page();
+    const page = step.page(this.#controls());
+    const switches = page.switches ?? [];
     return {
       id: step.id,
       title: page.title,
@@ -130,7 +145,10 @@ export class Setup {
       ...(page.tips ? { tips: page.tips } : {}),
       step: this.#index,
       steps: this.#steps.length,
-      buttons: this.#buttons().map((b) => b.label),
+      ...(switches.length ? { switches: switches.map((x) => ({ label: x.label, on: x.on })) } : {}),
+      buttons: this.#buttons()
+        .slice(switches.length)
+        .map((b) => b.label),
       focus: this.#focus,
     };
   }
@@ -153,7 +171,7 @@ export class Setup {
         break;
       case "confirmAnswer":
         if (valid && command.args?.text === this.#steps[this.#index]!.id)
-          this.#press(buttons, index);
+          this.#press(buttons, index + this.#switchCount());
         break;
       case "left":
       case "up":
@@ -179,6 +197,10 @@ export class Setup {
     }
     this.#h.changed();
     return true;
+  }
+
+  #switchCount(): number {
+    return this.#steps[this.#index]!.page(this.#controls()).switches?.length ?? 0;
   }
 
   #press(buttons: Array<{ run(): void }>, index: number): void {

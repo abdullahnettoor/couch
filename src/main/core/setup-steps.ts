@@ -11,6 +11,14 @@ export interface SetupPage {
   tips?: string[];
   /** The step's own answers, before the Skip and Set up later every step ends with. */
   buttons: SetupButton[];
+  /** On/off rows ahead of the buttons; Up and Down move through them, OK flips one. */
+  switches?: SetupSwitch[];
+}
+
+export interface SetupSwitch {
+  label: string;
+  on: boolean;
+  toggle(c: SetupControls): void;
 }
 
 /**
@@ -20,7 +28,7 @@ export interface SetupPage {
  */
 export interface SetupStep {
   id: string;
-  page(): SetupPage;
+  page(c: SetupControls): SetupPage;
   /** The choice behind this step has been made (a phone paired, a folder added), so Setup resumes past it. */
   done(): boolean;
   /** The last step: it closes Setup itself, with no Skip or Set up later beside it. */
@@ -37,6 +45,20 @@ export const SETUP_STEPS: SetupStep[] = [
       title: "Welcome to Couch",
       body: "Your Mac, made into a TV. Your phone is the remote.",
       buttons: [{ label: "Use the Mac's keyboard or mouse for now", run: next }],
+    }),
+  },
+  {
+    id: "apps",
+    done: () => false,
+    page: (c) => ({
+      title: "Which Apps show on Home?",
+      body: "Each one can be changed later in Settings.",
+      switches: c.apps.rows().map((row) => ({
+        label: row.label,
+        on: row.shown,
+        toggle: (c) => c.apps.setShown(row.id, !row.shown),
+      })),
+      buttons: [{ label: "Continue", run: next }],
     }),
   },
   {

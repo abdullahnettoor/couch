@@ -234,7 +234,10 @@ export async function startHarness(
       token: options.listener.token,
     });
   }
-  const catalog = [...APP_ENTRIES, ...(options.apps ?? []).map((a) => a.entry)];
+  const catalog = [
+    ...APP_ENTRIES,
+    ...(options.apps ?? []).map((a) => ({ onByDefault: true, ...a.entry })),
+  ];
   const updater = new FakeUpdater();
   const betaFeed = { version: "0.2.0" };
   let started: CouchApp | undefined;

@@ -170,6 +170,8 @@ export interface SetupPayload {
   /** Which step this is (from 0) of how many, for the dots. */
   step: number;
   steps: number;
+  /** On/off rows above the buttons; `focus` counts them first, then the buttons. */
+  switches?: Array<{ label: string; on: boolean }>;
   buttons: string[];
   focus: number;
 }

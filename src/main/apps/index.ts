@@ -13,6 +13,8 @@ export interface AppEntry {
   web: boolean;
   /** The App has add-ons, listed on its settings page. */
   addons?: boolean;
+  /** Switched on for a fresh install (and when added by an update). An App that doesn't say so starts off. */
+  onByDefault?: boolean;
 }
 
 /** The Apps on Home, in order. Each ticket adding an App adds its entry here. */
@@ -24,6 +26,7 @@ export const APP_ENTRIES: AppEntry[] = [
     action: "app:open:youtube",
     web: true,
     addons: true,
+    onByDefault: true,
   },
   {
     id: "netflix",
@@ -31,8 +34,16 @@ export const APP_ENTRIES: AppEntry[] = [
     icon: NETFLIX_MARK,
     action: "app:open:netflix",
     web: true,
+    onByDefault: true,
   },
-  { id: "library", label: "Library", icon: iconSvg("folder"), action: "open:library", web: false },
+  {
+    id: "library",
+    label: "Library",
+    icon: iconSvg("folder"),
+    action: "open:library",
+    web: false,
+    onByDefault: true,
+  },
 ];
 
 export const OPEN_APP = "app:open:";

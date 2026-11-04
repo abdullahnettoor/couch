@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "vite-plus/test";
+import { FakeWebApp } from "./ports/fakes.ts";
 import { MemoryStore } from "./ports/store.ts";
 import { startHarness, type Harness } from "./testing/harness.ts";
 
@@ -18,7 +19,7 @@ describe("Setup on a fresh install", () => {
       title: "Welcome to Couch",
       body: "Your Mac, made into a TV. Your phone is the remote.",
       step: 0,
-      steps: 2,
+      steps: 3,
       buttons: ["Use the Mac's keyboard or mouse for now", "Skip", "Set up later"],
       focus: 0,
     };
@@ -29,7 +30,7 @@ describe("Setup on a fresh install", () => {
 });
 
 describe("Setup for a household that already uses Couch", () => {
-  const SEEN = ["welcome", "done"];
+  const SEEN = ["welcome", "apps", "done"];
   const used: Array<[string, (s: MemoryStore) => void]> = [
     ["a pairing from an earlier start", (s) => s.write("pairing", { key: "k" })],
     ["a Library folder", (s) => s.write("library", { folders: ["/Movies"] })],
@@ -55,7 +56,9 @@ describe("moving through Setup", () => {
     expect(h.screen.last.setup?.focus).toBe(1);
     h.app.screenCommand({ command: "left" });
     h.app.screenCommand({ command: "ok" });
-    expect(h.screen.last.setup).toMatchObject({ id: "done", step: 1, focus: 0 });
+    expect(h.screen.last.setup).toMatchObject({ id: "apps", step: 1, focus: 0 });
+    h.app.screenCommand({ command: "confirmAt", args: { index: 3 } });
+    expect(h.screen.last.setup).toMatchObject({ id: "done", step: 2, focus: 0 });
     await phone.settle();
     expect(phone.last?.setup?.id).toBe("done");
     expect(h.screen.last.setup?.tips).toEqual([
@@ -65,13 +68,17 @@ describe("moving through Setup", () => {
     ]);
     expect(h.screen.last.setup?.buttons).toEqual(["Go to Home"]);
     await phone.press("back");
+    expect(h.screen.last.setup?.id).toBe("apps");
+    await phone.press("back");
     expect(h.screen.last.setup?.id).toBe("welcome");
     await phone.press({
       command: "confirmAnswer",
       args: { index: 1, text: "welcome" },
     });
-    expect(h.screen.last.setup?.id).toBe("done");
+    expect(h.screen.last.setup?.id).toBe("apps");
     await phone.press({ command: "confirmAnswer", args: { index: 0, text: "welcome" } });
+    expect(h.screen.last.setup?.id).toBe("apps");
+    await phone.press({ command: "confirmAnswer", args: { index: 0, text: "apps" } });
     expect(h.screen.last.setup?.id).toBe("done");
     h.app.screenCommand({ command: "confirmAt", args: { index: 0 } });
     expect(h.screen.last.setup).toBeUndefined();
@@ -85,7 +92,10 @@ describe("moving through Setup", () => {
     const store = await fresh();
     close();
     expect(h.screen.last.setup).toBeUndefined();
-    expect(store.read("setup", undefined)).toEqual({ finished: true, seen: ["welcome", "done"] });
+    expect(store.read("setup", undefined)).toEqual({
+      finished: true,
+      seen: ["welcome", "apps", "done"],
+    });
     await h.stop();
     await fresh(store);
     expect(h.screen.last.setup).toBeUndefined();
@@ -94,10 +104,10 @@ describe("moving through Setup", () => {
   test("a restart in the middle resumes at the first step that isn't done", async () => {
     const store = await fresh();
     h.app.screenCommand({ command: "ok" });
-    expect(h.screen.last.setup?.id).toBe("done");
+    expect(h.screen.last.setup?.id).toBe("apps");
     await h.stop();
     await fresh(store);
-    expect(h.screen.last.setup).toMatchObject({ id: "done", step: 1 });
+    expect(h.screen.last.setup).toMatchObject({ id: "apps", step: 1 });
   });
 
   test("while open, keys never reach Home or an App", async () => {
@@ -112,5 +122,70 @@ describe("moving through Setup", () => {
     expect(h.screen.last.state.view).toBe(view);
     expect(h.screen.last.focusedId).toBe(focused);
     expect(h.youtube.calls.filter((c) => c.call === "show")).toEqual([]);
+  });
+});
+
+describe("the Apps step", () => {
+  const toApps = async (store = new MemoryStore(), options = {}) => {
+    h = await startHarness(store, { setup: "fresh", ...options });
+    h.app.screenCommand({ command: "ok" });
+    expect(h.screen.last.setup?.id).toBe("apps");
+  };
+  const homeLabels = () =>
+    h.screen.last.grid.filter((i) => i.id !== "settings" && i.r === 1).map((i) => i.label);
+
+  test("on a fresh store lists every App, YouTube and Netflix on; a switch changes Home and Settings", async () => {
+    await toApps();
+    expect(h.screen.last.setup).toMatchObject({
+      title: "Which Apps show on Home?",
+      switches: [
+        { label: "YouTube", on: true },
+        { label: "Netflix", on: true },
+        { label: "Library", on: true },
+      ],
+      buttons: ["Continue", "Skip", "Set up later"],
+      focus: 0,
+    });
+    h.app.screenCommand({ command: "ok" });
+    expect(h.screen.last.setup?.switches?.map((s) => s.on)).toEqual([false, true, true]);
+    expect(h.screen.last.homeApps?.map((a) => [a.id, a.shown])).toEqual([
+      ["youtube", false],
+      ["netflix", true],
+      ["library", true],
+    ]);
+    h.app.screenCommand({ command: "confirmAt", args: { index: 3 } });
+    expect(h.screen.last.setup?.id).toBe("done");
+    expect(homeLabels()).toEqual(["Netflix", "Library"]);
+  });
+
+  test("Up and Down move between the switches and buttons; a phone's answer indexes the buttons", async () => {
+    await toApps();
+    const phone = await h.connectPhone();
+    h.app.screenCommand({ command: "down" });
+    expect(h.screen.last.setup?.focus).toBe(1);
+    h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
+    expect(h.screen.last.setup?.switches?.[1]?.on).toBe(false);
+    await phone.press({ command: "confirmAnswer", args: { index: 0, text: "apps" } });
+    expect(h.screen.last.setup?.id).toBe("done");
+  });
+
+  test("every App off is allowed, and Home shows no App tiles", async () => {
+    await toApps();
+    for (let i = 0; i < 3; i++) h.app.screenCommand({ command: "confirmAt", args: { index: i } });
+    expect(h.screen.last.setup?.switches?.map((s) => s.on)).toEqual([false, false, false]);
+    expect(homeLabels()).toEqual([]);
+  });
+
+  test("an App that declares itself off by default starts off", async () => {
+    const entry = {
+      id: "extra",
+      label: "Extra",
+      icon: "<svg/>",
+      action: "app:open:extra",
+      web: true,
+      onByDefault: false,
+    };
+    await toApps(new MemoryStore(), { apps: [{ entry, app: new FakeWebApp("extra", "Extra") }] });
+    expect(h.screen.last.setup?.switches?.find((s) => s.label === "Extra")?.on).toBe(false);
   });
 });

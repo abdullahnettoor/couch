@@ -69,3 +69,46 @@ describe("the Setup panel", () => {
     expect(panel.children.length).toBe(0);
   });
 });
+
+describe("the Apps step's switches", () => {
+  const apps: SetupPayload = {
+    id: "apps",
+    title: "Which Apps show on Home?",
+    step: 1,
+    steps: 3,
+    switches: [
+      { label: "YouTube", on: true },
+      { label: "Netflix", on: false },
+    ],
+    buttons: ["Continue", "Skip", "Set up later"],
+    focus: 1,
+  };
+
+  test("draws a switch row for each App, on or off, with the focused one marked", () => {
+    draw(apps);
+    const rows = Array.from(panel.querySelectorAll<HTMLElement>(".switches .row"));
+    expect(rows.map((r) => r.querySelector("span")?.textContent)).toEqual(["YouTube", "Netflix"]);
+    expect(rows.map((r) => r.querySelector(".g-switch")?.classList.contains("on"))).toEqual([
+      true,
+      false,
+    ]);
+    expect(rows.map((r) => r.classList.contains("focused"))).toEqual([false, true]);
+    expect(Array.from(panel.querySelectorAll(".buttons span")).map((b) => b.textContent)).toEqual(
+      apps.buttons,
+    );
+  });
+
+  test("a click on a switch answers it, and a button's click counts after the switches", () => {
+    draw(apps);
+    const rows = panel.querySelectorAll(".switches .row");
+    rows[0]!.dispatchEvent(new Event("mouseenter"));
+    rows[0]!.dispatchEvent(new Event("click", { bubbles: true }));
+    const buttons = panel.querySelectorAll(".buttons span");
+    buttons[0]!.dispatchEvent(new Event("click", { bubbles: true }));
+    expect(sent).toEqual([
+      { command: "focusAt", args: { r: 0, c: 0 } },
+      { command: "confirmAt", args: { index: 0 } },
+      { command: "confirmAt", args: { index: 2 } },
+    ]);
+  });
+});

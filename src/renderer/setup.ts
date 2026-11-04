@@ -41,19 +41,40 @@ export function renderSetup(payload: ScreenPayload): void {
     }
     box.append(tips);
   }
+  const lead = s.switches?.length ?? 0;
+  if (s.switches?.length) {
+    const list = document.createElement("div");
+    list.className = "switches";
+    s.switches.forEach((sw, i) => {
+      const item = document.createElement("div");
+      item.className = i === s.focus ? "row focused" : "row";
+      const label = document.createElement("span");
+      label.textContent = sw.label;
+      const toggle = document.createElement("i");
+      toggle.className = sw.on ? "g-switch on" : "g-switch";
+      item.append(label, toggle);
+      item.addEventListener("mouseenter", () => window.couch.send(confirmMouseCommand("hover", i)));
+      item.addEventListener("click", (event) => {
+        event.stopPropagation();
+        window.couch.send(confirmMouseCommand("click", i));
+      });
+      list.append(item);
+    });
+    box.append(list);
+  }
   const row = document.createElement("div");
   row.className = "buttons";
-  const view = describeConfirm({ title: s.title, buttons: s.buttons, focus: s.focus }, px);
+  const view = describeConfirm({ title: s.title, buttons: s.buttons, focus: s.focus - lead }, px);
   for (const button of view.buttons) {
     const b = document.createElement("span");
     b.textContent = button.label;
     for (const [k, v] of Object.entries(button.style)) b.style.setProperty(k, v);
     b.addEventListener("mouseenter", () =>
-      window.couch.send(confirmMouseCommand("hover", button.index)),
+      window.couch.send(confirmMouseCommand("hover", lead + button.index)),
     );
     b.addEventListener("click", (event) => {
       event.stopPropagation();
-      window.couch.send(confirmMouseCommand("click", button.index));
+      window.couch.send(confirmMouseCommand("click", lead + button.index));
     });
     row.append(b);
   }

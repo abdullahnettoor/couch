@@ -327,6 +327,29 @@ svg.i {
   flex-direction: column;
   gap: calc(14 * var(--u));
 }
+.setup .switches {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: calc(12 * var(--u));
+}
+.setup .switches .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(18 * var(--u)) calc(32 * var(--u));
+  border-radius: calc(24 * var(--u));
+  font-size: calc(34 * var(--u));
+  background: rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+}
+.setup .switches .row.focused {
+  background: #fff;
+  color: #000;
+}
+.setup .switches .row.focused .g-switch:not(.on) {
+  background: rgba(0, 0, 0, 0.25);
+}
 .setup .dots {
   display: flex;
   gap: calc(14 * var(--u));

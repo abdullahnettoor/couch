@@ -367,6 +367,10 @@ export class Core {
     this.#uiSounds = new InterfaceSounds(ports.store);
     this.#setup = new Setup({
       store: ports.store,
+      apps: {
+        rows: () => this.#homeApps.rows(),
+        setShown: (id, shown) => void this.#homeApps.setShown(id, shown),
+      },
       usedBefore: () => this.#usedBefore(),
       cue: (sound) => this.#cue(sound),
       changed: () => this.#emit(),
