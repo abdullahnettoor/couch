@@ -4,7 +4,6 @@
  * Colours, radii and motion come from src/shared/look.ts, injected by main.ts.
  */
 :root {
-  --u: min(100vw / 1920, 100vh / 1080);
   font-family: -apple-system, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
@@ -60,18 +59,18 @@ svg.i {
   justify-content: space-between;
   box-sizing: border-box;
   width: 100%;
-  height: calc(96 * var(--u));
-  margin-bottom: calc(8 * var(--u));
-  padding: 0 calc(32 * var(--u));
+  height: var(--row-height);
+  margin-bottom: var(--row-gap);
+  padding: 0 var(--row-pad-x);
   border-radius: var(--r-row);
-  font-size: calc(32 * var(--u));
+  font-size: var(--row-font);
 }
 .g-row .v {
   display: flex;
   align-items: center;
   gap: calc(14 * var(--u));
   margin-left: calc(40 * var(--u));
-  font-size: calc(26 * var(--u));
+  font-size: var(--row-value-font);
   font-weight: 500;
   color: var(--t3);
 }
@@ -952,11 +951,11 @@ svg.i {
 .lib-shelf,
 .lib-grid {
   display: grid;
-  grid-template-columns: repeat(4, calc(384 * var(--u)));
+  grid-template-columns: repeat(var(--lib-cols), calc(384 * var(--u)));
   gap: calc(54 * var(--u)) calc(40 * var(--u));
 }
 .lib-shelf {
-  margin-bottom: calc(60 * var(--u));
+  margin-bottom: var(--scroll-margin-block);
 }
 .lib-card {
   min-width: 0;
@@ -1163,7 +1162,7 @@ svg.i {
   display: flex;
   gap: calc(16 * var(--u));
   width: max-content;
-  padding: 0 calc(96 * var(--u)) calc(4 * var(--u));
+  padding: 0 var(--scroll-margin-edge) calc(4 * var(--u));
 }
 .lf-chip {
   flex: none;
@@ -1196,8 +1195,9 @@ svg.i {
 .lf-shelf {
   position: relative;
   overflow: hidden;
-  padding: calc(24 * var(--u)) calc(96 * var(--u)) calc(44 * var(--u)) calc(24 * var(--u));
-  margin: calc(-24 * var(--u)) calc(-96 * var(--u)) calc(-44 * var(--u)) calc(-24 * var(--u));
+  padding: calc(24 * var(--u)) var(--scroll-margin-edge) calc(44 * var(--u)) calc(24 * var(--u));
+  margin: calc(-24 * var(--u)) calc(-1 * var(--scroll-margin-edge)) calc(-44 * var(--u))
+    calc(-24 * var(--u));
   mask-image: linear-gradient(90deg, transparent, #000 calc(28 * var(--u)));
 }
 .lf-track {

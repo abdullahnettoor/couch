@@ -40,6 +40,7 @@ import {
   type PlaybackReport,
 } from "../apps/app.ts";
 import { randomBytes } from "node:crypto";
+import { GLASS } from "../../shared/look.ts";
 import type { Store } from "../ports/store.ts";
 import type { Thumbnails } from "../ports/thumbnails.ts";
 import { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
@@ -97,7 +98,7 @@ const UPDATE_ICON: GridItem = {
 
 /** Home's row fits this many tiles: its App tiles, then Continue watching. */
 const HOME_ROW_TILES = 5;
-const TILE_COLUMNS = 4;
+const TILE_COLUMNS = GLASS.metrics.library.tileColumns;
 const LIBRARY_VIEWS = ["library", "folder", "libraryFolders"];
 /** Views where a phone's Search button opens the Library search. */
 const TYPING_VIEW = { search: "app", tmdbKey: "details", librarySearch: "librarySearch" };

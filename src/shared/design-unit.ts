@@ -1,4 +1,7 @@
-/** Pixels in one design unit: the Screen is designed at 1920 × 1080 and scaled by whichever side runs out first. Matches `--u` in glass.css. */
+import { GLASS } from "./look.ts";
+
+/** Pixels in one design unit: the Screen is designed at `GLASS.metrics.base` and scaled by whichever side runs out first. `--u` is written from the same numbers. */
 export function designUnit(width: number, height: number): number {
-  return Math.min(width / 1920, height / 1080);
+  const { base } = GLASS.metrics;
+  return Math.min(width / base.width, height / base.height);
 }

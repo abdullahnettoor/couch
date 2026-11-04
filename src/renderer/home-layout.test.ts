@@ -1,18 +1,12 @@
 import { readFileSync } from "node:fs";
+import { designUnit } from "../shared/design-unit.ts";
 import { describe, expect, test } from "vite-plus/test";
 
 const read = (f: string) => readFileSync(new URL(f, import.meta.url), "utf8");
-const glass = read("./glass.css");
 const home = read("./home.css");
 
-/** Pixels in one design unit (`--u`) for a window, read from glass.css. */
-const unitFor = (w: number, h: number) => {
-  const expr = /--u:\s*([^;]+);/.exec(glass)![1]!;
-  const sides = [...expr.matchAll(/100(vw|vh)\s*\/\s*(\d+)/g)].map(
-    (m) => (m[1] === "vw" ? w : h) / Number(m[2]),
-  );
-  return expr.startsWith("min(") ? Math.min(...sides) : sides[0]!;
-};
+/** Pixels in one design unit (`--u`) for a window: the Look's own. */
+const unitFor = designUnit;
 
 /** A property of the rule written exactly for `selector` in home.css, in design units. */
 const units = (selector: string, name: string) => {
