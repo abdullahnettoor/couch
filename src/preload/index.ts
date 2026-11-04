@@ -3,7 +3,6 @@ import { Channel, type CouchApi } from "../shared/ipc.ts";
 
 const api: CouchApi = {
   send: (command) => ipcRenderer.send(Channel.command, command),
-  reportGrid: (report) => ipcRenderer.send(Channel.grid, report),
   onScreen: (listener) => {
     ipcRenderer.on(Channel.screen, (_event, payload) => listener(payload));
   },

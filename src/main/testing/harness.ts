@@ -1,12 +1,4 @@
 import { WebSocket } from "ws";
-import { HOME_ITEMS, homeItems } from "../../shared/home-grid.ts";
-import {
-  ADD_PHONE_ITEMS,
-  LIBRARY_ITEMS,
-  REMOTES_ITEMS,
-  SETTINGS_ITEMS,
-} from "../../shared/settings-grid.ts";
-import { APP_ERROR_ITEMS } from "../../shared/app-grid.ts";
 import { IdleUnloader } from "../web/idle-unload.ts";
 import { NetflixApp } from "../apps/netflix/netflix-app.ts";
 import { YouTubeApp } from "../apps/youtube/youtube-app.ts";
@@ -14,7 +6,6 @@ import type { App } from "../apps/app.ts";
 import { APP_ENTRIES, type AppEntry } from "../apps/index.ts";
 import type {
   Command,
-  GridItem,
   RemoteSnapshot,
   ScreenPayload,
   UiSoundEvent,
@@ -105,32 +96,15 @@ export class FakePhone {
   }
 }
 
-/** The grids the real renderer reports. Tickets add theirs here (same shape as renderer/views). */
-const DEFAULT_GRIDS: Record<string, GridItem[]> = {
-  home: HOME_ITEMS,
-  settings: SETTINGS_ITEMS,
-  settingsRemotes: REMOTES_ITEMS,
-  settingsLibrary: LIBRARY_ITEMS,
-  addPhone: ADD_PHONE_ITEMS,
-  appError: APP_ERROR_ITEMS,
-};
-
-/**
- * Stands in for the Screen renderer: reports the grid for the view being shown
- * (the same items the real renderer draws) and records what it was handed.
- */
+/** Stands in for the Screen renderer: records what it was handed. */
 export class FakeScreen {
   payloads: ScreenPayload[] = [];
   /** Every Interface sound the core asked the Screen to play. */
   sounds: UiSoundEvent[] = [];
-  constructor(app: CouchApp, grids: Record<string, GridItem[]> = DEFAULT_GRIDS) {
+  constructor(app: CouchApp) {
     app.onSound((event) => this.sounds.push(event));
-    app.onScreen((payload) => {
-      this.payloads.push(payload);
-      const grid = grids[payload.viewKey];
-      if (grid && payload.grid.length === 0) app.reportGrid(payload.viewKey, grid);
-    });
-    for (const [key, items] of Object.entries(grids)) app.reportGrid(key, items);
+    app.onScreen((payload) => this.payloads.push(payload));
+    this.payloads.push(app.screen());
   }
   get last(): ScreenPayload {
     return this.payloads.at(-1)!;
@@ -301,10 +275,7 @@ export async function startHarness(
     host: "127.0.0.1",
   });
   started = app;
-  const screen = new FakeScreen(app, {
-    ...DEFAULT_GRIDS,
-    home: homeItems(catalog),
-  });
+  const screen = new FakeScreen(app);
   const phones: FakePhone[] = [];
   return {
     app,

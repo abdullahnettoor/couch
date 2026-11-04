@@ -2,20 +2,19 @@ import type {
   GridItem,
   LibraryEntry,
   ScreenPayload,
-  ScreenState,
   ShowEpisode,
-  View,
-} from "../../shared/protocol.ts";
-import { VIEW_LABELS } from "../../shared/protocol.ts";
-import { moveFocus, resolveFocus } from "./focus.ts";
-import type { History } from "./history.ts";
-import { hueFor, presentation } from "./library.ts";
-import type { MediaLibrary } from "./media-library.ts";
-import type { MatchOption, MetadataService } from "./metadata-service.ts";
-import { EXTRAS_TAB, allEpisodes, primaryFor, tabIds, tabOf } from "./show-page.ts";
-import type { PathArt } from "./art.ts";
-import { topGenres } from "./library-rows.ts";
-import type { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
+} from "../../../shared/protocol.ts";
+import { VIEW_LABELS } from "../../../shared/protocol.ts";
+import { moveFocus, resolveFocus } from "../focus.ts";
+import type { History } from "../history.ts";
+import { hueFor, presentation } from "../library.ts";
+import type { MediaLibrary } from "../media-library.ts";
+import type { MatchOption, MetadataService } from "../metadata-service.ts";
+import { EXTRAS_TAB, allEpisodes, primaryFor, tabIds, tabOf } from "../show-page.ts";
+import type { PathArt } from "../art.ts";
+import { topGenres } from "../library-rows.ts";
+import type { ThumbnailScheduler } from "../thumbnail-scheduler.ts";
+import type { Page, PageBack, ShowContext } from "./page.ts";
 
 /** What the show page and Fix match ask of the core. */
 export interface ShowViewHost {
@@ -26,67 +25,95 @@ export interface ShowViewHost {
   art(path: string): PathArt;
   /** The current view's grid and its focus key. */
   grid(): GridItem[];
-  viewKey(): string;
   /** The Library tile under focus, if any. */
   focusedEntry(): LibraryEntry | undefined;
   play(path: string, fromStart?: boolean): void;
-  setView(view: View): void;
-  toast(text: string): void;
   changed(): void;
 }
 
 /**
  * The show page (primary button, season tabs, episode list) and Fix match: navigation, focus,
- * grids and payloads. Reads and writes `showId`, `showTab`, `focus` and `view` on the shared Screen state.
+ * grids and payloads. It is two Pages (`page` and `fixPage`) over one state; it changes view only with `go`.
  */
 export class ShowView {
-  #state: ScreenState;
+  #ctx: ShowContext;
   #h: ShowViewHost;
+  /** Where Back from a show page goes: the Library, or the search it was opened from. */
+  #from: "library" | "librarySearch" = "library";
 
-  constructor(state: ScreenState, host: ShowViewHost) {
-    this.#state = state;
+  constructor(ctx: ShowContext, host: ShowViewHost) {
+    this.#ctx = ctx;
     this.#h = host;
+  }
+
+  /** The show page. */
+  readonly page: Page = {
+    grid: () => this.grid(),
+    payload: () => this.payload(),
+    action: (action) => this.action(action),
+    back: () => this.back(),
+    move: (direction) => {
+      this.move(direction);
+      this.syncTab();
+    },
+  };
+
+  /** Fix match. */
+  readonly fixPage: Page = {
+    grid: () => this.fixGrid(),
+    payload: () => this.fixPayload(),
+    action: (action) => this.action(action),
+    back: () => ({ label: this.fixBackLabel(), act: () => this.leaveFix() }),
+  };
+
+  back(): PageBack {
+    return this.#from === "librarySearch"
+      ? { label: VIEW_LABELS.librarySearch, act: () => this.#ctx.go("librarySearch") }
+      : { label: VIEW_LABELS.library, act: () => this.#ctx.go("library") };
   }
 
   /** OK on a show tile: the show page, focused on the episode its primary button plays. */
   open(id: string): void {
     const show = this.#h.library.show(id);
     if (!show) return;
-    this.#state.showId = id;
+    this.#from = this.#ctx.state.view === "librarySearch" ? "librarySearch" : "library";
+    this.#ctx.setShow(id);
     const primary = primaryFor(show, this.#h.history);
     if (primary) this.#focusShowEpisode(primary.episode.path);
-    else this.#state.showTab = tabIds(show)[0];
-    this.#h.setView("show");
+    else this.#ctx.setShowTab(tabIds(show)[0]);
+    this.#ctx.go("show");
     this.#wantShowPictures();
   }
 
-  /** Back on the show page after playback: focus the episode played, or the next one after an end. */
-  returnTo(path: string, ended: boolean): void {
-    const show = this.#h.library.show(this.#state.showId!);
-    if (!show) {
-      this.#state.view = "library";
-      return;
-    }
+  /** After playback, focus the episode played, or the next one after an end. */
+  focusPlayed(path: string, ended: boolean): void {
+    const show = this.#h.library.show(this.#ctx.state.showId!);
+    if (!show) return;
     const next = ended ? this.#h.library.nextEpisode(path) : undefined;
     this.#focusShowEpisode(next?.path ?? path);
-    this.#state.view = "show";
-    this.#wantShowPictures();
+  }
+
+  /** Back on the show page after playback (or the Library when the show is gone). */
+  returnTo(): void {
+    const show = this.#h.library.show(this.#ctx.state.showId!);
+    this.#ctx.go(show ? "show" : "library", { returning: true });
+    if (show) this.#wantShowPictures();
   }
 
   /** Select the episode's season tab and focus its row. */
   #focusShowEpisode(path: string): void {
-    const show = this.#state.showId ? this.#h.library.show(this.#state.showId) : undefined;
+    const show = this.#ctx.state.showId ? this.#h.library.show(this.#ctx.state.showId) : undefined;
     const episode = show && allEpisodes(show).find((e) => e.path === path);
     if (!show || !episode) return;
     const tab = tabOf(episode);
-    this.#state.showTab = tab;
+    this.#ctx.setShowTab(tab);
     const index = show.seasons.find((se) => String(se.number) === tab)!.episodes.indexOf(episode);
-    this.#state.focus[`show:${show.id}`] = { r: 1 + index, c: 1 + tabIds(show).indexOf(tab) };
+    this.#ctx.setFocus(`show:${show.id}`, { r: 1 + index, c: 1 + tabIds(show).indexOf(tab) });
   }
 
   /** The episodes (or extras) listed under the selected tab. */
   #showList(show: NonNullable<ReturnType<MediaLibrary["show"]>>): ShowEpisode[] {
-    const tab = this.#state.showTab;
+    const tab = this.#ctx.state.showTab;
     const decorate = (e: ShowEpisode, path: string): ShowEpisode => {
       const { episode } = this.#h.art(path);
       const thumb = episode?.still ?? this.#h.thumbs.urlFor(path);
@@ -140,7 +167,7 @@ export class ShowView {
   }
 
   #wantShowPictures(): void {
-    const show = this.#state.showId ? this.#h.library.show(this.#state.showId) : undefined;
+    const show = this.#ctx.state.showId ? this.#h.library.show(this.#ctx.state.showId) : undefined;
     if (!show) return;
     const primary = primaryFor(show, this.#h.history)?.episode.path;
     this.#h.thumbs.want([...(primary ? [primary] : []), ...this.#showList(show).map((e) => e.id)]);
@@ -152,10 +179,10 @@ export class ShowView {
   }
 
   grid(): GridItem[] {
-    const show = this.#state.showId ? this.#h.library.show(this.#state.showId) : undefined;
+    const show = this.#ctx.state.showId ? this.#h.library.show(this.#ctx.state.showId) : undefined;
     if (!show) return [];
     const tabs = tabIds(show);
-    const selected = Math.max(0, tabs.indexOf(this.#state.showTab ?? ""));
+    const selected = Math.max(0, tabs.indexOf(this.#ctx.state.showTab ?? ""));
     const primary = primaryFor(show, this.#h.history);
     const grid: GridItem[] = [
       { id: "settings", r: -1, c: 0, label: "Settings", action: "open:settings" },
@@ -213,17 +240,17 @@ export class ShowView {
       return true;
     }
     if (ns !== "show") return false;
-    const show = this.#state.showId ? this.#h.library.show(this.#state.showId) : undefined;
+    const show = this.#ctx.state.showId ? this.#h.library.show(this.#ctx.state.showId) : undefined;
     if (!show) return true;
     if (verb === "play") {
       const primary = primaryFor(show, this.#h.history);
       if (primary) this.#h.play(primary.episode.path, primary.fromStart);
     } else if (verb === "tab") {
-      this.#state.showTab = arg;
+      this.#ctx.setShowTab(arg);
       this.#wantShowPictures();
       const list = this.#showList(show);
       const c = 1 + tabIds(show).indexOf(arg);
-      if (list.length) this.#state.focus[this.#h.viewKey()] = { r: 1, c };
+      if (list.length) this.#ctx.setFocus(this.#ctx.viewKey(), { r: 1, c });
     } else if (verb === "fix") {
       this.#openFixMatch(show.id);
     }
@@ -236,7 +263,7 @@ export class ShowView {
 
   /** The show or film under the focused Library tile, when its match can be fixed. */
   fixTarget(): string | undefined {
-    if (this.#state.view !== "library") return undefined;
+    if (this.#ctx.state.view !== "library") return undefined;
     return this.fixTargetFor(this.#h.focusedEntry());
   }
 
@@ -251,15 +278,20 @@ export class ShowView {
 
   /** Menu key, long press or the phone's button: Fix match for the focused show or film. */
   menu(): void {
-    if (this.#state.view === "show" && this.#state.showId && this.canFix())
-      return this.#openFixMatch(this.#state.showId, "show");
+    if (this.#ctx.state.view === "show" && this.#ctx.state.showId && this.canFix())
+      return this.#openFixMatch(this.#ctx.state.showId, "show");
     const id = this.fixTarget();
     if (id) this.#openFixMatch(id, "library");
   }
 
   /** Back from Fix match to where it was opened. */
   leaveFix(): void {
-    this.#state.view = this.#fixBack;
+    this.#leaveFixTo(this.#fixBack);
+  }
+
+  /** Going Home is the Home button's trip (it forgets Home's focus); coming back from Fix match keeps it, with its hero. */
+  #leaveFixTo(view: "show" | "library" | "home"): void {
+    this.#ctx.go(view, { returning: true });
   }
 
   /** Fix match for a film on Home's Continue watching; Back returns to Home. */
@@ -271,10 +303,10 @@ export class ShowView {
     this.#fixId = id;
     this.#fixBack = back;
     this.#fixOptions = undefined;
-    delete this.#state.focus.fixMatch;
-    this.#state.view = "fixMatch";
+    this.#ctx.setFocus("fixMatch");
+    this.#ctx.go("fixMatch");
     void this.#h.details.candidates(id).then((options) => {
-      if (this.#state.view !== "fixMatch" || this.#fixId !== id) return;
+      if (this.#ctx.state.view !== "fixMatch" || this.#fixId !== id) return;
       this.#fixOptions = options;
       this.#h.changed();
     });
@@ -283,19 +315,19 @@ export class ShowView {
   #applyFix(choice: number | "frames"): void {
     const id = this.#fixId;
     if (!id) return;
-    this.#state.view = this.#fixBack;
-    this.#h.toast(choice === "frames" ? "Using video frames" : "Fixing the match");
+    this.#leaveFixTo(this.#fixBack);
+    this.#ctx.toast(choice === "frames" ? "Using video frames" : "Fixing the match");
     void this.#h.details.fixMatch(id, choice).then(() => this.#h.changed());
   }
 
   /** After a move or hover onto a season tab, the list below follows. */
   syncTab(): void {
-    if (this.#state.view !== "show") return;
-    const focused = resolveFocus(this.#h.grid(), this.#state.focus[this.#h.viewKey()]);
+    if (this.#ctx.state.view !== "show") return;
+    const focused = resolveFocus(this.#h.grid(), this.#ctx.focusOf(this.#ctx.viewKey()));
     if (focused?.id.startsWith("tab:")) {
       const tab = focused.id.slice(4);
-      if (tab !== this.#state.showTab) {
-        this.#state.showTab = tab;
+      if (tab !== this.#ctx.state.showTab) {
+        this.#ctx.setShowTab(tab);
         this.#wantShowPictures();
       }
     }
@@ -303,9 +335,9 @@ export class ShowView {
 
   move(direction: "up" | "down" | "left" | "right"): void {
     const grid = this.#h.grid();
-    const current = resolveFocus(grid, this.#state.focus[this.#h.viewKey()]);
+    const current = resolveFocus(grid, this.#ctx.focusOf(this.#ctx.viewKey()));
     if (!current) return;
-    const set = (i: GridItem) => (this.#state.focus[this.#h.viewKey()] = { r: i.r, c: i.c });
+    const set = (i: GridItem) => this.#ctx.setFocus(this.#ctx.viewKey(), { r: i.r, c: i.c });
     const buttons = grid.filter((i) => i.c === 0);
     if (current.c === 0) {
       if (direction === "right") {
@@ -325,11 +357,13 @@ export class ShowView {
   }
 
   payload(): Pick<ScreenPayload, "show"> {
-    const show = this.#state.showId ? this.#h.library.show(this.#state.showId) : undefined;
+    const show = this.#ctx.state.showId ? this.#h.library.show(this.#ctx.state.showId) : undefined;
     if (!show) return {};
     const primary = primaryFor(show, this.#h.history);
     const tabs = tabIds(show);
-    const selected = tabs.includes(this.#state.showTab ?? "") ? this.#state.showTab : tabs[0];
+    const selected = tabs.includes(this.#ctx.state.showTab ?? "")
+      ? this.#ctx.state.showTab
+      : tabs[0];
     const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
     const d = this.#h.details.detailsFor(show.id);
     const backdrop = d?.backdrop ?? (primary && this.#h.thumbs.urlFor(primary.episode.path));

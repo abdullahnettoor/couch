@@ -136,9 +136,6 @@ const notice = document.getElementById("notice")!;
 window.couch.onScreen((payload) => {
   current = payload;
   const view = VIEWS[payload.state.view];
-  if (view?.grid?.length && payload.grid.length === 0) {
-    window.couch.reportGrid({ viewKey: payload.viewKey, items: view.grid });
-  }
   showing(payload);
   view?.render(payload);
   syncTyping(payload, payload.search?.query ?? "");

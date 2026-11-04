@@ -8,7 +8,7 @@ import {
   rawInScript,
   SCREEN_CSS,
   unknownVarsIn,
-} from "../shared/look-guard-scan.ts";
+} from "../main/testing/look-guard-scan.ts";
 
 /** The Screen's styles take every colour, type size, radius, shadow, blur, easing and duration from the Look. */
 const screen = lookSurfaces().filter((s) => s.surface === "Screen");

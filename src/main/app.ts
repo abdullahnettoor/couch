@@ -1,4 +1,4 @@
-import type { GridItem, ScreenPayload, UiSoundEvent } from "../shared/protocol.ts";
+import type { ScreenPayload, UiSoundEvent } from "../shared/protocol.ts";
 import { Core, type Ports, type Source } from "./core/core.ts";
 import type { Command } from "../shared/protocol.ts";
 import { createFrontdoor, type FrontdoorOptions } from "./frontdoor.ts";
@@ -9,7 +9,6 @@ export interface CouchApp {
   remote: RemoteServer;
   /** The Screen's keyboard sends the same commands as a phone. */
   screenCommand(command: Command): void;
-  reportGrid(viewKey: string, items: GridItem[]): void;
   /** What the Screen renderer would draw right now. */
   screen(): ScreenPayload;
   /** A quiet toast on the Screen (and mirrored on the Remote). */
@@ -83,7 +82,6 @@ export async function startApp(options: AppOptions): Promise<CouchApp> {
       return remote!;
     },
     screenCommand: (command) => core.handle(command, screenSource),
-    reportGrid: (viewKey, items) => core.reportGrid(viewKey, items),
     screen: () => core.screen(),
     toast: (text) => core.showToast(text),
     askQuit: () => core.askQuit(),

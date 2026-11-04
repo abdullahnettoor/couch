@@ -37,8 +37,8 @@ describe("the Library's numbers", () => {
     };
     expect(lookCss(more, { unit: "var(--u)" })).toContain("--lib-cols: 6;");
     expect(glassCss).toMatch(/grid-template-columns:\s*repeat\(var\(--lib-cols\),/);
-    expect(src("../main/core/core.ts")).toContain(
-      "const TILE_COLUMNS = GLASS.metrics.library.tileColumns;",
+    expect(src("../main/core/pages/library-page.ts")).toContain(
+      "export const TILE_COLUMNS = GLASS.metrics.library.tileColumns;",
     );
   });
 

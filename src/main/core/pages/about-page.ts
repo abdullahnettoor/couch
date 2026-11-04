@@ -1,6 +1,7 @@
-import type { AboutPayload, GridItem } from "../../shared/protocol.ts";
-import { parseVersion } from "../../shared/semver.ts";
-import type { Updates } from "../ports/updates.ts";
+import { VIEW_LABELS, type GridItem, type ScreenPayload } from "../../../shared/protocol.ts";
+import { parseVersion } from "../../../shared/semver.ts";
+import type { Updates } from "../../ports/updates.ts";
+import type { Page, PageBack, PageContext } from "./page.ts";
 
 const CHECK = "about:check";
 const RESTART = "about:restart";
@@ -9,13 +10,11 @@ const SETUP = "about:setup";
 export const RESTART_ID = "restart";
 export const NOT_INSTALLED = "Updates only work in the installed Couch.app";
 
-/** What Settings → About asks of the core. */
+/** What Settings → About asks of the core, besides the Page context. */
 export interface AboutPageHost {
   updates: Updates;
-  ask(title: string, buttons: string[], answers: Array<() => void>, more: { body: string }): void;
   /** Saves what is playing, then Couch quits into the update and opens again. */
   restart(): void;
-  toast(text: string): void;
   /** Goes Home and opens the full Setup again. */
   runSetup(): void;
 }
@@ -29,11 +28,17 @@ export function versionLabel(u: Pick<Updates, "version" | "build">): string {
  * Settings → About: the version (a line, not a row focus can land on), Check for updates, Restart to update
  * (only while an update is ready) and Beta updates.
  */
-export class AboutPage {
+export class AboutPage implements Page {
+  #ctx: PageContext;
   #h: AboutPageHost;
 
-  constructor(host: AboutPageHost) {
+  constructor(ctx: PageContext, host: AboutPageHost) {
+    this.#ctx = ctx;
     this.#h = host;
+  }
+
+  back(): PageBack {
+    return { label: VIEW_LABELS.settings, act: () => this.#ctx.go("settings") };
   }
 
   /** An update has downloaded and installs on a restart. */
@@ -57,7 +62,7 @@ export class AboutPage {
     return row && { r: row.r, c: row.c };
   }
 
-  payload(): AboutPayload {
+  payload(): Pick<ScreenPayload, "about"> {
     const u = this.#h.updates;
     const beta = u.beta();
     const check = checkText(u);
@@ -67,10 +72,12 @@ export class AboutPage {
         ? `Couch stays on ${u.version} until a newer version is out`
         : undefined;
     return {
-      version: `${versionLabel(u)}${beta ? " · Beta" : ""}`,
-      ...(check ? { check } : {}),
-      beta,
-      ...(hint ? { hint } : {}),
+      about: {
+        version: `${versionLabel(u)}${beta ? " · Beta" : ""}`,
+        ...(check ? { check } : {}),
+        beta,
+        ...(hint ? { hint } : {}),
+      },
     };
   }
 
@@ -79,12 +86,12 @@ export class AboutPage {
     switch (action) {
       case CHECK:
         if (u.installed) u.checkNow();
-        else this.#h.toast(NOT_INSTALLED);
+        else this.#ctx.toast(NOT_INSTALLED);
         return true;
       case RESTART: {
         const s = u.state();
         if (s.status !== "ready") return true;
-        this.#h.ask(
+        this.#ctx.ask(
           "Restart to update?",
           ["Cancel", "Restart"],
           [() => {}, () => this.#h.restart()],

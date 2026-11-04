@@ -1,19 +1,15 @@
-import { existsSync } from "node:fs";
 import { safeEqual } from "../constant-time.ts";
-import { liveListener, systemProbe, type ListenerProbe } from "../listener.ts";
+import type { ListenerProbe } from "../listener.ts";
 import { dirname, basename } from "node:path";
 import {
   VIEW_LABELS,
   type LibraryEntry,
-  type LibraryPayload,
   type Command,
   type GridItem,
   type RemoteId,
-  type RemoteNote,
   type RemoteSnapshot,
   type ScreenPayload,
   type ScreenState,
-  type Confirmation,
   type View,
   type UiSound,
   type UiSoundEvent,
@@ -22,17 +18,13 @@ import {
   formatTime,
   type Player,
   type PlayerEvent,
-  type PlayerOverlay,
   type PlayerTrack,
 } from "../../shared/player.ts";
 import type { Clock } from "../ports/clock.ts";
 import type { Mac } from "../ports/mac.ts";
 import { pickTargetDisplay } from "../display.ts";
 import { APP_ENTRIES, OPEN_APP, type AppEntry } from "../apps/index.ts";
-import { availableWithin } from "../apps/availability.ts";
-import { copyFromCouchToast } from "../apps/sign-in-text.ts";
 import {
-  PlaybackUnavailable,
   type App,
   type AppEvent,
   type AppTyping,
@@ -40,30 +32,44 @@ import {
   type PlaybackReport,
 } from "../apps/app.ts";
 import { randomBytes } from "node:crypto";
-import { GLASS } from "../../shared/look.ts";
 import type { Store } from "../ports/store.ts";
 import type { Thumbnails } from "../ports/thumbnails.ts";
 import { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
 import { confirmMouseCommand } from "../../shared/confirm-layout.ts";
-import { SETTINGS_APP } from "../../shared/settings-grid.ts";
-import { actionFor, BACK_TARGETS, type ActionContext } from "./actions.ts";
+import { actionFor, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
 import { MediaLibrary } from "./media-library.ts";
 import { artFor, type PathArt } from "./art.ts";
-import { libraryRows, tileAction, topGenres } from "./library-rows.ts";
-import { autoRows, chipsFor, keepFor } from "./library-chips.ts";
-import { presentation, hueFor, listFolder, mosaicSources, rootEntries } from "./library.ts";
+import { topGenres } from "./library-rows.ts";
+import { presentation, hueFor, listFolder } from "./library.ts";
 import { applyEdit, type TextEdit } from "../../shared/keyboard.ts";
-import type { LibraryChip, TrackList, UpNextItem } from "../../shared/protocol.ts";
-import { PlayerControls } from "./player-controls.ts";
+import type { TrackList, UpNextItem } from "../../shared/protocol.ts";
+import { LibraryFolders } from "./library-folders.ts";
+import { ListenerLogin } from "./listener-login.ts";
+import { PlayerPage } from "./pages/player-page.ts";
+import { HomeScreenPage } from "./pages/home-screen-page.ts";
+import { AppErrorPage, AppOverlays, AppPage } from "./pages/app-pages.ts";
 import { History } from "./history.ts";
-import { ContinueApps, fromStartUrl, titleId, titleKey } from "./continue-apps.ts";
+import { ContinueApps } from "./continue-apps.ts";
 import { ContinueArt, type ArtFetch } from "./continue-art.ts";
-import { ShowView } from "./show-view.ts";
-import { AddonsPage } from "./addons-page.ts";
-import { APPS_MENU_KEY, HomeApps, leavesOnHide } from "./home-apps.ts";
-import { DetailsPage } from "./details-page.ts";
-import { AboutPage } from "./about-page.ts";
+import { ShowView } from "./pages/show-view.ts";
+import { LibraryPage } from "./pages/library-page.ts";
+import { AddonsPage } from "./pages/addons-page.ts";
+import type { AppContext, FolderContext, Page, PageContext, ShowContext } from "./pages/page.ts";
+import { HomeApps, leavesOnHide } from "./home-apps.ts";
+import { DetailsPage } from "./pages/details-page.ts";
+import {
+  AddPhonePage,
+  CreditsPage,
+  LibraryFoldersPage,
+  LibrarySettingsPage,
+  RemotesPage,
+  SettingsPage,
+} from "./pages/settings-pages.ts";
+import { SoundOutputPage } from "./pages/sound-output-page.ts";
+import { SettingsHomePage } from "./pages/settings-home-page.ts";
+import { SettingsAppsPage } from "./pages/settings-apps-page.ts";
+import { AboutPage } from "./pages/about-page.ts";
 import type { Updates } from "../ports/updates.ts";
 import { HomePage } from "./home-page.ts";
 import type { WallpaperPorts } from "../ports/pictures.ts";
@@ -72,8 +78,8 @@ import { InterfaceSounds } from "./interface-sounds.ts";
 import { QuickSettings } from "./quick-settings.ts";
 import { Setup } from "./setup.ts";
 import type { SetupStep } from "./setup-steps.ts";
-import { LibrarySearchView } from "./library-search-view.ts";
-import { AMBIENT_MS, filmAfterFocus, homeGrid } from "./home-view.ts";
+import { LibrarySearchPage } from "./pages/library-search-page.ts";
+import { AMBIENT_MS } from "./home-view.ts";
 import type { TimeFormat } from "../../shared/clock-format.ts";
 import { AppSpeed } from "./app-speed.ts";
 import { MetadataService } from "./metadata-service.ts";
@@ -87,19 +93,6 @@ const phoneKey = (url: string | undefined): string | undefined =>
     .pop()
     ?.replace(/\.jpg$/, "");
 
-/** Home's update icon, in the top strip left of the gear (as the Library's search icon is). */
-const UPDATE_ICON: GridItem = {
-  id: "update",
-  r: 0,
-  c: -1,
-  label: "Update ready",
-  action: "open:update",
-};
-
-/** Home's row fits this many tiles: its App tiles, then Continue watching. */
-const HOME_ROW_TILES = 5;
-const TILE_COLUMNS = GLASS.metrics.library.tileColumns;
-const LIBRARY_VIEWS = ["library", "folder", "libraryFolders"];
 /** Views where a phone's Search button opens the Library search. */
 const TYPING_VIEW = { search: "app", tmdbKey: "details", librarySearch: "librarySearch" };
 type Purpose = keyof typeof TYPING_VIEW;
@@ -182,7 +175,6 @@ const MPV_MISSING = "Couch needs mpv to play videos. Install it with: brew insta
 const VOLUME_STEP = 5;
 const LIBRARY_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const videoKey = (report: PlaybackReport) => `${report.title ?? ""}|${report.duration}`;
-const APP_NOTE = "Press Home on your phone to come back";
 
 /** The single source of truth: holds the Screen state and turns commands into new state. */
 
@@ -198,7 +190,6 @@ export class Core {
     remotes: 0,
     pictureOff: false,
   };
-  #grids = new Map<string, GridItem[]>();
   #remotes = new Set<RemoteId>();
   #listeners = new Set<() => void>();
   #soundListeners = new Set<(event: UiSoundEvent) => void>();
@@ -210,9 +201,6 @@ export class Core {
   #listener: { publicPort: number; token: string } | undefined;
   #forgetListeners = new Set<() => void>();
   #apps = new Map<string, App>();
-  /** Apps that failed to load and have not loaded since. */
-  /** Apps that failed to load, with why when the App said so. */
-  #appsFailed = new Map<string, string | undefined>();
   #lastFrom: RemoteId | undefined;
   /** What each App was last told to draw over itself. */
   /** What each web App's page last reported playing; cleared when the App is hidden. */
@@ -226,21 +214,11 @@ export class Core {
   #tracks: { subtitles: PlayerTrack[]; audio: PlayerTrack[] } = { subtitles: [], audio: [] };
   /** Each web App's wanted speed for the video it is playing (keyed by its title and length). */
   #appSpeed = new AppSpeed(() => this.#ports.clock.now());
-  #shown = new Map<string, { volume?: number; confirm?: Confirmation; bar?: string }>();
   #confirmAnswers: Array<() => void> | undefined;
   /** What Back does for the open question, when it isn't "dismiss" (the welcome's Back is an answer). */
   #confirmBack: (() => void) | undefined;
-  /** Apps whose welcome question is being looked up (the newest open owns it). */
-  #lookups = new Map<string, number>();
-  #lookupSeq = 0;
-  /** Apps whose welcome question is being looked up or answered. */
-  #welcoming = new Set<string>();
-  /** The question core asked on behalf of an App's Back ("Leave <label>?"). */
-  #leaveConfirm: Confirmation | undefined;
   #appsOff: Array<() => void> = [];
-  #libraryFolders: string[];
-  /** The open folder's contents, read fresh each time it is opened. */
-  #listing: LibraryEntry[] = [];
+  #folders: LibraryFolders;
   /** Where the playing video was started from; leaving playback returns there. */
   #playedFrom: View = "folder";
   #mpvMissing = false;
@@ -248,9 +226,11 @@ export class Core {
   #subtitlesRaised = "falsefalse";
   #unsubPlayer: () => void;
   #thumbs: ThumbnailScheduler;
-  #mosaics = new Map<string, { sources: string[]; count: number }>();
-  #rootKey: string | undefined;
-  #controls: PlayerControls;
+  #player: PlayerPage;
+  #login: ListenerLogin;
+  #home: HomeScreenPage;
+  #app: AppPage;
+  #overlays: AppOverlays;
   #history: History;
   #appTitles: ContinueApps;
   #continueArt: ContinueArt | undefined;
@@ -263,20 +243,17 @@ export class Core {
   #about: AboutPage;
   #offUpdates: () => void;
   #addonsPage: AddonsPage;
+  #settingsApps: SettingsAppsPage;
+  /** The Pages by view: every View has one. */
+  #pages: Record<View, Page>;
   #homePage: HomePage;
   #homeApps: HomeApps;
-  /** Apps whose Couch-Chromium sign-in exists, asked each time their menu opens. */
-  #couchCopy = new Set<string>();
-  #couchCheck = 0;
   #sound: SoundOutput;
   #uiSounds: InterfaceSounds;
   #quick: QuickSettings;
   #setup: Setup;
-  #search: LibrarySearchView;
-  /** Where Back from a show page goes: the Library, or the search it was opened from. */
-  /** The active filter chip on the Library's first page (a chip key), if any. */
-  #chip: string | undefined;
-  #showFrom: "library" | "librarySearch" = "library";
+  #search: LibrarySearchPage;
+  #libraryPage: LibraryPage;
   #dataVersion = 0;
   /** What the phone currently typing is typing into. */
   #typingFor: Purpose | undefined;
@@ -294,7 +271,6 @@ export class Core {
 
   constructor(ports: Ports) {
     this.#ports = ports;
-    const lib = ports.store.read<{ folders?: unknown }>("library", {});
     this.#history = new History(ports.store);
     const art =
       ports.continueArt && new ContinueArt(ports.continueArt.dir, ports.continueArt.fetch);
@@ -324,39 +300,72 @@ export class Core {
     });
     this.details.sync();
     this.#listener = ports.listener;
-    void this.refreshLoginItem();
-    this.#controls = new PlayerControls(this.#state, {
-      clock: ports.clock,
-      playing: () => {
-        const p = this.#state.player;
-        return p && { path: p.path, position: p.pos, paused: p.paused };
-      },
-      seekTo: (seconds) => this.#seekTo(seconds),
-      togglePause: () => this.#togglePause(),
-      toggleSubtitles: () => this.#toggleSubtitles(),
-      setVolume: (percent) => this.#setVolume(percent),
-      play: (path) => this.#play(path),
-      leave: () => this.#endPlayback(undefined, true),
+    this.#login = new ListenerLogin({
+      mac: ports.mac,
+      store: ports.store,
+      probe: ports.listenerProbe,
+      frontdoor: ports.frontdoor,
       changed: () => this.#emit(),
     });
+    void this.#login.refresh();
     this.#thumbs = new ThumbnailScheduler(ports.thumbnails, () => this.#emit());
-    this.#show = new ShowView(this.#state, {
+    // Every Page gets its own context: the focus keys it owns, and only the state capabilities it needs.
+    const contextFor = (...own: string[]): PageContext => {
+      const check = (key: string) => {
+        if (!own.some((k) => key === k || key.startsWith(`${k}:`)))
+          throw new Error(`Focus key "${key}" belongs to another Page`);
+        return key;
+      };
+      return {
+        state: this.#state,
+        focusOf: (key) => this.#state.focus[check(key)],
+        setFocus: (key, at) => {
+          if (at) this.#state.focus[check(key)] = at;
+          else delete this.#state.focus[check(key)];
+        },
+        viewKey: () => this.viewKey,
+        startTyping: (by, purpose) => {
+          this.#state.typingBy = by;
+          this.#typingFor = purpose;
+        },
+        stopTyping: () => {
+          this.#state.typingBy = undefined;
+        },
+        go: (view, options) => this.#setView(view, options),
+        toast: (text) => this.#toast(text),
+        ask: (title, buttons, answers, more) => this.#ask(title, buttons, answers, more),
+        cue: (sound) => this.#cue(sound),
+        emit: () => this.#emit(),
+      };
+    };
+    const pageContext = contextFor();
+    const showContext: ShowContext = {
+      ...contextFor("show", "fixMatch"),
+      setShow: (id) => void (this.#state.showId = id),
+      setShowTab: (tab) => void (this.#state.showTab = tab),
+    };
+    const libraryContext: FolderContext = {
+      ...contextFor("library", "folder"),
+      setFolder: (path) => void (this.#state.folderPath = path),
+    };
+    const appContext: AppContext = {
+      ...contextFor(),
+      setApp: (id, note) => {
+        if (id === undefined) delete this.#state.app;
+        else this.#state.app = id;
+        if (note === undefined) delete this.#state.appNote;
+        else this.#state.appNote = note;
+      },
+    };
+    this.#show = new ShowView(showContext, {
       library: this.library,
       history: this.#history,
       details: this.details,
       thumbs: this.#thumbs,
       art: (path) => this.#art(path),
       grid: () => this.#currentGrid(),
-      viewKey: () => this.viewKey,
-      focusedEntry: () => {
-        const focused = resolveFocus(this.#currentGrid(), this.#state.focus[this.viewKey]);
-        return this.#rows()
-          .rows.flatMap((r) => r.entries)
-          .find((e) => (e.id ?? e.path) === focused?.id);
-      },
+      focusedEntry: () => this.#libraryPage.focusedEntry(),
       play: (path, fromStart) => this.#play(path, fromStart),
-      setView: (view) => this.#setView(view),
-      toast: (text) => this.#toast(text),
       changed: () => this.#emit(),
     });
     this.#sound = new SoundOutput({
@@ -380,13 +389,7 @@ export class Core {
       toggleMute: () => this.#toggleMute(),
       pictureIsOff: () => this.#state.pictureOff,
       setPictureOff: (on) => this.#setPictureOff(on),
-      openSettings: () => {
-        if (this.#state.player) {
-          this.#stopPlayback();
-          this.#endPlayback();
-        }
-        this.#setView("settings");
-      },
+      openSettings: () => this.#leavePlaybackFor("settings"),
       changed: () => this.#emit(),
     });
     this.#homePage = new HomePage({
@@ -401,60 +404,45 @@ export class Core {
       known: () => this.#catalog(),
       toast: (text) => this.#toast(text),
       hidden: (id) => {
-        if (!leavesOnHide(id, this.#state.view, this.#state.app)) return;
-        if (this.#state.player) {
-          this.#stopPlayback();
-          this.#endPlayback();
-        }
-        this.#setView("home");
+        if (leavesOnHide(id, this.#state.view, this.#state.app)) this.#leavePlaybackFor("home");
       },
       playback: (id) => {
         const playback = this.#apps.get(id)?.playback;
         return playback && { label: playback.current().label, unavailable: playback.unavailable };
       },
       hasSignIn: (id) => !!this.#apps.get(id)?.signIn,
-      hasCouchCopy: (id) => this.#couchCopy.has(id),
+      hasCouchCopy: (id) => this.#settingsApps.hasCouchCopy(id),
       changed: () => {
-        const at = this.#homeApps.menuRow();
-        if (at >= 0) this.#state.focus.settingsApps = { r: at, c: 0 };
+        this.#settingsApps.changed();
         this.#emit();
       },
     });
-    this.#addonsPage = new AddonsPage({
+    this.#addonsPage = new AddonsPage(pageContext, {
       store: ports.store,
       apply: (app, ids, note) => this.#apps.get(app)?.setAddons?.(ids, note),
       isFront: (app) => this.#front()?.id === app,
-      toast: (text) => this.#toast(text),
-      changed: () => this.#emit(),
+      forgetMenu: () => this.#settingsApps.forgetMenu(),
     });
-    this.#about = new AboutPage({
+    this.#about = new AboutPage(pageContext, {
       updates: ports.updates,
-      ask: (title, buttons, answers, more) => this.#ask(title, buttons, answers, more),
       restart: () => {
         this.savePlayingPosition();
         ports.updates.restart();
       },
-      toast: (text) => this.#toast(text),
       runSetup: () => {
         this.#setView("home");
         this.#setup.rerun();
       },
     });
     this.#offUpdates = ports.updates.onChange(() => this.#emit());
-    this.#detailsPage = new DetailsPage(this.#state, {
+    this.#detailsPage = new DetailsPage(pageContext, {
       details: this.details,
       connectedPhone: () =>
         this.#lastFrom !== undefined && this.#remotes.has(this.#lastFrom)
           ? this.#lastFrom
           : undefined,
-      startTyping: (remote) => {
-        this.#state.typingBy = remote;
-        this.#typingFor = "tmdbKey";
-      },
-      setView: (view) => this.#setView(view),
-      toast: (text) => this.#toast(text),
     });
-    this.#search = new LibrarySearchView(this.#state, {
+    this.#search = new LibrarySearchPage(contextFor("librarySearch"), {
       library: this.library,
       history: this.#history,
       details: (id) => this.details.detailsFor(id),
@@ -462,22 +450,138 @@ export class Core {
       thumbs: this.#thumbs,
       clock: ports.clock,
       changed: () => this.#emit(),
-      decorate: (e) => this.#decorate(e),
-      startTyping: (remote) => {
-        this.#state.typingBy = remote;
-        this.#typingFor = "librarySearch";
-      },
+      decorate: (e) => this.#history.decorate(e),
       connectedPhone: () =>
         this.#lastFrom !== undefined && this.#remotes.has(this.#lastFrom)
           ? this.#lastFrom
           : undefined,
-      setView: (view) => this.#setView(view),
-      toast: (text) => this.#toast(text),
     });
-    this.#libraryFolders = Array.isArray(lib.folders)
-      ? lib.folders.filter((f): f is string => typeof f === "string")
-      : [];
-    void this.library.refresh(this.#libraryFolders);
+    this.#libraryPage = new LibraryPage(libraryContext, {
+      library: this.library,
+      details: this.details,
+      history: this.#history,
+      thumbs: this.#thumbs,
+      decorate: (e) => this.#history.decorate(e),
+      continueEntries: () => this.#home.libraryEntries(),
+      folders: () => this.#folders.list,
+      playContinue: (path, fromStart) => this.#home.playContinue(path, fromStart),
+      openShow: (id) => this.#show.open(id),
+      openSearch: () => {
+        this.#search.open();
+        if (this.#source === "screen") this.#search.action("search:field", "screen");
+      },
+    });
+    const settingsHost = { details: this.details, sound: this.#sound };
+    this.#settingsApps = new SettingsAppsPage(contextFor("settingsApps"), {
+      homeApps: this.#homeApps,
+      apps: this.#apps,
+      clearFailure: (id) => this.#app.failed.delete(id),
+      catalog: () => this.#catalog(),
+      addons: () => this.#addonsPage.rows(),
+    });
+    this.#home = new HomeScreenPage(contextFor("home"), {
+      catalog: () => this.#catalog(),
+      apps: this.#apps,
+      homeApps: this.#homeApps,
+      history: this.#history,
+      appTitles: this.#appTitles,
+      continueArt: this.#continueArt,
+      thumbs: this.#thumbs,
+      updateReady: () => this.#about.ready,
+      art: (path) => this.#art(path),
+      still: (path, frame) => this.#still(path, frame),
+      decorate: (e) => this.#history.decorate(e),
+      resetChip: () => this.#libraryPage.resetChip(),
+      fixTargetFor: (entry) => this.#show.fixTargetFor(entry),
+      openFixFromHome: (id) => this.#show.openFixFromHome(id),
+      watchWallpapers: (on) => this.#homePage.watch(on),
+      refreshWallpapers: () => this.#homePage.refresh(false),
+      setHint: (app, hint) => this.setNowPlayingHint(app, hint),
+      openApp: (id, at) => this.#app.open(id, at),
+      play: (path, fromStart) => this.#play(path, fromStart),
+    });
+    this.#player = new PlayerPage(contextFor("player"), {
+      clock: ports.clock,
+      playing: () => {
+        const p = this.#state.player;
+        return p && { path: p.path, position: p.pos, paused: p.paused };
+      },
+      seekTo: (seconds) => this.#seekTo(seconds),
+      togglePause: () => this.#togglePause(),
+      toggleSubtitles: () => this.#toggleSubtitles(),
+      setVolume: (percent) => this.#setVolume(percent),
+      play: (path) => this.#play(path),
+      leave: () => this.#endPlayback(undefined, true),
+      stopVideo: () => this.#stopPlayback(),
+      endPlayback: (ended) => this.#endPlayback(undefined, ended),
+      leavePlayback: () => {
+        if (!this.#state.player) return;
+        this.#stopPlayback();
+        this.#releasePlayback(false);
+      },
+      changed: () => this.#emit(),
+      present: (path) => this.#present(path),
+      still: (path) => this.#still(path, (p) => this.#thumbs.lookup(p)),
+      decorate: (e) => this.#history.decorate(e),
+      level: () => this.#level(),
+      resumeNote: () => this.#resumeNote,
+    });
+    this.#app = new AppPage(appContext, {
+      apps: this.#apps,
+      isShown: (id) => this.#homeApps.isShown(id),
+      front: () => this.#front(),
+      dismissConfirm: () => this.#dismissConfirm(),
+      released: (id) => {
+        this.#playback.delete(id);
+        this.#appTitles.flush();
+        this.#appSpeed.clear(id);
+      },
+    });
+    this.#overlays = new AppOverlays(this.#state, {
+      apps: this.#apps,
+      front: () => this.#front(),
+      level: () => this.#level(),
+      searching: () => this.#typingFor === "search",
+    });
+    this.#pages = {
+      home: this.#home,
+      player: this.#player,
+      app: this.#app,
+      appError: new AppErrorPage(appContext, this.#app),
+      about: this.#about,
+      addons: this.#addonsPage,
+      library: this.#libraryPage,
+      folder: this.#libraryPage,
+      librarySearch: this.#search,
+      show: this.#show.page,
+      fixMatch: this.#show.fixPage,
+      settings: new SettingsPage(pageContext, settingsHost),
+      settingsRemotes: new RemotesPage(pageContext, {
+        listener: () => this.#login.item,
+        refresh: () => void this.refreshLoginItem(),
+      }),
+      settingsLibrary: new LibrarySettingsPage(pageContext, settingsHost),
+      addPhone: new AddPhonePage(pageContext),
+      libraryFolders: new LibraryFoldersPage(pageContext, {
+        folders: () => this.#folders.list,
+        add: () => this.#folders.add(),
+        remove: (folder) => this.#folders.remove(folder),
+      }),
+      details: this.#detailsPage,
+      credits: new CreditsPage(pageContext, settingsHost),
+      soundOutput: new SoundOutputPage(pageContext, {
+        sound: this.#sound,
+        uiSounds: this.#uiSounds,
+      }),
+      settingsHome: new SettingsHomePage(pageContext, this.#homePage),
+      settingsApps: this.#settingsApps,
+    };
+    this.#folders = new LibraryFolders({
+      store: ports.store,
+      mac: ports.mac,
+      library: this.library,
+      changed: () => this.#emit(),
+    });
     this.#setup = new Setup(
       {
         store: ports.store,
@@ -487,13 +591,13 @@ export class Core {
         },
         atHome: () => this.#state.view === "home",
         version: () => ports.updates.version,
-        listenerOn: () => this.#loginItem.on,
-        turnListenerOn: () => void this.#turnListenerOn(),
+        listenerOn: () => this.#login.item.on,
+        turnListenerOn: () => void this.#login.turnOn(),
         usedBefore: () => this.#usedBefore(),
         phones: () => this.#remotes.size,
         phonePaired: () => this.#phonePaired(),
-        folders: () => this.#libraryFolders,
-        addFolder: () => this.#addFolder(),
+        folders: () => this.#folders.list,
+        addFolder: () => this.#folders.add(),
         later: (fn, ms) => ports.clock.setTimeout(fn, ms),
         cue: (sound) => this.#cue(sound),
         changed: () => this.#emit(),
@@ -585,101 +689,18 @@ export class Core {
 
   get viewKey(): string {
     const { view, folderPath } = this.#state;
-    if (view === "settingsApps" && this.#homeApps.menuId) return APPS_MENU_KEY;
+    const key = this.#pages[view].focusKey?.();
+    if (key) return key;
     return view === "folder" ? `folder:${folderPath}` : view;
   }
 
-  #isLibraryView(): boolean {
-    return LIBRARY_VIEWS.includes(this.#state.view);
-  }
-
-  /** The Library views are built here from disk; other views' grids come from the renderer. */
-  #library(focusedId?: string): LibraryPayload | undefined {
-    switch (this.#state.view) {
-      case "library": {
-        const rows = this.#rows().rows;
-        const folders = this.#chip ? [] : rootEntries(this.#libraryFolders);
-        const ids = [...rows.flatMap((r) => r.entries), ...folders].map((e) => e.id ?? e.path);
-        if (focusedId && ids.includes(focusedId)) this.#lastTile = focusedId;
-        else if (this.#lastTile && !ids.includes(this.#lastTile)) this.#lastTile = undefined;
-        const featuredId = this.#lastTile ?? ids[0];
-        return {
-          heading: "Library",
-          entries: this.#chip
-            ? []
-            : rootEntries(this.#libraryFolders).map((e) => ({
-                ...this.#withMosaic(e),
-                feature: { kind: "Folder" as const, title: e.title },
-              })),
-          continueWatching: this.#libraryContinueEntries(),
-          rows,
-          chips: this.#chips(),
-          ...(featuredId ? { featuredId } : {}),
-          emptyText: "No folders yet. Add one in Settings on the Mac.",
-        };
-      }
-      case "folder":
-        return {
-          heading: basename(this.#state.folderPath ?? ""),
-          entries: this.#listing.map((e) => this.#withMosaic(this.#decorate(e))),
-          emptyText: "No videos in this folder.",
-        };
-      case "libraryFolders":
-        return { heading: "Library folders", entries: [], folders: this.#libraryFolders };
-      default:
-        return undefined;
-    }
-  }
-
-  /** The tile focused on the Library's first page, so rows that change under it don't move focus. */
-  #rootFocusId: string | undefined;
-  /** Home: the film card whose backdrop shows (focused, or last focused while Resume / From start has focus). */
-  #homeFilm: string | undefined;
   #ambient = false;
   #cancelAmbient: (() => void) | undefined;
   #timeFormat: TimeFormat = "12";
   #offTimeFormat: (() => void) | undefined;
-  /** The last tile focused on the Library's first page; the featured area keeps showing it while a chip or icon has focus. */
-  #lastTile: string | undefined;
 
   #keepLibraryFocus(): void {
-    if (this.#state.view !== "library" || !this.#rootFocusId) return;
-    const at = this.#currentGrid().find((i) => i.id === this.#rootFocusId);
-    if (at) this.#state.focus[this.viewKey] = { r: at.r, c: at.c };
-  }
-
-  /** The chip row; an active chip that no longer exists is dropped. */
-  #chips(): LibraryChip[] {
-    const make = () =>
-      chipsFor({
-        details: this.details,
-        shows: this.library.shows().length,
-        films: this.library.films().length,
-        active: this.#chip,
-      });
-    let chips = make();
-    if (this.#chip && !chips.some((c) => c.key === this.#chip)) {
-      this.#chip = undefined;
-      chips = make();
-    }
-    return chips;
-  }
-
-  #rows(): ReturnType<typeof libraryRows> {
-    const chips = this.#chips();
-    return libraryRows({
-      ...(this.#chip && chips.length
-        ? { keep: keepFor(this.#chip, this.details) }
-        : this.#state.view === "library"
-          ? { auto: autoRows(this.details) }
-          : {}),
-      library: this.library,
-      history: this.#history,
-      decorate: (e) => this.#decorate(e),
-      continueEntries: this.#libraryContinueEntries(),
-      thumb: (p) => this.#thumbs.urlFor(p),
-      details: (id) => this.details.detailsFor(id),
-    });
+    this.#libraryPage.keepFocus();
   }
 
   /** TMDB details for a video path (its show or film, and the episode's own name, overview and still). */
@@ -705,350 +726,8 @@ export class Core {
     return genres.length ? { genres: genres.join(" · ") } : {};
   }
 
-  /** A video entry with its watched tag or progress, from the history. */
-  #decorate(entry: LibraryEntry): LibraryEntry {
-    if (entry.kind !== "video") return entry;
-    const progress = this.#history.progress(entry.path);
-    if (progress) {
-      const left = Math.max(1, Math.ceil((progress.duration - progress.position) / 60));
-      return {
-        ...entry,
-        progress: { fraction: progress.position / progress.duration, left: `${left} min left` },
-      };
-    }
-    return this.#history.isWatched(entry.path) ? { ...entry, watched: true } : entry;
-  }
-
-  /** A video's picture, or a folder's mosaic and count, from what has been made so far. */
-  #withMosaic(entry: LibraryEntry): LibraryEntry {
-    if (entry.kind === "video") {
-      const thumb = this.#thumbs.urlFor(entry.path);
-      return thumb ? { ...entry, thumb } : entry;
-    }
-    const m = this.#mosaics.get(entry.path);
-    if (!m || entry.missing) return entry;
-    const mosaic = m.sources.flatMap((p) => this.#thumbs.urlFor(p) ?? []);
-    return { ...entry, count: m.count, ...(mosaic.length ? { mosaic } : {}) };
-  }
-
-  /** On arriving at the Library's first page, finds each folder's mosaic sources and queues their pictures. */
-  #syncRoot(): void {
-    if (this.#state.view !== "library") {
-      this.#rootKey = undefined;
-      return;
-    }
-    const rows = this.#rows();
-    const key = [...this.#libraryFolders, "", ...rows.wanted].join("\0");
-    if (this.#rootKey === key) return;
-    this.#rootKey = key;
-    this.#mosaics.clear();
-    const paths: string[] = [...rows.wanted];
-    for (const f of this.#libraryFolders) {
-      if (!existsSync(f)) continue;
-      const m = mosaicSources(f);
-      this.#mosaics.set(f, m);
-      paths.push(...m.sources);
-    }
-    this.#thumbs.want(paths);
-  }
-
-  /** Home's Continue watching and the Remote's card: Library videos and App titles together, newest first. */
-  #continueEntries(): LibraryEntry[] {
-    const videos = this.#libraryContinue();
-    const titles = this.#appContinue();
-    if (!titles.length) return videos.map((v) => v.entry);
-    return [...videos, ...titles].sort((a, b) => b.at - a.at).map((v) => v.entry);
-  }
-
-  /**
-   * Home's Continue watching: the newest entry of each App and of the Library, newest first,
-   * as many as fit in the row beside the App tiles (at least one).
-   */
-  #homeContinue(): LibraryEntry[] {
-    const seen = new Set<string>();
-    const newest = this.#continueEntries().filter((e) => {
-      const source = e.app?.id ?? "library";
-      if (seen.has(source)) return false;
-      seen.add(source);
-      return true;
-    });
-    return newest.slice(0, Math.max(1, HOME_ROW_TILES - this.#homeApps.shownIds().length));
-  }
-
-  /** The Library's own row: its in-progress videos only. */
-  #libraryContinueEntries(): LibraryEntry[] {
-    return this.#libraryContinue().map((v) => v.entry);
-  }
-
-  /** Each remembered App title, as a Continue watching entry, unless its App is hidden or gone. */
-  #appContinue(): Array<{ at: number; entry: LibraryEntry }> {
-    return this.#appTitles.entries().flatMap((e) => {
-      const app = this.#apps.get(e.app);
-      const icon = this.#catalog().find((c) => c.id === e.app)?.icon;
-      if (!app || !icon || !this.#homeApps.isShown(e.app)) return [];
-      const fraction = Math.min(1, e.position / e.duration);
-      const left = Math.max(1, Math.ceil((e.duration - e.position) / 60));
-      return [
-        {
-          at: e.at,
-          entry: {
-            kind: "video",
-            path: `app:${e.app}:${titleKey(e.url)}`,
-            title: e.title,
-            hue: hueFor(e.title),
-            folder: app.label,
-            ...(e.art && this.#continueArt?.fileUrl(e.art)
-              ? { thumb: this.#continueArt.fileUrl(e.art) }
-              : {}),
-            progress: { fraction, left: `${left} min left` },
-            app: {
-              id: e.app,
-              label: app.label,
-              icon,
-              fromStart: fromStartUrl(e.url) !== e.url,
-            },
-          } satisfies LibraryEntry,
-        },
-      ];
-    });
-  }
-
-  /** The entry a Continue watching id (`app:<id>:<key>`) names, if it is still remembered. */
-  #appTitleFor(path: string): { app: string; key: string } | undefined {
-    const m = /^app:([^:]+):(.+)$/.exec(path);
-    return m ? { app: m[1]!, key: m[2]! } : undefined;
-  }
-
-  /** The phone fetches an App entry's picture by key, like a Library thumbnail. */
-  #appArtKey(path: string): { thumbKey?: string } {
-    const id = this.#appTitleFor(path);
-    const art = id && this.#appTitles.find(id.app, id.key)?.art;
-    return art && this.#continueArt?.has(art) ? { thumbKey: art } : {};
-  }
-
-  /** Opens the App at where the remembered title was left (`fromStart`: at its beginning, for an App whose address carries the time). */
-  #resumeAppTitle(path: string, fromStart = false): void {
-    const id = this.#appTitleFor(path);
-    const entry = id && this.#appTitles.find(id.app, id.key);
-    const app = id && this.#apps.get(id.app);
-    if (!entry || !app || !this.#homeApps.isShown(entry.app)) return;
-    const hintId = titleId(entry.url);
-    if (hintId)
-      this.setNowPlayingHint(entry.app, {
-        id: hintId,
-        title: entry.title,
-        ...(entry.art && this.#continueArt?.has(entry.art) ? { artKey: entry.art } : {}),
-      });
-    this.#openApp(entry.app, fromStart ? fromStartUrl(entry.url) : entry.url);
-  }
-
-  #libraryContinue(): Array<{ at: number; entry: LibraryEntry }> {
-    if (!this.#homeApps.isShown("library")) return [];
-    return this.#history.continueWatching().map((c) => {
-      const { title, line } = presentation(c.path);
-      const { details, episode } = this.#art(c.path);
-      const thumb = this.#still(c.path, (p) => this.#thumbs.lookup(p));
-      return {
-        at: c.at,
-        entry: this.#decorate({
-          kind: "video",
-          path: c.path,
-          title: episode?.name ?? title,
-          ...(line ? { line } : {}),
-          hue: hueFor(title),
-          folder: basename(dirname(c.path)),
-          thumb,
-          ...(details?.backdrop ? { backdrop: details.backdrop } : {}),
-          ...(details?.genres?.length ? { genres: topGenres(details) } : {}),
-          ...((episode?.overview ?? details?.overview)
-            ? { overview: episode?.overview ?? details?.overview }
-            : {}),
-        }),
-      };
-    });
-  }
-
   #currentGrid(): GridItem[] {
-    if (this.#state.view === "home") {
-      const base = this.#homeBase();
-      const videos = base.length ? this.#homeContinue() : [];
-      const gridFor = () =>
-        homeGrid(
-          base,
-          videos,
-          videos.find((v) => v.path === this.#homeFilm),
-        );
-      let grid = gridFor();
-      this.#homeFilm = filmAfterFocus(
-        resolveFocus(grid, this.#state.focus.home)?.id,
-        videos,
-        this.#homeFilm,
-      );
-      grid = gridFor();
-      return grid;
-    }
-    if (this.#state.view === "player") return this.#controls.grid();
-    if (this.#state.view === "details") return this.#detailsPage.grid();
-    if (this.#state.view === "soundOutput") {
-      const devices = this.#sound.grid();
-      return [...devices, this.#uiSounds.row(devices.length)];
-    }
-    if (this.#state.view === "settingsHome") return this.#homePage.grid();
-    if (this.#state.view === "about") return this.#about.grid();
-    if (this.#state.view === "addons") return this.#addonsPage.grid();
-    if (this.#state.view === "settingsApps")
-      return this.#homeApps.menuId
-        ? this.#homeApps.menuGrid()
-        : this.#homeApps.grid((id) => `${SETTINGS_APP}${id}`);
-    if (this.#state.view === "show") return this.#show.grid();
-    if (this.#state.view === "fixMatch") return this.#show.fixGrid();
-    if (this.#state.view === "librarySearch") return this.#search.grid();
-    if (this.#state.view === "credits")
-      return [{ id: "done", r: 0, c: 0, label: "Done", action: "back", initial: true }];
-    if (!this.#isLibraryView()) return this.#grids.get(this.viewKey) ?? [];
-    const lib = this.#library()!;
-    if (lib.folders) {
-      return [
-        { id: "add", r: 0, c: 0, label: "Add folder", action: "library:add", initial: true },
-        ...lib.folders.map((f, i) => ({
-          id: f,
-          r: i + 1,
-          c: 0,
-          label: f,
-          action: `library:remove:${f}`,
-        })),
-      ];
-    }
-    const tile = (e: LibraryEntry, r: number, c: number, initial: boolean): GridItem => ({
-      id: e.id ?? e.path,
-      r,
-      c,
-      label: e.title,
-      action: tileAction(e),
-      initial,
-    });
-    // Row 0 is the top strip's gear, as on Home; the chips are row 1 when there are any; each page row is one grid row, Folders wrap below.
-    const rows = lib.rows ?? [];
-    const chips = lib.chips ?? [];
-    const top = chips.length ? 2 : 1;
-    const chipItems: GridItem[] = chips.map((c, i) => ({
-      id: `chip:${c.key}`,
-      r: 1,
-      c: i,
-      label: c.label,
-      action: `library:chip:${c.key}`,
-    }));
-    const tiles = [
-      ...rows.flatMap((row, r) =>
-        row.entries.map((e, c) => tile(e, top + r, c, r === 0 && c === 0)),
-      ),
-      ...lib.entries.map((e, i) =>
-        tile(
-          e,
-          top + rows.length + Math.floor(i / TILE_COLUMNS),
-          i % TILE_COLUMNS,
-          rows.length === 0 && i === 0,
-        ),
-      ),
-    ];
-    const gear: GridItem = {
-      id: "settings",
-      r: 0,
-      c: 0,
-      label: "Settings",
-      action: "open:settings",
-      initial: tiles.length === 0,
-    };
-    const search: GridItem = {
-      id: "search",
-      r: 0,
-      c: -1,
-      label: "Search",
-      action: "library:search",
-    };
-    return [search, gear, ...chipItems, ...tiles];
-  }
-
-  #openFolder(path: string): void {
-    const entries = listFolder(path);
-    if (!entries) return this.#toast("Connect the drive to see this folder");
-    this.#listing = entries;
-    this.#mosaics.clear();
-    const paths = entries.filter((e) => e.kind === "video").map((e) => e.path);
-    for (const e of entries) {
-      if (e.kind !== "folder") continue;
-      const m = mosaicSources(e.path);
-      this.#mosaics.set(e.path, m);
-      paths.push(...m.sources);
-    }
-    this.#thumbs.want(paths);
-    this.#state.folderPath = path;
-    this.#state.view = "folder";
-  }
-
-  #libraryAction(action: string): boolean {
-    if (!action.startsWith("library:")) return false;
-    const [, verb, ...rest] = action.split(":");
-    const arg = rest.join(":");
-    if (verb === "missing") this.#toast("Connect the drive to see this folder");
-    else if (verb === "open") this.#openFolder(arg);
-    else if (verb === "play") this.#playContinue(arg);
-    else if (verb === "playstart") this.#playContinue(arg, true);
-    else if (verb === "search") {
-      this.#search.open();
-      if (this.#source === "screen") this.#search.action("search:field", "screen");
-    } else if (verb === "chip") {
-      this.#chip = this.#chip === arg || arg === "all" ? undefined : arg;
-      this.#lastTile = undefined;
-    } else if (verb === "show") {
-      this.#showFrom = this.#state.view === "librarySearch" ? "librarySearch" : "library";
-      this.#show.open(arg);
-    } else if (verb === "remove") this.#saveFolders(this.#libraryFolders.filter((f) => f !== arg));
-    else if (verb === "add") this.#addFolder();
-    else return false;
-    return true;
-  }
-
-  /** Removes an entry from Continue watching: an App title for good, a Library video's saved position. */
-  #forgetContinue(path: string | undefined): void {
-    // Only what Continue watching shows right now: not a stale or invented id, and never a finished Library video's watched record.
-    if (!path || !this.#continueEntries().some((e) => e.path === path)) return;
-    const id = this.#appTitleFor(path);
-    const done = id ? this.#appTitles.forget(id.app, id.key) : this.#history.forget(path);
-    if (done) this.#toast("Removed from Continue watching");
-  }
-
-  /**
-   * Menu (or a long press) on Home's Continue watching: a small question with "Remove from Continue watching",
-   * and Fix match beside it for a Library film. False when the focus is not on a Continue tile.
-   */
-  #continueMenu(): boolean {
-    if (this.#state.view !== "home" || this.#state.confirm) return false;
-    const id = resolveFocus(this.#currentGrid(), this.#state.focus.home)?.id;
-    const shown = this.#homeContinue();
-    // The hero's Resume / From start pills belong to the hero's entry.
-    const entry = shown.find(
-      (v) =>
-        v.path === id || (v.path === this.#homeFilm && (id === "resume" || id === "fromstart")),
-    );
-    if (!entry) return false;
-    const fix = entry.app ? undefined : this.#show.fixTargetFor(entry);
-    this.#ask(
-      entry.title,
-      ["Remove from Continue watching", ...(fix ? ["Fix match"] : []), "Cancel"],
-      [
-        () => this.#forgetContinue(entry.path),
-        ...(fix ? [() => this.#show.openFixFromHome(fix)] : []),
-        () => {},
-      ],
-    );
-    return true;
-  }
-
-  /** A Continue watching entry: a Library video, or an App title that reopens its App. */
-  #playContinue(path: string, fromStart = false): void {
-    if (this.#appTitleFor(path)) this.#resumeAppTitle(path, fromStart);
-    else this.#play(path, fromStart);
+    return this.#pages[this.#state.view].grid();
   }
 
   /** Start a Library video full screen, resuming where it was left. */
@@ -1058,7 +737,7 @@ export class Core {
     const switching = this.#state.view === "player";
     if (switching) this.savePlayingPosition();
     else this.#playedFrom = this.#state.view === "folder" ? "folder" : this.#state.view;
-    if (this.#playedFrom === "folder") this.#focusEntry(path);
+    if (this.#playedFrom === "folder") this.#libraryPage.focusEntry(path);
     const show = this.library.showOf(path);
     const upNext: LibraryEntry[] = show
       ? show.seasons.flatMap((se) =>
@@ -1070,7 +749,6 @@ export class Core {
           })),
         )
       : (listFolder(dirname(path)) ?? []).filter((e) => e.kind === "video");
-    this.#upNextLabel = show?.name;
     const startSeconds = fromStart ? undefined : this.#history.resumeAt(path);
     this.#state.player = { path, pos: startSeconds ?? 0, dur: 0, paused: false };
     this.#tracks = { subtitles: [], audio: [] };
@@ -1078,8 +756,8 @@ export class Core {
       this.#speed = 1;
       this.#quiet(this.#ports.player.setSpeed(1));
     }
-    this.#state.view = "player";
-    this.#controls.begin(upNext);
+    this.#setView("player");
+    this.#player.begin(upNext, show?.name);
     this.#cancelNote?.();
     this.#resumeNote = undefined;
     if (startSeconds !== undefined) {
@@ -1106,22 +784,8 @@ export class Core {
     if (p) this.#history.save(p.path, p.pos, p.dur, this.#ports.clock.now());
   }
 
-  /** Focus a video's tile in the open folder, if listed. */
-  #focusEntry(path: string, next = false): void {
-    let index = this.#listing.findIndex((e) => e.path === path);
-    if (index === -1) return;
-    if (next) {
-      const after = this.#listing.slice(index + 1).findIndex((e) => e.kind === "video");
-      if (after !== -1) index += 1 + after;
-    }
-    this.#state.focus[`folder:${this.#state.folderPath}`] = {
-      r: 1 + Math.floor(index / TILE_COLUMNS),
-      c: index % TILE_COLUMNS,
-    };
-  }
-
-  /** Leave playback for a view, saving the position first. */
-  #endPlayback(toast?: string, ended = false): void {
+  /** Lets the video go: saves where it was and resets the controls, with focus put back on what played. Never changes view. */
+  #releasePlayback(ended: boolean): void {
     const p = this.#state.player;
     if (!p) return;
     this.#cancelSaves?.();
@@ -1130,30 +794,29 @@ export class Core {
     this.#resumeNote = undefined;
     this.#history.save(p.path, p.pos, p.dur, this.#ports.clock.now(), ended);
     this.#state.player = undefined;
-    this.#controls.end();
-    if (this.#playedFrom === "folder") {
-      this.#focusEntry(p.path, ended);
-      this.#state.view = this.#state.folderPath ? "folder" : "library";
-    } else if (this.#playedFrom === "show" && this.#state.showId) {
-      this.#show.returnTo(p.path, ended);
+    this.#player.end();
+    if (this.#playedFrom === "folder") this.#libraryPage.focusEntry(p.path, ended);
+    else if (this.#playedFrom === "show" && this.#state.showId)
+      this.#show.focusPlayed(p.path, ended);
+  }
+
+  /** Leave playback for where it started, saving the position first. */
+  #endPlayback(toast?: string, ended = false): void {
+    const p = this.#state.player;
+    if (!p) return;
+    const from = this.#playedFrom;
+    this.#releasePlayback(ended);
+    if (from === "folder") {
+      this.#setView(this.#state.folderPath ? "folder" : "library", { returning: true });
+    } else if (from === "show" && this.#state.showId) {
+      this.#show.returnTo();
     } else {
-      this.#state.view = this.#playedFrom === "show" ? "library" : this.#playedFrom;
-      if (this.#state.view === "home") this.#focusHomeCard(p.path);
+      this.#setView(from === "show" ? "library" : from, { returning: true });
+      if (this.#state.view === "home") this.#home.focusCard(p.path);
     }
     if (toast) this.#toast(toast);
     this.#keepLibraryFocus();
     this.#emit();
-  }
-
-  /** Back on Home after a video started there: focus returns to its card, so its backdrop shows. */
-  #focusHomeCard(path: string): void {
-    const base = this.#homeBase();
-    const videos = this.#homeContinue();
-    const film = videos.find((v) => v.path === path);
-    const card = homeGrid(base, videos, film).find((i) => i.id === path);
-    this.#homeFilm = card ? path : undefined;
-    if (card) this.#state.focus.home = { r: card.r, c: card.c };
-    else delete this.#state.focus.home;
   }
 
   #stopPlayback(): void {
@@ -1200,7 +863,7 @@ export class Core {
       case "pause":
         if (p && p.paused !== event.paused) {
           p.paused = event.paused;
-          this.#controls.show();
+          this.#player.show();
           this.#emit();
         }
         break;
@@ -1214,7 +877,7 @@ export class Core {
       this.#state.pictureOff = false;
       this.#pictureOffScope = undefined;
     }
-    if (!p || !this.#controls.offerNext()) return this.#endPlayback(undefined, true);
+    if (!p || !this.#player.offerNext()) return this.#endPlayback(undefined, true);
     this.#cancelSaves?.();
     this.#cancelSaves = undefined;
     if (p.dur > 0) p.pos = p.dur;
@@ -1289,114 +952,6 @@ export class Core {
     this.#emit();
   }
 
-  /** Commands while a video plays. Returns false for the ones handled like anywhere else. */
-  #playbackCommand(command: Command): boolean {
-    const p = this.#state.player!;
-    const name = command.command;
-    if (this.#state.controls === "next") {
-      if (name === "playNext") this.#controls.playNext();
-      else if (name === "back" || name === "home") {
-        this.#endPlayback(undefined, true);
-        if (name === "home") this.#setView("home");
-      } else return this.#controls.command(command);
-      return true;
-    }
-    if (name === "playNext") return true;
-    if (name === "playUpNext") {
-      this.#controls.playUpNext(command.args?.index);
-      return true;
-    }
-    if (name === "back" && this.#controls.back()) return true;
-    if (name === "back" || name === "home") {
-      this.#stopPlayback();
-      this.#endPlayback();
-      if (name === "home") this.#setView("home");
-      return true;
-    }
-    if (name === "playpause" || name === "seekBy" || name === "seekTo" || name === "subtitles")
-      this.#controls.show();
-    switch (name) {
-      case "playpause":
-        this.#togglePause();
-        return true;
-      case "seekBy":
-        this.#seekTo(p.pos + (command.args?.seconds ?? 0));
-        return true;
-      case "seekTo":
-        this.#seekTo(command.args?.seconds ?? 0);
-        return true;
-      case "subtitles":
-        this.#toggleSubtitles();
-        return true;
-      default:
-        return this.#controls.command(command);
-    }
-  }
-
-  /** What the renderer should draw over the video right now. */
-  #overlay(): PlayerOverlay | undefined {
-    const p = this.#state.player;
-    if (!p) return undefined;
-    return {
-      ...this.#present(p.path),
-      controls: this.#state.controls,
-      dock:
-        this.#state.controls !== "hidden" && this.#state.controls !== "next"
-          ? {
-              position: p.pos,
-              duration: p.dur,
-              subtitlesOn: this.#state.subtitlesOn,
-              level: this.#level(),
-              focusedId: this.#controls.focusedDock(),
-              upNext: this.#controls.upNextAvailable,
-            }
-          : undefined,
-      upNext: this.#state.controls === "upnext" ? this.#upNextTiles() : undefined,
-      next: this.#nextCard(),
-      paused: p.paused,
-      note: this.#resumeNote,
-      volume: this.#state.volumeShown ? this.#level() : undefined,
-    };
-  }
-
-  #nextCard(): PlayerOverlay["next"] {
-    const next = this.#controls.next;
-    if (!next || this.#state.controls !== "next") return undefined;
-    const { title, line } = this.#present(next.path);
-    return {
-      title,
-      ...(line ? { line } : {}),
-      thumb: this.#still(next.path, (p) => this.#thumbs.lookup(p)),
-      hue: hueFor(title),
-      focusedId: this.#controls.focusedCard(),
-    };
-  }
-
-  /** The show's name while its episodes are the Up next list. */
-  #upNextLabel: string | undefined;
-
-  #upNextTiles(): NonNullable<PlayerOverlay["upNext"]> {
-    const playing = this.#state.player?.path;
-    const tiles = this.#controls.upNext.map((e) => {
-      const d = this.#decorate({ ...e });
-      const { title, line } = this.#present(e.path);
-      return {
-        title,
-        ...(line ? { line } : {}),
-        thumb: this.#still(e.path, (p) => this.#thumbs.lookup(p)),
-        hue: hueFor(title),
-        watched: d.watched === true,
-        playing: e.path === playing,
-        progress: d.progress?.fraction,
-      };
-    });
-    return {
-      tiles,
-      folder: this.#upNextLabel ?? basename(dirname(playing ?? "")),
-      focusedIndex: this.#controls.focusedTile,
-    };
-  }
-
   /** The phone fetches pictures by key: a frame's, or a cached TMDB still or poster's. */
   #thumbKey(path: string): string | undefined {
     const { details, episode } = this.#art(path);
@@ -1412,7 +967,7 @@ export class Core {
 
   #upNextItems(): UpNextItem[] {
     const playing = this.#state.player?.path;
-    return this.#controls.upNext.map((e) => {
+    return this.#player.upNext.map((e) => {
       const key = this.#thumbKey(e.path);
       const progress = this.#history.progress(e.path);
       return {
@@ -1425,31 +980,12 @@ export class Core {
     });
   }
 
-  /** The Mac's folder picker, then the usual save and scan; Settings → Library and Setup both use it. */
-  #addFolder(): void {
-    void this.#ports.mac
-      .pickFolder()
-      .then((path) => {
-        if (path && !this.#libraryFolders.includes(path))
-          this.#saveFolders([...this.#libraryFolders, path]);
-        this.#emit();
-      })
-      .catch(() => {});
-  }
-
-  #saveFolders(folders: string[]): void {
-    this.#libraryFolders = folders;
-    void this.library.refresh(folders);
-    this.#ports.store.write("library", { folders });
-  }
-
   /** Everything the Screen renderer needs to draw. */
   screen(): ScreenPayload {
-    this.#syncRoot();
+    this.#libraryPage.sync();
     const grid = this.#currentGrid();
     const focused = resolveFocus(grid, this.#state.focus[this.viewKey]);
-    if (this.#state.view === "library") this.#rootFocusId = focused?.id;
-    const homeVideos = this.#homeContinue();
+    const homeVideos = this.#home.continueRow();
     const quick = this.#quick.payload();
     const setup = this.#setup.payload();
     return {
@@ -1458,39 +994,17 @@ export class Core {
       playing: this.#pictureScope() !== undefined,
       muted: this.#sound.muted,
       ...this.#backPayload(),
-      library: this.#library(focused?.id),
-      ...(this.#state.view === "show" ? this.#show.payload() : {}),
-      ...(this.#state.view === "fixMatch" ? this.#show.fixPayload() : {}),
-      ...(this.#state.view === "librarySearch" ? this.#search.payload() : {}),
-      ...(this.#state.view === "details" ||
-      this.#state.view === "settings" ||
-      this.#state.view === "settingsLibrary" ||
-      this.#state.view === "credits"
-        ? { details: this.details.settings() }
-        : {}),
-      ...(this.#state.view === "settings" || this.#state.view === "soundOutput"
-        ? { sound: this.#sound.payload() }
-        : {}),
-      ...(this.#state.view === "soundOutput" ? { interfaceSounds: this.#uiSounds.on } : {}),
-      ...(this.#state.view === "about" ? { about: this.#about.payload() } : {}),
       homeApps: this.#homeApps.rows(),
-      ...(this.#state.view === "settingsApps" || this.#state.view === "addons"
-        ? { addons: this.#addonsPage.payload() }
-        : {}),
-      ...(this.#state.view === "settingsRemotes" ? { listener: { ...this.#loginItem } } : {}),
-      ...(this.#state.view === "settingsApps" ? this.#appMenuPayload() : {}),
-      home: this.#homePage.payload(this.#state.view === "settingsHome" ? focused?.id : undefined),
-      continueCard: this.#continueEntries()[0],
+      home: this.#homePage.payload(),
+      ...this.#pages[this.#state.view].payload(focused?.id),
+      continueCard: this.#home.entries()[0],
       homeVideos,
-      hero:
-        this.#state.view === "home" ? homeVideos.find((v) => v.path === this.#homeFilm) : undefined,
       ambient: this.#ambient,
       timeFormat: this.#timeFormat,
-      overlay: this.#overlay(),
       ...(this.#state.typingBy === "screen" && this.#typingFor
         ? { screenTyping: this.#typingFor }
         : {}),
-      state: structuredClone(this.#state),
+      state: { ...structuredClone(this.#state), controls: this.#player.mode },
       viewKey: this.viewKey,
       grid,
       focusedId: focused?.id,
@@ -1502,7 +1016,7 @@ export class Core {
 
   snapshot(remote: RemoteId): RemoteSnapshot {
     const s = this.#state;
-    const card = s.view === "home" ? this.#continueEntries()[0] : undefined;
+    const card = s.view === "home" ? this.#home.entries()[0] : undefined;
     const searchable = SEARCH_FROM.includes(s.view);
     const front = this.#front();
     const searching = s.typingBy === remote && this.#typingFor === "librarySearch";
@@ -1510,15 +1024,14 @@ export class Core {
     return {
       type: "snapshot",
       where:
-        s.view === "library" && this.#chip
-          ? `Library · ${this.#chips().find((c) => c.active)?.label ?? ""}`
-          : s.view === "folder"
-            ? basename(s.folderPath ?? "")
-            : s.view === "show"
-              ? (this.library.show(s.showId ?? "")?.name ?? VIEW_LABELS.show)
-              : s.view === "app" || s.view === "appError"
-                ? (this.#apps.get(s.app ?? "")?.label ?? VIEW_LABELS[s.view])
-                : VIEW_LABELS[s.view],
+        this.#libraryPage.chipLine() ??
+        (s.view === "folder"
+          ? basename(s.folderPath ?? "")
+          : s.view === "show"
+            ? (this.library.show(s.showId ?? "")?.name ?? VIEW_LABELS.show)
+            : s.view === "app" || s.view === "appError"
+              ? (this.#apps.get(s.app ?? "")?.label ?? VIEW_LABELS[s.view])
+              : VIEW_LABELS[s.view]),
       view: s.view,
       layout:
         s.view === "app"
@@ -1541,7 +1054,7 @@ export class Core {
               left: card.progress?.left ?? "",
               ...(card.app
                 ? {
-                    ...this.#appArtKey(card.path),
+                    ...this.#home.artKey(card.path),
                     app: { id: card.app.id, label: card.app.label, icon: card.app.icon },
                   }
                 : this.#thumbKey(card.path)
@@ -1550,12 +1063,12 @@ export class Core {
             },
           }
         : {}),
-      ...(s.controls === "next" && this.#controls.next
+      ...(this.#player.mode === "next" && this.#player.next
         ? {
             next: {
-              ...this.#present(this.#controls.next.path),
-              ...(this.#thumbKey(this.#controls.next.path)
-                ? { thumbKey: this.#thumbKey(this.#controls.next.path) }
+              ...this.#present(this.#player.next.path),
+              ...(this.#thumbKey(this.#player.next.path)
+                ? { thumbKey: this.#thumbKey(this.#player.next.path) }
                 : {}),
             },
           }
@@ -1563,8 +1076,8 @@ export class Core {
       ...(this.#about.ready ? { updateReady: true as const } : {}),
       ...(s.confirm ? { confirm: s.confirm } : {}),
       ...(s.toast ? { toast: { text: s.toast, id: this.#toastId } } : {}),
-      ...(s.view === "settingsApps" && this.#homeApps.menuId && this.#remoteNote()
-        ? { playbackNote: this.#remoteNote() }
+      ...(s.view === "settingsApps" && this.#homeApps.menuId && this.#settingsApps.remoteNote()
+        ? { playbackNote: this.#settingsApps.remoteNote() }
         : {}),
       typeAvailable: (s.view === "app" && !!front?.typing) || s.view === "details" || searchable,
       ...(this.#show.fixTarget() ? { fixAvailable: true } : {}),
@@ -1586,7 +1099,7 @@ export class Core {
               : "other",
       nowPlaying: s.player
         ? {
-            active: s.controls !== "next",
+            active: this.#player.mode !== "next",
             ...this.#present(s.player.path),
             folder: basename(dirname(s.player.path)),
             position: s.player.pos,
@@ -1601,7 +1114,7 @@ export class Core {
             app: this.#appFace("library", "Library"),
           }
         : this.#appNowPlaying(front),
-      ...(s.player && this.#controls.upNextAvailable ? { upNext: this.#upNextItems() } : {}),
+      ...(s.player && this.#player.upNextAvailable ? { upNext: this.#upNextItems() } : {}),
       volume: s.volume,
       muted: this.#sound.muted,
       pictureOff: s.pictureOff,
@@ -1732,12 +1245,6 @@ export class Core {
     this.#emit();
   }
 
-  /** The renderer reports the grid of focusable items it drew for a view. */
-  reportGrid(viewKey: string, items: GridItem[]): void {
-    this.#grids.set(viewKey, items);
-    this.#emit();
-  }
-
   /** The Screen's Interface sounds, one per command at most. */
   onSound(listener: (event: UiSoundEvent) => void): () => void {
     this.#soundListeners.add(listener);
@@ -1805,7 +1312,7 @@ export class Core {
     if (this.#confirmCommand(command)) return;
     if (command.command === "focusAt") return this.#focusAt(command.args?.r, command.args?.c);
     if (this.#typingKeys(command, from)) return;
-    if (this.#state.player && this.#playbackCommand(command)) {
+    if (this.#state.player && this.#player.command(command)) {
       this.#emit();
       return;
     }
@@ -1824,7 +1331,7 @@ export class Core {
         this.#back();
         break;
       case "menu":
-        if (!this.#continueMenu()) this.#show.menu();
+        if (!this.#home.menu()) this.#show.menu();
         break;
       case "find":
         this.#find();
@@ -1843,14 +1350,14 @@ export class Core {
           this.#resumeCurrent();
           break;
         }
-        const newest = this.#continueEntries()[0];
+        const newest = this.#home.entries()[0];
         if (!newest) break;
         this.#setView("home");
-        this.#playContinue(newest.path);
+        this.#home.playContinue(newest.path);
         break;
       }
       case "forgetContinue":
-        this.#forgetContinue(command.args?.entry ?? this.#continueEntries()[0]?.path);
+        this.#home.forget(command.args?.entry ?? this.#home.entries()[0]?.path);
         break;
       case "playpause":
         this.#front()?.playPause?.();
@@ -2248,7 +1755,7 @@ export class Core {
     this.#cancelMinute?.();
     this.#cancelAmbient?.();
     this.#offTimeFormat?.();
-    this.#controls.dispose();
+    this.#player.dispose();
     this.#cancelSaves?.();
     this.#cancelNote?.();
     this.#cancelVolume?.();
@@ -2262,12 +1769,11 @@ export class Core {
   #move(direction: "up" | "down" | "left" | "right"): void {
     const grid = this.#currentGrid();
     const current = resolveFocus(grid, this.#state.focus[this.viewKey]);
-    const front = this.#front();
-    if (front) return front.sendKey(direction);
+    const page = this.#pages[this.#state.view];
+    if (page.press?.(direction)) return;
     if (!current) return;
-    if (this.#state.view === "show") {
-      this.#show.move(direction);
-      this.#show.syncTab();
+    if (page.move) {
+      page.move(direction);
     } else {
       const next = moveFocus(grid, current, direction);
       this.#state.focus[this.viewKey] = { r: next.r, c: next.c };
@@ -2278,48 +1784,28 @@ export class Core {
   }
 
   #focusAt(r?: number, c?: number): void {
-    if (this.#state.view === "app") return;
-    if (this.#state.view === "player" && this.#state.controls === "hidden") return;
+    if (this.#pages[this.#state.view].pointable?.() === false) return;
     const item = this.#currentGrid().find((i) => i.r === r && i.c === c);
     if (!item) return;
     this.#state.focus[this.viewKey] = { r: item.r, c: item.c };
     this.#show.syncTab();
-    this.#controls.cardActivity();
+    this.#player.cardActivity();
     this.#emit();
   }
 
   #ok(): void {
-    const front = this.#front();
-    if (front) return front.sendKey("ok");
+    if (this.#pages[this.#state.view].press?.("ok")) return;
     const grid = this.#currentGrid();
     const item = resolveFocus(grid, this.#state.focus[this.viewKey]);
     if (!item) return;
     this.#cue("select");
     if (item.action === "back") return this.#back();
-    if (
-      this.#libraryAction(item.action) ||
-      this.#detailsPage.action(item.action, this.#source) ||
-      this.#sound.action(item.action) ||
-      this.#uiSounds.action(item.action) ||
-      this.#about.action(item.action) ||
-      this.#homePage.action(item.action) ||
-      this.#addonsPage.action(item.action) ||
-      this.#homeApps.action(item.action) ||
-      this.#search.action(item.action, this.#source) ||
-      this.#show.action(item.action)
-    )
-      return;
+    if (this.#pages[this.#state.view].action(item.action, this.#source)) return;
+    if (this.#libraryPage.action(item.action)) return;
     const action = actionFor(item.action);
     // Placeholder Apps until they exist.
     if (action) action(this.#actionContext());
     else this.#toast(`${item.label} is coming soon`);
-  }
-
-  /** Whether a folder's Back goes up to the Library (a Library folder, or one outside every Library folder) rather than to its parent folder. */
-  #folderToLibrary(path: string): boolean {
-    return (
-      this.#libraryFolders.includes(path) || !this.#libraryFolders.some((f) => path.startsWith(f))
-    );
   }
 
   /** What Back does now, named: the one place that decides, for the back link's label and for Back itself. */
@@ -2327,54 +1813,9 @@ export class Core {
     const view = this.#state.view;
     if (this.#state.typingBy === "screen")
       return { label: "Stop typing", act: () => this.#type({ command: "typeCancel" }, "screen") };
-    const front = this.#front();
-    if (front) {
-      return {
-        act: () => {
-          if (front.back() !== "leave") return;
-          this.#ask(
-            `Leave ${front.label}?`,
-            ["Stay", "Go to Home"],
-            [() => {}, () => this.#setView("home")],
-          );
-          this.#leaveConfirm = this.#state.confirm;
-        },
-      };
-    }
-    const go = (label: string, act: () => void) => ({ label, act });
-    if (view === "folder") {
-      const path = this.#state.folderPath ?? "";
-      return this.#folderToLibrary(path)
-        ? go(VIEW_LABELS.library, () => (this.#state.view = "library"))
-        : go(basename(dirname(path)), () => this.#openFolder(dirname(path)));
-    }
-    if (view === "library" && this.#chip) {
-      return go("All", () => {
-        this.#chip = undefined;
-        this.#state.focus[this.viewKey] = { r: 1, c: 0 };
-      });
-    }
-    if (view === "settingsApps" && this.#homeApps.menuId) {
-      return go(VIEW_LABELS.settingsApps, () => {
-        delete this.#state.focus[APPS_MENU_KEY];
-        this.#homeApps.closeMenu();
-      });
-    }
-    if (view === "librarySearch") return go(VIEW_LABELS.library, () => this.#setView("library"));
-    if (view === "show" && this.#showFrom === "librarySearch")
-      return go(VIEW_LABELS.librarySearch, () => this.#setView("librarySearch"));
-    if (view === "fixMatch") {
-      return go(this.#show.fixBackLabel(), () => {
-        this.#show.leaveFix();
-        this.#keepLibraryFocus();
-      });
-    }
-    const target = BACK_TARGETS[view];
-    if (!target) return undefined;
-    return go(view === "addons" ? "YouTube" : VIEW_LABELS[target], () => {
-      this.#setView(target);
-      this.#keepLibraryFocus();
-    });
+    const back = this.#pages[view].back();
+    if (!back) return undefined;
+    return { ...(back.label ? { label: back.label } : {}), act: () => back.act() };
   }
 
   #backPayload(): Pick<ScreenPayload, "back"> {
@@ -2390,39 +1831,21 @@ export class Core {
     } else this.#keepLibraryFocus();
   }
 
-  /** Changes view; leaving an App hides it (pausing playback) and lets the display sleep again. */
-  #setView(view: View): void {
+  /** Opens `view`; the player Page stops what is playing (saving its position) as the view leaves it. */
+  #leavePlaybackFor(view: View): void {
+    this.#setView(view);
+  }
+
+  /** Changes view: the Pages leave and enter, and the idle timers restart (not when `returning` to where the household was). */
+  #setView(view: View, options?: { returning?: true }): void {
     const from = this.#state.view;
-    if (view === "home") {
-      this.#chip = undefined;
-      this.#lastTile = undefined;
-      delete this.#state.focus.home;
-      this.#homeFilm = undefined;
-    }
-    if (from === view) return;
-    if (view !== "settingsApps" && view !== "addons") {
-      this.#homeApps.resetMenu();
-      delete this.#state.focus[APPS_MENU_KEY];
-    }
-    if (from === "app") {
-      if (this.#leaveConfirm && this.#state.confirm === this.#leaveConfirm) this.#dismissConfirm();
-      this.#state.typingBy = undefined;
-      this.#playback.delete(this.#state.app ?? "");
-      this.#appTitles.flush();
-      this.#appSpeed.clear(this.#state.app ?? "");
-      this.#apps.get(this.#state.app ?? "")?.hide();
-    }
-    if (view !== "app" && view !== "appError") delete this.#state.app;
-    if (view !== "appError") delete this.#state.appNote;
+    if (from === view) return this.#pages[view].reenter?.();
     this.#state.view = view;
     this.#ambient = false;
-    this.#armAmbient();
+    if (!options?.returning) this.#armAmbient();
     this.#releaseStrayTyping();
-    if (from === "details") this.#detailsPage.cancel();
-    this.#homePage.watch(view === "home" || view === "settingsHome");
-    if (view === "home" || view === "settingsHome") this.#homePage.refresh(view === "settingsHome");
-    if (view === "library") void this.library.refresh(this.#libraryFolders);
-    if (view === "settingsRemotes") void this.refreshLoginItem();
+    this.#pages[from].leave?.(view);
+    this.#pages[view].enter?.(from, options?.returning === true);
   }
 
   /** The one App catalog: Home tiles, icons and Settings actions all come from it, injected Apps included. */
@@ -2438,22 +1861,6 @@ export class Core {
         web: true,
       }));
     return [...listed, ...extra];
-  }
-
-  /** What the renderer reported for Home, cut to the shown Apps in the household's order; the update icon left of the gear while an update is ready. */
-  #homeBase(): GridItem[] {
-    const reported = this.#grids.get("home") ?? [];
-    if (reported.length === 0) return reported;
-    const apps = new Map(reported.filter((i) => i.id !== "settings").map((i) => [i.id, i]));
-    const ordered = this.#homeApps.shownIds().flatMap((id) => apps.get(id) ?? []);
-    return [
-      ...(this.#about.ready ? [UPDATE_ICON] : []),
-      ...reported.filter((i) => i.id === "settings"),
-      ...ordered.map((i, c) => {
-        const { initial: _initial, ...item } = i;
-        return { ...item, c, ...(c === 0 ? { initial: true } : {}) };
-      }),
-    ];
   }
 
   /** Home's update icon: Settings → About, with focus on Restart to update. */
@@ -2489,164 +1896,14 @@ export class Core {
     if (action) action(this.#actionContext());
   }
 
-  /** `at`: an address to open the App at (a Continue entry's title), applied to the App just before it is shown. */
-  #openApp(id: string, at?: string): void {
-    const app = this.#apps.get(id);
-    if (!app || !this.#homeApps.isShown(id)) return;
-    if (app.welcome && !this.#appsFailed.has(id)) {
-      void this.#welcomeThenOpen(app, at);
-      return;
-    }
-    this.#enterApp(id, at);
-  }
-
-  /** Asks the App's one-time question over the view we are on, and opens the App once it is answered. */
-  async #welcomeThenOpen(app: App, at?: string): Promise<void> {
-    const welcome = app.welcome;
-    if (!welcome) return;
-    const looking = this.#lookups.has(app.id);
-    // Answering: a second open waits. Still looking up: the newest open takes over (the lookup is shared).
-    if (this.#welcoming.has(app.id) && !looking) return;
-    const lookup = ++this.#lookupSeq;
-    this.#lookups.set(app.id, lookup);
-    this.#welcoming.add(app.id);
-    const view = this.#state.view;
-    let released = false;
-    const release = () => {
-      if (!released) this.#welcoming.delete(app.id);
-      released = true;
-    };
-    const question = await welcome.question().catch(() => undefined);
-    if (this.#lookups.get(app.id) !== lookup) return;
-    this.#lookups.delete(app.id);
-    // Home, or another page, in the meantime: the household went elsewhere.
-    if (this.#state.view !== view) return release();
-    if (!question) {
-      release();
-      this.#enterApp(app.id, at);
-      this.#emit();
-      return;
-    }
-    const answer = async (id: string) => {
-      this.#welcoming.add(app.id);
-      const toast = await welcome.answer(id).then(
-        (text) => text,
-        () => `Couldn't finish that. ${app.label} is opening.`,
-      );
-      this.#welcoming.delete(app.id);
-      if (this.#state.view !== view) return;
-      this.#enterApp(app.id, at);
-      if (toast) this.#toast(toast);
-      this.#emit();
-    };
-    release();
-    this.#ask(
-      question.title,
-      question.choices.map((c) => c.label),
-      question.choices.map((c) => () => void answer(c.id)),
-      { body: question.body, phone: true, back: () => void answer(question.back) },
-    );
-    this.#emit();
-  }
-
-  /** Shows the App; with `at`, it goes to that address first, on whichever host it has by now (a welcome can switch engines). */
-  #enterApp(id: string, at?: string): void {
-    const app = this.#apps.get(id);
-    if (!app) return;
-    this.#state.app = id;
-    if (this.#appsFailed.has(id)) {
-      this.#state.appNote = this.#appsFailed.get(id);
-      this.#setView("appError");
-      return;
-    }
-    this.#setView("app");
-    if (at) app.openAt?.(at);
-    app.show(APP_NOTE);
-  }
-
-  #retryApp(): void {
-    const id = this.#state.app;
-    const app = this.#apps.get(id ?? "");
-    if (!id || !app) return;
-    this.#appsFailed.delete(id);
-    app.restart();
-    this.#openApp(id);
-  }
-
-  async #refreshCouchCopy(id: string): Promise<void> {
-    const copy = this.#apps.get(id)?.signIn?.copyFromCouch;
-    if (!copy) return;
-    const check = ++this.#couchCheck;
-    const has = await availableWithin(() => copy.available());
-    if (check !== this.#couchCheck) return;
-    if (has === this.#couchCopy.has(id)) return;
-    if (has) this.#couchCopy.add(id);
-    else this.#couchCopy.delete(id);
-    this.#emit();
-  }
-
-  /** Settings → Apps → Copy sign-in from Couch. The App reads Couch's Chromium engine; core only hears how it went. */
-  async #copySignInFromCouch(id: string): Promise<void> {
-    const app = this.#apps.get(id);
-    const copy = app?.signIn?.copyFromCouch;
-    if (!app || !copy) return;
-    const result = await copy.copy().catch(() => ({ ok: false, reason: "failed" }) as const);
-    const toast = copyFromCouchToast(app.label, result);
-    if (toast) this.#toast(toast);
-    this.#emit();
-  }
-
-  /** Settings → Apps → Playback: the App swaps to its other engine; the rows and notes that depend on it are redrawn. */
-  async #switchPlayback(id: string): Promise<void> {
-    const app = this.#apps.get(id);
-    const playback = app?.playback;
-    if (!app || !playback) return;
-    const now = playback.current();
-    const next = playback.options.find((o) => o.id !== now.id);
-    if (!next) return;
-    this.#couchCopy.delete(id);
-    const failure = await playback.select(next.id).then(
-      () => undefined,
-      (e: unknown) => e,
-    );
-    this.#toast(
-      failure === undefined
-        ? `${app.label} now plays with ${next.label}`
-        : failure instanceof PlaybackUnavailable
-          ? failure.message
-          : `Couldn't switch ${app.label}'s playback`,
-    );
-    this.#emit();
-    void this.#refreshCouchCopy(id);
-  }
-
-  async #signOut(id: string): Promise<void> {
-    const app = this.#apps.get(id);
-    if (!app?.signIn) return;
-    const done = await app.signIn.signOut().then(
-      () => true,
-      () => false,
-    );
-    this.#toast(done ? `Signed out of ${app.label}` : `Couldn't sign out of ${app.label}`);
-    this.#emit();
-  }
-
-  #restartApp(id: string): void {
-    const app = this.#apps.get(id);
-    if (!app) return;
-    this.#appsFailed.delete(id);
-    app.restart();
-    this.#toast(`Restarting ${app.label}`);
-  }
-
   #onApp(app: App, event: AppEvent): void {
     const front = this.#state.app === app.id;
     switch (event.type) {
       case "loaded":
-        this.#appsFailed.delete(app.id);
+        this.#app.failed.delete(app.id);
         break;
       case "failed":
-        this.#appsFailed.set(app.id, event.note);
+        this.#app.failed.set(app.id, event.note);
         if (this.#state.view === "app" && front) {
           this.#state.appNote = event.note;
           this.#setView("appError");
@@ -2714,34 +1971,6 @@ export class Core {
     this.#emit();
   }
 
-  /** An App covers the Screen, so what Couch draws over it (volume, question, search bar) goes through the App. */
-  #syncApps(): void {
-    const front = this.#front();
-    for (const app of this.#apps.values()) {
-      const shown = this.#shown.get(app.id) ?? {};
-      const on = app === front;
-      const volume = on && this.#state.volumeShown ? this.#level() : undefined;
-      if (volume !== shown.volume) {
-        shown.volume = volume;
-        app.drawVolume(volume);
-      }
-      const c = on ? this.#state.confirm : undefined;
-      if (c?.title !== shown.confirm?.title || c?.focus !== shown.confirm?.focus) {
-        shown.confirm = c && { ...c };
-        app.showConfirm(c && { ...c });
-      }
-      const bar =
-        on && this.#state.typingBy !== undefined && this.#typingFor === "search"
-          ? this.#state.query
-          : undefined;
-      if (bar !== shown.bar) {
-        shown.bar = bar;
-        app.typing?.showSearchBar(bar);
-      }
-      this.#shown.set(app.id, shown);
-    }
-  }
-
   /** What the volume indicator shows: nothing while muted. */
   #level(): number {
     return this.#sound.muted ? 0 : this.#state.volume;
@@ -2772,74 +2001,18 @@ export class Core {
   #actionContext(): ActionContext {
     return {
       open: (view) => this.#setView(view),
-      openAppMenu: (id) => {
-        // The row waits for a fresh answer: an old one may be stale (the cookies can be gone).
-        this.#couchCopy.delete(id);
-        this.#homeApps.openMenu(id);
-        void this.#refreshCouchCopy(id);
-      },
-      openApp: (id) => this.#openApp(id),
-      retryApp: () => this.#retryApp(),
-      restartApp: (id) => this.#restartApp(id),
-      copySignInFromCouch: (id) => void this.#copySignInFromCouch(id),
-      signOut: (id) => void this.#signOut(id),
-      switchPlayback: (id) => void this.#switchPlayback(id),
+      openApp: (id) => this.#app.open(id),
       toast: (text) => this.#toast(text),
       forgetAllPhones: () => this.forgetAllPhones(),
       openUpdate: () => this.#openUpdate(),
-      toggleListener: () => void this.#toggleListener(),
+      toggleListener: () => void this.#login.toggle(),
       quit: () => this.#askQuit(),
     };
   }
 
-  /** The card the Remote shows under an App's menu: why the other playback engine isn't offered. */
-  #remoteNote(): RemoteNote | undefined {
-    const id = this.#homeApps.menuId;
-    const reason = id ? this.#apps.get(id)?.playback?.unavailable : undefined;
-    return reason ? { title: "Playback", steps: [reason] } : undefined;
-  }
-
-  #appMenuPayload(): Pick<ScreenPayload, "appMenu"> {
-    const app = this.#catalog().find((a) => a.id === this.#homeApps.menuId);
-    return app
-      ? {
-          appMenu: {
-            id: app.id,
-            label: app.label,
-          },
-        }
-      : {};
-  }
-
-  #loginItem = { available: false, on: false, running: false };
-
-  /** Reads the login item and whether a listener is really up (status file, pid, port) from the Mac. */
-  async refreshLoginItem(): Promise<void> {
-    const item = await this.#ports.mac.listenerLoginItem().catch(() => this.#loginItem);
-    const running =
-      item.available &&
-      !!(await liveListener(this.#ports.store, this.#ports.listenerProbe ?? systemProbe).catch(
-        () => undefined,
-      ));
-    this.#loginItem = { available: item.available, on: item.on, running };
-    this.#emit();
-  }
-
-  async #turnListenerOn(): Promise<void> {
-    await this.refreshLoginItem();
-    if (!this.#loginItem.on) await this.#toggleListener();
-  }
-
-  async #toggleListener(): Promise<void> {
-    await this.refreshLoginItem();
-    if (!this.#loginItem.available) return;
-    const turnOn = !this.#loginItem.on;
-    const door = this.#ports.frontdoor;
-    if (turnOn) await door?.beforeEnable().catch(() => {});
-    await this.#ports.mac.setListenerLoginItem(turnOn).catch(() => {});
-    await this.refreshLoginItem();
-    await door?.afterChange(this.#loginItem.on).catch(() => {});
-    await this.refreshLoginItem();
+  /** Reads the login item and whether a listener is really up from the Mac. */
+  refreshLoginItem(): Promise<void> {
+    return this.#login.refresh();
   }
 
   /** A toast from outside the core (start-up notices). */
@@ -2904,16 +2077,16 @@ export class Core {
     this.#syncPictureOff();
     this.#releaseStrayTyping();
     const raised =
-      this.#state.controls !== "hidden" &&
-      this.#state.controls !== "next" &&
+      this.#player.mode !== "hidden" &&
+      this.#player.mode !== "next" &&
       this.#state.player !== undefined;
-    const level = `${raised}${this.#state.controls === "upnext"}`;
+    const level = `${raised}${this.#player.mode === "upnext"}`;
     if (level !== this.#subtitlesRaised) {
       this.#subtitlesRaised = level;
-      this.#ports.player.setSubtitlesRaised(raised, this.#state.controls === "upnext");
+      this.#ports.player.setSubtitlesRaised(raised, this.#player.mode === "upnext");
     }
     this.#syncDisplayAwake();
-    this.#syncApps();
+    this.#overlays.sync();
     this.#syncCapture();
     for (const l of [...this.#listeners]) l();
   }

@@ -1,12 +1,12 @@
 /**
  * The Look guard's scanner: finds raw style values (colours, type, radii, shadows, blurs, easing, durations)
  * in each surface's styles, so every one comes from the Look. Used by the guard tests only
- * (src/renderer/look-guard.test.ts for the Screen, src/shared/look-guard.test.ts for the others).
+ * (src/renderer/look-guard.test.ts for the Screen, src/main/look-guard.test.ts for the others).
  */
 import { readFileSync } from "node:fs";
-import { REMOTE_PAGE } from "../main/remote/page.ts";
-import { GLASS, lookTokens } from "./look.ts";
-import { quickSettingsPage } from "./quick-settings-page.ts";
+import { REMOTE_PAGE } from "../remote/page.ts";
+import { GLASS, lookTokens } from "../../shared/look.ts";
+import { quickSettingsPage } from "../../shared/quick-settings-page.ts";
 
 export type SurfaceName = "Screen" | "phone" | "Quick settings" | "Web App controls";
 
@@ -167,7 +167,7 @@ export const SCREEN_CSS = ["glass.css", "home.css", "player-overlay.css", "style
 
 /** Every part of the four surfaces that carries styles. */
 export function lookSurfaces(): StyleSource[] {
-  const screenCss = SCREEN_CSS.map((f) => [f, read(`../renderer/${f}`)] as const);
+  const screenCss = SCREEN_CSS.map((f) => [f, read(`../../renderer/${f}`)] as const);
   const screenOwn = new Set([
     ...SCREEN_OWN,
     ...screenCss.flatMap(([, css]) =>
@@ -187,7 +187,7 @@ export function lookSurfaces(): StyleSource[] {
       name: "picture-off.ts",
       kind: "css",
       // Interpolations are the Look's values; read each as a variable.
-      text: read("./picture-off.ts").replace(/\$\{[^}]*\}/g, "var(--look)"),
+      text: read("../../shared/picture-off.ts").replace(/\$\{[^}]*\}/g, "var(--look)"),
       own: new Set(["--u", "--look"]),
     },
     {
@@ -204,7 +204,7 @@ export function lookSurfaces(): StyleSource[] {
       text: pageStyles(quickSettingsPage({ glass })),
       own: new Set(),
     })),
-    ...["../main/web/web-hud.ts", "./confirm-layout.ts"].map((path): StyleSource => ({
+    ...["../web/web-hud.ts", "../../shared/confirm-layout.ts"].map((path): StyleSource => ({
       surface: "Web App controls",
       name: path.split("/").pop()!,
       kind: "script",
