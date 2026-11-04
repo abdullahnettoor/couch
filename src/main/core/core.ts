@@ -70,6 +70,7 @@ import { SoundOutput } from "./sound-output.ts";
 import { InterfaceSounds } from "./interface-sounds.ts";
 import { QuickSettings } from "./quick-settings.ts";
 import { Setup } from "./setup.ts";
+import type { SetupStep } from "./setup-steps.ts";
 import { LibrarySearchView } from "./library-search-view.ts";
 import { AMBIENT_MS, filmAfterFocus, homeGrid } from "./home-view.ts";
 import type { TimeFormat } from "../../shared/clock-format.ts";
@@ -152,6 +153,8 @@ export interface Ports {
   wallpapers?: WallpaperPorts;
   /** The updater: Settings → About and Home's update icon (an inert one when Couch runs from the repo). */
   updates: Updates;
+  /** Setup's steps; the real list unless a test adds a fake one. */
+  setupSteps?: SetupStep[];
   /** Show and film details (TMDB). Without it, everything uses frames. */
   metadata?: Metadata;
   /** The project's TMDB key, built into release builds; used when the household has none of its own. */
@@ -365,16 +368,21 @@ export class Core {
     });
     this.#state.volume = this.#sound.volume;
     this.#uiSounds = new InterfaceSounds(ports.store);
-    this.#setup = new Setup({
-      store: ports.store,
-      usedBefore: () => this.#usedBefore(),
-      listenerOn: () => this.#loginItem.on,
-      turnListenerOn: () => void this.#turnListenerOn(),
-      phones: () => this.#remotes.size,
-      later: (fn, ms) => ports.clock.setTimeout(fn, ms),
-      cue: (sound) => this.#cue(sound),
-      changed: () => this.#emit(),
-    });
+    this.#setup = new Setup(
+      {
+        store: ports.store,
+        atHome: () => this.#state.view === "home",
+        version: () => ports.updates.version,
+        listenerOn: () => this.#loginItem.on,
+        turnListenerOn: () => void this.#turnListenerOn(),
+        usedBefore: () => this.#usedBefore(),
+        phones: () => this.#remotes.size,
+        later: (fn, ms) => ports.clock.setTimeout(fn, ms),
+        cue: (sound) => this.#cue(sound),
+        changed: () => this.#emit(),
+      },
+      ports.setupSteps,
+    );
     this.#quick = new QuickSettings({
       clock: ports.clock,
       sound: this.#sound,

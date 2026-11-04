@@ -1,5 +1,9 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 import { MemoryStore } from "./ports/store.ts";
+import { SETUP_STEPS, type SetupStep } from "./core/setup-steps.ts";
 import { startHarness, type Harness } from "./testing/harness.ts";
 
 let h: Harness;
@@ -193,6 +197,131 @@ describe("the Listener step", () => {
     h.app.screenCommand({ command: "ok" });
     expect(h.screen.last.setup?.id).toBe("done");
     expect(loginItemCalls()).toEqual([]);
+  });
+});
+
+describe("New in Couch: steps added by an update", () => {
+  const fake: SetupStep = {
+    id: "remote-style",
+    done: () => false,
+    page: () => ({ title: "Remote style", buttons: [{ label: "Pick one", run: (c) => c.next() }] }),
+  };
+  const steps = [...SETUP_STEPS.slice(0, -1), fake, SETUP_STEPS.at(-1)!];
+  const start = async (store: MemoryStore, options: { setup?: "fresh" } = {}) => {
+    h = await startHarness(store, { ...options, setupSteps: steps });
+  };
+  const finished = () => {
+    const store = new MemoryStore();
+    store.write("setup", { finished: true, seen: ["welcome", "pair", "listener", "done"] });
+    return store;
+  };
+  const later = () => h.app.screenCommand({ command: "confirmAt", args: { index: 2 } });
+
+  test("a restart shows only the new step, titled with the version, and marks it seen when done", async () => {
+    const store = finished();
+    await start(store);
+    expect(h.screen.last.setup).toEqual({
+      id: "remote-style",
+      title: "New in Couch 0.2.0",
+      body: "Remote style",
+      step: 0,
+      steps: 1,
+      buttons: ["Pick one", "Skip", "Set up later"],
+      focus: 0,
+    });
+    h.app.screenCommand({ command: "ok" });
+    expect(h.screen.last.setup).toBeUndefined();
+    expect(store.read("setup", undefined)).toMatchObject({
+      finished: true,
+      seen: ["welcome", "pair", "listener", "done", "remote-style"],
+    });
+    await h.stop();
+    await start(store);
+    expect(h.screen.last.setup).toBeUndefined();
+  });
+
+  test("Skip marks the step seen too", async () => {
+    const store = finished();
+    await start(store);
+    h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
+    expect(h.screen.last.setup).toBeUndefined();
+    expect(store.read<{ seen?: string[] }>("setup", {}).seen).toContain("remote-style");
+  });
+
+  test("with no new step nothing shows", async () => {
+    h = await startHarness(finished());
+    expect(h.screen.last.setup).toBeUndefined();
+  });
+
+  test("waits behind the Library player after Power and Resume", async () => {
+    const root = mkdtempSync(join(tmpdir(), "couch-setup-"));
+    const file = join(root, "A.Film.2001.mkv");
+    writeFileSync(file, "");
+    const store = finished();
+    store.write("library", { folders: [root] });
+    store.write("history", { items: { [file]: { at: 1, position: 600, duration: 7200 } } });
+    try {
+      await start(store);
+      h.app.screenCommand({ command: "resume" });
+      expect(h.screen.last.state.view).toBe("player");
+      expect(h.screen.last.setup).toBeUndefined();
+      h.app.screenCommand({ command: "back" });
+      expect(h.screen.last.state.view).toBe("home");
+      expect(h.screen.last.setup?.id).toBe("remote-style");
+    } finally {
+      await h?.stop();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("waits behind a web App after Power and Resume", async () => {
+    const store = finished();
+    store.write("continue-apps", {
+      items: [
+        {
+          app: "youtube",
+          title: "Cat video",
+          url: "https://www.youtube.com/tv#/watch?v=dQw4w9WgXcQ&t=300",
+          position: 300,
+          duration: 3000,
+          at: 1,
+        },
+      ],
+    });
+    await start(store);
+    h.app.screenCommand({ command: "resume" });
+    expect(h.screen.last.state.view).toBe("app");
+    expect(h.screen.last.setup).toBeUndefined();
+    h.app.screenCommand({ command: "home" });
+    expect(h.screen.last.setup?.id).toBe("remote-style");
+  });
+
+  test.each([
+    ["Later", later],
+    ["Home", () => h.app.screenCommand({ command: "home" })],
+  ])("%s once asks again on the next start; a second time doesn't", async (_, defer) => {
+    const store = finished();
+    await start(store);
+    defer();
+    expect(h.screen.last.setup).toBeUndefined();
+    await h.stop();
+    await start(store);
+    expect(h.screen.last.setup?.id).toBe("remote-style");
+    defer();
+    await h.stop();
+    await start(store);
+    expect(h.screen.last.setup).toBeUndefined();
+    expect(store.read<{ seen?: string[] }>("setup", {}).seen).toContain("remote-style");
+  });
+
+  test("a fresh install that finishes Setup never sees New in Couch for its steps", async () => {
+    const store = new MemoryStore();
+    await start(store, { setup: "fresh" });
+    expect(h.screen.last.setup?.title).toBe("Welcome to Couch");
+    later();
+    await h.stop();
+    await start(store);
+    expect(h.screen.last.setup).toBeUndefined();
   });
 });
 
