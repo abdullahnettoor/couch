@@ -1,5 +1,6 @@
 import type {
   GridItem,
+  RemoteId,
   ScreenPayload,
   ScreenState,
   UiSound,
@@ -37,6 +38,13 @@ export interface Page {
   leave?(to: View): void;
 }
 
+/** Focus by view key. */
+export interface PageFocus {
+  get(key: string): { r: number; c: number } | undefined;
+  set(key: string, cell: { r: number; c: number }): void;
+  clear(key: string): void;
+}
+
 /** What `Core` hands to each Page. The state is read-only: the type checker refuses a write to `state.view`. */
 export interface PageContext {
   readonly state: Readonly<ScreenState>;
@@ -45,6 +53,16 @@ export interface PageContext {
   toast(text: string): void;
   /** The confirm question. */
   ask(title: string, buttons: string[], answers: Array<() => void>, more?: { body: string }): void;
+  /** Focus cells by view key. Pages set focus here, never on the state. */
+  readonly focus: PageFocus;
+  /** The key of the current view's focus (a folder has one per path). */
+  viewKey(): string;
+  /** Sets the Screen state a Page owns besides the view, focus and typing. */
+  set(patch: Partial<Pick<ScreenState, "showId" | "showTab" | "folderPath">>): void;
+  /** Starts a typing session for a Page's own purpose; `by` is the phone, or the Screen. */
+  startTyping(by: RemoteId, purpose: "librarySearch" | "tmdbKey"): void;
+  /** Ends the typing session without cancelling anything. */
+  stopTyping(): void;
   /** Plays an Interface sound. */
   cue(sound: UiSound): void;
   /** Tells the Screen and phones the state changed. */

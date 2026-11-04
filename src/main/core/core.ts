@@ -1,11 +1,9 @@
-import { existsSync } from "node:fs";
 import { safeEqual } from "../constant-time.ts";
 import { liveListener, systemProbe, type ListenerProbe } from "../listener.ts";
 import { dirname, basename } from "node:path";
 import {
   VIEW_LABELS,
   type LibraryEntry,
-  type LibraryPayload,
   type Command,
   type GridItem,
   type RemoteId,
@@ -57,16 +55,16 @@ import { actionFor, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
 import { MediaLibrary } from "./media-library.ts";
 import { artFor, type PathArt } from "./art.ts";
-import { libraryRows, tileAction, topGenres } from "./library-rows.ts";
-import { autoRows, chipsFor, keepFor } from "./library-chips.ts";
-import { presentation, hueFor, listFolder, mosaicSources, rootEntries } from "./library.ts";
+import { topGenres } from "./library-rows.ts";
+import { presentation, hueFor, listFolder } from "./library.ts";
 import { applyEdit, type TextEdit } from "../../shared/keyboard.ts";
-import type { LibraryChip, TrackList, UpNextItem } from "../../shared/protocol.ts";
+import type { TrackList, UpNextItem } from "../../shared/protocol.ts";
 import { PlayerControls } from "./player-controls.ts";
 import { History } from "./history.ts";
 import { ContinueApps, fromStartUrl, titleId, titleKey } from "./continue-apps.ts";
 import { ContinueArt, type ArtFetch } from "./continue-art.ts";
-import { ShowView } from "./show-view.ts";
+import { ShowView } from "./pages/show-view.ts";
+import { LibraryPage } from "./pages/library-page.ts";
 import { AddonsPage } from "./pages/addons-page.ts";
 import type { Page, PageContext } from "./pages/page.ts";
 import { APPS_MENU_KEY, HomeApps, leavesOnHide } from "./home-apps.ts";
@@ -80,7 +78,7 @@ import { InterfaceSounds } from "./interface-sounds.ts";
 import { QuickSettings } from "./quick-settings.ts";
 import { Setup } from "./setup.ts";
 import type { SetupStep } from "./setup-steps.ts";
-import { LibrarySearchView } from "./library-search-view.ts";
+import { LibrarySearchPage } from "./pages/library-search-page.ts";
 import { AMBIENT_MS, filmAfterFocus, homeGrid } from "./home-view.ts";
 import type { TimeFormat } from "../../shared/clock-format.ts";
 import { AppSpeed } from "./app-speed.ts";
@@ -115,8 +113,6 @@ const UPDATE_ICON: GridItem = {
 
 /** Home's row fits this many tiles: its App tiles, then Continue watching. */
 const HOME_ROW_TILES = 5;
-const TILE_COLUMNS = 4;
-const LIBRARY_VIEWS = ["library", "folder", "libraryFolders"];
 /** Views where a phone's Search button opens the Library search. */
 const TYPING_VIEW = { search: "app", tmdbKey: "details", librarySearch: "librarySearch" };
 type Purpose = keyof typeof TYPING_VIEW;
@@ -255,8 +251,6 @@ export class Core {
   #leaveConfirm: Confirmation | undefined;
   #appsOff: Array<() => void> = [];
   #libraryFolders: string[];
-  /** The open folder's contents, read fresh each time it is opened. */
-  #listing: LibraryEntry[] = [];
   /** Where the playing video was started from; leaving playback returns there. */
   #playedFrom: View = "folder";
   #mpvMissing = false;
@@ -264,8 +258,6 @@ export class Core {
   #subtitlesRaised = "falsefalse";
   #unsubPlayer: () => void;
   #thumbs: ThumbnailScheduler;
-  #mosaics = new Map<string, { sources: string[]; count: number }>();
-  #rootKey: string | undefined;
   #controls: PlayerControls;
   #history: History;
   #appTitles: ContinueApps;
@@ -290,11 +282,8 @@ export class Core {
   #uiSounds: InterfaceSounds;
   #quick: QuickSettings;
   #setup: Setup;
-  #search: LibrarySearchView;
-  /** Where Back from a show page goes: the Library, or the search it was opened from. */
-  /** The active filter chip on the Library's first page (a chip key), if any. */
-  #chip: string | undefined;
-  #showFrom: "library" | "librarySearch" = "library";
+  #search: LibrarySearchPage;
+  #libraryPage: LibraryPage;
   #dataVersion = 0;
   /** What the phone currently typing is typing into. */
   #typingFor: Purpose | undefined;
@@ -358,23 +347,37 @@ export class Core {
       changed: () => this.#emit(),
     });
     this.#thumbs = new ThumbnailScheduler(ports.thumbnails, () => this.#emit());
-    this.#show = new ShowView(this.#state, {
+    const pageContext: PageContext = {
+      state: this.#state,
+      focus: {
+        get: (key) => this.#state.focus[key],
+        set: (key, cell) => void (this.#state.focus[key] = cell),
+        clear: (key) => void delete this.#state.focus[key],
+      },
+      viewKey: () => this.viewKey,
+      set: (patch) => void Object.assign(this.#state, patch),
+      startTyping: (by, purpose) => {
+        this.#state.typingBy = by;
+        this.#typingFor = purpose;
+      },
+      stopTyping: () => {
+        this.#state.typingBy = undefined;
+      },
+      go: (view) => this.#setView(view),
+      toast: (text) => this.#toast(text),
+      ask: (title, buttons, answers, more) => this.#ask(title, buttons, answers, more),
+      cue: (sound) => this.#cue(sound),
+      emit: () => this.#emit(),
+    };
+    this.#show = new ShowView(pageContext, {
       library: this.library,
       history: this.#history,
       details: this.details,
       thumbs: this.#thumbs,
       art: (path) => this.#art(path),
       grid: () => this.#currentGrid(),
-      viewKey: () => this.viewKey,
-      focusedEntry: () => {
-        const focused = resolveFocus(this.#currentGrid(), this.#state.focus[this.viewKey]);
-        return this.#rows()
-          .rows.flatMap((r) => r.entries)
-          .find((e) => (e.id ?? e.path) === focused?.id);
-      },
+      focusedEntry: () => this.#libraryPage.focusedEntry(),
       play: (path, fromStart) => this.#play(path, fromStart),
-      setView: (view) => this.#setView(view),
-      toast: (text) => this.#toast(text),
       changed: () => this.#emit(),
     });
     this.#sound = new SoundOutput({
@@ -438,14 +441,6 @@ export class Core {
         this.#emit();
       },
     });
-    const pageContext: PageContext = {
-      state: this.#state,
-      go: (view) => this.#setView(view),
-      toast: (text) => this.#toast(text),
-      ask: (title, buttons, answers, more) => this.#ask(title, buttons, answers, more),
-      cue: (sound) => this.#cue(sound),
-      emit: () => this.#emit(),
-    };
     this.#addonsPage = new AddonsPage(pageContext, {
       store: ports.store,
       apply: (app, ids, note) => this.#apps.get(app)?.setAddons?.(ids, note),
@@ -478,7 +473,7 @@ export class Core {
       setView: (view) => this.#setView(view),
       toast: (text) => this.#toast(text),
     });
-    this.#search = new LibrarySearchView(this.#state, {
+    this.#search = new LibrarySearchPage(pageContext, {
       library: this.library,
       history: this.#history,
       details: (id) => this.details.detailsFor(id),
@@ -487,17 +482,34 @@ export class Core {
       clock: ports.clock,
       changed: () => this.#emit(),
       decorate: (e) => this.#decorate(e),
-      startTyping: (remote) => {
-        this.#state.typingBy = remote;
-        this.#typingFor = "librarySearch";
-      },
       connectedPhone: () =>
         this.#lastFrom !== undefined && this.#remotes.has(this.#lastFrom)
           ? this.#lastFrom
           : undefined,
-      setView: (view) => this.#setView(view),
-      toast: (text) => this.#toast(text),
     });
+    this.#libraryPage = new LibraryPage(pageContext, {
+      library: this.library,
+      details: this.details,
+      history: this.#history,
+      thumbs: this.#thumbs,
+      decorate: (e) => this.#decorate(e),
+      continueEntries: () => this.#libraryContinueEntries(),
+      folders: () => this.#libraryFolders,
+      addFolder: () => this.#addFolder(),
+      saveFolders: (folders) => this.#saveFolders(folders),
+      source: () => this.#source,
+      playContinue: (path, fromStart) => this.#playContinue(path, fromStart),
+      openShow: (id) => this.#show.open(id),
+      openSearch: () => {
+        this.#search.open();
+        if (this.#source === "screen") this.#search.action("search:field", "screen");
+      },
+    });
+    for (const view of ["library", "folder", "libraryFolders"] as const)
+      this.#pages.set(view, this.#libraryPage);
+    this.#pages.set("librarySearch", this.#search);
+    this.#pages.set("show", this.#show.page);
+    this.#pages.set("fixMatch", this.#show.fixPage);
     this.#libraryFolders = Array.isArray(lib.folders)
       ? lib.folders.filter((f): f is string => typeof f === "string")
       : [];
@@ -613,97 +625,15 @@ export class Core {
     return view === "folder" ? `folder:${folderPath}` : view;
   }
 
-  #isLibraryView(): boolean {
-    return LIBRARY_VIEWS.includes(this.#state.view);
-  }
-
-  /** The Library views are built here from disk; other views' grids come from the renderer. */
-  #library(focusedId?: string): LibraryPayload | undefined {
-    switch (this.#state.view) {
-      case "library": {
-        const rows = this.#rows().rows;
-        const folders = this.#chip ? [] : rootEntries(this.#libraryFolders);
-        const ids = [...rows.flatMap((r) => r.entries), ...folders].map((e) => e.id ?? e.path);
-        if (focusedId && ids.includes(focusedId)) this.#lastTile = focusedId;
-        else if (this.#lastTile && !ids.includes(this.#lastTile)) this.#lastTile = undefined;
-        const featuredId = this.#lastTile ?? ids[0];
-        return {
-          heading: "Library",
-          entries: this.#chip
-            ? []
-            : rootEntries(this.#libraryFolders).map((e) => ({
-                ...this.#withMosaic(e),
-                feature: { kind: "Folder" as const, title: e.title },
-              })),
-          continueWatching: this.#libraryContinueEntries(),
-          rows,
-          chips: this.#chips(),
-          ...(featuredId ? { featuredId } : {}),
-          emptyText: "No folders yet. Add one in Settings on the Mac.",
-        };
-      }
-      case "folder":
-        return {
-          heading: basename(this.#state.folderPath ?? ""),
-          entries: this.#listing.map((e) => this.#withMosaic(this.#decorate(e))),
-          emptyText: "No videos in this folder.",
-        };
-      case "libraryFolders":
-        return { heading: "Library folders", entries: [], folders: this.#libraryFolders };
-      default:
-        return undefined;
-    }
-  }
-
-  /** The tile focused on the Library's first page, so rows that change under it don't move focus. */
-  #rootFocusId: string | undefined;
   /** Home: the film card whose backdrop shows (focused, or last focused while Resume / From start has focus). */
   #homeFilm: string | undefined;
   #ambient = false;
   #cancelAmbient: (() => void) | undefined;
   #timeFormat: TimeFormat = "12";
   #offTimeFormat: (() => void) | undefined;
-  /** The last tile focused on the Library's first page; the featured area keeps showing it while a chip or icon has focus. */
-  #lastTile: string | undefined;
 
   #keepLibraryFocus(): void {
-    if (this.#state.view !== "library" || !this.#rootFocusId) return;
-    const at = this.#currentGrid().find((i) => i.id === this.#rootFocusId);
-    if (at) this.#state.focus[this.viewKey] = { r: at.r, c: at.c };
-  }
-
-  /** The chip row; an active chip that no longer exists is dropped. */
-  #chips(): LibraryChip[] {
-    const make = () =>
-      chipsFor({
-        details: this.details,
-        shows: this.library.shows().length,
-        films: this.library.films().length,
-        active: this.#chip,
-      });
-    let chips = make();
-    if (this.#chip && !chips.some((c) => c.key === this.#chip)) {
-      this.#chip = undefined;
-      chips = make();
-    }
-    return chips;
-  }
-
-  #rows(): ReturnType<typeof libraryRows> {
-    const chips = this.#chips();
-    return libraryRows({
-      ...(this.#chip && chips.length
-        ? { keep: keepFor(this.#chip, this.details) }
-        : this.#state.view === "library"
-          ? { auto: autoRows(this.details) }
-          : {}),
-      library: this.library,
-      history: this.#history,
-      decorate: (e) => this.#decorate(e),
-      continueEntries: this.#libraryContinueEntries(),
-      thumb: (p) => this.#thumbs.urlFor(p),
-      details: (id) => this.details.detailsFor(id),
-    });
+    this.#libraryPage.keepFocus();
   }
 
   /** TMDB details for a video path (its show or film, and the episode's own name, overview and still). */
@@ -741,39 +671,6 @@ export class Core {
       };
     }
     return this.#history.isWatched(entry.path) ? { ...entry, watched: true } : entry;
-  }
-
-  /** A video's picture, or a folder's mosaic and count, from what has been made so far. */
-  #withMosaic(entry: LibraryEntry): LibraryEntry {
-    if (entry.kind === "video") {
-      const thumb = this.#thumbs.urlFor(entry.path);
-      return thumb ? { ...entry, thumb } : entry;
-    }
-    const m = this.#mosaics.get(entry.path);
-    if (!m || entry.missing) return entry;
-    const mosaic = m.sources.flatMap((p) => this.#thumbs.urlFor(p) ?? []);
-    return { ...entry, count: m.count, ...(mosaic.length ? { mosaic } : {}) };
-  }
-
-  /** On arriving at the Library's first page, finds each folder's mosaic sources and queues their pictures. */
-  #syncRoot(): void {
-    if (this.#state.view !== "library") {
-      this.#rootKey = undefined;
-      return;
-    }
-    const rows = this.#rows();
-    const key = [...this.#libraryFolders, "", ...rows.wanted].join("\0");
-    if (this.#rootKey === key) return;
-    this.#rootKey = key;
-    this.#mosaics.clear();
-    const paths: string[] = [...rows.wanted];
-    for (const f of this.#libraryFolders) {
-      if (!existsSync(f)) continue;
-      const m = mosaicSources(f);
-      this.#mosaics.set(f, m);
-      paths.push(...m.sources);
-    }
-    this.#thumbs.want(paths);
   }
 
   /** Home's Continue watching and the Remote's card: Library videos and App titles together, newest first. */
@@ -924,113 +821,9 @@ export class Core {
       return this.#homeApps.menuId
         ? this.#homeApps.menuGrid()
         : this.#homeApps.grid((id) => `${SETTINGS_APP}${id}`);
-    if (this.#state.view === "show") return this.#show.grid();
-    if (this.#state.view === "fixMatch") return this.#show.fixGrid();
-    if (this.#state.view === "librarySearch") return this.#search.grid();
     if (this.#state.view === "credits")
       return [{ id: "done", r: 0, c: 0, label: "Done", action: "back", initial: true }];
-    if (!this.#isLibraryView()) return STATIC_GRIDS[this.viewKey] ?? [];
-    const lib = this.#library()!;
-    if (lib.folders) {
-      return [
-        { id: "add", r: 0, c: 0, label: "Add folder", action: "library:add", initial: true },
-        ...lib.folders.map((f, i) => ({
-          id: f,
-          r: i + 1,
-          c: 0,
-          label: f,
-          action: `library:remove:${f}`,
-        })),
-      ];
-    }
-    const tile = (e: LibraryEntry, r: number, c: number, initial: boolean): GridItem => ({
-      id: e.id ?? e.path,
-      r,
-      c,
-      label: e.title,
-      action: tileAction(e),
-      initial,
-    });
-    // Row 0 is the top strip's gear, as on Home; the chips are row 1 when there are any; each page row is one grid row, Folders wrap below.
-    const rows = lib.rows ?? [];
-    const chips = lib.chips ?? [];
-    const top = chips.length ? 2 : 1;
-    const chipItems: GridItem[] = chips.map((c, i) => ({
-      id: `chip:${c.key}`,
-      r: 1,
-      c: i,
-      label: c.label,
-      action: `library:chip:${c.key}`,
-    }));
-    const tiles = [
-      ...rows.flatMap((row, r) =>
-        row.entries.map((e, c) => tile(e, top + r, c, r === 0 && c === 0)),
-      ),
-      ...lib.entries.map((e, i) =>
-        tile(
-          e,
-          top + rows.length + Math.floor(i / TILE_COLUMNS),
-          i % TILE_COLUMNS,
-          rows.length === 0 && i === 0,
-        ),
-      ),
-    ];
-    const gear: GridItem = {
-      id: "settings",
-      r: 0,
-      c: 0,
-      label: "Settings",
-      action: "open:settings",
-      initial: tiles.length === 0,
-    };
-    const search: GridItem = {
-      id: "search",
-      r: 0,
-      c: -1,
-      label: "Search",
-      action: "library:search",
-    };
-    return [search, gear, ...chipItems, ...tiles];
-  }
-
-  #openFolder(path: string): void {
-    const entries = listFolder(path);
-    if (!entries) return this.#toast("Connect the drive to see this folder");
-    this.#listing = entries;
-    this.#mosaics.clear();
-    const paths = entries.filter((e) => e.kind === "video").map((e) => e.path);
-    for (const e of entries) {
-      if (e.kind !== "folder") continue;
-      const m = mosaicSources(e.path);
-      this.#mosaics.set(e.path, m);
-      paths.push(...m.sources);
-    }
-    this.#thumbs.want(paths);
-    this.#state.folderPath = path;
-    this.#state.view = "folder";
-  }
-
-  #libraryAction(action: string): boolean {
-    if (!action.startsWith("library:")) return false;
-    const [, verb, ...rest] = action.split(":");
-    const arg = rest.join(":");
-    if (verb === "missing") this.#toast("Connect the drive to see this folder");
-    else if (verb === "open") this.#openFolder(arg);
-    else if (verb === "play") this.#playContinue(arg);
-    else if (verb === "playstart") this.#playContinue(arg, true);
-    else if (verb === "search") {
-      this.#search.open();
-      if (this.#source === "screen") this.#search.action("search:field", "screen");
-    } else if (verb === "chip") {
-      this.#chip = this.#chip === arg || arg === "all" ? undefined : arg;
-      this.#lastTile = undefined;
-    } else if (verb === "show") {
-      this.#showFrom = this.#state.view === "librarySearch" ? "librarySearch" : "library";
-      this.#show.open(arg);
-    } else if (verb === "remove") this.#saveFolders(this.#libraryFolders.filter((f) => f !== arg));
-    else if (verb === "add") this.#addFolder();
-    else return false;
-    return true;
+    return STATIC_GRIDS[this.viewKey] ?? [];
   }
 
   /** Removes an entry from Continue watching: an App title for good, a Library video's saved position. */
@@ -1082,7 +875,7 @@ export class Core {
     const switching = this.#state.view === "player";
     if (switching) this.savePlayingPosition();
     else this.#playedFrom = this.#state.view === "folder" ? "folder" : this.#state.view;
-    if (this.#playedFrom === "folder") this.#focusEntry(path);
+    if (this.#playedFrom === "folder") this.#libraryPage.focusEntry(path);
     const show = this.library.showOf(path);
     const upNext: LibraryEntry[] = show
       ? show.seasons.flatMap((se) =>
@@ -1102,7 +895,7 @@ export class Core {
       this.#speed = 1;
       this.#quiet(this.#ports.player.setSpeed(1));
     }
-    this.#state.view = "player";
+    this.#setView("player");
     this.#controls.begin(upNext);
     this.#cancelNote?.();
     this.#resumeNote = undefined;
@@ -1130,20 +923,6 @@ export class Core {
     if (p) this.#history.save(p.path, p.pos, p.dur, this.#ports.clock.now());
   }
 
-  /** Focus a video's tile in the open folder, if listed. */
-  #focusEntry(path: string, next = false): void {
-    let index = this.#listing.findIndex((e) => e.path === path);
-    if (index === -1) return;
-    if (next) {
-      const after = this.#listing.slice(index + 1).findIndex((e) => e.kind === "video");
-      if (after !== -1) index += 1 + after;
-    }
-    this.#state.focus[`folder:${this.#state.folderPath}`] = {
-      r: 1 + Math.floor(index / TILE_COLUMNS),
-      c: index % TILE_COLUMNS,
-    };
-  }
-
   /** Leave playback for a view, saving the position first. */
   #endPlayback(toast?: string, ended = false): void {
     const p = this.#state.player;
@@ -1156,12 +935,12 @@ export class Core {
     this.#state.player = undefined;
     this.#controls.end();
     if (this.#playedFrom === "folder") {
-      this.#focusEntry(p.path, ended);
-      this.#state.view = this.#state.folderPath ? "folder" : "library";
+      this.#libraryPage.focusEntry(p.path, ended);
+      this.#setView(this.#state.folderPath ? "folder" : "library");
     } else if (this.#playedFrom === "show" && this.#state.showId) {
       this.#show.returnTo(p.path, ended);
     } else {
-      this.#state.view = this.#playedFrom === "show" ? "library" : this.#playedFrom;
+      this.#setView(this.#playedFrom === "show" ? "library" : this.#playedFrom);
       if (this.#state.view === "home") this.#focusHomeCard(p.path);
     }
     if (toast) this.#toast(toast);
@@ -1469,10 +1248,9 @@ export class Core {
 
   /** Everything the Screen renderer needs to draw. */
   screen(): ScreenPayload {
-    this.#syncRoot();
+    this.#libraryPage.sync();
     const grid = this.#currentGrid();
     const focused = resolveFocus(grid, this.#state.focus[this.viewKey]);
-    if (this.#state.view === "library") this.#rootFocusId = focused?.id;
     const homeVideos = this.#homeContinue();
     const quick = this.#quick.payload();
     const setup = this.#setup.payload();
@@ -1482,10 +1260,6 @@ export class Core {
       playing: this.#pictureScope() !== undefined,
       muted: this.#sound.muted,
       ...this.#backPayload(),
-      library: this.#library(focused?.id),
-      ...(this.#state.view === "show" ? this.#show.payload() : {}),
-      ...(this.#state.view === "fixMatch" ? this.#show.fixPayload() : {}),
-      ...(this.#state.view === "librarySearch" ? this.#search.payload() : {}),
       ...(this.#state.view === "details" ||
       this.#state.view === "settings" ||
       this.#state.view === "settingsLibrary" ||
@@ -1532,15 +1306,14 @@ export class Core {
     return {
       type: "snapshot",
       where:
-        s.view === "library" && this.#chip
-          ? `Library · ${this.#chips().find((c) => c.active)?.label ?? ""}`
-          : s.view === "folder"
-            ? basename(s.folderPath ?? "")
-            : s.view === "show"
-              ? (this.library.show(s.showId ?? "")?.name ?? VIEW_LABELS.show)
-              : s.view === "app" || s.view === "appError"
-                ? (this.#apps.get(s.app ?? "")?.label ?? VIEW_LABELS[s.view])
-                : VIEW_LABELS[s.view],
+        this.#libraryPage.chipLine() ??
+        (s.view === "folder"
+          ? basename(s.folderPath ?? "")
+          : s.view === "show"
+            ? (this.library.show(s.showId ?? "")?.name ?? VIEW_LABELS.show)
+            : s.view === "app" || s.view === "appError"
+              ? (this.#apps.get(s.app ?? "")?.label ?? VIEW_LABELS[s.view])
+              : VIEW_LABELS[s.view]),
       view: s.view,
       layout:
         s.view === "app"
@@ -2284,9 +2057,6 @@ export class Core {
     const page = this.#pages.get(this.#state.view);
     if (page?.move) {
       page.move(direction);
-    } else if (this.#state.view === "show") {
-      this.#show.move(direction);
-      this.#show.syncTab();
     } else {
       const next = moveFocus(grid, current, direction);
       this.#state.focus[this.viewKey] = { r: next.r, c: next.c };
@@ -2317,27 +2087,18 @@ export class Core {
     if (item.action === "back") return this.#back();
     if (
       this.#pages.get(this.#state.view)?.action(item.action, this.#source) ||
-      this.#libraryAction(item.action) ||
+      this.#libraryPage.action(item.action) ||
       this.#detailsPage.action(item.action, this.#source) ||
       this.#sound.action(item.action) ||
       this.#uiSounds.action(item.action) ||
       this.#homePage.action(item.action) ||
-      this.#homeApps.action(item.action) ||
-      this.#search.action(item.action, this.#source) ||
-      this.#show.action(item.action)
+      this.#homeApps.action(item.action)
     )
       return;
     const action = actionFor(item.action);
     // Placeholder Apps until they exist.
     if (action) action(this.#actionContext());
     else this.#toast(`${item.label} is coming soon`);
-  }
-
-  /** Whether a folder's Back goes up to the Library (a Library folder, or one outside every Library folder) rather than to its parent folder. */
-  #folderToLibrary(path: string): boolean {
-    return (
-      this.#libraryFolders.includes(path) || !this.#libraryFolders.some((f) => path.startsWith(f))
-    );
   }
 
   /** What Back does now, named: the one place that decides, for the back link's label and for Back itself. */
@@ -2365,38 +2126,14 @@ export class Core {
       if (!back) return undefined;
       return {
         ...(back.label ? { label: back.label } : {}),
-        act: () => {
-          back.act();
-          this.#keepLibraryFocus();
-        },
+        act: () => back.act(),
       };
     }
     const go = (label: string, act: () => void) => ({ label, act });
-    if (view === "folder") {
-      const path = this.#state.folderPath ?? "";
-      return this.#folderToLibrary(path)
-        ? go(VIEW_LABELS.library, () => (this.#state.view = "library"))
-        : go(basename(dirname(path)), () => this.#openFolder(dirname(path)));
-    }
-    if (view === "library" && this.#chip) {
-      return go("All", () => {
-        this.#chip = undefined;
-        this.#state.focus[this.viewKey] = { r: 1, c: 0 };
-      });
-    }
     if (view === "settingsApps" && this.#homeApps.menuId) {
       return go(VIEW_LABELS.settingsApps, () => {
         delete this.#state.focus[APPS_MENU_KEY];
         this.#homeApps.closeMenu();
-      });
-    }
-    if (view === "librarySearch") return go(VIEW_LABELS.library, () => this.#setView("library"));
-    if (view === "show" && this.#showFrom === "librarySearch")
-      return go(VIEW_LABELS.librarySearch, () => this.#setView("librarySearch"));
-    if (view === "fixMatch") {
-      return go(this.#show.fixBackLabel(), () => {
-        this.#show.leaveFix();
-        this.#keepLibraryFocus();
       });
     }
     const target = BACK_TARGETS[view];
@@ -2424,8 +2161,7 @@ export class Core {
   #setView(view: View): void {
     const from = this.#state.view;
     if (view === "home") {
-      this.#chip = undefined;
-      this.#lastTile = undefined;
+      this.#libraryPage.resetChip();
       delete this.#state.focus.home;
       this.#homeFilm = undefined;
     }
@@ -2453,7 +2189,6 @@ export class Core {
     this.#pages.get(view)?.enter?.(from);
     this.#homePage.watch(view === "home" || view === "settingsHome");
     if (view === "home" || view === "settingsHome") this.#homePage.refresh(view === "settingsHome");
-    if (view === "library") void this.library.refresh(this.#libraryFolders);
     if (view === "settingsRemotes") void this.refreshLoginItem();
   }
 

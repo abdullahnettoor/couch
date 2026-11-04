@@ -89,11 +89,8 @@ export const BACK_TARGETS: Partial<Record<View, View>> = {
   settingsApps: "settings",
   addPhone: "settingsRemotes",
   appError: "home",
-  libraryFolders: "settingsLibrary",
   details: "settingsLibrary",
   soundOutput: "settings",
   settingsHome: "settings",
   credits: "details",
-  library: "home",
-  show: "library",
 };
