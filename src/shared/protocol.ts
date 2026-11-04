@@ -165,19 +165,47 @@ export interface SetupPayload {
   id: string;
   title: string;
   body?: string;
-  /** The "You're set" tips, one per line. */
-  tips?: string[];
+  /** A small line under the step's main content (the same-Wi-Fi note, the background-item note). */
+  note?: string;
+  /** An instruction in words, never a button. */
+  hint?: string;
+  /** The quiet last line of the panel ("You can change all of this later in Settings."). */
+  footnote?: string;
+  /** The "You're set" tips: a key's name, drawn as a key, and what it does. */
+  tips?: SetupTip[];
   /** Draw the pairing QR code (from `pairingUrl`) under the words. */
   qr?: boolean;
+  /** A phone has just connected: a glowing ✓. */
+  connected?: true;
   /** A list the step shows under its words, such as the Library folders already added. */
   list?: string[];
   /** Which step this is (from 0) of how many, for the dots. */
   step: number;
   steps: number;
-  /** On/off rows above the buttons; `focus` counts them first, then the buttons. */
-  switches?: Array<{ label: string; on: boolean }>;
+  /** On/off App tiles above the buttons, with each App's logo; `focus` counts them first, then the buttons. */
+  tiles?: SetupTilePayload[];
+  /** How many tiles a row holds on the Screen; the arrows move in that grid. */
+  columns?: number;
+  /** At most two. */
   buttons: string[];
   focus: number;
+  /** A fresh Setup (not Run setup again, not New in Couch): the Screen opens it with the intro. */
+  intro?: true;
+  /** The last step: the Screen gives it the warm glow, and Home comes in under it when it closes. */
+  final?: true;
+}
+
+export interface SetupTip {
+  key: string;
+  text: string;
+}
+
+export interface SetupTilePayload {
+  id: string;
+  label: string;
+  /** The App's logo, as SVG markup (the one Home and Settings → Apps draw). */
+  icon: string;
+  on: boolean;
 }
 
 export interface ScreenState {

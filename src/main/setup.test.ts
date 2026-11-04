@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vite-plus/test";
+import { screenKeyCommand } from "../shared/keyboard.ts";
 import { FakeWebApp } from "./ports/fakes.ts";
 import { MemoryStore } from "./ports/store.ts";
 import { Setup } from "./core/setup.ts";
@@ -16,26 +17,73 @@ const fresh = async (store = new MemoryStore()) => {
   return store;
 };
 
+/** Every step, walked with the way past each: no Skip or Set up later anywhere, never more than two buttons. */
+const walk = async () => {
+  const seen: Array<{ id: string; buttons: string[] }> = [];
+  for (let i = 0; i < 8 && h.screen.last.setup; i++) {
+    const s = h.screen.last.setup;
+    seen.push({ id: s.id, buttons: s.buttons });
+    const past = s.buttons.findIndex((b) => ["Not now", "Continue", "Go to Home"].includes(b));
+    h.app.screenCommand({ command: "confirmAt", args: { index: (s.tiles?.length ?? 0) + past } });
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  return seen;
+};
+
 describe("Setup on a fresh install", () => {
-  test("shows on start, with the same step and buttons on a paired phone", async () => {
+  test("opens with the intro at Welcome, which is the pairing step; a paired phone shows the same", async () => {
     await fresh();
-    const expected = {
-      id: "welcome",
+    expect(h.screen.last.setup).toEqual({
+      id: "pair",
       title: "Welcome to Couch",
-      body: "Your Mac, made into a TV. Your phone is the Remote.",
+      body: "Scan with your phone's camera. Your phone becomes the Remote, with no app to install.",
+      note: "Your phone needs to be on the same Wi-Fi as this Mac.",
+      hint: "No phone nearby? Use the arrow keys and Return.",
+      footnote: "You can change all of this later in Settings.",
+      qr: true,
       step: 0,
-      steps: 6,
-      buttons: ["Use the Mac's keyboard or mouse for now", "Skip", "Set up later"],
+      steps: 5,
+      buttons: ["Not now"],
       focus: 0,
-    };
-    expect(h.screen.last.setup).toEqual(expected);
+      intro: true,
+    });
     const phone = await h.connectPhone();
-    expect(phone.last?.setup).toEqual(expected);
+    await phone.settle();
+    expect(phone.last?.setup).toEqual(h.screen.last.setup);
+  });
+
+  test("the steps are pair, listener, apps, videos, done; none offers Skip or Set up later, none more than two buttons", async () => {
+    await fresh();
+    const steps = await walk();
+    expect(steps.map((s) => s.id)).toEqual(["pair", "listener", "apps", "videos", "done"]);
+    for (const { buttons } of steps) {
+      expect(buttons.length).toBeLessThanOrEqual(2);
+      for (const b of buttons) expect(b).not.toMatch(/skip|set up later/i);
+    }
+    expect(h.screen.last.setup).toBeUndefined();
+  });
+
+  test("the last step has the tips with their keys, the Settings line and one button", async () => {
+    const store = new MemoryStore();
+    store.write("setup", { finished: false, seen: ["pair", "listener", "apps", "videos"] });
+    await fresh(store);
+    expect(h.screen.last.setup).toMatchObject({
+      id: "done",
+      title: "You're set",
+      tips: [
+        { key: "OK", text: "opens" },
+        { key: "Back", text: "steps out" },
+        { key: "Home", text: "always goes Home" },
+      ],
+      footnote: "Change any of this later in Settings.",
+      buttons: ["Go to Home"],
+      final: true,
+    });
   });
 });
 
 describe("Setup for a household that already uses Couch", () => {
-  const SEEN = ["welcome", "pair", "listener", "apps", "videos", "done"];
+  const SEEN = ["pair", "listener", "apps", "videos", "done"];
   const used: Array<[string, (s: MemoryStore) => void]> = [
     ["a phone that paired earlier", (s) => s.write("pairing", { key: "k", phonesPaired: true })],
     ["a Library folder", (s) => s.write("library", { folders: ["/Movies"] })],
@@ -56,7 +104,7 @@ describe("an earlier start with no phone paired", () => {
     const store = new MemoryStore();
     store.write("pairing", { key: "k" });
     await fresh(store);
-    expect(h.screen.last.setup?.id).toBe("welcome");
+    expect(h.screen.last.setup?.id).toBe("pair");
   });
 
   test("the first phone to pair is kept, so the next start counts it as used", async () => {
@@ -69,7 +117,7 @@ describe("an earlier start with no phone paired", () => {
   test("Setup resumes past the pairing step once a phone has paired", async () => {
     const store = new MemoryStore();
     store.write("pairing", { key: "k", phonesPaired: true });
-    store.write("setup", { finished: false, seen: ["welcome"] });
+    store.write("setup", { finished: false, seen: [] });
     await fresh(store);
     expect(h.screen.last.setup?.id).toBe("listener");
   });
@@ -79,41 +127,34 @@ describe("moving through Setup", () => {
   test("the Mac's keys and a phone's presses move between steps; Back on the first does nothing", async () => {
     await fresh();
     const phone = await h.connectPhone();
+    h.clock.advance(1500);
+    expect(h.screen.last.setup?.id).toBe("listener");
     h.app.screenCommand({ command: "back" });
-    expect(h.screen.last.setup?.id).toBe("welcome");
+    expect(h.screen.last.setup).toMatchObject({ id: "pair", title: "1 phone connected" });
+    h.app.screenCommand({ command: "back" });
+    expect(h.screen.last.setup?.id).toBe("pair");
     h.app.screenCommand({ command: "right" });
     expect(h.screen.last.setup?.focus).toBe(1);
     h.app.screenCommand({ command: "left" });
     h.app.screenCommand({ command: "ok" });
-    expect(h.screen.last.setup).toMatchObject({ id: "pair", step: 1, focus: 0 });
-    h.app.screenCommand({ command: "ok" });
-    expect(h.screen.last.setup).toMatchObject({ id: "listener", step: 2, focus: 0 });
+    expect(h.screen.last.setup).toMatchObject({ id: "listener", step: 1, focus: 0 });
     h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
-    expect(h.screen.last.setup).toMatchObject({ id: "apps", step: 3, focus: 0 });
+    expect(h.screen.last.setup).toMatchObject({ id: "apps", step: 2, focus: 0 });
     h.app.screenCommand({ command: "confirmAt", args: { index: 3 } });
-    expect(h.screen.last.setup).toMatchObject({ id: "videos", step: 4, focus: 0 });
+    expect(h.screen.last.setup).toMatchObject({ id: "videos", step: 3, focus: 0 });
     h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
-    expect(h.screen.last.setup).toMatchObject({ id: "done", step: 5, focus: 0 });
+    expect(h.screen.last.setup).toMatchObject({ id: "done", step: 4, focus: 0 });
     await phone.settle();
     expect(phone.last?.setup?.id).toBe("done");
-    expect(h.screen.last.setup?.tips).toEqual([
-      "OK opens",
-      "Back steps out",
-      "Home always goes Home",
-    ]);
-    expect(h.screen.last.setup?.buttons).toEqual(["Go to Home"]);
     await phone.press("back");
     expect(h.screen.last.setup?.id).toBe("videos");
     await phone.press("back");
     expect(h.screen.last.setup?.id).toBe("apps");
     await phone.press("back");
     expect(h.screen.last.setup?.id).toBe("listener");
-    await phone.press({
-      command: "confirmAnswer",
-      args: { index: 2, text: "listener" },
-    });
+    await phone.press({ command: "confirmAnswer", args: { index: 1, text: "listener" } });
     expect(h.screen.last.setup?.id).toBe("apps");
-    await phone.press({ command: "confirmAnswer", args: { index: 0, text: "welcome" } });
+    await phone.press({ command: "confirmAnswer", args: { index: 0, text: "pair" } });
     expect(h.screen.last.setup?.id).toBe("apps");
     await phone.press({ command: "confirmAnswer", args: { index: 3, text: "apps" } });
     expect(h.screen.last.setup?.id).toBe("videos");
@@ -124,16 +165,23 @@ describe("moving through Setup", () => {
     expect(h.screen.last.state.view).toBe("home");
   });
 
+  test("Back on the first step does nothing", async () => {
+    await fresh();
+    h.app.screenCommand({ command: "back" });
+    expect(h.screen.last.setup).toMatchObject({ id: "pair", title: "Welcome to Couch" });
+  });
+
   test.each([
-    ["Home", () => h.app.screenCommand({ command: "home" })],
-    ["Set up later", () => h.app.screenCommand({ command: "confirmAt", args: { index: 2 } })],
-  ])("%s closes Setup, and it stays closed after a restart", async (_, close) => {
+    ["Home on the Remote", () => h.app.screenCommand({ command: "home" })],
+    ["h on the Mac", () => h.app.screenCommand(screenKeyCommand({ key: "h" }, false)!)],
+  ])("%s closes Setup silently, and it stays closed after a restart", async (_, close) => {
     const store = await fresh();
+    h.app.screenCommand({ command: "ok" });
     close();
     expect(h.screen.last.setup).toBeUndefined();
     expect(store.read("setup", undefined)).toEqual({
       finished: true,
-      seen: ["welcome", "pair", "listener", "apps", "videos", "done"],
+      seen: ["pair", "listener", "apps", "videos", "done"],
     });
     await h.stop();
     await fresh(store);
@@ -143,14 +191,26 @@ describe("moving through Setup", () => {
   test("a restart in the middle resumes at the first step that isn't done", async () => {
     const store = await fresh();
     h.app.screenCommand({ command: "ok" });
-    expect(h.screen.last.setup?.id).toBe("pair");
-    h.app.screenCommand({ command: "confirmAt", args: { index: 0 } });
     expect(h.screen.last.setup?.id).toBe("listener");
     h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
     expect(h.screen.last.setup?.id).toBe("apps");
     await h.stop();
     await fresh(store);
-    expect(h.screen.last.setup).toMatchObject({ id: "apps", step: 3 });
+    expect(h.screen.last.setup).toMatchObject({ id: "apps", step: 2, intro: true });
+  });
+
+  test("an old saved Welcome step is harmless", async () => {
+    const store = new MemoryStore();
+    store.write("setup", { finished: false, seen: ["welcome", "pair"] });
+    await fresh(store);
+    expect(h.screen.last.setup?.id).toBe("listener");
+    await h.stop();
+    store.write("setup", {
+      finished: true,
+      seen: ["welcome", "pair", "listener", "apps", "videos", "done"],
+    });
+    await fresh(store);
+    expect(h.screen.last.setup).toBeUndefined();
   });
 
   test("while open, keys never reach Home or an App", async () => {
@@ -172,18 +232,23 @@ describe("the Listener step", () => {
   const toListener = async () => {
     const store = await fresh();
     h.app.screenCommand({ command: "ok" });
-    h.app.screenCommand({ command: "confirmAt", args: { index: 0 } });
     expect(h.screen.last.setup?.id).toBe("listener");
     return store;
   };
   const loginItemCalls = () => h.mac.calls.filter((c) => c.call === "setListenerLoginItem");
 
-  test("Yes is first and focused, and turns the login item on; Settings shows it on", async () => {
+  test("Turn on is first and focused, and turns the login item on; Settings shows it on", async () => {
     await toListener();
-    expect(h.screen.last.setup).toMatchObject({
-      title: "Turn Couch on from your phone?",
-      buttons: ["Yes", "No", "Skip", "Set up later"],
+    expect(h.screen.last.setup).toEqual({
+      id: "listener",
+      title: "Start Couch from your phone",
+      body: "With this on, the Power button on your phone can open Couch even after it's been closed. A tiny helper starts when you log in to this Mac and waits for the button. It uses almost no power.",
+      note: "macOS will say a background item was added. That's this helper.",
+      step: 1,
+      steps: 5,
+      buttons: ["Turn on", "Not now"],
       focus: 0,
+      intro: true,
     });
     h.app.screenCommand({ command: "ok" });
     const p = await h.connectPhone();
@@ -203,7 +268,7 @@ describe("the Listener step", () => {
     expect(h.screen.last.listener?.on).toBe(true);
   });
 
-  test("No leaves it off, and the answer survives a restart", async () => {
+  test("Not now leaves it off, and the answer survives a restart", async () => {
     const store = await toListener();
     h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
     await h.app.core.refreshLoginItem();
@@ -214,23 +279,15 @@ describe("the Listener step", () => {
     expect(h.screen.last.setup?.id).toBe("apps");
   });
 
-  test("Skip leaves it off", async () => {
-    await toListener();
-    h.app.screenCommand({ command: "confirmAt", args: { index: 2 } });
-    expect(loginItemCalls()).toEqual([]);
-    expect(h.screen.last.setup?.id).toBe("apps");
-  });
-
   test("with the Listener already on, the step says so and offers Continue", async () => {
     const store = new MemoryStore();
     h = await startHarness(store, { setup: "fresh", loginItemOn: true });
     await h.app.core.refreshLoginItem();
     h.app.screenCommand({ command: "ok" });
-    h.app.screenCommand({ command: "confirmAt", args: { index: 0 } });
     expect(h.screen.last.setup).toMatchObject({
       id: "listener",
-      title: "Couch is on from your phone",
-      buttons: ["Continue", "Skip", "Set up later"],
+      title: "Couch starts from your phone",
+      buttons: ["Continue"],
     });
     h.app.screenCommand({ command: "ok" });
     expect(h.screen.last.setup?.id).toBe("apps");
@@ -252,11 +309,11 @@ describe("New in Couch: steps added by an update", () => {
     const store = new MemoryStore();
     store.write("setup", {
       finished: true,
-      seen: ["welcome", "pair", "listener", "apps", "videos", "done"],
+      seen: ["pair", "listener", "apps", "videos", "done"],
     });
     return store;
   };
-  const later = () => h.app.screenCommand({ command: "confirmAt", args: { index: 2 } });
+  const later = () => h.app.screenCommand({ command: "home" });
 
   test("a restart shows only the new step, titled with the version, and marks it seen when done", async () => {
     const store = finished();
@@ -267,26 +324,18 @@ describe("New in Couch: steps added by an update", () => {
       body: "Remote style",
       step: 0,
       steps: 1,
-      buttons: ["Pick one", "Skip", "Set up later"],
+      buttons: ["Pick one"],
       focus: 0,
     });
     h.app.screenCommand({ command: "ok" });
     expect(h.screen.last.setup).toBeUndefined();
     expect(store.read("setup", undefined)).toMatchObject({
       finished: true,
-      seen: ["welcome", "pair", "listener", "apps", "videos", "done", "remote-style"],
+      seen: ["pair", "listener", "apps", "videos", "done", "remote-style"],
     });
     await h.stop();
     await start(store);
     expect(h.screen.last.setup).toBeUndefined();
-  });
-
-  test("Skip marks the step seen too", async () => {
-    const store = finished();
-    await start(store);
-    h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
-    expect(h.screen.last.setup).toBeUndefined();
-    expect(store.read<{ seen?: string[] }>("setup", {}).seen).toContain("remote-style");
   });
 
   test("with no new step nothing shows", async () => {
@@ -337,10 +386,8 @@ describe("New in Couch: steps added by an update", () => {
     expect(h.screen.last.setup?.id).toBe("remote-style");
   });
 
-  test.each([
-    ["Later", later],
-    ["Home", () => h.app.screenCommand({ command: "home" })],
-  ])("%s once asks again on the next start; a second time doesn't", async (_, defer) => {
+  test("Home once asks again on the next start; a second time doesn't", async () => {
+    const defer = later;
     const store = finished();
     await start(store);
     defer();
@@ -378,7 +425,7 @@ describe("New in Couch: steps added by an update", () => {
 });
 
 describe("the videos step", () => {
-  const BEFORE = ["welcome", "pair", "listener", "apps"];
+  const BEFORE = ["pair", "listener", "apps"];
   const atVideos = async (extra: Record<string, unknown> = {}) => {
     const store = new MemoryStore();
     store.write("setup", { finished: false, seen: BEFORE });
@@ -397,7 +444,8 @@ describe("the videos step", () => {
     const store = await atVideos();
     expect(h.screen.last.setup).toMatchObject({
       id: "videos",
-      buttons: ["Add a folder", "Skip, I only use the Apps", "Set up later"],
+      body: "Choose the folders your films and shows are in. Couch adds them to the Library.",
+      buttons: ["Add a folder", "Not now"],
     });
     h.mac.folderPick = "/Movies";
     press("Add a folder");
@@ -406,7 +454,7 @@ describe("the videos step", () => {
     expect(h.screen.last.setup).toMatchObject({
       id: "videos",
       list: ["/Movies"],
-      buttons: ["Add more", "Continue", "Skip, I only use the Apps", "Set up later"],
+      buttons: ["Continue", "Add more"],
     });
     h.mac.folderPick = "/Shows";
     press("Add more");
@@ -425,14 +473,10 @@ describe("the videos step", () => {
     expect(h.screen.last.setup?.list).toBeUndefined();
   });
 
-  test("Skip says it plainly when an App is on, and Skip for now when none is", async () => {
+  test("Not now moves on with no folder", async () => {
     await atVideos();
-    expect(h.screen.last.setup?.buttons[1]).toBe("Skip, I only use the Apps");
-    await h.stop();
-    await atVideos({
-      "home.apps": { order: ["library", "youtube", "netflix"], hidden: ["youtube", "netflix"] },
-    });
-    expect(h.screen.last.setup?.buttons).toEqual(["Add a folder", "Skip for now", "Set up later"]);
+    press("Not now");
+    expect(h.screen.last.setup?.id).toBe("done");
   });
 
   test("a restart after adding a folder resumes past this step", async () => {
@@ -445,21 +489,21 @@ describe("the videos step", () => {
 });
 
 describe("the Pair your phone step", () => {
-  const toPair = () => h.app.screenCommand({ command: "ok" });
-
   test("shows the QR step; a phone connecting shows Phone connected, then moves on after 1.5 s", async () => {
     await fresh();
-    toPair();
     expect(h.screen.last.setup).toMatchObject({
       id: "pair",
-      title: "Pair your phone",
+      title: "Welcome to Couch",
       qr: true,
-      step: 1,
-      buttons: ["Skip for now", "Set up later"],
+      step: 0,
+      buttons: ["Not now"],
     });
-    expect(h.screen.last.setup?.body).toContain("same Wi-Fi");
     const phone = await h.connectPhone();
-    expect(h.screen.last.setup).toMatchObject({ id: "pair", title: "Phone connected" });
+    expect(h.screen.last.setup).toMatchObject({
+      id: "pair",
+      title: "Phone connected",
+      connected: true,
+    });
     expect(h.screen.last.setup?.qr).toBeUndefined();
     h.clock.advance(1400);
     expect(h.screen.last.setup?.id).toBe("pair");
@@ -472,33 +516,33 @@ describe("the Pair your phone step", () => {
   test("with a phone already connected it waits, with Continue and Add another phone", async () => {
     await fresh();
     await h.connectPhone();
-    toPair();
+    h.clock.advance(1500);
+    h.app.screenCommand({ command: "back" });
     expect(h.screen.last.setup).toMatchObject({
       title: "1 phone connected",
-      buttons: ["Continue", "Add another phone", "Skip for now", "Set up later"],
+      buttons: ["Continue", "Add another phone"],
     });
     h.clock.advance(5000);
     expect(h.screen.last.setup?.id).toBe("pair");
     h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
-    expect(h.screen.last.setup).toMatchObject({ id: "pair", qr: true });
+    expect(h.screen.last.setup).toMatchObject({ id: "pair", qr: true, buttons: ["Not now"] });
+    h.app.screenCommand({ command: "confirmAt", args: { index: 0 } });
+    expect(h.screen.last.setup?.id).toBe("listener");
     h.app.screenCommand({ command: "back" });
-    h.app.screenCommand({ command: "ok" });
     h.app.screenCommand({ command: "confirmAt", args: { index: 0 } });
     expect(h.screen.last.setup?.id).toBe("listener");
   });
 
   test("a restart after pairing resumes past it", async () => {
     const store = await fresh();
-    toPair();
     await h.connectPhone();
     await h.stop();
     await fresh(store);
     expect(h.screen.last.setup?.id).toBe("listener");
   });
 
-  test("Skip for now moves on", async () => {
+  test("Not now moves on", async () => {
     await fresh();
-    toPair();
     h.app.screenCommand({ command: "confirmAt", args: { index: 0 } });
     expect(h.screen.last.setup?.id).toBe("listener");
   });
@@ -508,27 +552,29 @@ describe("the Apps step", () => {
   const toApps = async (store = new MemoryStore(), options = {}) => {
     h = await startHarness(store, { setup: "fresh", ...options });
     h.app.screenCommand({ command: "ok" });
-    h.app.screenCommand({ command: "ok" });
     h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
     expect(h.screen.last.setup?.id).toBe("apps");
   };
   const homeLabels = () =>
     h.screen.last.grid.filter((i) => i.id !== "settings" && i.r === 1).map((i) => i.label);
 
-  test("on a fresh store lists every App, YouTube and Netflix on; a switch changes Home and Settings", async () => {
+  test("on a fresh store lists every App as a tile with its logo, YouTube and Netflix on; OK changes Home and Settings", async () => {
     await toApps();
+    const icons = new Map(h.screen.last.homeApps?.map((a) => [a.id, a.icon]));
     expect(h.screen.last.setup).toMatchObject({
-      title: "Which Apps show on Home?",
-      switches: [
-        { label: "YouTube", on: true },
-        { label: "Netflix", on: true },
-        { label: "Library", on: true },
+      title: "Pick your Apps",
+      tiles: [
+        { id: "youtube", label: "YouTube", icon: icons.get("youtube"), on: true },
+        { id: "netflix", label: "Netflix", icon: icons.get("netflix"), on: true },
+        { id: "library", label: "Library", icon: icons.get("library"), on: true },
       ],
-      buttons: ["Continue", "Skip", "Set up later"],
+      columns: 3,
+      buttons: ["Continue"],
       focus: 0,
     });
+    expect(icons.get("youtube")).toContain("<svg");
     h.app.screenCommand({ command: "ok" });
-    expect(h.screen.last.setup?.switches?.map((s) => s.on)).toEqual([false, true, true]);
+    expect(h.screen.last.setup?.tiles?.map((s) => s.on)).toEqual([false, true, true]);
     expect(h.screen.last.homeApps?.map((a) => [a.id, a.shown])).toEqual([
       ["youtube", false],
       ["netflix", true],
@@ -539,16 +585,28 @@ describe("the Apps step", () => {
     expect(homeLabels()).toEqual(["Netflix", "Library"]);
   });
 
-  test("Up and Down move between the switches and buttons; a phone's answer uses the same indexes", async () => {
+  test("arrows move in the grid, Down reaches Continue and Up comes back; a phone's answer uses the same indexes", async () => {
     await toApps();
     const phone = await h.connectPhone();
+    const focus = () => h.screen.last.setup?.focus;
+    h.app.screenCommand({ command: "left" });
+    expect(focus()).toBe(0);
+    h.app.screenCommand({ command: "right" });
+    expect(focus()).toBe(1);
+    h.app.screenCommand({ command: "up" });
+    expect(focus()).toBe(1);
     h.app.screenCommand({ command: "down" });
-    expect(h.screen.last.setup?.focus).toBe(1);
+    expect(focus()).toBe(3);
+    h.app.screenCommand({ command: "down" });
+    expect(focus()).toBe(3);
+    h.app.screenCommand({ command: "up" });
+    expect(focus()).toBe(1);
     h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
-    expect(h.screen.last.setup?.switches?.[1]?.on).toBe(false);
+    expect(h.screen.last.setup?.tiles?.[1]?.on).toBe(false);
     await phone.press({ command: "confirmAnswer", args: { index: 0, text: "apps" } });
-    expect(h.screen.last.setup?.switches?.[0]?.on).toBe(false);
-    expect(phone.last?.setup?.switches?.map((s) => s.on)).toEqual([false, false, true]);
+    expect(h.screen.last.setup?.tiles?.[0]?.on).toBe(false);
+    expect(phone.last?.setup?.tiles?.map((s) => s.on)).toEqual([false, false, true]);
+    expect(phone.last?.setup?.tiles?.[0]?.icon).toContain("<svg");
     await phone.press({ command: "confirmAnswer", args: { index: 3, text: "apps" } });
     expect(h.screen.last.setup?.id).toBe("videos");
   });
@@ -558,13 +616,13 @@ describe("the Apps step", () => {
     const phone = await h.connectPhone();
     await phone.press({ command: "confirmAnswer", args: { index: 6, text: "apps" } });
     expect(h.screen.last.setup?.id).toBe("apps");
-    expect(h.screen.last.setup?.switches?.map((s) => s.on)).toEqual([true, true, true]);
+    expect(h.screen.last.setup?.tiles?.map((s) => s.on)).toEqual([true, true, true]);
   });
 
   test("every App off is allowed, and Home shows no App tiles", async () => {
     await toApps();
     for (let i = 0; i < 3; i++) h.app.screenCommand({ command: "confirmAt", args: { index: i } });
-    expect(h.screen.last.setup?.switches?.map((s) => s.on)).toEqual([false, false, false]);
+    expect(h.screen.last.setup?.tiles?.map((s) => s.on)).toEqual([false, false, false]);
     expect(homeLabels()).toEqual([]);
   });
 
@@ -578,12 +636,12 @@ describe("the Apps step", () => {
       onByDefault: false,
     };
     await toApps(new MemoryStore(), { apps: [{ entry, app: new FakeWebApp("extra", "Extra") }] });
-    expect(h.screen.last.setup?.switches?.find((s) => s.label === "Extra")?.on).toBe(false);
+    expect(h.screen.last.setup?.tiles?.find((s) => s.label === "Extra")?.on).toBe(false);
   });
 });
 
 describe("Settings → About → Run setup again", () => {
-  const SEEN = ["welcome", "pair", "listener", "apps", "videos", "done"];
+  const SEEN = ["pair", "listener", "apps", "videos", "done"];
   const flush = () => new Promise((r) => setTimeout(r, 0));
 
   async function openAbout(store = new MemoryStore(), options = {}) {
@@ -604,15 +662,16 @@ describe("Settings → About → Run setup again", () => {
   };
   const press = (label: string) => {
     const i =
-      h.screen.last.setup!.buttons.indexOf(label) + (h.screen.last.setup!.switches?.length ?? 0);
+      h.screen.last.setup!.buttons.indexOf(label) + (h.screen.last.setup!.tiles?.length ?? 0);
     expect(i).toBeGreaterThanOrEqual(0);
     h.app.screenCommand({ command: "confirmAt", args: { index: i } });
   };
 
-  test("About lists it; OK opens Setup at Welcome", async () => {
+  test("About lists it; OK opens Setup at Welcome, with no intro", async () => {
     const { phone } = await openAbout();
     await runAgain(phone);
-    expect(h.screen.last.setup).toMatchObject({ id: "welcome", step: 0 });
+    expect(h.screen.last.setup).toMatchObject({ id: "pair", step: 0 });
+    expect(h.screen.last.setup?.intro).toBeUndefined();
     expect(h.screen.last.state.view).toBe("home");
   });
 
@@ -621,23 +680,22 @@ describe("Settings → About → Run setup again", () => {
     store.write("library", { folders: ["/Movies"] });
     const { phone } = await openAbout(store, { loginItemOn: true });
     await runAgain(phone);
-    press("Use the Mac's keyboard or mouse for now");
     expect(h.screen.last.setup).toMatchObject({
       id: "pair",
       title: "1 phone connected",
-      buttons: ["Continue", "Add another phone", "Skip for now", "Set up later"],
+      buttons: ["Continue", "Add another phone"],
     });
     press("Continue");
     expect(h.screen.last.setup).toMatchObject({
       id: "listener",
-      buttons: expect.arrayContaining(["Continue"]),
+      buttons: ["Continue"],
     });
     press("Continue");
     press("Continue");
     expect(h.screen.last.setup).toMatchObject({
       id: "videos",
       list: ["/Movies"],
-      buttons: ["Add more", "Continue", "Skip, I only use the Apps", "Set up later"],
+      buttons: ["Continue", "Add more"],
     });
   });
 
@@ -677,7 +735,6 @@ describe("Settings → About → Run setup again", () => {
         phonePaired: () => false,
         folders: () => [],
         addFolder: () => {},
-        anyAppOn: () => false,
         later: () => () => {},
         cue: () => {},
         changed: () => {},
@@ -686,7 +743,7 @@ describe("Settings → About → Run setup again", () => {
     );
     expect(setup.payload()?.id).toBe("remote-style");
     setup.rerun();
-    expect(setup.payload()?.id).toBe("welcome");
+    expect(setup.payload()?.id).toBe("pair");
     setup.handle({ command: "home" });
     expect(setup.payload()).toBeUndefined();
     expect(store.read("setup", undefined)).toEqual({ finished: true, seen: SEEN });
@@ -697,20 +754,7 @@ describe("Settings → About → Run setup again", () => {
     const { phone } = await openAbout(store);
     const before = store.read("setup", undefined);
     await runAgain(phone);
-    for (let i = 0; i < 12 && h.screen.last.setup; i++) {
-      h.app.screenCommand({
-        command: "confirmAt",
-        args: {
-          index:
-            h.screen.last.setup.id === "done"
-              ? 0
-              : (h.screen.last.setup.switches?.length ?? 0) +
-                h.screen.last.setup.buttons.length -
-                2,
-        },
-      });
-      await flush();
-    }
+    expect((await walk()).map((s) => s.id)).toEqual(["pair", "listener", "apps", "videos", "done"]);
     expect(h.screen.last.setup).toBeUndefined();
     expect(store.read("setup", undefined)).toEqual(before);
   });

@@ -282,92 +282,484 @@ svg.i {
 .home.in-setup .h-bg {
   display: none;
 }
+/* ---- Setup: one glass panel over Home's wallpaper; the intro and the last step share the end card's warm light ---- */
 #setup.setup {
+  --amber: #ffb04a;
+  --amber-ink: #241405;
+  --warm: 255, 150, 70;
   position: fixed;
   inset: 0;
   display: grid;
   place-items: center;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.25s var(--ease);
+  transition: opacity 0.3s var(--ease);
   z-index: 35;
 }
-#setup.setup.show {
+#setup.setup.show,
+#setup.setup.farewell {
   opacity: 1;
+}
+#setup.setup.show {
   pointer-events: auto;
 }
+.setup .s-veil,
+.setup .s-light,
+.setup .s-intro {
+  position: fixed;
+  pointer-events: none;
+  display: none;
+}
+.setup .s-veil {
+  inset: 0;
+  background: radial-gradient(70% 70% at 50% 34%, #1b130c 0%, #0c0907 58%, #050404 100%);
+}
+.setup .s-light {
+  left: 50%;
+  top: calc(-40 * var(--u));
+  width: calc(1000 * var(--u));
+  height: calc(760 * var(--u));
+  margin-left: calc(-500 * var(--u));
+  background: radial-gradient(closest-side, rgba(var(--warm), 0.3), rgba(var(--warm), 0));
+}
+.setup.intro .s-veil,
+.setup.intro .s-light,
+.setup.intro .s-intro,
+.setup.farewell .s-light {
+  display: block;
+}
+.setup.intro .s-intro {
+  inset: 0;
+  pointer-events: auto;
+  cursor: default;
+}
+.setup .s-sofa {
+  position: absolute;
+  left: 50%;
+  top: calc(30 * var(--u));
+  width: calc(580 * var(--u));
+  height: calc(580 * var(--u));
+  margin-left: calc(-290 * var(--u));
+  transform-origin: 50% 47%;
+}
+.setup .s-name,
+.setup .s-tag {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  white-space: nowrap;
+  font-weight: 600;
+  color: #f4efe6;
+}
+.setup .s-name {
+  top: calc(520 * var(--u));
+  font-size: calc(132 * var(--u));
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+.setup .s-tag {
+  top: calc(680 * var(--u));
+  font-size: calc(56 * var(--u));
+  letter-spacing: -0.015em;
+}
+.setup .s-tag span {
+  color: var(--amber);
+}
+/* Home comes in under the warm light once Setup is done. */
+.setup.farewell .s-light {
+  top: 50%;
+  margin-top: calc(-380 * var(--u));
+  animation: s-warm 1.4s var(--ease) both;
+}
+@keyframes s-warm {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+.setup-farewell .home .h-clock,
+.setup-farewell .home .h-hero,
+.setup-farewell .home .h-chrome {
+  animation: s-home-in 0.9s var(--ease) 0.25s both;
+}
+@keyframes s-home-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(24 * var(--u)));
+  }
+}
+
 .setup .box {
+  position: relative;
   box-sizing: border-box;
-  width: calc(1100 * var(--u));
+  width: calc(1180 * var(--u));
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: calc(32 * var(--u));
-  padding: calc(64 * var(--u)) calc(72 * var(--u));
+  padding: calc(36 * var(--u)) calc(80 * var(--u)) calc(34 * var(--u));
   border-radius: calc(48 * var(--u));
   color: #fff;
   background: var(--glass-strong);
   text-align: center;
 }
-.setup b {
+.setup .box:has(.s-apps) {
+  width: auto;
+  min-width: calc(1180 * var(--u));
+}
+.setup .s-mark {
+  position: relative;
+  width: calc(112 * var(--u));
+  height: calc(112 * var(--u));
+  margin-bottom: calc(-4 * var(--u));
+  transition:
+    width 0.6s var(--ease),
+    height 0.6s var(--ease),
+    opacity 0.4s var(--ease);
+}
+.setup .s-mark img {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.setup .s-glow {
+  position: absolute;
+  inset: -90%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(var(--warm), 0.34), rgba(var(--warm), 0));
+  opacity: 0;
+  transition: opacity 0.8s var(--ease);
+}
+.setup .box.connected .s-mark {
+  height: 0;
+  opacity: 0;
+}
+.setup .box.final .s-mark {
+  width: calc(230 * var(--u));
+  height: calc(230 * var(--u));
+}
+.setup .box.final .s-glow {
+  opacity: 1;
+}
+.setup .s-stage {
+  position: relative;
+  align-self: stretch;
+}
+.setup .s-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.setup .s-leaving {
+  position: absolute;
+  inset: 0 0 auto;
+  pointer-events: none;
+}
+.setup .s-title {
+  margin: 0;
   font-size: calc(56 * var(--u));
   font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  text-wrap: balance;
 }
-.setup p,
-.setup li {
-  margin: 0;
-  font-size: calc(32 * var(--u));
+.setup .s-body {
+  max-width: calc(880 * var(--u));
+  margin: calc(14 * var(--u)) 0 0;
+  font-size: calc(30 * var(--u));
+  line-height: 1.38;
   color: var(--t2);
+  text-wrap: balance;
 }
-.setup ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: calc(14 * var(--u));
+.setup .s-note,
+.setup .s-foot {
+  margin: calc(16 * var(--u)) 0 0;
+  font-size: calc(24 * var(--u));
+  line-height: 1.4;
+  color: var(--t3);
 }
-.setup .switches {
-  align-self: stretch;
-  display: flex;
-  flex-direction: column;
-  gap: calc(12 * var(--u));
+.setup .s-foot {
+  margin-top: calc(24 * var(--u));
 }
-.setup .switches .row {
+.setup .qr {
+  margin-top: calc(28 * var(--u));
+  padding: calc(14 * var(--u));
+  border-radius: calc(28 * var(--u));
+  background: #fff;
+  box-shadow:
+    0 calc(24 * var(--u)) calc(60 * var(--u)) rgba(0, 0, 0, 0.45),
+    0 0 calc(90 * var(--u)) rgba(var(--warm), 0.16);
+}
+.setup .qr svg {
+  display: block;
+  width: calc(236 * var(--u));
+  height: calc(236 * var(--u));
+}
+.setup .s-hint {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: calc(18 * var(--u)) calc(32 * var(--u));
-  border-radius: calc(24 * var(--u));
-  font-size: calc(34 * var(--u));
-  background: rgba(255, 255, 255, 0.1);
-  cursor: pointer;
-}
-.setup .switches .row.focused {
-  background: #fff;
-  color: #000;
-}
-.setup .switches .row.focused .g-switch:not(.on) {
-  background: rgba(0, 0, 0, 0.25);
-}
-.setup .dots {
-  display: flex;
   gap: calc(14 * var(--u));
+  margin: calc(22 * var(--u)) 0 0;
+  font-size: calc(26 * var(--u));
+  color: var(--t2);
 }
-.setup .dots i {
-  width: calc(14 * var(--u));
-  height: calc(14 * var(--u));
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.28);
-}
-.setup .dots i.on {
-  background: #fff;
+.setup .s-hint svg {
+  width: calc(34 * var(--u));
+  height: calc(34 * var(--u));
+  color: var(--t3);
 }
 .setup .buttons {
   display: flex;
-  flex-wrap: wrap;
   justify-content: center;
   gap: calc(24 * var(--u));
+  margin-top: calc(34 * var(--u));
+}
+.setup .s-btn {
+  display: inline-flex;
+  align-items: center;
+  height: calc(84 * var(--u));
+  padding: 0 calc(48 * var(--u));
+  border-radius: calc(42 * var(--u));
+  font-size: calc(30 * var(--u));
+  font-weight: 600;
+  color: var(--t2);
+  background: rgba(255, 255, 255, 0.14);
+  cursor: pointer;
+  transition:
+    transform 0.38s var(--ease),
+    background 0.25s,
+    color 0.25s,
+    box-shadow 0.38s var(--ease);
+}
+.setup .s-btn.focused {
+  background: #fff;
+  color: #000;
+  transform: scale(1.06);
+  box-shadow:
+    0 calc(18 * var(--u)) calc(40 * var(--u)) rgba(0, 0, 0, 0.4),
+    0 0 calc(56 * var(--u)) rgba(255, 255, 255, 0.2);
+}
+.setup .dots {
+  display: flex;
+  gap: calc(12 * var(--u));
+  margin-top: calc(30 * var(--u));
+}
+.setup .dots[hidden] {
+  display: none;
+}
+.setup .dots i {
+  width: calc(12 * var(--u));
+  height: calc(12 * var(--u));
+  border-radius: calc(6 * var(--u));
+  background: rgba(255, 255, 255, 0.22);
+  transition:
+    width 0.45s var(--ease),
+    background 0.45s var(--ease);
+}
+.setup .dots i.on {
+  width: calc(36 * var(--u));
+  background: var(--amber);
+  box-shadow: 0 0 calc(18 * var(--u)) rgba(var(--warm), 0.45);
+}
+
+/* A phone connected: a glowing ✓ where the QR code was. */
+.setup .s-check {
+  display: grid;
+  place-items: center;
+  width: calc(150 * var(--u));
+  height: calc(150 * var(--u));
+  margin: calc(10 * var(--u)) 0 calc(34 * var(--u));
+  border-radius: 50%;
+  color: var(--amber-ink);
+  background: radial-gradient(circle at 50% 35%, #ffd08a, var(--amber) 70%);
+  box-shadow:
+    0 0 calc(70 * var(--u)) rgba(var(--warm), 0.55),
+    0 0 calc(160 * var(--u)) rgba(var(--warm), 0.3);
+  animation: s-check 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.setup .s-check svg {
+  width: calc(76 * var(--u));
+  height: calc(76 * var(--u));
+}
+@keyframes s-check {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+    filter: brightness(1.8);
+  }
+}
+
+/* The Apps step: Home's own tiles; on in full colour with a ✓, off dimmed. */
+.setup .s-tiles {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), calc(280 * var(--u)));
+  gap: calc(40 * var(--u)) calc(36 * var(--u));
+  margin-top: calc(44 * var(--u));
+}
+.setup .s-tile {
+  cursor: pointer;
+  text-align: center;
+}
+:where(.setup .s-tile) > .g-tile {
+  background: linear-gradient(160deg, #3a3a3e, #17171a);
+}
+.setup .s-tile > .g-tile {
+  height: calc(158 * var(--u));
+  display: grid;
+  place-items: center;
+  transition:
+    transform 0.38s var(--ease),
+    box-shadow 0.38s var(--ease),
+    filter 0.35s var(--ease),
+    opacity 0.35s var(--ease);
+}
+.setup .s-tile > .g-tile > svg {
+  width: calc(72 * var(--u));
+  height: calc(72 * var(--u));
+}
+.setup .s-tile > .youtube-face > svg {
+  width: calc(104 * var(--u));
+}
+.setup .s-tile > .netflix-face > svg {
+  width: calc(76 * var(--u));
+  height: calc(104 * var(--u));
+}
+.setup .s-tile .g-cap {
+  margin-top: calc(16 * var(--u));
+}
+.setup .s-tile.focused .g-cap {
+  color: #fff;
+}
+.setup .s-tile.off > .g-tile {
+  filter: saturate(0) brightness(0.55);
+  opacity: 0.55;
+}
+.setup .s-tile.off .g-cap {
+  color: var(--t3);
+}
+.setup .s-tile.off.focused > .g-tile {
+  filter: saturate(0.35) brightness(0.8);
+  opacity: 0.9;
+}
+.setup .s-tile.off.focused .g-cap {
+  color: var(--t2);
+}
+.setup .s-tick {
+  position: absolute;
+  top: calc(12 * var(--u));
+  right: calc(12 * var(--u));
+  display: grid;
+  place-items: center;
+  width: calc(38 * var(--u));
+  height: calc(38 * var(--u));
+  border-radius: 50%;
+  color: var(--amber-ink);
+  background: var(--amber);
+  box-shadow: 0 calc(4 * var(--u)) calc(12 * var(--u)) rgba(0, 0, 0, 0.35);
+  transition:
+    opacity 0.25s var(--ease),
+    transform 0.35s var(--ease);
+}
+.setup .s-tile > .g-tile > .s-tick svg {
+  width: calc(22 * var(--u));
+  height: calc(22 * var(--u));
+}
+.setup .s-tile.off .s-tick {
+  opacity: 0;
+  transform: scale(0.5);
+}
+
+/* The videos step's folders. */
+.setup .list {
+  display: flex;
+  flex-direction: column;
+  gap: calc(10 * var(--u));
+  width: calc(760 * var(--u));
+  margin: calc(32 * var(--u)) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.setup .list li {
+  display: flex;
+  align-items: center;
+  gap: calc(18 * var(--u));
+  padding: calc(18 * var(--u)) calc(26 * var(--u));
+  border-radius: calc(20 * var(--u));
+  background: rgba(255, 255, 255, 0.08);
+  font-size: calc(27 * var(--u));
+  color: var(--t1);
+  text-align: left;
+}
+.setup .list li svg {
+  width: calc(32 * var(--u));
+  height: calc(32 * var(--u));
+  color: var(--amber);
+}
+.setup .list li span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* You're set: the keys, drawn as keys. */
+.setup .s-tips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(20 * var(--u)) calc(48 * var(--u));
+  margin: calc(36 * var(--u)) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.setup .s-tips li {
+  display: flex;
+  align-items: center;
+  gap: calc(16 * var(--u));
+  font-size: calc(30 * var(--u));
+  color: var(--t2);
+}
+.setup kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: calc(64 * var(--u));
+  height: calc(56 * var(--u));
+  padding: 0 calc(18 * var(--u));
+  box-sizing: border-box;
+  border-radius: calc(16 * var(--u));
+  font: inherit;
+  font-size: calc(24 * var(--u));
+  font-weight: 700;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow:
+    inset 0 calc(1 * var(--u)) 0 rgba(255, 255, 255, 0.18),
+    0 calc(3 * var(--u)) 0 rgba(0, 0, 0, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup .s-check {
+    animation-name: s-fade;
+  }
+  .setup.farewell .s-light,
+  .setup-farewell .home .h-clock,
+  .setup-farewell .home .h-hero,
+  .setup-farewell .home .h-chrome {
+    animation-name: s-fade;
+  }
+}
+@keyframes s-fade {
+  from {
+    opacity: 0;
+  }
 }
 .volhud {
   position: fixed;
@@ -1408,10 +1800,4 @@ body:has(.ls-page) .toast:not(.notice) {
 }
 .wp-panel .g-back {
   margin-left: 0;
-}
-.setup .qr svg {
-  display: block;
-  width: calc(360 * var(--u));
-  height: calc(360 * var(--u));
-  border-radius: calc(24 * var(--u));
 }

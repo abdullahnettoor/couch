@@ -1,6 +1,6 @@
 import { glassTokensCss } from "../../shared/glass-tokens.ts";
 import { ICON_MARKUP } from "../../shared/icons.ts";
-import { setupControls } from "../../shared/setup-controls.ts";
+import { CHECK_SVG, setupControls } from "../../shared/setup-controls.ts";
 import { trackCode } from "../../shared/track-code.ts";
 
 /** Back, Home and Mute: the top of Now Playing, its D-pad view and the idle Remote; `p` keeps the Back ids apart. */
@@ -184,6 +184,15 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .sheet .stack .k { background:var(--card-2); border-radius:16px; min-height:56px; font-size:17px; padding:0 16px; }
   .sheet .stack .k.sw { display:flex; align-items:center; justify-content:space-between; }
   .sheet .stack .k.hero { background:#fff; color:#000; }
+  .sheet .tiles { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .sheet .tile { position:relative; height:92px; border-radius:18px; background:var(--card-2); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; font-size:14px; font-weight:600; transition:opacity .2s, box-shadow .2s; }
+  .sheet .tile .ic { display:grid; place-items:center; height:34px; }
+  .sheet .tile .ic svg { width:34px; height:34px; font-size:34px; }
+  .sheet .tile.off { opacity:.42; }
+  .sheet .tile.hero { box-shadow:0 0 0 3px #fff, 0 0 24px rgba(255,255,255,.25); }
+  .sheet .tick { display:inline-grid; place-items:center; width:20px; height:20px; border-radius:10px; background:#ffb04a; color:#1c1206; vertical-align:-3px; }
+  .sheet .tick svg { width:12px; height:12px; }
+  .sheet .tile .tick { position:absolute; top:8px; right:8px; }
 </style>
 </head>
 <body>
@@ -206,7 +215,9 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   <div class="form" role="dialog" aria-labelledby="ask-title">
     <b id="ask-title" style="font-size:19px"></b>
     <span id="ask-body" style="color:var(--t3);font-size:15px;white-space:pre-line"></span>
+    <div class="tiles" id="ask-tiles" hidden></div>
     <div class="stack" id="ask-btns"></div>
+    <span id="ask-foot" style="color:var(--t3);font-size:13px" hidden></span>
     <div class="btns" id="ask-nav" hidden><button type="button" class="k txt" data-cmd="back" aria-label="Back">Back</button><button type="button" class="k txt" data-cmd="home" aria-label="Home">Home</button></div>
   </div>
 </div>
@@ -321,6 +332,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   function speedLabel(x) { return x + "×"; }
   var trackCode = __TRACK_CODE__;
   var setupControls = __SETUP_CONTROLS__;
+  var CHECK = __CHECK_SVG__;
   function current(tracks) {
     return (tracks || []).filter(function (t) { return t.on; })[0];
   }
@@ -485,16 +497,24 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       $("cw-app").hidden = !cc.app;
     }
     var su = s.setup;
-    var q = su ? { title: su.title, body: [su.body].concat(su.list || [], su.tips || []).filter(Boolean).join("\n"), controls: setupControls(su), focus: su.focus, key: su.id } : s.confirm && s.confirm.phone ? { title: s.confirm.title, body: s.confirm.body, controls: s.confirm.buttons.map(function (b) { return { label: b }; }), focus: s.confirm.focus } : null;
+    var q = su ? { title: su.title, check: !!su.connected, body: [su.body, su.note].concat(su.list || [], (su.tips || []).map(function (t) { return t.key + " " + t.text; }), [su.hint]).filter(Boolean).join("\n"), controls: setupControls(su), focus: su.focus, key: su.id, foot: su.footnote } : s.confirm && s.confirm.phone ? { title: s.confirm.title, body: s.confirm.body, controls: s.confirm.buttons.map(function (b) { return { label: b }; }), focus: s.confirm.focus } : null;
     $("ask").hidden = !q;
     $("ask-nav").hidden = !su;
     if (q) {
-      $("ask-title").textContent = q.title;
+      if (q.check) $("ask-title").innerHTML = '<span class="tick">' + CHECK + "</span> " + esc(q.title);
+      else $("ask-title").textContent = q.title;
       $("ask-body").textContent = q.body || "";
-      $("ask-btns").innerHTML = q.controls.map(function (c, i) {
-        var state = c.on === undefined ? "" : '<span>' + (c.on ? "On" : "Off") + "</span>";
-        return '<button type="button" class="k txt' + (i === q.focus ? " hero" : "") + (c.on === undefined ? "" : " sw") + '" data-cmd="confirmAnswer" data-args="' + esc(JSON.stringify({ index: i, text: q.key || q.title })) + '">' + esc(c.label) + state + '</button>';
-      }).join("");
+      var answer = function (i) { return 'data-cmd="confirmAnswer" data-args="' + esc(JSON.stringify({ index: i, text: q.key || q.title })) + '"'; };
+      var tiles = "", btns = "";
+      q.controls.forEach(function (c, i) {
+        if (c.on !== undefined) tiles += '<button type="button" class="tile' + (c.on ? "" : " off") + (i === q.focus ? " hero" : "") + '" ' + answer(i) + ' aria-pressed="' + c.on + '" aria-label="' + esc(c.label) + '"><span class="ic">' + (c.icon || "") + "</span>" + esc(c.label) + (c.on ? '<span class="tick">' + CHECK + "</span>" : "") + "</button>";
+        else btns += '<button type="button" class="k txt' + (i === q.focus ? " hero" : "") + '" ' + answer(i) + ">" + esc(c.label) + "</button>";
+      });
+      $("ask-tiles").innerHTML = tiles;
+      $("ask-tiles").hidden = !tiles;
+      $("ask-btns").innerHTML = btns;
+      $("ask-foot").textContent = q.foot || "";
+      $("ask-foot").hidden = !q.foot;
     }
     $("playback-note").hidden = !s.playbackNote;
     if (s.playbackNote) {
@@ -834,4 +854,5 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .replace("__ICONS__", JSON.stringify(ICON_MARKUP))
   .replace("__TRACK_CODE__", () => trackCode.toString())
   .replace("__SETUP_CONTROLS__", () => setupControls.toString())
+  .replace("__CHECK_SVG__", () => JSON.stringify(CHECK_SVG))
   .replace("__TOKENS__", glassTokensCss({ unit: "1px" }));

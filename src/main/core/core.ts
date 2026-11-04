@@ -493,7 +493,6 @@ export class Core {
         phonePaired: () => this.#phonePaired(),
         folders: () => this.#libraryFolders,
         addFolder: () => this.#addFolder(),
-        anyAppOn: () => this.#homeApps.shownIds().some((id) => id !== "library"),
         later: (fn, ms) => ports.clock.setTimeout(fn, ms),
         cue: (sound) => this.#cue(sound),
         changed: () => this.#emit(),

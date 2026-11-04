@@ -5,7 +5,7 @@ import { keyCommand } from "./picture-off-keys.ts";
 import { VIEWS } from "./views/index.ts";
 import { showing } from "./views/glass.ts";
 import { renderConfirm, renderHud } from "./hud.ts";
-import { renderSetup } from "./setup.ts";
+import { renderSetup, setupTakesKey } from "./setup.ts";
 import { renderPictureOff } from "./picture-off.ts";
 import { interfaceSounds } from "./interface-sounds.ts";
 import { isTypingTarget, syncTyping } from "./views/typing.ts";
@@ -30,6 +30,7 @@ declare global {
 }
 
 window.addEventListener("keydown", (event) => {
+  if (setupTakesKey()) return event.preventDefault();
   const command = keyCommand(
     { key: event.key, meta: event.metaKey, ctrl: event.ctrlKey, alt: event.altKey },
     current?.state.pictureOff === true,

@@ -1,4 +1,5 @@
 import type { Command, SetupPayload, UiSound } from "../../shared/protocol.ts";
+import { SETUP_TILE_COLUMNS } from "../../shared/setup-controls.ts";
 import type { Store } from "../ports/store.ts";
 import { SETUP_STEPS, type SetupContext, type SetupStep } from "./setup-steps.ts";
 
@@ -33,8 +34,6 @@ export interface SetupHost {
   folders(): string[];
   /** Opens the Mac's folder picker and adds what it returns, as Settings → Library does. */
   addFolder(): void;
-  /** Whether any App is on for Home (the Library is not an App). */
-  anyAppOn(): boolean;
   /** A timer on the Clock port; returns its canceller. */
   later(fn: () => void, ms: number): () => void;
   cue(sound: UiSound): void;
@@ -45,7 +44,7 @@ interface Saved {
   finished: boolean;
   /** Steps already gone through, so a restart resumes at the first one that isn't. */
   seen: string[];
-  /** How many starts the steps of an update were put off ("Set up later" or Home); a second one marks them seen. */
+  /** How many starts the steps of an update were put off (Home); a second one marks them seen. */
   deferred?: number;
 }
 
@@ -83,6 +82,8 @@ export class Setup {
   #open = false;
   #index = 0;
   #focus = 0;
+  /** The tile focus left for the buttons, so Up goes back to it. */
+  #lastTile = 0;
   #seen: Set<string>;
   #control: SetupControls;
   /** Steps an update added to a household that had finished Setup: shown only while Home shows. */
@@ -156,6 +157,7 @@ export class Setup {
     this.#addingPhone = false;
     this.#index = index;
     this.#focus = 0;
+    this.#lastTile = 0;
   }
 
   /** Opens the full Setup at Welcome. Steps already done show their Continue versions; nothing is saved. */
@@ -207,7 +209,7 @@ export class Setup {
     this.#save(true);
   }
 
-  /** "Set up later" or Home: a fresh Setup is over; an update's steps ask once more next start, then count as seen. */
+  /** Home: a fresh Setup is over (as "Set up later"); an update's steps ask once more next start, then count as seen. */
   #later(): void {
     if (this.#endRerun()) return;
     if (!this.#whatsNew) return this.#finish();
@@ -225,7 +227,6 @@ export class Setup {
       addingPhone: this.#addingPhone,
       apps: this.#h.apps,
       folders: this.#h.folders(),
-      anyAppOn: this.#h.anyAppOn(),
     };
   }
 
@@ -241,19 +242,17 @@ export class Setup {
     this.#h.changed();
   }
 
-  /** The switches, then the buttons: the one list that focus and every `index` (Screen or phone) count in. */
+  /** The tiles, then the buttons: the one list that focus and every `index` (Screen or phone) count in. */
   #controls(): Array<{ label: string; run(): void }> {
-    const step = this.#steps[this.#index]!;
-    const page = step.page(this.#ctx(), this.#control);
-    const switches = (page.switches ?? []).map((s) => ({ label: s.label, run: () => s.toggle() }));
-    const own = page.buttons.map((b) => ({ label: b.label, run: () => b.run(this.#control) }));
-    if (step.final) return [...switches, ...own];
+    const page = this.#page();
     return [
-      ...switches,
-      ...own,
-      { label: page.skip ?? "Skip", run: () => this.#next() },
-      { label: "Set up later", run: () => this.#later() },
+      ...(page.tiles ?? []).map((t) => ({ label: t.label, run: () => t.toggle() })),
+      ...page.buttons.map((b) => ({ label: b.label, run: () => b.run(this.#control) })),
     ];
+  }
+
+  #page() {
+    return this.#steps[this.#index]!.page(this.#ctx(), this.#control);
   }
 
   #next(): void {
@@ -267,8 +266,8 @@ export class Setup {
   payload(): SetupPayload | undefined {
     if (!this.isOpen) return undefined;
     const step = this.#steps[this.#index]!;
-    const page = step.page(this.#ctx(), this.#control);
-    const switches = page.switches ?? [];
+    const page = this.#page();
+    const tiles = page.tiles ?? [];
     const body = this.#whatsNew
       ? page.body
         ? `${page.title}. ${page.body}`
@@ -278,16 +277,25 @@ export class Setup {
       id: step.id,
       title: this.#whatsNew ? `New in Couch ${this.#h.version()}` : page.title,
       ...(body ? { body } : {}),
+      ...(page.note ? { note: page.note } : {}),
+      ...(page.hint ? { hint: page.hint } : {}),
+      ...(page.footnote ? { footnote: page.footnote } : {}),
       ...(page.tips ? { tips: page.tips } : {}),
       ...(page.qr ? { qr: true } : {}),
+      ...(page.connected ? { connected: true as const } : {}),
       ...(page.list?.length ? { list: page.list } : {}),
       step: this.#index,
       steps: this.#steps.length,
-      ...(switches.length ? { switches: switches.map((x) => ({ label: x.label, on: x.on })) } : {}),
-      buttons: this.#controls()
-        .slice(switches.length)
-        .map((b) => b.label),
+      ...(tiles.length
+        ? {
+            tiles: tiles.map((t) => ({ id: t.id, label: t.label, icon: t.icon, on: t.on })),
+            columns: Math.min(tiles.length, SETUP_TILE_COLUMNS),
+          }
+        : {}),
+      buttons: page.buttons.map((b) => b.label),
       focus: this.#focus,
+      ...(this.#whatsNew || this.#before ? {} : { intro: true as const }),
+      ...(step.final ? { final: true as const } : {}),
     };
   }
 
@@ -314,12 +322,10 @@ export class Setup {
           this.#press(controls, index);
         break;
       case "left":
-      case "up":
-        this.#move(-1, controls.length);
-        break;
       case "right":
+      case "up":
       case "down":
-        this.#move(1, controls.length);
+        this.#arrow(command.command);
         break;
       case "ok":
         this.#press(controls, this.#focus);
@@ -344,9 +350,29 @@ export class Setup {
     controls[index]?.run();
   }
 
-  #move(delta: number, count: number): void {
-    const next = Math.max(0, Math.min(count - 1, this.#focus + delta));
-    this.#h.cue(next === this.#focus ? "blocked" : "move");
-    this.#focus = next;
+  /** Arrows move in the tiles' grid, then along the row of buttons under it. */
+  #arrow(key: "left" | "right" | "up" | "down"): void {
+    const page = this.#page();
+    const n = page.tiles?.length ?? 0;
+    const count = n + page.buttons.length;
+    const f = this.#focus;
+    let to = f;
+    if (n === 0) to = f + (key === "left" || key === "up" ? -1 : 1);
+    else if (f < n) {
+      const cols = Math.min(n, SETUP_TILE_COLUMNS);
+      const col = f % cols;
+      if (key === "left" && col > 0) to = f - 1;
+      else if (key === "right" && col < cols - 1 && f + 1 < n) to = f + 1;
+      else if (key === "up" && f >= cols) to = f - cols;
+      else if (key === "down")
+        to =
+          f + cols < n ? f + cols : Math.floor(f / cols) < Math.floor((n - 1) / cols) ? n - 1 : n;
+    } else if (key === "left") to = f - 1;
+    else if (key === "right") to = f + 1;
+    else if (key === "up") to = Math.min(this.#lastTile, n - 1);
+    to = Math.max(0, Math.min(count - 1, to));
+    if (f < n) this.#lastTile = f;
+    this.#h.cue(to === f ? "blocked" : "move");
+    this.#focus = to;
   }
 }

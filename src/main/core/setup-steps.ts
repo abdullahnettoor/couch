@@ -1,3 +1,4 @@
+import type { SetupTip } from "../../shared/protocol.ts";
 import type { SetupControls } from "./setup.ts";
 
 export interface SetupButton {
@@ -17,32 +18,38 @@ export interface SetupContext {
   addingPhone: boolean;
   /** Home's Apps: the same setting as Settings → Apps. */
   apps: {
-    rows(): Array<{ id: string; label: string; shown: boolean }>;
+    rows(): Array<{ id: string; label: string; icon: string; shown: boolean }>;
     setShown(id: string, shown: boolean): void;
   };
   /** The Library folders already added. */
   folders: string[];
-  /** Whether any App is on for Home (the Library is not an App). */
-  anyAppOn: boolean;
 }
 
 export interface SetupPage {
   title: string;
   body?: string;
-  tips?: string[];
+  /** A small line under the step's main content (the same-Wi-Fi note, the background-item note). */
+  note?: string;
+  /** An instruction in words, never a button ("No phone nearby? Use the arrow keys and Return."). */
+  hint?: string;
+  /** The quiet last line of the panel ("You can change all of this later in Settings."). */
+  footnote?: string;
+  tips?: SetupTip[];
   list?: string[];
-  /** Draw the pairing QR code and the same-Wi-Fi note. */
+  /** Draw the pairing QR code. */
   qr?: boolean;
-  /** The label of Skip on this step; "Skip" when absent. */
-  skip?: string;
-  /** The step's own answers, before the Skip and Set up later every step ends with. */
+  /** A phone has just connected: the Screen shows a glowing ✓. */
+  connected?: boolean;
+  /** The step's answers: at most two, and one of them is always the way past the step. */
   buttons: SetupButton[];
-  /** On/off rows ahead of the buttons; Up and Down move through them, OK flips one. */
-  switches?: SetupSwitch[];
+  /** On/off tiles ahead of the buttons, each an App with its logo; arrows move in their grid, OK flips one. */
+  tiles?: SetupTile[];
 }
 
-export interface SetupSwitch {
+export interface SetupTile {
+  id: string;
   label: string;
+  icon: string;
   on: boolean;
   toggle(): void;
 }
@@ -59,44 +66,45 @@ export interface SetupStep {
   done(ctx: SetupContext, c: SetupControls): boolean;
   /** A phone connecting while this step shows moves Setup on (after saying so). */
   advanceOnPhone?: true;
-  /** The last step: it closes Setup itself, with no Skip or Set up later beside it. */
+  /** The last step: its button closes Setup. */
   final?: true;
 }
 
 const next = (c: SetupControls) => c.next();
+const NOT_NOW = { label: "Not now", run: next };
 
 export const SETUP_STEPS: SetupStep[] = [
-  {
-    id: "welcome",
-    done: () => false,
-    page: () => ({
-      title: "Welcome to Couch",
-      body: "Your Mac, made into a TV. Your phone is the Remote.",
-      buttons: [{ label: "Use the Mac's keyboard or mouse for now", run: next }],
-    }),
-  },
   {
     id: "pair",
     advanceOnPhone: true,
     done: ({ phonePaired }) => phonePaired,
     page: ({ phones, justConnected, addingPhone }) => {
+      const footnote = "You can change all of this later in Settings.";
       if (justConnected)
-        return { title: "Phone connected", buttons: [{ label: "Continue", run: next }] };
+        return {
+          title: "Phone connected",
+          body: "Your phone is the Remote now.",
+          connected: true,
+          buttons: [{ label: "Continue", run: next }],
+        };
       if (phones > 0 && !addingPhone)
         return {
           title: phones === 1 ? "1 phone connected" : `${phones} phones connected`,
-          skip: "Skip for now",
+          body: phones === 1 ? "Your phone is the Remote." : "Each one is a Remote.",
+          footnote,
           buttons: [
             { label: "Continue", run: next },
             { label: "Add another phone", run: (c) => c.addPhone() },
           ],
         };
       return {
-        title: "Pair your phone",
-        body: "Scan this with your phone's camera. Your phone must be on the same Wi-Fi as this Mac.",
+        title: "Welcome to Couch",
+        body: "Scan with your phone's camera. Your phone becomes the Remote, with no app to install.",
         qr: true,
-        skip: "Skip for now",
-        buttons: [],
+        note: "Your phone needs to be on the same Wi-Fi as this Mac.",
+        hint: "No phone nearby? Use the arrow keys and Return.",
+        footnote,
+        buttons: [NOT_NOW],
       };
     },
   },
@@ -106,22 +114,23 @@ export const SETUP_STEPS: SetupStep[] = [
     page: (_ctx, c) =>
       c.listenerOn()
         ? {
-            title: "Couch is on from your phone",
-            body: "The phone's Power button can start Couch when it's closed.",
+            title: "Couch starts from your phone",
+            body: "The Power button on your phone can open Couch even after it's been closed.",
             buttons: [{ label: "Continue", run: next }],
           }
         : {
-            title: "Turn Couch on from your phone?",
-            body: "Then the phone's Power button can start Couch when it's closed.",
+            title: "Start Couch from your phone",
+            body: "With this on, the Power button on your phone can open Couch even after it's been closed. A tiny helper starts when you log in to this Mac and waits for the button. It uses almost no power.",
+            note: "macOS will say a background item was added. That's this helper.",
             buttons: [
               {
-                label: "Yes",
+                label: "Turn on",
                 run: (c) => {
                   c.turnListenerOn();
                   c.next();
                 },
               },
-              { label: "No", run: next },
+              NOT_NOW,
             ],
           },
   },
@@ -129,10 +138,12 @@ export const SETUP_STEPS: SetupStep[] = [
     id: "apps",
     done: () => false,
     page: ({ apps }) => ({
-      title: "Which Apps show on Home?",
-      body: "Each one can be changed later in Settings.",
-      switches: apps.rows().map((row) => ({
+      title: "Pick your Apps",
+      body: "The ones you pick show on Home.",
+      tiles: apps.rows().map((row) => ({
+        id: row.id,
         label: row.label,
+        icon: row.icon,
         on: row.shown,
         toggle: () => apps.setShown(row.id, !row.shown),
       })),
@@ -142,16 +153,22 @@ export const SETUP_STEPS: SetupStep[] = [
   {
     id: "videos",
     done: ({ folders }) => folders.length > 0,
-    page: ({ folders, anyAppOn }) => {
-      const added = folders.length > 0;
+    page: ({ folders }) => {
+      const body =
+        "Choose the folders your films and shows are in. Couch adds them to the Library.";
+      if (folders.length === 0)
+        return {
+          title: "Add your videos",
+          body,
+          buttons: [{ label: "Add a folder", run: (c) => c.addFolder() }, NOT_NOW],
+        };
       return {
         title: "Add your videos",
-        body: "Pick the folders your videos are in. Couch finds them for the Library.",
+        body,
         list: folders,
-        skip: anyAppOn ? "Skip, I only use the Apps" : "Skip for now",
         buttons: [
-          { label: added ? "Add more" : "Add a folder", run: (c) => c.addFolder() },
-          ...(added ? [{ label: "Continue", run: next }] : []),
+          { label: "Continue", run: next },
+          { label: "Add more", run: (c) => c.addFolder() },
         ],
       };
     },
@@ -162,7 +179,12 @@ export const SETUP_STEPS: SetupStep[] = [
     done: () => false,
     page: () => ({
       title: "You're set",
-      tips: ["OK opens", "Back steps out", "Home always goes Home"],
+      tips: [
+        { key: "OK", text: "opens" },
+        { key: "Back", text: "steps out" },
+        { key: "Home", text: "always goes Home" },
+      ],
+      footnote: "Change any of this later in Settings.",
       buttons: [{ label: "Go to Home", run: (c) => c.close() }],
     }),
   },

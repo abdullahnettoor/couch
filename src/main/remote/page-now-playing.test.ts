@@ -751,41 +751,70 @@ describe("a question with answers on the phone", () => {
 describe("Setup on the phone", () => {
   const apps = {
     id: "apps",
-    title: "Which Apps show on Home?",
-    body: "Each one can be changed later in Settings.",
-    step: 3,
-    steps: 6,
-    switches: [
-      { label: "YouTube", on: true },
-      { label: "Netflix", on: false },
+    title: "Pick your Apps",
+    body: "The ones you pick show on Home.",
+    step: 2,
+    steps: 5,
+    tiles: [
+      { id: "youtube", label: "YouTube", icon: '<svg data-n="yt"></svg>', on: true },
+      { id: "netflix", label: "Netflix", icon: '<svg data-n="nf"></svg>', on: false },
     ],
-    buttons: ["Continue", "Skip", "Set up later"],
-    focus: 2,
+    columns: 2,
+    buttons: ["Continue"],
+    focus: 1,
   };
   const show = (setup: unknown) =>
     page.send({ ...page.base, layout: "home", where: "Home", typeAvailable: false, setup });
-  const args = () =>
-    [...page.els.get("ask-btns")!.innerHTML.matchAll(/data-args="([^"]*)"/g)].map((m) =>
+  const args = (id: string) =>
+    [...page.els.get(id)!.innerHTML.matchAll(/data-args="([^"]*)"/g)].map((m) =>
       JSON.parse(m[1]!.replace(/&quot;/g, '"').replace(/&amp;/g, "&")),
     );
 
-  test("draws the switches and then the buttons, one index space, the focused one highlighted", () => {
+  test("draws the App tiles with their logos in a grid, then the buttons, one index space", () => {
     show(apps);
-    const html = page.els.get("ask-btns")!.innerHTML;
-    expect(html.match(/<button/g)).toHaveLength(5);
-    expect(html).toContain("YouTube");
-    expect(html).toContain("On");
-    expect(html).toContain("Off");
-    expect(args()).toEqual([0, 1, 2, 3, 4].map((index) => ({ index, text: "apps" })));
-    expect(html.match(/hero/g)).toHaveLength(1);
-    expect(html.indexOf("hero")).toBeGreaterThan(html.indexOf("Netflix"));
-    expect(html.indexOf("hero")).toBeLessThan(html.indexOf("Continue"));
+    const tiles = page.els.get("ask-tiles")!;
+    expect(tiles.hidden).toBe(false);
+    expect(PAGE_HTML).toContain(".sheet .tiles { display:grid; grid-template-columns:1fr 1fr;");
+    const html = tiles.innerHTML;
+    expect(html.match(/<button/g)).toHaveLength(2);
+    expect(html).toContain('<svg data-n="yt"></svg>');
+    expect(html).toContain('<svg data-n="nf"></svg>');
+    expect(html).toMatch(/class="tile"[^>]*aria-pressed="true"[^>]*>.*YouTube.*class="tick"/);
+    expect(html).toMatch(/class="tile off hero"[^>]*aria-pressed="false"/);
+    expect(args("ask-tiles")).toEqual([0, 1].map((index) => ({ index, text: "apps" })));
+    expect(page.els.get("ask-btns")!.innerHTML).toContain("Continue");
+    expect(args("ask-btns")).toEqual([{ index: 2, text: "apps" }]);
   });
 
-  test("lists the folders already added", () => {
-    show({ ...apps, id: "videos", switches: undefined, list: ["/Movies", "/Shows"], focus: 0 });
+  test("lists the folders already added, and the notes and Settings line", () => {
+    show({
+      ...apps,
+      id: "videos",
+      tiles: undefined,
+      list: ["/Movies", "/Shows"],
+      note: "A note.",
+      footnote: "Change any of this later in Settings.",
+      focus: 0,
+    });
+    expect(page.els.get("ask-tiles")!.hidden).toBe(true);
     expect(page.els.get("ask-body")!.textContent).toContain("/Movies");
     expect(page.els.get("ask-body")!.textContent).toContain("/Shows");
+    expect(page.els.get("ask-body")!.textContent).toContain("A note.");
+    expect(page.els.get("ask-foot")!.textContent).toBe("Change any of this later in Settings.");
+  });
+
+  test("draws the tips with their keys, and a just-connected phone's check", () => {
+    show({
+      ...apps,
+      id: "done",
+      tiles: undefined,
+      tips: [{ key: "OK", text: "opens" }],
+      focus: 0,
+    });
+    expect(page.els.get("ask-body")!.textContent).toContain("OK opens");
+    show({ ...apps, id: "pair", tiles: undefined, title: "Phone connected", connected: true });
+    const title = page.els.get("ask-title")!.innerHTML;
+    expect(title).toMatch(/^<span class="tick"><svg[^]*<\/span> Phone connected$/);
   });
 
   test("keeps Back and Home reachable, only while Setup shows", () => {
