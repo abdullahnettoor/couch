@@ -36,7 +36,7 @@ import {
   FakeYouTube,
   FakeUpdater,
 } from "../ports/fakes.ts";
-import { SETUP_STEPS } from "../core/setup-steps.ts";
+import { SETUP_STEPS, type SetupStep } from "../core/setup-steps.ts";
 import { startUpdates, type Updates } from "../ports/updates.ts";
 
 /** A pretend phone: a WebSocket client that records every snapshot. */
@@ -193,6 +193,8 @@ export async function startHarness(
     wallpapers?: true | Harness["wallpapers"];
     /** "fresh" leaves Setup to decide for itself; otherwise a Store with no `setup` record gets one saying Setup is finished, so other tests start on Home. */
     setup?: "fresh";
+    /** The Setup step list to use instead of the real one (a fake step added to test "New in Couch"). */
+    setupSteps?: SetupStep[];
   } = {},
 ): Promise<Harness> {
   const tmp = given ? undefined : mkdtempSync(join(tmpdir(), "couch-store-"));
@@ -262,6 +264,7 @@ export async function startHarness(
       portAnswers: () => Promise.resolve(listenerUp.alive),
     },
     frontdoorSetup: options.frontdoor,
+    setupSteps: options.setupSteps,
     player,
     entries: catalog,
     apps: [
