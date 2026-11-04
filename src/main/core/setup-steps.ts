@@ -9,6 +9,7 @@ export interface SetupPage {
   title: string;
   body?: string;
   tips?: string[];
+  list?: string[];
   /** The step's own answers, before the Skip and Set up later every step ends with. */
   buttons: SetupButton[];
 }
@@ -20,9 +21,11 @@ export interface SetupPage {
  */
 export interface SetupStep {
   id: string;
-  page(): SetupPage;
+  page(c: SetupControls): SetupPage;
   /** The choice behind this step has been made (a phone paired, a folder added), so Setup resumes past it. */
-  done(): boolean;
+  done(c: SetupControls): boolean;
+  /** The label of Skip, when it isn't just "Skip". */
+  skip?(c: SetupControls): string;
   /** The last step: it closes Setup itself, with no Skip or Set up later beside it. */
   final?: true;
 }
@@ -38,6 +41,23 @@ export const SETUP_STEPS: SetupStep[] = [
       body: "Your Mac, made into a TV. Your phone is the remote.",
       buttons: [{ label: "Use the Mac's keyboard or mouse for now", run: next }],
     }),
+  },
+  {
+    id: "videos",
+    done: (c) => c.folders().length > 0,
+    skip: (c) => (c.anyAppOn() ? "Skip, I only use the Apps" : "Skip for now"),
+    page: (c) => {
+      const added = c.folders().length > 0;
+      return {
+        title: "Add your videos",
+        body: "Pick the folders your videos are in. Couch finds them for the Library.",
+        list: c.folders(),
+        buttons: [
+          { label: added ? "Add more" : "Add a folder", run: (c) => c.addFolder() },
+          ...(added ? [{ label: "Continue", run: next }] : []),
+        ],
+      };
+    },
   },
   {
     id: "done",

@@ -5,12 +5,21 @@ import { SETUP_STEPS, type SetupStep } from "./setup-steps.ts";
 export interface SetupControls {
   next(): void;
   close(): void;
+  /** The Library folders already added. */
+  folders(): string[];
+  /** Opens the Mac's folder picker and adds what it returns, as Settings → Library does. */
+  addFolder(): void;
+  /** Whether any App is on for Home (the Library is not an App). */
+  anyAppOn(): boolean;
 }
 
 export interface SetupHost {
   store: Store;
   /** Couch has been used before: a pairing from an earlier start, Library folders or watch history. */
   usedBefore(): boolean;
+  folders(): string[];
+  addFolder(): void;
+  anyAppOn(): boolean;
   cue(sound: UiSound): void;
   changed(): void;
 }
@@ -78,7 +87,7 @@ export class Setup {
   }
 
   #start(): void {
-    const first = this.#steps.findIndex((s) => !this.#seen.has(s.id) && !s.done());
+    const first = this.#steps.findIndex((s) => !this.#seen.has(s.id) && !s.done(this.#control()));
     this.#open = true;
     this.#goTo(first < 0 ? this.#steps.length - 1 : first);
   }
@@ -99,14 +108,27 @@ export class Setup {
     this.#save(true);
   }
 
+  #control(): SetupControls {
+    const h = this.#h;
+    return {
+      next: () => this.#next(),
+      close: () => this.#finish(),
+      folders: () => h.folders(),
+      addFolder: () => h.addFolder(),
+      anyAppOn: () => h.anyAppOn(),
+    };
+  }
+
   #buttons(): Array<{ label: string; run(): void }> {
     const step = this.#steps[this.#index]!;
-    const control: SetupControls = { next: () => this.#next(), close: () => this.#finish() };
-    const own = step.page().buttons.map((b) => ({ label: b.label, run: () => b.run(control) }));
+    const control = this.#control();
+    const own = step
+      .page(control)
+      .buttons.map((b) => ({ label: b.label, run: () => b.run(control) }));
     if (step.final) return own;
     return [
       ...own,
-      { label: "Skip", run: () => this.#next() },
+      { label: step.skip?.(control) ?? "Skip", run: () => this.#next() },
       { label: "Set up later", run: () => this.#finish() },
     ];
   }
@@ -122,12 +144,13 @@ export class Setup {
   payload(): SetupPayload | undefined {
     if (!this.#open) return undefined;
     const step = this.#steps[this.#index]!;
-    const page = step.page();
+    const page = step.page(this.#control());
     return {
       id: step.id,
       title: page.title,
       ...(page.body ? { body: page.body } : {}),
       ...(page.tips ? { tips: page.tips } : {}),
+      ...(page.list?.length ? { list: page.list } : {}),
       step: this.#index,
       steps: this.#steps.length,
       buttons: this.#buttons().map((b) => b.label),

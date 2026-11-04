@@ -51,6 +51,28 @@ describe("the Setup panel", () => {
     expect(panel.querySelectorAll(".dots i")[1]!.className).toBe("on");
   });
 
+  test("draws the folders already added and both skip labels", () => {
+    const videos: SetupPayload = {
+      ...welcome,
+      id: "videos",
+      title: "Add your videos",
+      list: ["/Movies", "/Shows"],
+      step: 1,
+      buttons: ["Add more", "Continue", "Skip, I only use the Apps", "Set up later"],
+    };
+    draw(videos);
+    expect(Array.from(panel.querySelectorAll(".list li")).map((l) => l.textContent)).toEqual([
+      "/Movies",
+      "/Shows",
+    ]);
+    const labels = () =>
+      Array.from(panel.querySelectorAll(".buttons span")).map((b) => b.textContent);
+    expect(labels()).toContain("Skip, I only use the Apps");
+    draw({ ...videos, list: undefined, buttons: ["Add a folder", "Skip for now", "Set up later"] });
+    expect(panel.querySelector(".list")).toBeNull();
+    expect(labels()).toEqual(["Add a folder", "Skip for now", "Set up later"]);
+  });
+
   test("a hover focuses a button and a click answers it, as the keys do", () => {
     draw(welcome);
     const buttons = panel.querySelectorAll(".buttons span");

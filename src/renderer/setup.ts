@@ -41,6 +41,16 @@ export function renderSetup(payload: ScreenPayload): void {
     }
     box.append(tips);
   }
+  if (s.list?.length) {
+    const list = document.createElement("ul");
+    list.className = "list";
+    for (const entry of s.list) {
+      const item = document.createElement("li");
+      item.textContent = entry;
+      list.append(item);
+    }
+    box.append(list);
+  }
   const row = document.createElement("div");
   row.className = "buttons";
   const view = describeConfirm({ title: s.title, buttons: s.buttons, focus: s.focus }, px);

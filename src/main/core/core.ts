@@ -365,12 +365,6 @@ export class Core {
     });
     this.#state.volume = this.#sound.volume;
     this.#uiSounds = new InterfaceSounds(ports.store);
-    this.#setup = new Setup({
-      store: ports.store,
-      usedBefore: () => this.#usedBefore(),
-      cue: (sound) => this.#cue(sound),
-      changed: () => this.#emit(),
-    });
     this.#quick = new QuickSettings({
       clock: ports.clock,
       sound: this.#sound,
@@ -476,6 +470,15 @@ export class Core {
       ? lib.folders.filter((f): f is string => typeof f === "string")
       : [];
     void this.library.refresh(this.#libraryFolders);
+    this.#setup = new Setup({
+      store: ports.store,
+      usedBefore: () => this.#usedBefore(),
+      folders: () => this.#libraryFolders,
+      addFolder: () => this.#addFolder(),
+      anyAppOn: () => this.#homeApps.shownIds().some((id) => id !== "library"),
+      cue: (sound) => this.#cue(sound),
+      changed: () => this.#emit(),
+    });
     const saved = ports.store.read<{ key?: string }>("pairing", {});
     this.#key = typeof saved.key === "string" && saved.key ? saved.key : this.#newKey();
     const playback = ports.store.read<{ subtitlesOn?: unknown }>("playback", {});
@@ -975,16 +978,8 @@ export class Core {
       this.#showFrom = this.#state.view === "librarySearch" ? "librarySearch" : "library";
       this.#show.open(arg);
     } else if (verb === "remove") this.#saveFolders(this.#libraryFolders.filter((f) => f !== arg));
-    else if (verb === "add") {
-      void this.#ports.mac
-        .pickFolder()
-        .then((path) => {
-          if (path && !this.#libraryFolders.includes(path))
-            this.#saveFolders([...this.#libraryFolders, path]);
-          this.#emit();
-        })
-        .catch(() => {});
-    } else return false;
+    else if (verb === "add") this.#addFolder();
+    else return false;
     return true;
   }
 
@@ -1402,6 +1397,18 @@ export class Core {
         ...(progress ? { progress: progress.position / progress.duration } : {}),
       };
     });
+  }
+
+  /** The Mac's folder picker, then the usual save and scan; Settings → Library and Setup both use it. */
+  #addFolder(): void {
+    void this.#ports.mac
+      .pickFolder()
+      .then((path) => {
+        if (path && !this.#libraryFolders.includes(path))
+          this.#saveFolders([...this.#libraryFolders, path]);
+        this.#emit();
+      })
+      .catch(() => {});
   }
 
   #saveFolders(folders: string[]): void {
