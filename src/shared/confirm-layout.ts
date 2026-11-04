@@ -1,7 +1,7 @@
 import { GLASS } from "./look.ts";
 import type { Command, Confirmation } from "./protocol.ts";
 
-/** Design pixels (a 1920-wide Screen) and colours of the question box, shared by the Screen and the YouTube page. */
+/** Design pixels (a 1920-wide Screen) and colours of the question box, shared by the Screen and the YouTube page. All taken from the Look. */
 export const CONFIRM_LAYOUT = {
   scrim: GLASS.color.scrim,
   box: {

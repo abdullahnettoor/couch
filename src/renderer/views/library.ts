@@ -1,6 +1,7 @@
 import type { LibraryEntry, LibraryRow, ScreenPayload } from "../../shared/protocol.ts";
 import { iconSvg } from "../../shared/icons.ts";
 import { designUnit } from "../../shared/design-unit.ts";
+import { GLASS } from "../../shared/look.ts";
 import { el, focusable, genreLabels, root } from "./dom.ts";
 import { cornerBack, topbar } from "./glass.ts";
 
@@ -123,7 +124,8 @@ export function render(payload: ScreenPayload): void {
   body.scrollTop = scrollTop;
   const focused = body.querySelector<HTMLElement>(".lib-card.focused");
   if (focused) {
-    const margin = 60 * designUnit(window.innerWidth, window.innerHeight);
+    const margin =
+      GLASS.metrics.library.scrollMarginBlock * designUnit(window.innerWidth, window.innerHeight);
     const top = focused.offsetTop - margin;
     const bottom = focused.offsetTop + focused.offsetHeight + margin * 2;
     if (top < body.scrollTop) body.scrollTop = Math.max(0, top);
@@ -144,7 +146,8 @@ let chipScroll = 0;
 /** Slides the chip row so the focused chip is fully visible, clear of the edge fades. */
 function scrollChips(row: HTMLElement, track: HTMLElement): void {
   const chip = track.querySelector<HTMLElement>(".focused");
-  const edge = 96 * designUnit(window.innerWidth, window.innerHeight);
+  const edge =
+    GLASS.metrics.library.scrollMarginEdge * designUnit(window.innerWidth, window.innerHeight);
   let left = chipScroll;
   if (chip) {
     const { offsetLeft: from, offsetWidth: width } = chip;
@@ -296,7 +299,7 @@ function renderRoot(payload: ScreenPayload): void {
     const u = designUnit(window.innerWidth, window.innerHeight);
     const prev = shelfScroll.get(id);
     let left = prev ?? 0;
-    const edge = 120 * u;
+    const edge = GLASS.metrics.library.scrollMarginSearch * u;
     if (card_.offsetLeft < left) left = card_.offsetLeft;
     else if (card_.offsetLeft + card_.offsetWidth + edge > left + shelf.clientWidth)
       left = card_.offsetLeft + card_.offsetWidth + edge - shelf.clientWidth;

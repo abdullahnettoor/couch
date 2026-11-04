@@ -19,7 +19,7 @@ import "./home.css";
 
 document.head.append(
   Object.assign(document.createElement("style"), {
-    textContent: lookCss(GLASS, { unit: "var(--u)" }),
+    textContent: lookCss(GLASS, { unit: "var(--u)", defineUnit: true }),
   }),
 );
 

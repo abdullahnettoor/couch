@@ -298,6 +298,8 @@ export interface LookCssOptions {
   unit: string;
   /** Prepended to every property name after the dashes, to avoid clashing with a host page. */
   prefix?: string;
+  /** Also write `--u` itself, as the viewport's design unit (the Screen does; other surfaces get their unit from the host). */
+  defineUnit?: boolean;
 }
 
 const kebab = (s: string) => s.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
@@ -305,7 +307,7 @@ const kebab = (s: string) => s.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 /** The CSS custom properties for a Look, as one rule. Old token names stay as aliases until the rules move over. */
 export function lookCss(
   look: Look,
-  { selector = ":root", unit, prefix = "" }: LookCssOptions,
+  { selector = ":root", unit, prefix = "", defineUnit = false }: LookCssOptions,
 ): string {
   const len = (n: number) => `calc(${n} * ${unit})`;
   const sub = (s: string) => s.replaceAll("{u}", unit);
@@ -342,6 +344,7 @@ export function lookCss(
   add("focus-lift", len(focus.lift));
   add("focus-ring", sub(focus.ring));
 
+  if (defineUnit) add("u", `min(100vw / ${metrics.base.width}, 100vh / ${metrics.base.height})`);
   add("design-width", String(metrics.base.width));
   add("design-height", String(metrics.base.height));
   add("row-height", len(metrics.row.height));

@@ -1,5 +1,7 @@
-/** Settings' row, in design pixels (a 1920-wide Screen). `src/renderer/glass.css` `.g-row` must match; a test checks. */
-export const ROW = { height: 96, padX: 32, font: 32, gap: 8, valueFont: 26 } as const;
+import { GLASS } from "./look.ts";
+
+/** Settings' row, in design pixels (a 1920-wide Screen), from the Look. `.g-row` in glass.css reads the same numbers as `--row-*` variables. */
+export const ROW = GLASS.metrics.row;
 
 /** The row look shared with Settings: size, padding, radius, label and value type, and the focus highlight. */
 export function rowCss(selector: string, unit: string): string {
