@@ -103,6 +103,25 @@ describe("the mouse and the keys share one focus ring", () => {
     expect(p.scroll.y).toBe(y);
   });
 
+  test("the hover preview painted over the held card does not move the ring", () => {
+    const p = setup();
+    p.key("ArrowRight");
+    const held = p.on()!;
+    const r = held.rect!;
+    p.mini.rect = {
+      ...r,
+      left: r.left - 20,
+      top: r.top - 20,
+      right: r.right + 20,
+      bottom: r.bottom + 20,
+    };
+    connect(p.mini, true);
+    p.mutate();
+    expect(p.on()).toBe(held);
+    p.mutate();
+    expect(p.on()).toBe(held);
+  });
+
   test("after a scroll leaves the ring off screen, an arrow moves from the cards on screen", () => {
     const p = setup();
     p.key("ArrowRight");

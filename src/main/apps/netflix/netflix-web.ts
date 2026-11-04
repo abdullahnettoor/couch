@@ -33,6 +33,7 @@ export const NETFLIX_LAYOUT: FocusLayout = {
   ignore: ['[tabindex="-1"]', '[data-uia^="carousel-hawkins"]'],
   // Only the details pop-up: Netflix's small hover preview (…-MINI_MODAL) is not one, and the ring stays put when it opens.
   scopes: ['[data-uia="modal-motion-container-DETAIL_MODAL"]'],
+  passive: ['[data-uia="modal-motion-container-MINI_MODAL"]'],
   // A title's pop-up opens on Play / Resume; with none, on the first of its action buttons (My List, rate), never on its text links.
   modalEntry: [
     '[data-uia="play-button"]',

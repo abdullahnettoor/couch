@@ -59,6 +59,8 @@ export interface FocusLayout {
   ignore?: string[];
   /** The site's own modal containers, on top of role=dialog and aria-modal=true: while one is on screen the highlight stays inside the topmost. */
   scopes?: string[];
+  /** Overlays that never count as covering a control (a hover preview): the highlight stays on the control beneath. */
+  passive?: string[];
   /** Where the highlight lands when a pop-up opens: the first usable match of the first selector that has one, inside the pop-up. While none matches yet, the highlight waits (never on a text link); the wait ends when one does or the household moves, and from then on it stays where they put it. */
   modalEntry?: string[];
   /** Rows of cards: Left/Right stay in the row, Up/Down leave it; at the row's end `next`/`prev` (inside the row) page it. */
@@ -261,6 +263,16 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         var x = Math.min(Math.max((Math.max(r.left, 0) + Math.min(r.right, innerWidth)) / 2, 0), innerWidth - 1);
         var y = Math.min(Math.max((Math.max(r.top, 0) + Math.min(r.bottom, innerHeight)) / 2, 0), innerHeight - 1);
         var top = hitAt(x, y);
+        if (top && LAYOUT.passive && LAYOUT.passive.length && typeof document.elementsFromPoint === 'function') {
+          var stack = document.elementsFromPoint(x, y);
+          top = null;
+          for (var q = 0; q < stack.length; q++) {
+            if (stack[q].id === SHIELD_ID) continue;
+            if (stack[q] !== el && !el.contains(stack[q]) && matchesAny(stack[q], LAYOUT.passive)) continue;
+            if (stack[q] !== el && !el.contains(stack[q]) && stack[q].closest && stack[q].closest(LAYOUT.passive.join(','))) continue;
+            top = stack[q]; break;
+          }
+        }
         return !!top && top !== el && !el.contains(top);
       } catch (e) { return false; }
     };
