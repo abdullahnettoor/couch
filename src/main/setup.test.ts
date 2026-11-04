@@ -103,7 +103,7 @@ describe("moving through Setup", () => {
     expect(h.screen.last.setup?.id).toBe("done");
     await h.stop();
     await fresh(store);
-    expect(h.screen.last.setup).toMatchObject({ id: "listener", step: 1 });
+    expect(h.screen.last.setup).toMatchObject({ id: "done", step: 2 });
   });
 
   test("while open, keys never reach Home or an App", async () => {
