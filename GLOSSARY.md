@@ -106,3 +106,7 @@ _Avoid_: badge, notification
 **Household**:
 The people who share one Screen. There are no profiles or logins; any household phone can act as a Remote.
 _Avoid_: user, account, profile
+
+**Look**:
+Couch's visual style (colours, type, corner shapes, glass, motion and how focus is shown), shared by the Screen, the phone, Quick settings and a Web App's on-screen controls. **Glass** is Couch's Look today; later the household may choose another. It lives in `src/shared/look.ts`. A layout change, such as a Google TV style Home, is not a Look; that is the later Skin work.
+_Avoid_: theme, skin

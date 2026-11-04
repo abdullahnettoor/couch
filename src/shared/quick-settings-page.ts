@@ -1,6 +1,6 @@
 import { designUnit } from "./design-unit.ts";
 import { CONFIRM_LAYOUT } from "./confirm-layout.ts";
-import { glassTokensCss } from "./glass-tokens.ts";
+import { GLASS, lookCss } from "./look.ts";
 import { ICON_PATHS } from "./icons.ts";
 import { rowCss } from "./row-style.ts";
 
@@ -28,7 +28,7 @@ const ICONS = JSON.stringify({
 });
 
 const css = (glass: boolean) => `
-${glassTokensCss({ unit: "var(--u)" })}
+${lookCss(GLASS, { unit: "var(--u)" })}
 html,body { margin:0; height:100%; background:transparent; overflow:hidden; font-family:-apple-system,"SF Pro Display",system-ui,sans-serif; color:var(--t1); user-select:none; cursor:default; }
 :root { --u: min(100vw / 1920, 100vh / 1080); }
 #scrim { position:fixed; inset:0 ${glass ? `calc(${DRAWER.width}*var(--u)) 0 0` : "0"}; background:${CONFIRM_LAYOUT.scrim}; opacity:0; transition:opacity ${QUICK_SLIDE_MS}ms var(--ease); }

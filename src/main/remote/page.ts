@@ -1,4 +1,4 @@
-import { glassTokensCss } from "../../shared/glass-tokens.ts";
+import { GLASS, lookCss } from "../../shared/look.ts";
 import { ICON_MARKUP } from "../../shared/icons.ts";
 import { CHECK_SVG, setupControls } from "../../shared/setup-controls.ts";
 import { trackCode } from "../../shared/track-code.ts";
@@ -855,4 +855,4 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .replace("__TRACK_CODE__", () => trackCode.toString())
   .replace("__SETUP_CONTROLS__", () => setupControls.toString())
   .replace("__CHECK_SVG__", () => JSON.stringify(CHECK_SVG))
-  .replace("__TOKENS__", glassTokensCss({ unit: "1px" }));
+  .replace("__TOKENS__", lookCss(GLASS, { unit: "1px" }));

@@ -12,14 +12,14 @@ import { isTypingTarget, syncTyping } from "./views/typing.ts";
 import { renderOverlay, setNativeGlass, setVideoTint } from "./player-overlay.ts";
 import { darkTint } from "../shared/glass-tint.ts";
 import { iconSvg } from "../shared/icons.ts";
-import { glassTokensCss } from "../shared/glass-tokens.ts";
+import { GLASS, lookCss } from "../shared/look.ts";
 import "./style.css";
 import "./glass.css";
 import "./home.css";
 
 document.head.append(
   Object.assign(document.createElement("style"), {
-    textContent: glassTokensCss({ unit: "var(--u)" }),
+    textContent: lookCss(GLASS, { unit: "var(--u)" }),
   }),
 );
 
