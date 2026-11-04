@@ -1,5 +1,6 @@
 import type { LibraryRow, ScreenPayload } from "../../shared/protocol.ts";
 import { designUnit } from "../../shared/design-unit.ts";
+import { GLASS } from "../../shared/look.ts";
 import { iconSvg } from "../../shared/icons.ts";
 import { el, focusable, root } from "./dom.ts";
 import { cornerBack, topbar } from "./glass.ts";
@@ -66,7 +67,8 @@ export function render(payload: ScreenPayload): void {
   const block = focused.closest<HTMLElement>(".lf-block")!;
   body.scrollTop = block.offsetTop;
   const shelf = focused.closest<HTMLElement>(".lf-shelf")!;
-  const edge = 120 * designUnit(window.innerWidth, window.innerHeight);
+  const edge =
+    GLASS.metrics.library.scrollMarginSearch * designUnit(window.innerWidth, window.innerHeight);
   if (focused.offsetLeft < shelf.scrollLeft) shelf.scrollLeft = focused.offsetLeft;
   else if (focused.offsetLeft + focused.offsetWidth + edge > shelf.scrollLeft + shelf.clientWidth)
     shelf.scrollLeft = focused.offsetLeft + focused.offsetWidth + edge - shelf.clientWidth;

@@ -1,7 +1,6 @@
 import { runInNewContext } from "node:vm";
 import { describe, expect, test } from "vite-plus/test";
 import type { QuickPayload } from "./protocol.ts";
-import { readFileSync } from "node:fs";
 import { CONFIRM_LAYOUT } from "./confirm-layout.ts";
 import { GLASS, lookCss } from "./look.ts";
 import { QUICK_SLIDE_MS, drawerGlassRect, quickSettingsPage } from "./quick-settings-page.ts";
@@ -246,10 +245,7 @@ describe("the Quick settings page", () => {
 });
 
 describe("the drawer page's design tokens", () => {
-  const renderer = rootProps(
-    readFileSync(new URL("../renderer/glass.css", import.meta.url), "utf8") +
-      lookCss(GLASS, { unit: "var(--u)" }),
-  );
+  const renderer = rootProps(lookCss(GLASS, { unit: "var(--u)", defineUnit: true }));
 
   test("--r-row resolves on the root to the renderer's own value, so rows are rounded", () => {
     const drawer = rootProps(pageCss());
