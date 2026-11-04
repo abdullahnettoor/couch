@@ -43,3 +43,8 @@ no API key, $0).
 ## Agent skills
 
 - **Issue tracker:** GitHub Issues on `abdullahnettoor/couch`. Labels and operations are in `docs/agents/issue-tracker.md`. The local `.issues/` folder is retired; it is kept only as history.
+
+## Branches
+
+- **Branch from `dev`, and merge or open pull requests into `dev`**, even when a task says "merge to main": `main` only receives releases (a `dev` merge for a stable release, or a hotfix that then goes back into `dev`). Details in CONTRIBUTING.md, "Branches".
+- **Don't release unless asked:** no `version` bumps in `package.json`, no `v*` tags, no `pnpm release`. Releasing is in SHIPPING.md, "Releasing".

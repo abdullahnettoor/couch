@@ -35,7 +35,13 @@ Couch's bundle id is `com.abdullahnettoor.couch` (`scripts/package.mjs`) and its
 
 ## How to contribute
 
-Open an issue on GitHub to discuss a change, or send a pull request against the `dev` branch (`main` only holds released code; see SHIPPING.md, "Branches"). Build test-first: write a failing test for the behaviour, make it pass, repeat. Run `vp check` and `vp test run` before you push. In the pull request, say what you checked by hand on a real screen, and what you couldn't check. Never touch a running Couch or its real partitions: copy the partition to a temp folder and run your own Electron instance on it.
+Open an issue on GitHub to discuss a change, or send a pull request. Build test-first: write a failing test for the behaviour, make it pass, repeat. Run `vp check` and `vp test run` before you push. In the pull request, say what you checked by hand on a real screen, and what you couldn't check. Never touch a running Couch or its real partitions: copy the partition to a temp folder and run your own Electron instance on it.
+
+### Branches
+
+- **Work from `dev` and merge into `dev`.** Branch from `dev`, and send pull requests (or, for the maintainer and agents working locally, merge) into `dev`. CI runs `vp check` and `vp test run` on every push and pull request to `dev` and `main`.
+- **`main` only receives releases.** It changes in two ways only: merging `dev` into it for a stable release, and hotfixes for the released version, which are then merged back into `dev`. Never merge feature work straight into `main`.
+- **Releases are the maintainer's.** Don't bump `version` in `package.json`, create `v*` tags or run `pnpm release` unless asked: `pnpm release` sets the version and tags, and refuses the wrong branch (betas from `dev`, stable versions from `main`). The whole flow is in SHIPPING.md, "Branches" and "Releasing".
 
 ## Add a YouTube add-on
 
