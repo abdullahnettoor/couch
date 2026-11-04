@@ -1409,3 +1409,9 @@ body:has(.ls-page) .toast:not(.notice) {
 .wp-panel .g-back {
   margin-left: 0;
 }
+.setup .qr svg {
+  display: block;
+  width: calc(360 * var(--u));
+  height: calc(360 * var(--u));
+  border-radius: calc(24 * var(--u));
+}

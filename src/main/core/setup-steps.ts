@@ -5,10 +5,29 @@ export interface SetupButton {
   run(c: SetupControls): void;
 }
 
+/** What a step can read about the household while it shows. */
+export interface SetupContext {
+  /** Phones connected right now. */
+  phones: number;
+  /** A phone has just connected on this step, which is about to move on. */
+  justConnected: boolean;
+  /** "Add another phone" was pressed on the pairing step. */
+  addingPhone: boolean;
+  /** Home's Apps: the same setting as Settings → Apps. */
+  apps: {
+    rows(): Array<{ id: string; label: string; shown: boolean }>;
+    setShown(id: string, shown: boolean): void;
+  };
+}
+
 export interface SetupPage {
   title: string;
   body?: string;
   tips?: string[];
+  /** Draw the pairing QR code and the same-Wi-Fi note. */
+  qr?: boolean;
+  /** The label of Skip on this step; "Skip" when absent. */
+  skip?: string;
   /** The step's own answers, before the Skip and Set up later every step ends with. */
   buttons: SetupButton[];
   /** On/off rows ahead of the buttons; Up and Down move through them, OK flips one. */
@@ -18,7 +37,7 @@ export interface SetupPage {
 export interface SetupSwitch {
   label: string;
   on: boolean;
-  toggle(c: SetupControls): void;
+  toggle(): void;
 }
 
 /**
@@ -28,7 +47,7 @@ export interface SetupSwitch {
  */
 export interface SetupStep {
   id: string;
-  page(c: SetupControls): SetupPage;
+  page(ctx: SetupContext): SetupPage;
   /** The choice behind this step has been made (a phone paired, a folder added), so Setup resumes past it. */
   done(): boolean;
   /** The last step: it closes Setup itself, with no Skip or Set up later beside it. */
@@ -48,15 +67,39 @@ export const SETUP_STEPS: SetupStep[] = [
     }),
   },
   {
+    id: "pair",
+    done: () => false,
+    page: ({ phones, justConnected, addingPhone }) => {
+      if (justConnected)
+        return { title: "Phone connected", buttons: [{ label: "Continue", run: next }] };
+      if (phones > 0 && !addingPhone)
+        return {
+          title: phones === 1 ? "1 phone connected" : `${phones} phones connected`,
+          skip: "Skip for now",
+          buttons: [
+            { label: "Continue", run: next },
+            { label: "Add another phone", run: (c) => c.addPhone() },
+          ],
+        };
+      return {
+        title: "Pair your phone",
+        body: "Scan this with your phone's camera. Your phone must be on the same Wi-Fi as this Mac.",
+        qr: true,
+        skip: "Skip for now",
+        buttons: [],
+      };
+    },
+  },
+  {
     id: "apps",
     done: () => false,
-    page: (c) => ({
+    page: ({ apps }) => ({
       title: "Which Apps show on Home?",
       body: "Each one can be changed later in Settings.",
-      switches: c.apps.rows().map((row) => ({
+      switches: apps.rows().map((row) => ({
         label: row.label,
         on: row.shown,
-        toggle: (c) => c.apps.setShown(row.id, !row.shown),
+        toggle: () => apps.setShown(row.id, !row.shown),
       })),
       buttons: [{ label: "Continue", run: next }],
     }),
