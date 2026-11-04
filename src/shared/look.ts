@@ -12,9 +12,13 @@
  * write them as `{u}`, e.g. `calc(24 * {u})`.
  */
 export interface Look {
-  /** Colours, written as `--<name>`. `warm` is an RGB triple for `rgba(var(--warm), a)`. */
+  /** Colours, written as `--<name>`. */
   color: Record<ColorName, string>;
-  /** Whole gradients (scrims and painted faces), written as `--<name>`. */
+  /**
+   * Whole gradients (scrims, painted faces, Setup's warm light), written as `--<name>`. Their colours are
+   * literal, not `var()`: a custom property resolves its `var()`s where it is declared, so a reference would
+   * miss a prefixed surface's names.
+   */
   gradient: Record<GradientName, string>;
   type: {
     family: string;
@@ -83,7 +87,6 @@ export type ColorName =
   | "live"
   | "danger"
   | "accent"
-  | "warm"
   | "scrim"
   | "scrimSheet"
   | "scrimUpNext"
@@ -158,6 +161,8 @@ export type GradientName =
   | "scrimPlayer"
   | "appFace"
   | "setupVeil"
+  | "setupLight"
+  | "setupGlow"
   | "splitArtFace";
 
 export type TypeSizeName =
@@ -466,7 +471,6 @@ export const GLASS: Look = {
     live: "#30d158",
     danger: "#ff453a",
     accent: "#0a84ff",
-    warm: "255, 150, 70",
     scrim: "rgba(0, 0, 0, 0.45)",
     scrimSheet: "rgba(0, 0, 0, 0.6)",
     scrimUpNext: "rgba(0, 0, 0, 0.55)",
@@ -546,6 +550,8 @@ export const GLASS: Look = {
     scrimPlayer: "linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.6))",
     appFace: "linear-gradient(160deg, #3a3a3e, #17171a)",
     setupVeil: "radial-gradient(70% 70% at 50% 34%, #1b130c 0%, #0c0907 58%, #050404 100%)",
+    setupLight: "radial-gradient(closest-side, rgba(255, 150, 70, 0.3), rgba(255, 150, 70, 0))",
+    setupGlow: "radial-gradient(closest-side, rgba(255, 150, 70, 0.34), rgba(255, 150, 70, 0))",
     splitArtFace: "linear-gradient(160deg, #8e8e93, #3a3a3c)",
   },
   type: {

@@ -316,7 +316,7 @@ svg.i {
   width: calc(1000 * var(--u));
   height: calc(760 * var(--u));
   margin-left: calc(-500 * var(--u));
-  background: radial-gradient(closest-side, rgba(var(--warm), 0.3), rgba(var(--warm), 0));
+  background: var(--setup-light);
 }
 .setup.intro .s-veil,
 .setup.intro .s-light,
@@ -444,7 +444,7 @@ svg.i {
   height: calc(644 * var(--u));
   margin: calc(-322 * var(--u)) 0 0 calc(-322 * var(--u));
   border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(var(--warm), 0.34), rgba(var(--warm), 0));
+  background: var(--setup-glow);
   opacity: 0;
   transition: opacity var(--duration-glow-fade) var(--ease-glass);
 }
