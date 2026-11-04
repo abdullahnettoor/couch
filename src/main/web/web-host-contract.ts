@@ -647,6 +647,46 @@ export function describeWebHostContract(
         expect(app.back()).toBe("leave");
       });
 
+      test("Netflix: a second Back while its home is still loading doesn't ask to leave", async () => {
+        const rig = makeRig();
+        const clock = new FakeClock();
+        const app = new NetflixApp(rig.host, clock);
+        const title = "https://www.netflix.com/watch/80100172";
+        rig.host.openAt(title);
+        await rig.show();
+        rig.navigate(title);
+        app.back();
+        await vi.waitFor(() => expect(rig.loads().at(-1)).toBe(netflix.url));
+        const loads = rig.loads().length;
+        clock.advance(1000);
+        expect(app.back()).toBe("handled");
+        await vi.waitFor(() =>
+          expect(rig.scripts().filter((s) => s.includes("__couchPlayerBack"))).toHaveLength(2),
+        );
+        await new Promise((r) => setTimeout(r, 0));
+        expect(rig.loads()).toHaveLength(loads);
+      });
+
+      test("Netflix: if its home never arrives, Back still leaves in the end", async () => {
+        const rig = makeRig();
+        const clock = new FakeClock();
+        const app = new NetflixApp(rig.host, clock);
+        const title = "https://www.netflix.com/watch/80100172";
+        rig.host.openAt(title);
+        await rig.show();
+        rig.navigate(title);
+        app.back();
+        await vi.waitFor(() => expect(rig.loads().at(-1)).toBe(netflix.url));
+        clock.advance(1000);
+        app.back();
+        await vi.waitFor(() =>
+          expect(rig.scripts().filter((s) => s.includes("__couchPlayerBack"))).toHaveLength(2),
+        );
+        await new Promise((r) => setTimeout(r, 0));
+        clock.advance(1000);
+        expect(app.back()).toBe("leave");
+      });
+
       test("Back at the App's home with no history behind it loads nothing", async () => {
         const rig = makeRig();
         await rig.show();

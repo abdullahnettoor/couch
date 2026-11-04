@@ -23,10 +23,10 @@ export interface HostEngine {
   run(script: string): Promise<unknown>;
   /** A native key press (down, then up) of this key code of the description. */
   press(keyCode: string): void;
-  /** History back in the page; the engine knows when that is safe. */
+  /** History back in the page; only called once `canGoBack` said yes. */
   goBack(): void;
   /** Whether history back has a page of the App's to go to (not the engine's blank start). */
-  canGoBack(): boolean | Promise<boolean>;
+  canGoBack(): Promise<boolean>;
   /** The address the page is at. */
   url(): string;
   load(url: string): void;
@@ -63,6 +63,8 @@ export class WebHostCore {
   #homeTimer: ReturnType<typeof setTimeout> | undefined;
   /** The page is at the App's home, as its route last said. */
   #atHome = true;
+  /** Back loaded the App's home; until the page reports where it is, another Back does nothing. */
+  #loadingHome = false;
   #guard: (on: boolean) => void;
 
   /** `pollsRoute`: ask the page for its state every tick (otherwise the engine pushes it with `setPage`). */
@@ -91,6 +93,7 @@ export class WebHostCore {
     const route = this.#routes.update(url, this.#page);
     if (!route) return;
     this.#atHome = route.home;
+    this.#loadingHome = false;
     this.#emit({ type: "route", ...route });
   }
 
@@ -176,6 +179,7 @@ export class WebHostCore {
     this.#page = this.#desc.route.idle;
     this.#routes = this.#desc.route.tracker();
     this.#atHome = true;
+    this.#loadingHome = false;
     this.#startUrl = undefined;
     this.#setPending(false);
     this.#emit({ type: "route", home: true });
@@ -312,12 +316,17 @@ export class WebHostCore {
 
   /**
    * History back, or the App's home when there is no page behind this one: a title that was the page's first load
-   * (a Continue open, a deep link) has nothing to go back to, and Back must still reach home.
+   * (a Continue open, a deep link) has nothing to go back to, and Back must still reach home. A full load takes
+   * longer than a history step, so the Back that starts it is reported as handled (not a stuck Back); a Back
+   * during the load does nothing, so if home never arrives the App's stuck-Back rule still offers to leave.
    */
   async #historyBack(): Promise<void> {
-    const can = await Promise.resolve(this.#engine.canGoBack()).catch(() => false);
-    if (can) this.#engine.goBack();
-    else if (!this.#atHome) this.#engine.load(this.#desc.url);
+    if (!this.#loadingHome && (await this.#engine.canGoBack().catch(() => false)))
+      return this.#engine.goBack();
+    if (this.#atHome || this.#loadingHome) return;
+    this.#loadingHome = true;
+    this.#engine.load(this.#desc.url);
+    this.#emit({ type: "backHandled" });
   }
 
   scrollToTop(): void {
