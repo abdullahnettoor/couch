@@ -167,6 +167,8 @@ export interface SetupPayload {
   body?: string;
   /** The "You're set" tips, one per line. */
   tips?: string[];
+  /** Draw the pairing QR code (from `pairingUrl`) under the words. */
+  qr?: boolean;
   /** Which step this is (from 0) of how many, for the dots. */
   step: number;
   steps: number;

@@ -370,6 +370,8 @@ export class Core {
       usedBefore: () => this.#usedBefore(),
       listenerOn: () => this.#loginItem.on,
       turnListenerOn: () => void this.#turnListenerOn(),
+      phones: () => this.#remotes.size,
+      later: (fn, ms) => ports.clock.setTimeout(fn, ms),
       cue: (sound) => this.#cue(sound),
       changed: () => this.#emit(),
     });
@@ -1688,6 +1690,7 @@ export class Core {
     this.#remotes.add(remote);
     this.#state.remotes = this.#remotes.size;
     this.#toast("Phone connected");
+    this.#setup.phoneConnected();
     this.#emit();
   }
 
