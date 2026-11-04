@@ -1,22 +1,14 @@
-import { OPEN_APP, RESTART_APP } from "../apps/index.ts";
-import { PLAYBACK_APP, SIGN_IN_APP } from "./home-apps.ts";
-import { SETTINGS_APP } from "../../shared/settings-grid.ts";
+import { OPEN_APP } from "../apps/index.ts";
 import type { View } from "../../shared/protocol.ts";
 
 /** What an action handler may do to the core. */
 export interface ActionContext {
   open(view: View): void;
-  openAppMenu(id: string): void;
   toast(text: string): void;
   forgetAllPhones(): void;
   /** Settings → About, focused on Restart to update (Home's update icon). */
   openUpdate(): void;
   openApp(id: string): void;
-  retryApp(): void;
-  restartApp(id: string): void;
-  copySignInFromCouch(id: string): void;
-  signOut(id: string): void;
-  switchPlayback(id: string): void;
   toggleListener(): void;
   quit(): void;
 }
@@ -33,25 +25,9 @@ const homeActions: Record<string, ActionHandler> = {
   "open:update": (ctx) => ctx.openUpdate(),
 };
 
-const appActions: Record<string, ActionHandler> = {
-  "app:retry": (ctx) => ctx.retryApp(),
-};
-
-/** `app:open:<id>` and `app:restart:<id>` for any App. */
+/** `app:open:<id>` opens any App. */
 function appAction(action: string): ActionHandler | undefined {
   if (action.startsWith(OPEN_APP)) return (ctx) => ctx.openApp(action.slice(OPEN_APP.length));
-  if (action.startsWith(SETTINGS_APP))
-    return (ctx) => ctx.openAppMenu(action.slice(SETTINGS_APP.length));
-  if (action.startsWith(SIGN_IN_APP)) {
-    const [verb, id = ""] = action.slice(SIGN_IN_APP.length).split(":");
-    if (verb === "couch") return (ctx) => ctx.copySignInFromCouch(id);
-    if (verb === "out") return (ctx) => ctx.signOut(id);
-    return undefined;
-  }
-  if (action.startsWith(PLAYBACK_APP))
-    return (ctx) => ctx.switchPlayback(action.slice(PLAYBACK_APP.length));
-  if (action.startsWith(RESTART_APP))
-    return (ctx) => ctx.restartApp(action.slice(RESTART_APP.length));
   return undefined;
 }
 
@@ -74,14 +50,8 @@ const settingsActions: Record<string, ActionHandler> = {
 export const ACTIONS: Record<string, ActionHandler> = {
   ...homeActions,
   ...settingsActions,
-  ...appActions,
 };
 
 export function actionFor(action: string): ActionHandler | undefined {
   return ACTIONS[action] ?? appAction(action);
 }
-
-/** Where Back goes from each view. A view with no entry ignores Back. */
-export const BACK_TARGETS: Partial<Record<View, View>> = {
-  appError: "home",
-};

@@ -35,8 +35,14 @@ export interface Page {
   focusKey?(): string | undefined;
   /** Focus movement for a Page with its own rules; otherwise the core moves focus over `grid()`. */
   move?(direction: Direction): void;
+  /** A Page that hands keys to something else (an App's website) takes them here; true when it did. */
+  press?(key: Direction | "ok"): boolean;
+  /** False: a pointer can't put focus on this Page's items now (the player's hidden controls, an App). */
+  pointable?(): boolean;
   /** The view just changed to one of this Page's views. */
   enter?(from: View): void;
+  /** The view was asked for while it is already this Page's. */
+  reenter?(): void;
   /** The view is about to change from one of this Page's views. */
   leave?(to: View): void;
 }
@@ -48,13 +54,20 @@ export interface PageContext {
   go(view: View): void;
   toast(text: string): void;
   /** The confirm question. */
-  ask(title: string, buttons: string[], answers: Array<() => void>, more?: { body: string }): void;
+  ask(
+    title: string,
+    buttons: string[],
+    answers: Array<() => void>,
+    more?: { body?: string; back?: () => void; phone?: true },
+  ): void;
   /** The focus kept under a focus key. */
   focusOf(key: string): { r: number; c: number } | undefined;
   /** The key of the current view's focus (a folder has one per path). */
   viewKey(): string;
   /** Sets the Screen state a Page owns besides the view, focus and typing. */
-  set(patch: Partial<Pick<ScreenState, "showId" | "showTab" | "folderPath">>): void;
+  set(
+    patch: Partial<Pick<ScreenState, "showId" | "showTab" | "folderPath" | "app" | "appNote">>,
+  ): void;
   /** Starts a typing session for a Page's own purpose; `by` is the phone, or the Screen. */
   startTyping(by: RemoteId, purpose: "librarySearch" | "tmdbKey"): void;
   /** Ends the typing session without cancelling anything. */

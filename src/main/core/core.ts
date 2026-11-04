@@ -1,5 +1,5 @@
 import { safeEqual } from "../constant-time.ts";
-import { liveListener, systemProbe, type ListenerProbe } from "../listener.ts";
+import type { ListenerProbe } from "../listener.ts";
 import { dirname, basename } from "node:path";
 import {
   VIEW_LABELS,
@@ -7,11 +7,9 @@ import {
   type Command,
   type GridItem,
   type RemoteId,
-  type RemoteNote,
   type RemoteSnapshot,
   type ScreenPayload,
   type ScreenState,
-  type Confirmation,
   type View,
   type UiSound,
   type UiSoundEvent,
@@ -20,17 +18,13 @@ import {
   formatTime,
   type Player,
   type PlayerEvent,
-  type PlayerOverlay,
   type PlayerTrack,
 } from "../../shared/player.ts";
 import type { Clock } from "../ports/clock.ts";
 import type { Mac } from "../ports/mac.ts";
 import { pickTargetDisplay } from "../display.ts";
 import { APP_ENTRIES, OPEN_APP, type AppEntry } from "../apps/index.ts";
-import { availableWithin } from "../apps/availability.ts";
-import { copyFromCouchToast } from "../apps/sign-in-text.ts";
 import {
-  PlaybackUnavailable,
   type App,
   type AppEvent,
   type AppTyping,
@@ -42,9 +36,7 @@ import type { Store } from "../ports/store.ts";
 import type { Thumbnails } from "../ports/thumbnails.ts";
 import { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
 import { confirmMouseCommand } from "../../shared/confirm-layout.ts";
-import { homeItems } from "../../shared/home-grid.ts";
-import { APP_ERROR_ITEMS } from "../../shared/app-grid.ts";
-import { actionFor, BACK_TARGETS, type ActionContext } from "./actions.ts";
+import { actionFor, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
 import { MediaLibrary } from "./media-library.ts";
 import { artFor, type PathArt } from "./art.ts";
@@ -52,9 +44,14 @@ import { topGenres } from "./library-rows.ts";
 import { presentation, hueFor, listFolder } from "./library.ts";
 import { applyEdit, type TextEdit } from "../../shared/keyboard.ts";
 import type { TrackList, UpNextItem } from "../../shared/protocol.ts";
-import { PlayerControls } from "./player-controls.ts";
+import type { PlayerControls } from "./player-controls.ts";
+import { LibraryFolders } from "./library-folders.ts";
+import { ListenerLogin } from "./listener-login.ts";
+import { PlayerPage } from "./pages/player-page.ts";
+import { HomeScreenPage } from "./pages/home-screen-page.ts";
+import { AppErrorPage, AppOverlays, AppPage } from "./pages/app-pages.ts";
 import { History } from "./history.ts";
-import { ContinueApps, fromStartUrl, titleId, titleKey } from "./continue-apps.ts";
+import { ContinueApps } from "./continue-apps.ts";
 import { ContinueArt, type ArtFetch } from "./continue-art.ts";
 import { ShowView } from "./pages/show-view.ts";
 import { LibraryPage } from "./pages/library-page.ts";
@@ -83,7 +80,7 @@ import { QuickSettings } from "./quick-settings.ts";
 import { Setup } from "./setup.ts";
 import type { SetupStep } from "./setup-steps.ts";
 import { LibrarySearchPage } from "./pages/library-search-page.ts";
-import { AMBIENT_MS, filmAfterFocus, homeGrid } from "./home-view.ts";
+import { AMBIENT_MS } from "./home-view.ts";
 import type { TimeFormat } from "../../shared/clock-format.ts";
 import { AppSpeed } from "./app-speed.ts";
 import { MetadataService } from "./metadata-service.ts";
@@ -97,22 +94,6 @@ const phoneKey = (url: string | undefined): string | undefined =>
     .pop()
     ?.replace(/\.jpg$/, "");
 
-/** Home's update icon, in the top strip left of the gear (as the Library's search icon is). */
-/** The grids of the views with no Page yet; a Page's own grid() replaces its line. */
-const STATIC_GRIDS: Record<string, GridItem[]> = {
-  appError: APP_ERROR_ITEMS,
-};
-
-const UPDATE_ICON: GridItem = {
-  id: "update",
-  r: 0,
-  c: -1,
-  label: "Update ready",
-  action: "open:update",
-};
-
-/** Home's row fits this many tiles: its App tiles, then Continue watching. */
-const HOME_ROW_TILES = 5;
 /** Views where a phone's Search button opens the Library search. */
 const TYPING_VIEW = { search: "app", tmdbKey: "details", librarySearch: "librarySearch" };
 type Purpose = keyof typeof TYPING_VIEW;
@@ -195,7 +176,6 @@ const MPV_MISSING = "Couch needs mpv to play videos. Install it with: brew insta
 const VOLUME_STEP = 5;
 const LIBRARY_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const videoKey = (report: PlaybackReport) => `${report.title ?? ""}|${report.duration}`;
-const APP_NOTE = "Press Home on your phone to come back";
 
 /** The single source of truth: holds the Screen state and turns commands into new state. */
 
@@ -222,9 +202,6 @@ export class Core {
   #listener: { publicPort: number; token: string } | undefined;
   #forgetListeners = new Set<() => void>();
   #apps = new Map<string, App>();
-  /** Apps that failed to load and have not loaded since. */
-  /** Apps that failed to load, with why when the App said so. */
-  #appsFailed = new Map<string, string | undefined>();
   #lastFrom: RemoteId | undefined;
   /** What each App was last told to draw over itself. */
   /** What each web App's page last reported playing; cleared when the App is hidden. */
@@ -238,19 +215,11 @@ export class Core {
   #tracks: { subtitles: PlayerTrack[]; audio: PlayerTrack[] } = { subtitles: [], audio: [] };
   /** Each web App's wanted speed for the video it is playing (keyed by its title and length). */
   #appSpeed = new AppSpeed(() => this.#ports.clock.now());
-  #shown = new Map<string, { volume?: number; confirm?: Confirmation; bar?: string }>();
   #confirmAnswers: Array<() => void> | undefined;
   /** What Back does for the open question, when it isn't "dismiss" (the welcome's Back is an answer). */
   #confirmBack: (() => void) | undefined;
-  /** Apps whose welcome question is being looked up (the newest open owns it). */
-  #lookups = new Map<string, number>();
-  #lookupSeq = 0;
-  /** Apps whose welcome question is being looked up or answered. */
-  #welcoming = new Set<string>();
-  /** The question core asked on behalf of an App's Back ("Leave <label>?"). */
-  #leaveConfirm: Confirmation | undefined;
   #appsOff: Array<() => void> = [];
-  #libraryFolders: string[];
+  #folders: LibraryFolders;
   /** Where the playing video was started from; leaving playback returns there. */
   #playedFrom: View = "folder";
   #mpvMissing = false;
@@ -258,7 +227,12 @@ export class Core {
   #subtitlesRaised = "falsefalse";
   #unsubPlayer: () => void;
   #thumbs: ThumbnailScheduler;
+  #player: PlayerPage;
+  #login: ListenerLogin;
   #controls: PlayerControls;
+  #home: HomeScreenPage;
+  #app: AppPage;
+  #overlays: AppOverlays;
   #history: History;
   #appTitles: ContinueApps;
   #continueArt: ContinueArt | undefined;
@@ -272,13 +246,10 @@ export class Core {
   #offUpdates: () => void;
   #addonsPage: AddonsPage;
   #settingsApps: SettingsAppsPage;
-  /** The Pages by view. A view with no Page yet falls back to the branches in this class. */
-  #pages = new Map<View, Page>();
+  /** The Pages by view: every View has one. */
+  #pages: Record<View, Page>;
   #homePage: HomePage;
   #homeApps: HomeApps;
-  /** Apps whose Couch-Chromium sign-in exists, asked each time their menu opens. */
-  #couchCopy = new Set<string>();
-  #couchCheck = 0;
   #sound: SoundOutput;
   #uiSounds: InterfaceSounds;
   #quick: QuickSettings;
@@ -302,7 +273,6 @@ export class Core {
 
   constructor(ports: Ports) {
     this.#ports = ports;
-    const lib = ports.store.read<{ folders?: unknown }>("library", {});
     this.#history = new History(ports.store);
     const art =
       ports.continueArt && new ContinueArt(ports.continueArt.dir, ports.continueArt.fetch);
@@ -332,21 +302,14 @@ export class Core {
     });
     this.details.sync();
     this.#listener = ports.listener;
-    void this.refreshLoginItem();
-    this.#controls = new PlayerControls(this.#state, {
-      clock: ports.clock,
-      playing: () => {
-        const p = this.#state.player;
-        return p && { path: p.path, position: p.pos, paused: p.paused };
-      },
-      seekTo: (seconds) => this.#seekTo(seconds),
-      togglePause: () => this.#togglePause(),
-      toggleSubtitles: () => this.#toggleSubtitles(),
-      setVolume: (percent) => this.#setVolume(percent),
-      play: (path) => this.#play(path),
-      leave: () => this.#endPlayback(undefined, true),
+    this.#login = new ListenerLogin({
+      mac: ports.mac,
+      store: ports.store,
+      probe: ports.listenerProbe,
+      frontdoor: ports.frontdoor,
       changed: () => this.#emit(),
     });
+    void this.#login.refresh();
     this.#thumbs = new ThumbnailScheduler(ports.thumbnails, () => this.#emit());
     const pageContext: PageContext = {
       state: this.#state,
@@ -424,7 +387,7 @@ export class Core {
         return playback && { label: playback.current().label, unavailable: playback.unavailable };
       },
       hasSignIn: (id) => !!this.#apps.get(id)?.signIn,
-      hasCouchCopy: (id) => this.#couchCopy.has(id),
+      hasCouchCopy: (id) => this.#settingsApps.hasCouchCopy(id),
       changed: () => {
         this.#settingsApps.changed();
         this.#emit();
@@ -447,8 +410,6 @@ export class Core {
         this.#setup.rerun();
       },
     });
-    this.#pages.set("about", this.#about);
-    this.#pages.set("addons", this.#addonsPage);
     this.#offUpdates = ports.updates.onChange(() => this.#emit());
     this.#detailsPage = new DetailsPage(pageContext, {
       details: this.details,
@@ -473,7 +434,7 @@ export class Core {
       thumbs: this.#thumbs,
       clock: ports.clock,
       changed: () => this.#emit(),
-      decorate: (e) => this.#decorate(e),
+      decorate: (e) => this.#history.decorate(e),
       connectedPhone: () =>
         this.#lastFrom !== undefined && this.#remotes.has(this.#lastFrom)
           ? this.#lastFrom
@@ -484,56 +445,119 @@ export class Core {
       details: this.details,
       history: this.#history,
       thumbs: this.#thumbs,
-      decorate: (e) => this.#decorate(e),
-      continueEntries: () => this.#libraryContinueEntries(),
-      folders: () => this.#libraryFolders,
-      playContinue: (path, fromStart) => this.#playContinue(path, fromStart),
+      decorate: (e) => this.#history.decorate(e),
+      continueEntries: () => this.#home.libraryEntries(),
+      folders: () => this.#folders.list,
+      playContinue: (path, fromStart) => this.#home.playContinue(path, fromStart),
       openShow: (id) => this.#show.open(id),
       openSearch: () => {
         this.#search.open();
         if (this.#source === "screen") this.#search.action("search:field", "screen");
       },
     });
-    for (const view of ["library", "folder"] as const) this.#pages.set(view, this.#libraryPage);
-    this.#pages.set("librarySearch", this.#search);
-    this.#pages.set("show", this.#show.page);
-    this.#pages.set("fixMatch", this.#show.fixPage);
     const settingsHost = { details: this.details, sound: this.#sound };
     this.#settingsApps = new SettingsAppsPage(pageContext, {
       homeApps: this.#homeApps,
+      apps: this.#apps,
+      clearFailure: (id) => this.#app.failed.delete(id),
       catalog: () => this.#catalog(),
       addons: () => this.#addonsPage.rows(),
     });
-    this.#pages.set("settings", new SettingsPage(pageContext, settingsHost));
-    this.#pages.set(
-      "settingsRemotes",
-      new RemotesPage(pageContext, {
-        listener: () => this.#loginItem,
+    this.#home = new HomeScreenPage(pageContext, {
+      catalog: () => this.#catalog(),
+      apps: this.#apps,
+      homeApps: this.#homeApps,
+      history: this.#history,
+      appTitles: this.#appTitles,
+      continueArt: this.#continueArt,
+      thumbs: this.#thumbs,
+      updateReady: () => this.#about.ready,
+      art: (path) => this.#art(path),
+      still: (path, frame) => this.#still(path, frame),
+      decorate: (e) => this.#history.decorate(e),
+      resetChip: () => this.#libraryPage.resetChip(),
+      fixTargetFor: (entry) => this.#show.fixTargetFor(entry),
+      openFixFromHome: (id) => this.#show.openFixFromHome(id),
+      setHint: (app, hint) => this.setNowPlayingHint(app, hint),
+      openApp: (id, at) => this.#app.open(id, at),
+      play: (path, fromStart) => this.#play(path, fromStart),
+    });
+    this.#player = new PlayerPage(pageContext, {
+      clock: ports.clock,
+      playing: () => {
+        const p = this.#state.player;
+        return p && { path: p.path, position: p.pos, paused: p.paused };
+      },
+      seekTo: (seconds) => this.#seekTo(seconds),
+      togglePause: () => this.#togglePause(),
+      toggleSubtitles: () => this.#toggleSubtitles(),
+      setVolume: (percent) => this.#setVolume(percent),
+      play: (path) => this.#play(path),
+      leave: () => this.#endPlayback(undefined, true),
+      changed: () => this.#emit(),
+      present: (path) => this.#present(path),
+      still: (path) => this.#still(path, (p) => this.#thumbs.lookup(p)),
+      decorate: (e) => this.#history.decorate(e),
+      level: () => this.#level(),
+      resumeNote: () => this.#resumeNote,
+    });
+    this.#controls = this.#player.controls;
+    this.#app = new AppPage(pageContext, {
+      apps: this.#apps,
+      isShown: (id) => this.#homeApps.isShown(id),
+      front: () => this.#front(),
+      dismissConfirm: () => this.#dismissConfirm(),
+      released: (id) => {
+        this.#playback.delete(id);
+        this.#appTitles.flush();
+        this.#appSpeed.clear(id);
+      },
+    });
+    this.#overlays = new AppOverlays(this.#state, {
+      apps: this.#apps,
+      front: () => this.#front(),
+      level: () => this.#level(),
+      searching: () => this.#typingFor === "search",
+    });
+    this.#pages = {
+      home: this.#home,
+      player: this.#player,
+      app: this.#app,
+      appError: new AppErrorPage(pageContext, this.#app),
+      about: this.#about,
+      addons: this.#addonsPage,
+      library: this.#libraryPage,
+      folder: this.#libraryPage,
+      librarySearch: this.#search,
+      show: this.#show.page,
+      fixMatch: this.#show.fixPage,
+      settings: new SettingsPage(pageContext, settingsHost),
+      settingsRemotes: new RemotesPage(pageContext, {
+        listener: () => this.#login.item,
         refresh: () => void this.refreshLoginItem(),
       }),
-    );
-    this.#pages.set("settingsLibrary", new LibrarySettingsPage(pageContext, settingsHost));
-    this.#pages.set("addPhone", new AddPhonePage(pageContext));
-    this.#pages.set(
-      "libraryFolders",
-      new LibraryFoldersPage(pageContext, {
-        folders: () => this.#libraryFolders,
-        add: () => this.#addFolder(),
-        remove: (folder) => this.#saveFolders(this.#libraryFolders.filter((f) => f !== folder)),
+      settingsLibrary: new LibrarySettingsPage(pageContext, settingsHost),
+      addPhone: new AddPhonePage(pageContext),
+      libraryFolders: new LibraryFoldersPage(pageContext, {
+        folders: () => this.#folders.list,
+        add: () => this.#folders.add(),
+        remove: (folder) => this.#folders.remove(folder),
       }),
-    );
-    this.#pages.set("details", this.#detailsPage);
-    this.#pages.set("credits", new CreditsPage(pageContext, settingsHost));
-    this.#pages.set(
-      "soundOutput",
-      new SoundOutputPage(pageContext, { sound: this.#sound, uiSounds: this.#uiSounds }),
-    );
-    this.#pages.set("settingsHome", new SettingsHomePage(pageContext, this.#homePage));
-    this.#pages.set("settingsApps", this.#settingsApps);
-    this.#libraryFolders = Array.isArray(lib.folders)
-      ? lib.folders.filter((f): f is string => typeof f === "string")
-      : [];
-    void this.library.refresh(this.#libraryFolders);
+      details: this.#detailsPage,
+      credits: new CreditsPage(pageContext, settingsHost),
+      soundOutput: new SoundOutputPage(pageContext, {
+        sound: this.#sound,
+        uiSounds: this.#uiSounds,
+      }),
+      settingsHome: new SettingsHomePage(pageContext, this.#homePage),
+      settingsApps: this.#settingsApps,
+    };
+    this.#folders = new LibraryFolders({
+      store: ports.store,
+      mac: ports.mac,
+      library: this.library,
+      changed: () => this.#emit(),
+    });
     this.#setup = new Setup(
       {
         store: ports.store,
@@ -543,13 +567,13 @@ export class Core {
         },
         atHome: () => this.#state.view === "home",
         version: () => ports.updates.version,
-        listenerOn: () => this.#loginItem.on,
-        turnListenerOn: () => void this.#turnListenerOn(),
+        listenerOn: () => this.#login.item.on,
+        turnListenerOn: () => void this.#login.turnOn(),
         usedBefore: () => this.#usedBefore(),
         phones: () => this.#remotes.size,
         phonePaired: () => this.#phonePaired(),
-        folders: () => this.#libraryFolders,
-        addFolder: () => this.#addFolder(),
+        folders: () => this.#folders.list,
+        addFolder: () => this.#folders.add(),
         later: (fn, ms) => ports.clock.setTimeout(fn, ms),
         cue: (sound) => this.#cue(sound),
         changed: () => this.#emit(),
@@ -641,13 +665,11 @@ export class Core {
 
   get viewKey(): string {
     const { view, folderPath } = this.#state;
-    const key = this.#pages.get(view)?.focusKey?.();
+    const key = this.#pages[view].focusKey?.();
     if (key) return key;
     return view === "folder" ? `folder:${folderPath}` : view;
   }
 
-  /** Home: the film card whose backdrop shows (focused, or last focused while Resume / From start has focus). */
-  #homeFilm: string | undefined;
   #ambient = false;
   #cancelAmbient: (() => void) | undefined;
   #timeFormat: TimeFormat = "12";
@@ -680,201 +702,8 @@ export class Core {
     return genres.length ? { genres: genres.join(" · ") } : {};
   }
 
-  /** A video entry with its watched tag or progress, from the history. */
-  #decorate(entry: LibraryEntry): LibraryEntry {
-    if (entry.kind !== "video") return entry;
-    const progress = this.#history.progress(entry.path);
-    if (progress) {
-      const left = Math.max(1, Math.ceil((progress.duration - progress.position) / 60));
-      return {
-        ...entry,
-        progress: { fraction: progress.position / progress.duration, left: `${left} min left` },
-      };
-    }
-    return this.#history.isWatched(entry.path) ? { ...entry, watched: true } : entry;
-  }
-
-  /** Home's Continue watching and the Remote's card: Library videos and App titles together, newest first. */
-  #continueEntries(): LibraryEntry[] {
-    const videos = this.#libraryContinue();
-    const titles = this.#appContinue();
-    if (!titles.length) return videos.map((v) => v.entry);
-    return [...videos, ...titles].sort((a, b) => b.at - a.at).map((v) => v.entry);
-  }
-
-  /**
-   * Home's Continue watching: the newest entry of each App and of the Library, newest first,
-   * as many as fit in the row beside the App tiles (at least one).
-   */
-  #homeContinue(): LibraryEntry[] {
-    const seen = new Set<string>();
-    const newest = this.#continueEntries().filter((e) => {
-      const source = e.app?.id ?? "library";
-      if (seen.has(source)) return false;
-      seen.add(source);
-      return true;
-    });
-    return newest.slice(0, Math.max(1, HOME_ROW_TILES - this.#homeApps.shownIds().length));
-  }
-
-  /** The Library's own row: its in-progress videos only. */
-  #libraryContinueEntries(): LibraryEntry[] {
-    return this.#libraryContinue().map((v) => v.entry);
-  }
-
-  /** Each remembered App title, as a Continue watching entry, unless its App is hidden or gone. */
-  #appContinue(): Array<{ at: number; entry: LibraryEntry }> {
-    return this.#appTitles.entries().flatMap((e) => {
-      const app = this.#apps.get(e.app);
-      const icon = this.#catalog().find((c) => c.id === e.app)?.icon;
-      if (!app || !icon || !this.#homeApps.isShown(e.app)) return [];
-      const fraction = Math.min(1, e.position / e.duration);
-      const left = Math.max(1, Math.ceil((e.duration - e.position) / 60));
-      return [
-        {
-          at: e.at,
-          entry: {
-            kind: "video",
-            path: `app:${e.app}:${titleKey(e.url)}`,
-            title: e.title,
-            hue: hueFor(e.title),
-            folder: app.label,
-            ...(e.art && this.#continueArt?.fileUrl(e.art)
-              ? { thumb: this.#continueArt.fileUrl(e.art) }
-              : {}),
-            progress: { fraction, left: `${left} min left` },
-            app: {
-              id: e.app,
-              label: app.label,
-              icon,
-              fromStart: fromStartUrl(e.url) !== e.url,
-            },
-          } satisfies LibraryEntry,
-        },
-      ];
-    });
-  }
-
-  /** The entry a Continue watching id (`app:<id>:<key>`) names, if it is still remembered. */
-  #appTitleFor(path: string): { app: string; key: string } | undefined {
-    const m = /^app:([^:]+):(.+)$/.exec(path);
-    return m ? { app: m[1]!, key: m[2]! } : undefined;
-  }
-
-  /** The phone fetches an App entry's picture by key, like a Library thumbnail. */
-  #appArtKey(path: string): { thumbKey?: string } {
-    const id = this.#appTitleFor(path);
-    const art = id && this.#appTitles.find(id.app, id.key)?.art;
-    return art && this.#continueArt?.has(art) ? { thumbKey: art } : {};
-  }
-
-  /** Opens the App at where the remembered title was left (`fromStart`: at its beginning, for an App whose address carries the time). */
-  #resumeAppTitle(path: string, fromStart = false): void {
-    const id = this.#appTitleFor(path);
-    const entry = id && this.#appTitles.find(id.app, id.key);
-    const app = id && this.#apps.get(id.app);
-    if (!entry || !app || !this.#homeApps.isShown(entry.app)) return;
-    const hintId = titleId(entry.url);
-    if (hintId)
-      this.setNowPlayingHint(entry.app, {
-        id: hintId,
-        title: entry.title,
-        ...(entry.art && this.#continueArt?.has(entry.art) ? { artKey: entry.art } : {}),
-      });
-    this.#openApp(entry.app, fromStart ? fromStartUrl(entry.url) : entry.url);
-  }
-
-  #libraryContinue(): Array<{ at: number; entry: LibraryEntry }> {
-    if (!this.#homeApps.isShown("library")) return [];
-    return this.#history.continueWatching().map((c) => {
-      const { title, line } = presentation(c.path);
-      const { details, episode } = this.#art(c.path);
-      const thumb = this.#still(c.path, (p) => this.#thumbs.lookup(p));
-      return {
-        at: c.at,
-        entry: this.#decorate({
-          kind: "video",
-          path: c.path,
-          title: episode?.name ?? title,
-          ...(line ? { line } : {}),
-          hue: hueFor(title),
-          folder: basename(dirname(c.path)),
-          thumb,
-          ...(details?.backdrop ? { backdrop: details.backdrop } : {}),
-          ...(details?.genres?.length ? { genres: topGenres(details) } : {}),
-          ...((episode?.overview ?? details?.overview)
-            ? { overview: episode?.overview ?? details?.overview }
-            : {}),
-        }),
-      };
-    });
-  }
-
   #currentGrid(): GridItem[] {
-    if (this.#state.view === "home") {
-      const base = this.#homeBase();
-      const videos = base.length ? this.#homeContinue() : [];
-      const gridFor = () =>
-        homeGrid(
-          base,
-          videos,
-          videos.find((v) => v.path === this.#homeFilm),
-        );
-      let grid = gridFor();
-      this.#homeFilm = filmAfterFocus(
-        resolveFocus(grid, this.#state.focus.home)?.id,
-        videos,
-        this.#homeFilm,
-      );
-      grid = gridFor();
-      return grid;
-    }
-    const page = this.#pages.get(this.#state.view);
-    if (page) return page.grid();
-    if (this.#state.view === "player") return this.#controls.grid();
-    return STATIC_GRIDS[this.viewKey] ?? [];
-  }
-
-  /** Removes an entry from Continue watching: an App title for good, a Library video's saved position. */
-  #forgetContinue(path: string | undefined): void {
-    // Only what Continue watching shows right now: not a stale or invented id, and never a finished Library video's watched record.
-    if (!path || !this.#continueEntries().some((e) => e.path === path)) return;
-    const id = this.#appTitleFor(path);
-    const done = id ? this.#appTitles.forget(id.app, id.key) : this.#history.forget(path);
-    if (done) this.#toast("Removed from Continue watching");
-  }
-
-  /**
-   * Menu (or a long press) on Home's Continue watching: a small question with "Remove from Continue watching",
-   * and Fix match beside it for a Library film. False when the focus is not on a Continue tile.
-   */
-  #continueMenu(): boolean {
-    if (this.#state.view !== "home" || this.#state.confirm) return false;
-    const id = resolveFocus(this.#currentGrid(), this.#state.focus.home)?.id;
-    const shown = this.#homeContinue();
-    // The hero's Resume / From start pills belong to the hero's entry.
-    const entry = shown.find(
-      (v) =>
-        v.path === id || (v.path === this.#homeFilm && (id === "resume" || id === "fromstart")),
-    );
-    if (!entry) return false;
-    const fix = entry.app ? undefined : this.#show.fixTargetFor(entry);
-    this.#ask(
-      entry.title,
-      ["Remove from Continue watching", ...(fix ? ["Fix match"] : []), "Cancel"],
-      [
-        () => this.#forgetContinue(entry.path),
-        ...(fix ? [() => this.#show.openFixFromHome(fix)] : []),
-        () => {},
-      ],
-    );
-    return true;
-  }
-
-  /** A Continue watching entry: a Library video, or an App title that reopens its App. */
-  #playContinue(path: string, fromStart = false): void {
-    if (this.#appTitleFor(path)) this.#resumeAppTitle(path, fromStart);
-    else this.#play(path, fromStart);
+    return this.#pages[this.#state.view].grid();
   }
 
   /** Start a Library video full screen, resuming where it was left. */
@@ -896,7 +725,6 @@ export class Core {
           })),
         )
       : (listFolder(dirname(path)) ?? []).filter((e) => e.kind === "video");
-    this.#upNextLabel = show?.name;
     const startSeconds = fromStart ? undefined : this.#history.resumeAt(path);
     this.#state.player = { path, pos: startSeconds ?? 0, dur: 0, paused: false };
     this.#tracks = { subtitles: [], audio: [] };
@@ -905,7 +733,7 @@ export class Core {
       this.#quiet(this.#ports.player.setSpeed(1));
     }
     this.#setView("player");
-    this.#controls.begin(upNext);
+    this.#player.begin(upNext, show?.name);
     this.#cancelNote?.();
     this.#resumeNote = undefined;
     if (startSeconds !== undefined) {
@@ -950,22 +778,11 @@ export class Core {
       this.#show.returnTo(p.path, ended);
     } else {
       this.#setView(this.#playedFrom === "show" ? "library" : this.#playedFrom);
-      if (this.#state.view === "home") this.#focusHomeCard(p.path);
+      if (this.#state.view === "home") this.#home.focusCard(p.path);
     }
     if (toast) this.#toast(toast);
     this.#keepLibraryFocus();
     this.#emit();
-  }
-
-  /** Back on Home after a video started there: focus returns to its card, so its backdrop shows. */
-  #focusHomeCard(path: string): void {
-    const base = this.#homeBase();
-    const videos = this.#homeContinue();
-    const film = videos.find((v) => v.path === path);
-    const card = homeGrid(base, videos, film).find((i) => i.id === path);
-    this.#homeFilm = card ? path : undefined;
-    if (card) this.#state.focus.home = { r: card.r, c: card.c };
-    else delete this.#state.focus.home;
   }
 
   #stopPlayback(): void {
@@ -1105,7 +922,7 @@ export class Core {
   #playbackCommand(command: Command): boolean {
     const p = this.#state.player!;
     const name = command.command;
-    if (this.#state.controls === "next") {
+    if (this.#controls.mode === "next") {
       if (name === "playNext") this.#controls.playNext();
       else if (name === "back" || name === "home") {
         this.#endPlayback(undefined, true);
@@ -1145,70 +962,6 @@ export class Core {
     }
   }
 
-  /** What the renderer should draw over the video right now. */
-  #overlay(): PlayerOverlay | undefined {
-    const p = this.#state.player;
-    if (!p) return undefined;
-    return {
-      ...this.#present(p.path),
-      controls: this.#state.controls,
-      dock:
-        this.#state.controls !== "hidden" && this.#state.controls !== "next"
-          ? {
-              position: p.pos,
-              duration: p.dur,
-              subtitlesOn: this.#state.subtitlesOn,
-              level: this.#level(),
-              focusedId: this.#controls.focusedDock(),
-              upNext: this.#controls.upNextAvailable,
-            }
-          : undefined,
-      upNext: this.#state.controls === "upnext" ? this.#upNextTiles() : undefined,
-      next: this.#nextCard(),
-      paused: p.paused,
-      note: this.#resumeNote,
-      volume: this.#state.volumeShown ? this.#level() : undefined,
-    };
-  }
-
-  #nextCard(): PlayerOverlay["next"] {
-    const next = this.#controls.next;
-    if (!next || this.#state.controls !== "next") return undefined;
-    const { title, line } = this.#present(next.path);
-    return {
-      title,
-      ...(line ? { line } : {}),
-      thumb: this.#still(next.path, (p) => this.#thumbs.lookup(p)),
-      hue: hueFor(title),
-      focusedId: this.#controls.focusedCard(),
-    };
-  }
-
-  /** The show's name while its episodes are the Up next list. */
-  #upNextLabel: string | undefined;
-
-  #upNextTiles(): NonNullable<PlayerOverlay["upNext"]> {
-    const playing = this.#state.player?.path;
-    const tiles = this.#controls.upNext.map((e) => {
-      const d = this.#decorate({ ...e });
-      const { title, line } = this.#present(e.path);
-      return {
-        title,
-        ...(line ? { line } : {}),
-        thumb: this.#still(e.path, (p) => this.#thumbs.lookup(p)),
-        hue: hueFor(title),
-        watched: d.watched === true,
-        playing: e.path === playing,
-        progress: d.progress?.fraction,
-      };
-    });
-    return {
-      tiles,
-      folder: this.#upNextLabel ?? basename(dirname(playing ?? "")),
-      focusedIndex: this.#controls.focusedTile,
-    };
-  }
-
   /** The phone fetches pictures by key: a frame's, or a cached TMDB still or poster's. */
   #thumbKey(path: string): string | undefined {
     const { details, episode } = this.#art(path);
@@ -1237,30 +990,12 @@ export class Core {
     });
   }
 
-  /** The Mac's folder picker, then the usual save and scan; Settings → Library and Setup both use it. */
-  #addFolder(): void {
-    void this.#ports.mac
-      .pickFolder()
-      .then((path) => {
-        if (path && !this.#libraryFolders.includes(path))
-          this.#saveFolders([...this.#libraryFolders, path]);
-        this.#emit();
-      })
-      .catch(() => {});
-  }
-
-  #saveFolders(folders: string[]): void {
-    this.#libraryFolders = folders;
-    void this.library.refresh(folders);
-    this.#ports.store.write("library", { folders });
-  }
-
   /** Everything the Screen renderer needs to draw. */
   screen(): ScreenPayload {
     this.#libraryPage.sync();
     const grid = this.#currentGrid();
     const focused = resolveFocus(grid, this.#state.focus[this.viewKey]);
-    const homeVideos = this.#homeContinue();
+    const homeVideos = this.#home.continueRow();
     const quick = this.#quick.payload();
     const setup = this.#setup.payload();
     return {
@@ -1271,18 +1006,15 @@ export class Core {
       ...this.#backPayload(),
       homeApps: this.#homeApps.rows(),
       home: this.#homePage.payload(),
-      ...this.#pages.get(this.#state.view)?.payload(focused?.id),
-      continueCard: this.#continueEntries()[0],
+      ...this.#pages[this.#state.view].payload(focused?.id),
+      continueCard: this.#home.entries()[0],
       homeVideos,
-      hero:
-        this.#state.view === "home" ? homeVideos.find((v) => v.path === this.#homeFilm) : undefined,
       ambient: this.#ambient,
       timeFormat: this.#timeFormat,
-      overlay: this.#overlay(),
       ...(this.#state.typingBy === "screen" && this.#typingFor
         ? { screenTyping: this.#typingFor }
         : {}),
-      state: structuredClone(this.#state),
+      state: { ...structuredClone(this.#state), controls: this.#controls.mode },
       viewKey: this.viewKey,
       grid,
       focusedId: focused?.id,
@@ -1294,7 +1026,7 @@ export class Core {
 
   snapshot(remote: RemoteId): RemoteSnapshot {
     const s = this.#state;
-    const card = s.view === "home" ? this.#continueEntries()[0] : undefined;
+    const card = s.view === "home" ? this.#home.entries()[0] : undefined;
     const searchable = SEARCH_FROM.includes(s.view);
     const front = this.#front();
     const searching = s.typingBy === remote && this.#typingFor === "librarySearch";
@@ -1332,7 +1064,7 @@ export class Core {
               left: card.progress?.left ?? "",
               ...(card.app
                 ? {
-                    ...this.#appArtKey(card.path),
+                    ...this.#home.artKey(card.path),
                     app: { id: card.app.id, label: card.app.label, icon: card.app.icon },
                   }
                 : this.#thumbKey(card.path)
@@ -1341,7 +1073,7 @@ export class Core {
             },
           }
         : {}),
-      ...(s.controls === "next" && this.#controls.next
+      ...(this.#controls.mode === "next" && this.#controls.next
         ? {
             next: {
               ...this.#present(this.#controls.next.path),
@@ -1354,8 +1086,8 @@ export class Core {
       ...(this.#about.ready ? { updateReady: true as const } : {}),
       ...(s.confirm ? { confirm: s.confirm } : {}),
       ...(s.toast ? { toast: { text: s.toast, id: this.#toastId } } : {}),
-      ...(s.view === "settingsApps" && this.#homeApps.menuId && this.#remoteNote()
-        ? { playbackNote: this.#remoteNote() }
+      ...(s.view === "settingsApps" && this.#homeApps.menuId && this.#settingsApps.remoteNote()
+        ? { playbackNote: this.#settingsApps.remoteNote() }
         : {}),
       typeAvailable: (s.view === "app" && !!front?.typing) || s.view === "details" || searchable,
       ...(this.#show.fixTarget() ? { fixAvailable: true } : {}),
@@ -1377,7 +1109,7 @@ export class Core {
               : "other",
       nowPlaying: s.player
         ? {
-            active: s.controls !== "next",
+            active: this.#controls.mode !== "next",
             ...this.#present(s.player.path),
             folder: basename(dirname(s.player.path)),
             position: s.player.pos,
@@ -1609,7 +1341,7 @@ export class Core {
         this.#back();
         break;
       case "menu":
-        if (!this.#continueMenu()) this.#show.menu();
+        if (!this.#home.menu()) this.#show.menu();
         break;
       case "find":
         this.#find();
@@ -1628,14 +1360,14 @@ export class Core {
           this.#resumeCurrent();
           break;
         }
-        const newest = this.#continueEntries()[0];
+        const newest = this.#home.entries()[0];
         if (!newest) break;
         this.#setView("home");
-        this.#playContinue(newest.path);
+        this.#home.playContinue(newest.path);
         break;
       }
       case "forgetContinue":
-        this.#forgetContinue(command.args?.entry ?? this.#continueEntries()[0]?.path);
+        this.#home.forget(command.args?.entry ?? this.#home.entries()[0]?.path);
         break;
       case "playpause":
         this.#front()?.playPause?.();
@@ -2047,11 +1779,10 @@ export class Core {
   #move(direction: "up" | "down" | "left" | "right"): void {
     const grid = this.#currentGrid();
     const current = resolveFocus(grid, this.#state.focus[this.viewKey]);
-    const front = this.#front();
-    if (front) return front.sendKey(direction);
+    const page = this.#pages[this.#state.view];
+    if (page.press?.(direction)) return;
     if (!current) return;
-    const page = this.#pages.get(this.#state.view);
-    if (page?.move) {
+    if (page.move) {
       page.move(direction);
     } else {
       const next = moveFocus(grid, current, direction);
@@ -2063,8 +1794,7 @@ export class Core {
   }
 
   #focusAt(r?: number, c?: number): void {
-    if (this.#state.view === "app") return;
-    if (this.#state.view === "player" && this.#state.controls === "hidden") return;
+    if (this.#pages[this.#state.view].pointable?.() === false) return;
     const item = this.#currentGrid().find((i) => i.r === r && i.c === c);
     if (!item) return;
     this.#state.focus[this.viewKey] = { r: item.r, c: item.c };
@@ -2074,18 +1804,14 @@ export class Core {
   }
 
   #ok(): void {
-    const front = this.#front();
-    if (front) return front.sendKey("ok");
+    if (this.#pages[this.#state.view].press?.("ok")) return;
     const grid = this.#currentGrid();
     const item = resolveFocus(grid, this.#state.focus[this.viewKey]);
     if (!item) return;
     this.#cue("select");
     if (item.action === "back") return this.#back();
-    if (
-      this.#pages.get(this.#state.view)?.action(item.action, this.#source) ||
-      this.#libraryPage.action(item.action)
-    )
-      return;
+    if (this.#pages[this.#state.view].action(item.action, this.#source)) return;
+    if (this.#libraryPage.action(item.action)) return;
     const action = actionFor(item.action);
     // Placeholder Apps until they exist.
     if (action) action(this.#actionContext());
@@ -2097,36 +1823,9 @@ export class Core {
     const view = this.#state.view;
     if (this.#state.typingBy === "screen")
       return { label: "Stop typing", act: () => this.#type({ command: "typeCancel" }, "screen") };
-    const front = this.#front();
-    if (front) {
-      return {
-        act: () => {
-          if (front.back() !== "leave") return;
-          this.#ask(
-            `Leave ${front.label}?`,
-            ["Stay", "Go to Home"],
-            [() => {}, () => this.#setView("home")],
-          );
-          this.#leaveConfirm = this.#state.confirm;
-        },
-      };
-    }
-    const page = this.#pages.get(view);
-    if (page) {
-      const back = page.back();
-      if (!back) return undefined;
-      return {
-        ...(back.label ? { label: back.label } : {}),
-        act: () => back.act(),
-      };
-    }
-    const go = (label: string, act: () => void) => ({ label, act });
-    const target = BACK_TARGETS[view];
-    if (!target) return undefined;
-    return go(VIEW_LABELS[target], () => {
-      this.#setView(target);
-      this.#keepLibraryFocus();
-    });
+    const back = this.#pages[view].back();
+    if (!back) return undefined;
+    return { ...(back.label ? { label: back.label } : {}), act: () => back.act() };
   }
 
   #backPayload(): Pick<ScreenPayload, "back"> {
@@ -2154,20 +1853,7 @@ export class Core {
   /** Changes view; leaving an App hides it (pausing playback) and lets the display sleep again. */
   #setView(view: View): void {
     const from = this.#state.view;
-    if (view === "home") {
-      this.#libraryPage.resetChip();
-      delete this.#state.focus.home;
-      this.#homeFilm = undefined;
-    }
-    if (from === view) return;
-    if (from === "app") {
-      if (this.#leaveConfirm && this.#state.confirm === this.#leaveConfirm) this.#dismissConfirm();
-      this.#state.typingBy = undefined;
-      this.#playback.delete(this.#state.app ?? "");
-      this.#appTitles.flush();
-      this.#appSpeed.clear(this.#state.app ?? "");
-      this.#apps.get(this.#state.app ?? "")?.hide();
-    }
+    if (from === view) return this.#pages[view].reenter?.();
     if (view !== "app" && view !== "appError") delete this.#state.app;
     if (view !== "appError") delete this.#state.appNote;
     this.#state.view = view;
@@ -2176,8 +1862,8 @@ export class Core {
     this.#releaseStrayTyping();
     this.#homePage.watch(view === "home");
     if (view === "home") this.#homePage.refresh(false);
-    this.#pages.get(from)?.leave?.(view);
-    this.#pages.get(view)?.enter?.(from);
+    this.#pages[from].leave?.(view);
+    this.#pages[view].enter?.(from);
   }
 
   /** The one App catalog: Home tiles, icons and Settings actions all come from it, injected Apps included. */
@@ -2193,21 +1879,6 @@ export class Core {
         web: true,
       }));
     return [...listed, ...extra];
-  }
-
-  /** Home's gear and the catalog's Apps, cut to the shown Apps in the household's order; the update icon left of the gear while an update is ready. */
-  #homeBase(): GridItem[] {
-    const reported = homeItems(this.#catalog());
-    const apps = new Map(reported.filter((i) => i.id !== "settings").map((i) => [i.id, i]));
-    const ordered = this.#homeApps.shownIds().flatMap((id) => apps.get(id) ?? []);
-    return [
-      ...(this.#about.ready ? [UPDATE_ICON] : []),
-      ...reported.filter((i) => i.id === "settings"),
-      ...ordered.map((i, c) => {
-        const { initial: _initial, ...item } = i;
-        return { ...item, c, ...(c === 0 ? { initial: true } : {}) };
-      }),
-    ];
   }
 
   /** Home's update icon: Settings → About, with focus on Restart to update. */
@@ -2243,164 +1914,14 @@ export class Core {
     if (action) action(this.#actionContext());
   }
 
-  /** `at`: an address to open the App at (a Continue entry's title), applied to the App just before it is shown. */
-  #openApp(id: string, at?: string): void {
-    const app = this.#apps.get(id);
-    if (!app || !this.#homeApps.isShown(id)) return;
-    if (app.welcome && !this.#appsFailed.has(id)) {
-      void this.#welcomeThenOpen(app, at);
-      return;
-    }
-    this.#enterApp(id, at);
-  }
-
-  /** Asks the App's one-time question over the view we are on, and opens the App once it is answered. */
-  async #welcomeThenOpen(app: App, at?: string): Promise<void> {
-    const welcome = app.welcome;
-    if (!welcome) return;
-    const looking = this.#lookups.has(app.id);
-    // Answering: a second open waits. Still looking up: the newest open takes over (the lookup is shared).
-    if (this.#welcoming.has(app.id) && !looking) return;
-    const lookup = ++this.#lookupSeq;
-    this.#lookups.set(app.id, lookup);
-    this.#welcoming.add(app.id);
-    const view = this.#state.view;
-    let released = false;
-    const release = () => {
-      if (!released) this.#welcoming.delete(app.id);
-      released = true;
-    };
-    const question = await welcome.question().catch(() => undefined);
-    if (this.#lookups.get(app.id) !== lookup) return;
-    this.#lookups.delete(app.id);
-    // Home, or another page, in the meantime: the household went elsewhere.
-    if (this.#state.view !== view) return release();
-    if (!question) {
-      release();
-      this.#enterApp(app.id, at);
-      this.#emit();
-      return;
-    }
-    const answer = async (id: string) => {
-      this.#welcoming.add(app.id);
-      const toast = await welcome.answer(id).then(
-        (text) => text,
-        () => `Couldn't finish that. ${app.label} is opening.`,
-      );
-      this.#welcoming.delete(app.id);
-      if (this.#state.view !== view) return;
-      this.#enterApp(app.id, at);
-      if (toast) this.#toast(toast);
-      this.#emit();
-    };
-    release();
-    this.#ask(
-      question.title,
-      question.choices.map((c) => c.label),
-      question.choices.map((c) => () => void answer(c.id)),
-      { body: question.body, phone: true, back: () => void answer(question.back) },
-    );
-    this.#emit();
-  }
-
-  /** Shows the App; with `at`, it goes to that address first, on whichever host it has by now (a welcome can switch engines). */
-  #enterApp(id: string, at?: string): void {
-    const app = this.#apps.get(id);
-    if (!app) return;
-    this.#state.app = id;
-    if (this.#appsFailed.has(id)) {
-      this.#state.appNote = this.#appsFailed.get(id);
-      this.#setView("appError");
-      return;
-    }
-    this.#setView("app");
-    if (at) app.openAt?.(at);
-    app.show(APP_NOTE);
-  }
-
-  #retryApp(): void {
-    const id = this.#state.app;
-    const app = this.#apps.get(id ?? "");
-    if (!id || !app) return;
-    this.#appsFailed.delete(id);
-    app.restart();
-    this.#openApp(id);
-  }
-
-  async #refreshCouchCopy(id: string): Promise<void> {
-    const copy = this.#apps.get(id)?.signIn?.copyFromCouch;
-    if (!copy) return;
-    const check = ++this.#couchCheck;
-    const has = await availableWithin(() => copy.available());
-    if (check !== this.#couchCheck) return;
-    if (has === this.#couchCopy.has(id)) return;
-    if (has) this.#couchCopy.add(id);
-    else this.#couchCopy.delete(id);
-    this.#emit();
-  }
-
-  /** Settings → Apps → Copy sign-in from Couch. The App reads Couch's Chromium engine; core only hears how it went. */
-  async #copySignInFromCouch(id: string): Promise<void> {
-    const app = this.#apps.get(id);
-    const copy = app?.signIn?.copyFromCouch;
-    if (!app || !copy) return;
-    const result = await copy.copy().catch(() => ({ ok: false, reason: "failed" }) as const);
-    const toast = copyFromCouchToast(app.label, result);
-    if (toast) this.#toast(toast);
-    this.#emit();
-  }
-
-  /** Settings → Apps → Playback: the App swaps to its other engine; the rows and notes that depend on it are redrawn. */
-  async #switchPlayback(id: string): Promise<void> {
-    const app = this.#apps.get(id);
-    const playback = app?.playback;
-    if (!app || !playback) return;
-    const now = playback.current();
-    const next = playback.options.find((o) => o.id !== now.id);
-    if (!next) return;
-    this.#couchCopy.delete(id);
-    const failure = await playback.select(next.id).then(
-      () => undefined,
-      (e: unknown) => e,
-    );
-    this.#toast(
-      failure === undefined
-        ? `${app.label} now plays with ${next.label}`
-        : failure instanceof PlaybackUnavailable
-          ? failure.message
-          : `Couldn't switch ${app.label}'s playback`,
-    );
-    this.#emit();
-    void this.#refreshCouchCopy(id);
-  }
-
-  async #signOut(id: string): Promise<void> {
-    const app = this.#apps.get(id);
-    if (!app?.signIn) return;
-    const done = await app.signIn.signOut().then(
-      () => true,
-      () => false,
-    );
-    this.#toast(done ? `Signed out of ${app.label}` : `Couldn't sign out of ${app.label}`);
-    this.#emit();
-  }
-
-  #restartApp(id: string): void {
-    const app = this.#apps.get(id);
-    if (!app) return;
-    this.#appsFailed.delete(id);
-    app.restart();
-    this.#toast(`Restarting ${app.label}`);
-  }
-
   #onApp(app: App, event: AppEvent): void {
     const front = this.#state.app === app.id;
     switch (event.type) {
       case "loaded":
-        this.#appsFailed.delete(app.id);
+        this.#app.failed.delete(app.id);
         break;
       case "failed":
-        this.#appsFailed.set(app.id, event.note);
+        this.#app.failed.set(app.id, event.note);
         if (this.#state.view === "app" && front) {
           this.#state.appNote = event.note;
           this.#setView("appError");
@@ -2468,34 +1989,6 @@ export class Core {
     this.#emit();
   }
 
-  /** An App covers the Screen, so what Couch draws over it (volume, question, search bar) goes through the App. */
-  #syncApps(): void {
-    const front = this.#front();
-    for (const app of this.#apps.values()) {
-      const shown = this.#shown.get(app.id) ?? {};
-      const on = app === front;
-      const volume = on && this.#state.volumeShown ? this.#level() : undefined;
-      if (volume !== shown.volume) {
-        shown.volume = volume;
-        app.drawVolume(volume);
-      }
-      const c = on ? this.#state.confirm : undefined;
-      if (c?.title !== shown.confirm?.title || c?.focus !== shown.confirm?.focus) {
-        shown.confirm = c && { ...c };
-        app.showConfirm(c && { ...c });
-      }
-      const bar =
-        on && this.#state.typingBy !== undefined && this.#typingFor === "search"
-          ? this.#state.query
-          : undefined;
-      if (bar !== shown.bar) {
-        shown.bar = bar;
-        app.typing?.showSearchBar(bar);
-      }
-      this.#shown.set(app.id, shown);
-    }
-  }
-
   /** What the volume indicator shows: nothing while muted. */
   #level(): number {
     return this.#sound.muted ? 0 : this.#state.volume;
@@ -2526,62 +2019,18 @@ export class Core {
   #actionContext(): ActionContext {
     return {
       open: (view) => this.#setView(view),
-      openAppMenu: (id) => {
-        // The row waits for a fresh answer: an old one may be stale (the cookies can be gone).
-        this.#couchCopy.delete(id);
-        this.#homeApps.openMenu(id);
-        void this.#refreshCouchCopy(id);
-      },
-      openApp: (id) => this.#openApp(id),
-      retryApp: () => this.#retryApp(),
-      restartApp: (id) => this.#restartApp(id),
-      copySignInFromCouch: (id) => void this.#copySignInFromCouch(id),
-      signOut: (id) => void this.#signOut(id),
-      switchPlayback: (id) => void this.#switchPlayback(id),
+      openApp: (id) => this.#app.open(id),
       toast: (text) => this.#toast(text),
       forgetAllPhones: () => this.forgetAllPhones(),
       openUpdate: () => this.#openUpdate(),
-      toggleListener: () => void this.#toggleListener(),
+      toggleListener: () => void this.#login.toggle(),
       quit: () => this.#askQuit(),
     };
   }
 
-  /** The card the Remote shows under an App's menu: why the other playback engine isn't offered. */
-  #remoteNote(): RemoteNote | undefined {
-    const id = this.#homeApps.menuId;
-    const reason = id ? this.#apps.get(id)?.playback?.unavailable : undefined;
-    return reason ? { title: "Playback", steps: [reason] } : undefined;
-  }
-
-  #loginItem = { available: false, on: false, running: false };
-
-  /** Reads the login item and whether a listener is really up (status file, pid, port) from the Mac. */
-  async refreshLoginItem(): Promise<void> {
-    const item = await this.#ports.mac.listenerLoginItem().catch(() => this.#loginItem);
-    const running =
-      item.available &&
-      !!(await liveListener(this.#ports.store, this.#ports.listenerProbe ?? systemProbe).catch(
-        () => undefined,
-      ));
-    this.#loginItem = { available: item.available, on: item.on, running };
-    this.#emit();
-  }
-
-  async #turnListenerOn(): Promise<void> {
-    await this.refreshLoginItem();
-    if (!this.#loginItem.on) await this.#toggleListener();
-  }
-
-  async #toggleListener(): Promise<void> {
-    await this.refreshLoginItem();
-    if (!this.#loginItem.available) return;
-    const turnOn = !this.#loginItem.on;
-    const door = this.#ports.frontdoor;
-    if (turnOn) await door?.beforeEnable().catch(() => {});
-    await this.#ports.mac.setListenerLoginItem(turnOn).catch(() => {});
-    await this.refreshLoginItem();
-    await door?.afterChange(this.#loginItem.on).catch(() => {});
-    await this.refreshLoginItem();
+  /** Reads the login item and whether a listener is really up from the Mac. */
+  refreshLoginItem(): Promise<void> {
+    return this.#login.refresh();
   }
 
   /** A toast from outside the core (start-up notices). */
@@ -2646,16 +2095,16 @@ export class Core {
     this.#syncPictureOff();
     this.#releaseStrayTyping();
     const raised =
-      this.#state.controls !== "hidden" &&
-      this.#state.controls !== "next" &&
+      this.#controls.mode !== "hidden" &&
+      this.#controls.mode !== "next" &&
       this.#state.player !== undefined;
-    const level = `${raised}${this.#state.controls === "upnext"}`;
+    const level = `${raised}${this.#controls.mode === "upnext"}`;
     if (level !== this.#subtitlesRaised) {
       this.#subtitlesRaised = level;
-      this.#ports.player.setSubtitlesRaised(raised, this.#state.controls === "upnext");
+      this.#ports.player.setSubtitlesRaised(raised, this.#controls.mode === "upnext");
     }
     this.#syncDisplayAwake();
-    this.#syncApps();
+    this.#overlays.sync();
     this.#syncCapture();
     for (const l of [...this.#listeners]) l();
   }

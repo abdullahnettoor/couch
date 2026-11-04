@@ -167,7 +167,13 @@ describe("Settings Pages Back", () => {
     });
     return {
       homeApps,
-      page: new SettingsAppsPage(ctx, { homeApps, catalog: () => [], addons: () => [] }),
+      page: new SettingsAppsPage(ctx, {
+        homeApps,
+        apps: new Map(),
+        clearFailure: () => {},
+        catalog: () => [],
+        addons: () => [],
+      }),
     };
   }
 

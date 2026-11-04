@@ -17,7 +17,7 @@ The first page the Screen shows: a simple launcher with a clock and the Apps.
 _Avoid_: launcher, dashboard, main menu
 
 **Page**:
-One of Couch's own full-screen places on the Screen: Home, the Library, a folder, a show, Settings and its pages, About, Now Playing's controls. It is not a Web App's website, and not an overlay (Quick settings, Setup, a question, Picture off). In code, `View` is the id of a Page.
+One of Couch's own full-screen places on the Screen: Home, the Library, a folder, a show, Settings and its pages, About, Now Playing's controls, the App error page, and the view an App sits in (its Back and its leaving, though not the website drawn inside it). It is not a Web App's website, and not an overlay (Quick settings, Setup, a question, Picture off). In code, `View` is the id of a Page.
 _Avoid_: screen (that is the whole app), view (in prose), menu
 
 **Wallpaper**:
