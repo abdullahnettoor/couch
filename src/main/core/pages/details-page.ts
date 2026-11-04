@@ -1,15 +1,17 @@
-import type { Command, GridItem, RemoteId, ScreenState, View } from "../../shared/protocol.ts";
-import type { Source } from "./core.ts";
-import type { MetadataService } from "./metadata-service.ts";
+import type { Command, GridItem, RemoteId, ScreenPayload } from "../../../shared/protocol.ts";
+import type { Source } from "../core.ts";
+import type { MetadataService } from "../metadata-service.ts";
+import { backTo, type Page, type PageBack, type PageContext } from "./page.ts";
 
 /** What the "Show and film details" page asks of the core. */
 export interface DetailsPageHost {
-  details: MetadataService;
+  details: Pick<MetadataService, "settings" | "setKey" | "setEnabled" | "refresh">;
   /** The phone that last sent a command, if it is still connected. */
   connectedPhone(): RemoteId | undefined;
   /** A phone (or the Screen) starts typing the key: it owns the typing session, for the key only. */
   startTyping(source: Source): void;
-  setView(view: View): void;
+  /** Ends the typing session (the Screen's field or a phone's sheet). */
+  endTyping(): void;
   toast(text: string): void;
 }
 
@@ -17,15 +19,27 @@ export interface DetailsPageHost {
  * The "Show and film details" Settings page: its rows, key entry (typed on a phone, never put in the
  * Screen state), Refresh and Credits.
  */
-export class DetailsPage {
-  #state: ScreenState;
+export class DetailsPage implements Page {
+  #ctx: PageContext;
   #h: DetailsPageHost;
   /** A TMDB key being typed on a phone. Kept out of the Screen state and snapshots. */
   #draft = "";
 
-  constructor(state: ScreenState, host: DetailsPageHost) {
-    this.#state = state;
+  constructor(ctx: PageContext, host: DetailsPageHost) {
+    this.#ctx = ctx;
     this.#h = host;
+  }
+
+  payload(): Pick<ScreenPayload, "details"> {
+    return { details: this.#h.details.settings() };
+  }
+
+  back(): PageBack {
+    return backTo(this.#ctx, "settingsLibrary");
+  }
+
+  leave(): void {
+    this.cancel();
   }
 
   grid(): GridItem[] {
@@ -43,7 +57,7 @@ export class DetailsPage {
   }
 
   /** Actions on the "Show and film details" page. */
-  action(action: string, from: Source): boolean {
+  action(action: string, from: Source = "screen"): boolean {
     if (!action.startsWith("details:")) return false;
     switch (action) {
       case "details:own-key": {
@@ -66,7 +80,7 @@ export class DetailsPage {
         this.#h.toast("Refreshing details");
         break;
       case "details:credits":
-        this.#h.setView("credits");
+        this.#ctx.go("credits");
         break;
       default:
         return false;
@@ -81,13 +95,13 @@ export class DetailsPage {
 
   /** The page was left (or its typing sheet closed): forget the key being typed. */
   cancel(): void {
-    this.#state.typingBy = undefined;
+    this.#h.endTyping();
     this.#draft = "";
   }
 
   /** Typing the household's TMDB key: the text never goes into the Screen state. */
   typeKey(command: Command, from: Source): void {
-    const owner = this.#state.typingBy;
+    const owner = this.#ctx.state.typingBy;
     switch (command.command) {
       case "typeOpen":
         if (owner !== undefined && owner !== from) return;
@@ -98,7 +112,7 @@ export class DetailsPage {
         break;
       case "typeSubmit":
         if (owner !== from) return;
-        this.#state.typingBy = undefined;
+        this.#h.endTyping();
         if (this.#draft.trim()) {
           this.#h.details.setKey(this.#draft);
           this.#h.toast("TMDB key saved");
@@ -107,7 +121,7 @@ export class DetailsPage {
         break;
       case "typeCancel":
         if (owner !== from) return;
-        this.#state.typingBy = undefined;
+        this.#h.endTyping();
         this.#draft = "";
         break;
     }

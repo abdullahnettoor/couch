@@ -83,17 +83,7 @@ export function actionFor(action: string): ActionHandler | undefined {
 
 /** Where Back goes from each view. A view with no entry ignores Back. */
 export const BACK_TARGETS: Partial<Record<View, View>> = {
-  settings: "home",
-  settingsRemotes: "settings",
-  settingsLibrary: "settings",
-  settingsApps: "settings",
-  addPhone: "settingsRemotes",
   appError: "home",
-  libraryFolders: "settingsLibrary",
-  details: "settingsLibrary",
-  soundOutput: "settings",
-  settingsHome: "settings",
-  credits: "details",
   library: "home",
   show: "library",
 };

@@ -46,13 +46,6 @@ import { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
 import { confirmMouseCommand } from "../../shared/confirm-layout.ts";
 import { homeItems } from "../../shared/home-grid.ts";
 import { APP_ERROR_ITEMS } from "../../shared/app-grid.ts";
-import {
-  ADD_PHONE_ITEMS,
-  LIBRARY_ITEMS,
-  REMOTES_ITEMS,
-  SETTINGS_APP,
-  SETTINGS_ITEMS,
-} from "../../shared/settings-grid.ts";
 import { actionFor, BACK_TARGETS, type ActionContext } from "./actions.ts";
 import { moveFocus, resolveFocus } from "./focus.ts";
 import { MediaLibrary } from "./media-library.ts";
@@ -69,8 +62,19 @@ import { ContinueArt, type ArtFetch } from "./continue-art.ts";
 import { ShowView } from "./show-view.ts";
 import { AddonsPage } from "./pages/addons-page.ts";
 import type { Page, PageContext } from "./pages/page.ts";
-import { APPS_MENU_KEY, HomeApps, leavesOnHide } from "./home-apps.ts";
-import { DetailsPage } from "./details-page.ts";
+import { HomeApps, leavesOnHide } from "./home-apps.ts";
+import { DetailsPage } from "./pages/details-page.ts";
+import {
+  AddPhonePage,
+  CreditsPage,
+  LibraryFoldersPage,
+  LibrarySettingsPage,
+  RemotesPage,
+  SettingsPage,
+} from "./pages/settings-pages.ts";
+import { SoundOutputPage } from "./pages/sound-output-page.ts";
+import { SettingsHomePage } from "./pages/settings-home-page.ts";
+import { SettingsAppsPage } from "./pages/settings-apps-page.ts";
 import { AboutPage } from "./pages/about-page.ts";
 import type { Updates } from "../ports/updates.ts";
 import { HomePage } from "./home-page.ts";
@@ -98,10 +102,6 @@ const phoneKey = (url: string | undefined): string | undefined =>
 /** Home's update icon, in the top strip left of the gear (as the Library's search icon is). */
 /** The grids of the views with no Page yet; a Page's own grid() replaces its line. */
 const STATIC_GRIDS: Record<string, GridItem[]> = {
-  settings: SETTINGS_ITEMS,
-  settingsRemotes: REMOTES_ITEMS,
-  settingsLibrary: LIBRARY_ITEMS,
-  addPhone: ADD_PHONE_ITEMS,
   appError: APP_ERROR_ITEMS,
 };
 
@@ -116,7 +116,7 @@ const UPDATE_ICON: GridItem = {
 /** Home's row fits this many tiles: its App tiles, then Continue watching. */
 const HOME_ROW_TILES = 5;
 const TILE_COLUMNS = 4;
-const LIBRARY_VIEWS = ["library", "folder", "libraryFolders"];
+const LIBRARY_VIEWS = ["library", "folder"];
 /** Views where a phone's Search button opens the Library search. */
 const TYPING_VIEW = { search: "app", tmdbKey: "details", librarySearch: "librarySearch" };
 type Purpose = keyof typeof TYPING_VIEW;
@@ -279,6 +279,7 @@ export class Core {
   #about: AboutPage;
   #offUpdates: () => void;
   #addonsPage: AddonsPage;
+  #settingsApps: SettingsAppsPage;
   /** The Pages by view. A view with no Page yet falls back to the branches in this class. */
   #pages = new Map<View, Page>();
   #homePage: HomePage;
@@ -398,13 +399,7 @@ export class Core {
       toggleMute: () => this.#toggleMute(),
       pictureIsOff: () => this.#state.pictureOff,
       setPictureOff: (on) => this.#setPictureOff(on),
-      openSettings: () => {
-        if (this.#state.player) {
-          this.#stopPlayback();
-          this.#endPlayback();
-        }
-        this.#setView("settings");
-      },
+      openSettings: () => this.#leavePlaybackFor("settings"),
       changed: () => this.#emit(),
     });
     this.#homePage = new HomePage({
@@ -419,12 +414,7 @@ export class Core {
       known: () => this.#catalog(),
       toast: (text) => this.#toast(text),
       hidden: (id) => {
-        if (!leavesOnHide(id, this.#state.view, this.#state.app)) return;
-        if (this.#state.player) {
-          this.#stopPlayback();
-          this.#endPlayback();
-        }
-        this.#setView("home");
+        if (leavesOnHide(id, this.#state.view, this.#state.app)) this.#leavePlaybackFor("home");
       },
       playback: (id) => {
         const playback = this.#apps.get(id)?.playback;
@@ -433,8 +423,7 @@ export class Core {
       hasSignIn: (id) => !!this.#apps.get(id)?.signIn,
       hasCouchCopy: (id) => this.#couchCopy.has(id),
       changed: () => {
-        const at = this.#homeApps.menuRow();
-        if (at >= 0) this.#state.focus.settingsApps = { r: at, c: 0 };
+        this.#settingsApps.changed();
         this.#emit();
       },
     });
@@ -445,11 +434,16 @@ export class Core {
       ask: (title, buttons, answers, more) => this.#ask(title, buttons, answers, more),
       cue: (sound) => this.#cue(sound),
       emit: () => this.#emit(),
+      setFocus: (key, at) => {
+        if (at) this.#state.focus[key] = at;
+        else delete this.#state.focus[key];
+      },
     };
     this.#addonsPage = new AddonsPage(pageContext, {
       store: ports.store,
       apply: (app, ids, note) => this.#apps.get(app)?.setAddons?.(ids, note),
       isFront: (app) => this.#front()?.id === app,
+      forgetMenu: () => this.#settingsApps.forgetMenu(),
     });
     this.#about = new AboutPage(pageContext, {
       updates: ports.updates,
@@ -465,7 +459,7 @@ export class Core {
     this.#pages.set("about", this.#about);
     this.#pages.set("addons", this.#addonsPage);
     this.#offUpdates = ports.updates.onChange(() => this.#emit());
-    this.#detailsPage = new DetailsPage(this.#state, {
+    this.#detailsPage = new DetailsPage(pageContext, {
       details: this.details,
       connectedPhone: () =>
         this.#lastFrom !== undefined && this.#remotes.has(this.#lastFrom)
@@ -475,7 +469,9 @@ export class Core {
         this.#state.typingBy = remote;
         this.#typingFor = "tmdbKey";
       },
-      setView: (view) => this.#setView(view),
+      endTyping: () => {
+        this.#state.typingBy = undefined;
+      },
       toast: (text) => this.#toast(text),
     });
     this.#search = new LibrarySearchView(this.#state, {
@@ -498,6 +494,38 @@ export class Core {
       setView: (view) => this.#setView(view),
       toast: (text) => this.#toast(text),
     });
+    const settingsHost = { details: this.details, sound: this.#sound };
+    this.#settingsApps = new SettingsAppsPage(pageContext, {
+      homeApps: this.#homeApps,
+      catalog: () => this.#catalog(),
+      addons: () => this.#addonsPage.rows(),
+    });
+    this.#pages.set("settings", new SettingsPage(pageContext, settingsHost));
+    this.#pages.set(
+      "settingsRemotes",
+      new RemotesPage(pageContext, {
+        listener: () => this.#loginItem,
+        refresh: () => void this.refreshLoginItem(),
+      }),
+    );
+    this.#pages.set("settingsLibrary", new LibrarySettingsPage(pageContext, settingsHost));
+    this.#pages.set("addPhone", new AddPhonePage(pageContext));
+    this.#pages.set(
+      "libraryFolders",
+      new LibraryFoldersPage(pageContext, {
+        folders: () => this.#libraryFolders,
+        add: () => this.#addFolder(),
+        remove: (folder) => this.#saveFolders(this.#libraryFolders.filter((f) => f !== folder)),
+      }),
+    );
+    this.#pages.set("details", this.#detailsPage);
+    this.#pages.set("credits", new CreditsPage(pageContext, settingsHost));
+    this.#pages.set(
+      "soundOutput",
+      new SoundOutputPage(pageContext, { sound: this.#sound, uiSounds: this.#uiSounds }),
+    );
+    this.#pages.set("settingsHome", new SettingsHomePage(pageContext, this.#homePage));
+    this.#pages.set("settingsApps", this.#settingsApps);
     this.#libraryFolders = Array.isArray(lib.folders)
       ? lib.folders.filter((f): f is string => typeof f === "string")
       : [];
@@ -609,7 +637,8 @@ export class Core {
 
   get viewKey(): string {
     const { view, folderPath } = this.#state;
-    if (view === "settingsApps" && this.#homeApps.menuId) return APPS_MENU_KEY;
+    const key = this.#pages.get(view)?.focusKey?.();
+    if (key) return key;
     return view === "folder" ? `folder:${folderPath}` : view;
   }
 
@@ -648,8 +677,6 @@ export class Core {
           entries: this.#listing.map((e) => this.#withMosaic(this.#decorate(e))),
           emptyText: "No videos in this folder.",
         };
-      case "libraryFolders":
-        return { heading: "Library folders", entries: [], folders: this.#libraryFolders };
       default:
         return undefined;
     }
@@ -914,35 +941,11 @@ export class Core {
     const page = this.#pages.get(this.#state.view);
     if (page) return page.grid();
     if (this.#state.view === "player") return this.#controls.grid();
-    if (this.#state.view === "details") return this.#detailsPage.grid();
-    if (this.#state.view === "soundOutput") {
-      const devices = this.#sound.grid();
-      return [...devices, this.#uiSounds.row(devices.length)];
-    }
-    if (this.#state.view === "settingsHome") return this.#homePage.grid();
-    if (this.#state.view === "settingsApps")
-      return this.#homeApps.menuId
-        ? this.#homeApps.menuGrid()
-        : this.#homeApps.grid((id) => `${SETTINGS_APP}${id}`);
     if (this.#state.view === "show") return this.#show.grid();
     if (this.#state.view === "fixMatch") return this.#show.fixGrid();
     if (this.#state.view === "librarySearch") return this.#search.grid();
-    if (this.#state.view === "credits")
-      return [{ id: "done", r: 0, c: 0, label: "Done", action: "back", initial: true }];
     if (!this.#isLibraryView()) return STATIC_GRIDS[this.viewKey] ?? [];
     const lib = this.#library()!;
-    if (lib.folders) {
-      return [
-        { id: "add", r: 0, c: 0, label: "Add folder", action: "library:add", initial: true },
-        ...lib.folders.map((f, i) => ({
-          id: f,
-          r: i + 1,
-          c: 0,
-          label: f,
-          action: `library:remove:${f}`,
-        })),
-      ];
-    }
     const tile = (e: LibraryEntry, r: number, c: number, initial: boolean): GridItem => ({
       id: e.id ?? e.path,
       r,
@@ -1027,9 +1030,7 @@ export class Core {
     } else if (verb === "show") {
       this.#showFrom = this.#state.view === "librarySearch" ? "librarySearch" : "library";
       this.#show.open(arg);
-    } else if (verb === "remove") this.#saveFolders(this.#libraryFolders.filter((f) => f !== arg));
-    else if (verb === "add") this.#addFolder();
-    else return false;
+    } else return false;
     return true;
   }
 
@@ -1486,22 +1487,9 @@ export class Core {
       ...(this.#state.view === "show" ? this.#show.payload() : {}),
       ...(this.#state.view === "fixMatch" ? this.#show.fixPayload() : {}),
       ...(this.#state.view === "librarySearch" ? this.#search.payload() : {}),
-      ...(this.#state.view === "details" ||
-      this.#state.view === "settings" ||
-      this.#state.view === "settingsLibrary" ||
-      this.#state.view === "credits"
-        ? { details: this.details.settings() }
-        : {}),
-      ...(this.#state.view === "settings" || this.#state.view === "soundOutput"
-        ? { sound: this.#sound.payload() }
-        : {}),
-      ...(this.#state.view === "soundOutput" ? { interfaceSounds: this.#uiSounds.on } : {}),
-      ...this.#pages.get(this.#state.view)?.payload(focused?.id),
       homeApps: this.#homeApps.rows(),
-      ...(this.#state.view === "settingsApps" ? { addons: this.#addonsPage.rows() } : {}),
-      ...(this.#state.view === "settingsRemotes" ? { listener: { ...this.#loginItem } } : {}),
-      ...(this.#state.view === "settingsApps" ? this.#appMenuPayload() : {}),
-      home: this.#homePage.payload(this.#state.view === "settingsHome" ? focused?.id : undefined),
+      home: this.#homePage.payload(),
+      ...this.#pages.get(this.#state.view)?.payload(focused?.id),
       continueCard: this.#continueEntries()[0],
       homeVideos,
       hero:
@@ -2318,11 +2306,6 @@ export class Core {
     if (
       this.#pages.get(this.#state.view)?.action(item.action, this.#source) ||
       this.#libraryAction(item.action) ||
-      this.#detailsPage.action(item.action, this.#source) ||
-      this.#sound.action(item.action) ||
-      this.#uiSounds.action(item.action) ||
-      this.#homePage.action(item.action) ||
-      this.#homeApps.action(item.action) ||
       this.#search.action(item.action, this.#source) ||
       this.#show.action(item.action)
     )
@@ -2384,12 +2367,6 @@ export class Core {
         this.#state.focus[this.viewKey] = { r: 1, c: 0 };
       });
     }
-    if (view === "settingsApps" && this.#homeApps.menuId) {
-      return go(VIEW_LABELS.settingsApps, () => {
-        delete this.#state.focus[APPS_MENU_KEY];
-        this.#homeApps.closeMenu();
-      });
-    }
     if (view === "librarySearch") return go(VIEW_LABELS.library, () => this.#setView("library"));
     if (view === "show" && this.#showFrom === "librarySearch")
       return go(VIEW_LABELS.librarySearch, () => this.#setView("librarySearch"));
@@ -2420,6 +2397,15 @@ export class Core {
     } else this.#keepLibraryFocus();
   }
 
+  /** Stops what is playing (saving its position), then opens `view`. */
+  #leavePlaybackFor(view: View): void {
+    if (this.#state.player) {
+      this.#stopPlayback();
+      this.#endPlayback();
+    }
+    this.#setView(view);
+  }
+
   /** Changes view; leaving an App hides it (pausing playback) and lets the display sleep again. */
   #setView(view: View): void {
     const from = this.#state.view;
@@ -2430,10 +2416,6 @@ export class Core {
       this.#homeFilm = undefined;
     }
     if (from === view) return;
-    if (view !== "settingsApps" && view !== "addons") {
-      this.#homeApps.resetMenu();
-      delete this.#state.focus[APPS_MENU_KEY];
-    }
     if (from === "app") {
       if (this.#leaveConfirm && this.#state.confirm === this.#leaveConfirm) this.#dismissConfirm();
       this.#state.typingBy = undefined;
@@ -2448,13 +2430,11 @@ export class Core {
     this.#ambient = false;
     this.#armAmbient();
     this.#releaseStrayTyping();
-    if (from === "details") this.#detailsPage.cancel();
+    this.#homePage.watch(view === "home");
+    if (view === "home") this.#homePage.refresh(false);
     this.#pages.get(from)?.leave?.(view);
     this.#pages.get(view)?.enter?.(from);
-    this.#homePage.watch(view === "home" || view === "settingsHome");
-    if (view === "home" || view === "settingsHome") this.#homePage.refresh(view === "settingsHome");
     if (view === "library") void this.library.refresh(this.#libraryFolders);
-    if (view === "settingsRemotes") void this.refreshLoginItem();
   }
 
   /** The one App catalog: Home tiles, icons and Settings actions all come from it, injected Apps included. */
@@ -2828,18 +2808,6 @@ export class Core {
     const id = this.#homeApps.menuId;
     const reason = id ? this.#apps.get(id)?.playback?.unavailable : undefined;
     return reason ? { title: "Playback", steps: [reason] } : undefined;
-  }
-
-  #appMenuPayload(): Pick<ScreenPayload, "appMenu"> {
-    const app = this.#catalog().find((a) => a.id === this.#homeApps.menuId);
-    return app
-      ? {
-          appMenu: {
-            id: app.id,
-            label: app.label,
-          },
-        }
-      : {};
   }
 
   #loginItem = { available: false, on: false, running: false };

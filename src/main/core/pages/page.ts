@@ -1,9 +1,10 @@
-import type {
-  GridItem,
-  ScreenPayload,
-  ScreenState,
-  UiSound,
-  View,
+import {
+  VIEW_LABELS,
+  type GridItem,
+  type ScreenPayload,
+  type ScreenState,
+  type UiSound,
+  type View,
 } from "../../../shared/protocol.ts";
 import type { Source } from "../core.ts";
 
@@ -29,6 +30,8 @@ export interface Page {
   action(action: string, source?: Source): boolean;
   /** Undefined: Back is ignored here. */
   back(): PageBack | undefined;
+  /** The key this Page's focus is kept under, when it isn't just the view (a menu over the page has its own). */
+  focusKey?(): string | undefined;
   /** Focus movement for a Page with its own rules; otherwise the core moves focus over `grid()`. */
   move?(direction: Direction): void;
   /** The view just changed to one of this Page's views. */
@@ -49,4 +52,11 @@ export interface PageContext {
   cue(sound: UiSound): void;
   /** Tells the Screen and phones the state changed. */
   emit(): void;
+  /** Sets (or, with no cell, forgets) the focus kept under a focus key: a Page's own view or its own menu. */
+  setFocus(key: string, at?: { r: number; c: number }): void;
+}
+
+/** Back that goes to `view`, labelled with its name ("‹ Settings"). */
+export function backTo(ctx: PageContext, view: View): PageBack {
+  return { label: VIEW_LABELS[view], act: () => ctx.go(view) };
 }
