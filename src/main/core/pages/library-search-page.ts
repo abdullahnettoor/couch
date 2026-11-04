@@ -101,7 +101,7 @@ export class LibrarySearchPage implements Page {
     this.#applied = "";
     this.#query = "";
     this.#wanted = "";
-    this.#ctx.focus.clear(SEARCH_VIEW);
+    this.#ctx.setFocus(SEARCH_VIEW);
   }
 
   /** Matching is done once per query and data change; the grid and the payload share it. */
@@ -238,7 +238,7 @@ export class LibrarySearchPage implements Page {
         if (owner !== from) return;
         this.#ctx.stopTyping();
         this.#flush();
-        if (this.#rows().length) this.#ctx.focus.set(SEARCH_VIEW, { r: 1, c: 0 });
+        if (this.#rows().length) this.#ctx.setFocus(SEARCH_VIEW, { r: 1, c: 0 });
         break;
       case "typeCancel":
         if (owner !== from) return;

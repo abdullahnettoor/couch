@@ -106,7 +106,7 @@ export class ShowView {
     const tab = tabOf(episode);
     this.#ctx.set({ showTab: tab });
     const index = show.seasons.find((se) => String(se.number) === tab)!.episodes.indexOf(episode);
-    this.#ctx.focus.set(`show:${show.id}`, { r: 1 + index, c: 1 + tabIds(show).indexOf(tab) });
+    this.#ctx.setFocus(`show:${show.id}`, { r: 1 + index, c: 1 + tabIds(show).indexOf(tab) });
   }
 
   /** The episodes (or extras) listed under the selected tab. */
@@ -248,7 +248,7 @@ export class ShowView {
       this.#wantShowPictures();
       const list = this.#showList(show);
       const c = 1 + tabIds(show).indexOf(arg);
-      if (list.length) this.#ctx.focus.set(this.#ctx.viewKey(), { r: 1, c });
+      if (list.length) this.#ctx.setFocus(this.#ctx.viewKey(), { r: 1, c });
     } else if (verb === "fix") {
       this.#openFixMatch(show.id);
     }
@@ -289,9 +289,9 @@ export class ShowView {
 
   /** Going Home is the Home button's trip (it forgets Home's focus); coming back from Fix match keeps it. */
   #leaveFixTo(view: "show" | "library" | "home"): void {
-    const home = this.#ctx.focus.get("home");
+    const home = this.#ctx.focusOf("home");
     this.#ctx.go(view);
-    if (view === "home" && home) this.#ctx.focus.set("home", home);
+    if (view === "home" && home) this.#ctx.setFocus("home", home);
   }
 
   /** Fix match for a film on Home's Continue watching; Back returns to Home. */
@@ -303,7 +303,7 @@ export class ShowView {
     this.#fixId = id;
     this.#fixBack = back;
     this.#fixOptions = undefined;
-    this.#ctx.focus.clear("fixMatch");
+    this.#ctx.setFocus("fixMatch");
     this.#ctx.go("fixMatch");
     void this.#h.details.candidates(id).then((options) => {
       if (this.#ctx.state.view !== "fixMatch" || this.#fixId !== id) return;
@@ -323,7 +323,7 @@ export class ShowView {
   /** After a move or hover onto a season tab, the list below follows. */
   syncTab(): void {
     if (this.#ctx.state.view !== "show") return;
-    const focused = resolveFocus(this.#h.grid(), this.#ctx.focus.get(this.#ctx.viewKey()));
+    const focused = resolveFocus(this.#h.grid(), this.#ctx.focusOf(this.#ctx.viewKey()));
     if (focused?.id.startsWith("tab:")) {
       const tab = focused.id.slice(4);
       if (tab !== this.#ctx.state.showTab) {
@@ -335,9 +335,9 @@ export class ShowView {
 
   move(direction: "up" | "down" | "left" | "right"): void {
     const grid = this.#h.grid();
-    const current = resolveFocus(grid, this.#ctx.focus.get(this.#ctx.viewKey()));
+    const current = resolveFocus(grid, this.#ctx.focusOf(this.#ctx.viewKey()));
     if (!current) return;
-    const set = (i: GridItem) => this.#ctx.focus.set(this.#ctx.viewKey(), { r: i.r, c: i.c });
+    const set = (i: GridItem) => this.#ctx.setFocus(this.#ctx.viewKey(), { r: i.r, c: i.c });
     const buttons = grid.filter((i) => i.c === 0);
     if (current.c === 0) {
       if (direction === "right") {

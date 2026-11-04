@@ -1,10 +1,11 @@
-import type {
-  GridItem,
-  RemoteId,
-  ScreenPayload,
-  ScreenState,
-  UiSound,
-  View,
+import {
+  VIEW_LABELS,
+  type GridItem,
+  type RemoteId,
+  type ScreenPayload,
+  type ScreenState,
+  type UiSound,
+  type View,
 } from "../../../shared/protocol.ts";
 import type { Source } from "../core.ts";
 
@@ -30,19 +31,14 @@ export interface Page {
   action(action: string, source?: Source): boolean;
   /** Undefined: Back is ignored here. */
   back(): PageBack | undefined;
+  /** The key this Page's focus is kept under, when it isn't just the view (a menu over the page has its own). */
+  focusKey?(): string | undefined;
   /** Focus movement for a Page with its own rules; otherwise the core moves focus over `grid()`. */
   move?(direction: Direction): void;
   /** The view just changed to one of this Page's views. */
   enter?(from: View): void;
   /** The view is about to change from one of this Page's views. */
   leave?(to: View): void;
-}
-
-/** Focus by view key. */
-export interface PageFocus {
-  get(key: string): { r: number; c: number } | undefined;
-  set(key: string, cell: { r: number; c: number }): void;
-  clear(key: string): void;
 }
 
 /** What `Core` hands to each Page. The state is read-only: the type checker refuses a write to `state.view`. */
@@ -53,8 +49,8 @@ export interface PageContext {
   toast(text: string): void;
   /** The confirm question. */
   ask(title: string, buttons: string[], answers: Array<() => void>, more?: { body: string }): void;
-  /** Focus cells by view key. Pages set focus here, never on the state. */
-  readonly focus: PageFocus;
+  /** The focus kept under a focus key. */
+  focusOf(key: string): { r: number; c: number } | undefined;
   /** The key of the current view's focus (a folder has one per path). */
   viewKey(): string;
   /** Sets the Screen state a Page owns besides the view, focus and typing. */
@@ -67,4 +63,11 @@ export interface PageContext {
   cue(sound: UiSound): void;
   /** Tells the Screen and phones the state changed. */
   emit(): void;
+  /** Sets (or, with no cell, forgets) the focus kept under a focus key: a Page's own view or its own menu. */
+  setFocus(key: string, at?: { r: number; c: number }): void;
+}
+
+/** Back that goes to `view`, labelled with its name ("‹ Settings"). */
+export function backTo(ctx: PageContext, view: View): PageBack {
+  return { label: VIEW_LABELS[view], act: () => ctx.go(view) };
 }

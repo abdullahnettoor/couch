@@ -1,4 +1,4 @@
-import type { GridItem, ScreenPayload } from "../../../shared/protocol.ts";
+import type { GridItem, ScreenPayload, View } from "../../../shared/protocol.ts";
 import { YOUTUBE_ADDONS } from "../../apps/youtube/addons/index.ts";
 import type { Page, PageBack, PageContext } from "./page.ts";
 import type { Store } from "../../ports/store.ts";
@@ -13,6 +13,8 @@ export interface AddonsPageHost {
   apply(app: string, ids: string[], note?: string): void;
   /** The App is on the Screen now. */
   isFront(app: string): boolean;
+  /** Settings → Apps forgets its open menu. */
+  forgetMenu(): void;
 }
 
 /** Settings → YouTube add-ons: one row per add-on; OK turns it on or off. */
@@ -27,6 +29,11 @@ export class AddonsPage implements Page {
 
   back(): PageBack {
     return { label: "YouTube", act: () => this.#ctx.go("settingsApps") };
+  }
+
+  /** Back goes to Settings → Apps, with the App's menu still open; anywhere else forgets that menu. */
+  leave(to: View): void {
+    if (to !== "settingsApps") this.#h.forgetMenu();
   }
 
   payload(): Pick<ScreenPayload, "addons"> {

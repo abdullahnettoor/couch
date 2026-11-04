@@ -9,7 +9,6 @@ import {
   type ScreenPayload,
   type View,
 } from "../../../shared/protocol.ts";
-import type { Source } from "../core.ts";
 import { resolveFocus } from "../focus.ts";
 import type { History } from "../history.ts";
 import { listFolder, mosaicSources, rootEntries } from "../library.ts";
@@ -39,16 +38,13 @@ export interface LibraryPageHost {
   /** The Library's own Continue watching row. */
   continueEntries(): LibraryEntry[];
   folders(): string[];
-  addFolder(): void;
-  saveFolders(folders: string[]): void;
-  source(): Source;
   playContinue(path: string, fromStart?: boolean): void;
   openShow(id: string): void;
   openSearch(): void;
 }
 
 /**
- * The Library's first page, a folder (one Page for both views) and Settings → Library → folders:
+ * The Library's first page, a folder (one Page for both views):
  * the grid, the payload, the `library:*` actions, Back, and refreshing on arrival.
  */
 export class LibraryPage implements Page {
@@ -84,7 +80,7 @@ export class LibraryPage implements Page {
 
   /** The tile focused on the first page, if any (Fix match, Menu). */
   focusedEntry(): LibraryEntry | undefined {
-    const focused = resolveFocus(this.grid(), this.#ctx.focus.get(this.#ctx.viewKey()));
+    const focused = resolveFocus(this.grid(), this.#ctx.focusOf(this.#ctx.viewKey()));
     return this.#rows()
       .rows.flatMap((r) => r.entries)
       .find((e) => (e.id ?? e.path) === focused?.id);
@@ -94,7 +90,7 @@ export class LibraryPage implements Page {
   keepFocus(): void {
     if (this.#ctx.state.view !== "library" || !this.#rootFocusId) return;
     const at = this.grid().find((i) => i.id === this.#rootFocusId);
-    if (at) this.#ctx.focus.set(this.#ctx.viewKey(), { r: at.r, c: at.c });
+    if (at) this.#ctx.setFocus(this.#ctx.viewKey(), { r: at.r, c: at.c });
   }
 
   /** Focus a video's tile in the open folder, if listed. */
@@ -105,7 +101,7 @@ export class LibraryPage implements Page {
       const after = this.#listing.slice(index + 1).findIndex((e) => e.kind === "video");
       if (after !== -1) index += 1 + after;
     }
-    this.#ctx.focus.set(`folder:${this.#ctx.state.folderPath}`, {
+    this.#ctx.setFocus(`folder:${this.#ctx.state.folderPath}`, {
       r: 1 + Math.floor(index / TILE_COLUMNS),
       c: index % TILE_COLUMNS,
     });
@@ -164,15 +160,12 @@ export class LibraryPage implements Page {
         ? { label: VIEW_LABELS.library, act: () => this.#leaveFolder() }
         : { label: basename(dirname(path)), act: () => this.openFolder(dirname(path)) };
     }
-    if (view === "libraryFolders") {
-      return { label: VIEW_LABELS.settingsLibrary, act: () => this.#ctx.go("settingsLibrary") };
-    }
     if (this.#chip) {
       return {
         label: "All",
         act: () => {
           this.#chip = undefined;
-          this.#ctx.focus.set(this.#ctx.viewKey(), { r: 1, c: 0 });
+          this.#ctx.setFocus(this.#ctx.viewKey(), { r: 1, c: 0 });
         },
       };
     }
@@ -195,7 +188,6 @@ export class LibraryPage implements Page {
     if (!action.startsWith("library:")) return false;
     const [, verb, ...rest] = action.split(":");
     const arg = rest.join(":");
-    const folders = this.#h.folders();
     if (verb === "missing") this.#ctx.toast("Connect the drive to see this folder");
     else if (verb === "open") this.openFolder(arg);
     else if (verb === "play") this.#h.playContinue(arg);
@@ -205,8 +197,6 @@ export class LibraryPage implements Page {
       this.#chip = this.#chip === arg || arg === "all" ? undefined : arg;
       this.#lastTile = undefined;
     } else if (verb === "show") this.#h.openShow(arg);
-    else if (verb === "remove") this.#h.saveFolders(folders.filter((f) => f !== arg));
-    else if (verb === "add") this.#h.addFolder();
     else return false;
     return true;
   }
@@ -218,18 +208,6 @@ export class LibraryPage implements Page {
 
   grid(): GridItem[] {
     const lib = this.#library()!;
-    if (lib.folders) {
-      return [
-        { id: "add", r: 0, c: 0, label: "Add folder", action: "library:add", initial: true },
-        ...lib.folders.map((f, i) => ({
-          id: f,
-          r: i + 1,
-          c: 0,
-          label: f,
-          action: `library:remove:${f}`,
-        })),
-      ];
-    }
     const tile = (e: LibraryEntry, r: number, c: number, initial: boolean): GridItem => ({
       id: e.id ?? e.path,
       r,
@@ -312,8 +290,6 @@ export class LibraryPage implements Page {
           entries: this.#listing.map((e) => this.#withMosaic(this.#h.decorate(e))),
           emptyText: "No videos in this folder.",
         };
-      case "libraryFolders":
-        return { heading: "Library folders", entries: [], folders };
       default:
         return undefined;
     }
