@@ -1,9 +1,6 @@
 import { GLASS } from "./look.ts";
 import type { Command, Confirmation } from "./protocol.ts";
 
-const { size, weight } = GLASS.type;
-const { scale: radius } = GLASS.radius;
-
 /** Design pixels (a 1920-wide Screen) and colours of the question box, shared by the Screen and the YouTube page. All taken from the Look. */
 export const CONFIRM_LAYOUT = {
   scrim: GLASS.color.scrim,
@@ -11,18 +8,22 @@ export const CONFIRM_LAYOUT = {
     gap: 40,
     padY: 56,
     padX: 72,
-    radius: radius.r48!,
-    fontSize: size.s44!,
-    fontWeight: weight.bold!,
+    radius: GLASS.radius.role.dialog,
+    fontSize: GLASS.type.role.dialogTitle,
+    fontWeight: GLASS.type.weight.bold,
   },
-  body: { fontSize: size.s30!, fontWeight: weight.regular!, color: GLASS.color.textSecondary },
+  body: {
+    fontSize: GLASS.type.role.dialogBody,
+    fontWeight: GLASS.type.weight.regular,
+    color: GLASS.color.textSecondary,
+  },
   row: { gap: 24 },
   button: {
     height: 84,
     padX: 40,
-    radius: radius.r42!,
-    fontSize: size.s30!,
-    fontWeight: weight.semibold!,
+    radius: GLASS.radius.role.dialogButton,
+    fontSize: GLASS.type.role.dialogButton,
+    fontWeight: GLASS.type.weight.semibold,
     background: GLASS.color.buttonFill,
     color: GLASS.color.textSecondary,
     focusedBackground: GLASS.focus.bg,

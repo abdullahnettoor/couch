@@ -90,6 +90,17 @@ describe("lookCss", () => {
     }
   });
 
+  it("writes the role colours, the 40 px drawer blur, and the roles TypeScript reads", () => {
+    const d = declarations(lookCss(GLASS, { unit: "var(--u)" }));
+    expect(d.get("--press")).toBe("rgba(255, 255, 255, 0.14)");
+    expect(d.get("--fill-bright")).toBe("#fff");
+    expect(d.get("--track")).toBe("rgba(255, 255, 255, 0.2)");
+    expect(d.get("--blur-glass-heavy-fixed")).toBe("blur(40px) saturate(1.8)");
+    expect(d.get("--shadow-drawer")).toContain("calc(90 * var(--u))");
+    expect(d.get("--type-dialog-title")).toBe("calc(44 * var(--u))");
+    expect(d.get("--radius-dialog")).toBe("calc(48 * var(--u))");
+  });
+
   it("writes one declaration per token, with none empty", () => {
     const css = lookCss(GLASS, { unit: "1px" });
     const names = [...css.matchAll(/(--[\w-]+):/g)].map((m) => m[1]);
