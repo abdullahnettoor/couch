@@ -43,6 +43,30 @@ Open an issue on GitHub to discuss a change, or send a pull request. Build test-
 - **`main` only receives releases.** It changes in two ways only: merging `dev` into it for a stable release, and hotfixes for the released version, which are then merged back into `dev`. Never merge feature work straight into `main`.
 - **Releases are the maintainer's.** Don't bump `version` in `package.json`, create `v*` tags or run `pnpm release` unless asked: `pnpm release` sets the version and tags, and refuses the wrong branch (betas from `dev`, stable versions from `main`). The whole flow is in SHIPPING.md, "Branches" and "Releasing".
 
+## Screenshots
+
+`pnpm look:snap` draws every surface of Couch's look to PNGs from fixed data, so a change to a style, a colour or a size can be checked everywhere at once, and a refactor that should change nothing can be shown to change nothing. It is the proof for the Look work (spec #19).
+
+What it draws, from the fixtures in `scripts/look-fixtures/` (offscreen, no window opens): every Screen Page and overlay (`screen-*.png`, 1920 × 1080), the phone page (`phone-*.png`, 430 × 932, including Now Playing's D-pad), the Quick settings drawer page (`quick-drawer.png`) and a Web App's controls over a plain page (`web-*.png`). The clock is fixed, the time zone is UTC, animations and transitions are off, the wallpapers are the built-in ones, and fonts are loaded before each capture. The script fails if a page throws or a capture is a single colour.
+
+Compare your branch with `dev`:
+
+```sh
+# on dev
+vp build && node scripts/write-remote-page.mjs
+pnpm look:snap snap /tmp/look-base
+# on your branch
+vp build && node scripts/write-remote-page.mjs
+pnpm look:snap snap /tmp/look-head
+pnpm look:snap diff /tmp/look-base /tmp/look-head
+```
+
+`diff` lists the images that differ, writes a diff image for each into `<head>/diff/` (the head picture dimmed, every differing pixel red), and exits non-zero on any difference. Snapping the same build twice and diffing must report "0 images differ". Baselines are not committed. In a pull request that should change nothing visible, list the commands and say "0 images differ"; otherwise name each differing image and why.
+
+A pixel differs when any colour channel is more than 4 (of 255) away from the baseline's: that absorbs the 1 to 2 levels of noise from text anti-aliasing and blur rounding, and nothing visible is that small. Pass `--tolerance N` to `diff` to change it. A colour change of 4 levels or less, on a surface this small, can slip through.
+
+The fixtures are recorded from the core harness, so they are valid for old and new code alike: `pnpm look:record` drives it to each Page and overlay and rewrites `scripts/look-fixtures/`. Run it only when a payload changes shape, and commit the result.
+
 ## Add a YouTube add-on
 
 An add-on is a small, switchable change to how YouTube behaves inside Couch. It shows up in Settings → YouTube add-ons by itself.
