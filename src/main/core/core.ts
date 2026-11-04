@@ -473,6 +473,8 @@ export class Core {
     this.#setup = new Setup({
       store: ports.store,
       usedBefore: () => this.#usedBefore(),
+      phones: () => this.#remotes.size,
+      later: (fn, ms) => ports.clock.setTimeout(fn, ms),
       folders: () => this.#libraryFolders,
       addFolder: () => this.#addFolder(),
       anyAppOn: () => this.#homeApps.shownIds().some((id) => id !== "library"),
@@ -1693,6 +1695,7 @@ export class Core {
     this.#remotes.add(remote);
     this.#state.remotes = this.#remotes.size;
     this.#toast("Phone connected");
+    this.#setup.phoneConnected();
     this.#emit();
   }
 

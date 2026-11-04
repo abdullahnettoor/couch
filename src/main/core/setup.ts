@@ -1,25 +1,30 @@
 import type { Command, SetupPayload, UiSound } from "../../shared/protocol.ts";
 import type { Store } from "../ports/store.ts";
-import { SETUP_STEPS, type SetupStep } from "./setup-steps.ts";
+import { SETUP_STEPS, type SetupContext, type SetupStep } from "./setup-steps.ts";
 
 export interface SetupControls {
   next(): void;
+  /** Show the pairing QR code again on the pairing step. */
+  addPhone(): void;
   close(): void;
-  /** The Library folders already added. */
-  folders(): string[];
   /** Opens the Mac's folder picker and adds what it returns, as Settings → Library does. */
   addFolder(): void;
-  /** Whether any App is on for Home (the Library is not an App). */
-  anyAppOn(): boolean;
 }
 
 export interface SetupHost {
   store: Store;
   /** Couch has been used before: a pairing from an earlier start, Library folders or watch history. */
   usedBefore(): boolean;
+  /** Phones connected right now. */
+  phones(): number;
+  /** The Library folders already added. */
   folders(): string[];
+  /** Opens the Mac's folder picker and adds what it returns, as Settings → Library does. */
   addFolder(): void;
+  /** Whether any App is on for Home (the Library is not an App). */
   anyAppOn(): boolean;
+  /** A timer on the Clock port; returns its canceller. */
+  later(fn: () => void, ms: number): () => void;
   cue(sound: UiSound): void;
   changed(): void;
 }
@@ -64,6 +69,9 @@ export class Setup {
   #index = 0;
   #focus = 0;
   #seen: Set<string>;
+  #justConnected = false;
+  #addingPhone = false;
+  #cancelAdvance?: () => void;
 
   constructor(host: SetupHost, steps: SetupStep[] = SETUP_STEPS) {
     this.#h = host;
@@ -87,12 +95,16 @@ export class Setup {
   }
 
   #start(): void {
-    const first = this.#steps.findIndex((s) => !this.#seen.has(s.id) && !s.done(this.#control()));
+    const first = this.#steps.findIndex((s) => !this.#seen.has(s.id) && !s.done(this.#ctx()));
     this.#open = true;
     this.#goTo(first < 0 ? this.#steps.length - 1 : first);
   }
 
   #goTo(index: number): void {
+    this.#cancelAdvance?.();
+    this.#cancelAdvance = undefined;
+    this.#justConnected = false;
+    this.#addingPhone = false;
     this.#index = index;
     this.#focus = 0;
   }
@@ -108,27 +120,45 @@ export class Setup {
     this.#save(true);
   }
 
-  #control(): SetupControls {
-    const h = this.#h;
+  #ctx(): SetupContext {
     return {
-      next: () => this.#next(),
-      close: () => this.#finish(),
-      folders: () => h.folders(),
-      addFolder: () => h.addFolder(),
-      anyAppOn: () => h.anyAppOn(),
+      phones: this.#h.phones(),
+      justConnected: this.#justConnected,
+      addingPhone: this.#addingPhone,
+      folders: this.#h.folders(),
+      anyAppOn: this.#h.anyAppOn(),
     };
+  }
+
+  /** A phone connected: on the pairing step, say so and move on about 1.5 s later. */
+  phoneConnected(): void {
+    if (!this.#open) return;
+    this.#seen.add("pair");
+    this.#save(false);
+    if (this.#steps[this.#index]!.id !== "pair" || this.#justConnected) return;
+    this.#justConnected = true;
+    this.#cancelAdvance = this.#h.later(() => {
+      this.#cancelAdvance = undefined;
+      if (this.#open && this.#steps[this.#index]!.id === "pair") this.#next();
+      this.#h.changed();
+    }, 1500);
+    this.#h.changed();
   }
 
   #buttons(): Array<{ label: string; run(): void }> {
     const step = this.#steps[this.#index]!;
-    const control = this.#control();
-    const own = step
-      .page(control)
-      .buttons.map((b) => ({ label: b.label, run: () => b.run(control) }));
+    const control: SetupControls = {
+      next: () => this.#next(),
+      addPhone: () => (this.#addingPhone = true),
+      close: () => this.#finish(),
+      addFolder: () => this.#h.addFolder(),
+    };
+    const page = step.page(this.#ctx());
+    const own = page.buttons.map((b) => ({ label: b.label, run: () => b.run(control) }));
     if (step.final) return own;
     return [
       ...own,
-      { label: step.skip?.(control) ?? "Skip", run: () => this.#next() },
+      { label: page.skip ?? "Skip", run: () => this.#next() },
       { label: "Set up later", run: () => this.#finish() },
     ];
   }
@@ -144,12 +174,13 @@ export class Setup {
   payload(): SetupPayload | undefined {
     if (!this.#open) return undefined;
     const step = this.#steps[this.#index]!;
-    const page = step.page(this.#control());
+    const page = step.page(this.#ctx());
     return {
       id: step.id,
       title: page.title,
       ...(page.body ? { body: page.body } : {}),
       ...(page.tips ? { tips: page.tips } : {}),
+      ...(page.qr ? { qr: true } : {}),
       ...(page.list?.length ? { list: page.list } : {}),
       step: this.#index,
       steps: this.#steps.length,

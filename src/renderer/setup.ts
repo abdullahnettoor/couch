@@ -1,5 +1,6 @@
 import { confirmMouseCommand, describeConfirm } from "../shared/confirm-layout.ts";
 import type { ScreenPayload } from "../shared/protocol.ts";
+import { qrSvg } from "./views/dom.ts";
 
 const panel = document.getElementById("setup")!;
 let drawn = "";
@@ -9,7 +10,7 @@ const px = (n: number) => `calc(${n} * var(--u))`;
 /** Setup's panel: step dots, the step's words and Couch's usual question buttons, over Home's wallpaper. */
 export function renderSetup(payload: ScreenPayload): void {
   const s = payload.setup;
-  const key = s ? JSON.stringify(s) : "";
+  const key = s ? JSON.stringify([s, s.qr ? payload.pairingUrl : ""]) : "";
   if (key === drawn) return;
   drawn = key;
   panel.classList.toggle("show", Boolean(s));
@@ -31,6 +32,12 @@ export function renderSetup(payload: ScreenPayload): void {
     const body = document.createElement("p");
     body.textContent = s.body;
     box.append(body);
+  }
+  if (s.qr) {
+    const qr = document.createElement("div");
+    qr.className = "qr";
+    qr.innerHTML = qrSvg(payload.pairingUrl);
+    box.append(qr);
   }
   if (s.tips) {
     const tips = document.createElement("ul");
