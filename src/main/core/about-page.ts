@@ -5,6 +5,7 @@ import type { Updates } from "../ports/updates.ts";
 const CHECK = "about:check";
 const RESTART = "about:restart";
 const BETA = "about:beta";
+const SETUP = "about:setup";
 export const RESTART_ID = "restart";
 export const NOT_INSTALLED = "Updates only work in the installed Couch.app";
 
@@ -15,6 +16,8 @@ export interface AboutPageHost {
   /** Saves what is playing, then Couch quits into the update and opens again. */
   restart(): void;
   toast(text: string): void;
+  /** Goes Home and opens the full Setup again. */
+  runSetup(): void;
 }
 
 /** "0.2.0 (12)": the version and its build number, or the version alone when there is no build number. */
@@ -43,6 +46,7 @@ export class AboutPage {
       { id: "check", label: "Check for updates", action: CHECK, initial: true },
       ...(this.ready ? [{ id: RESTART_ID, label: "Restart to update", action: RESTART }] : []),
       { id: "beta", label: "Beta updates", action: BETA },
+      { id: "setup", label: "Run setup again", action: SETUP },
     ];
     return rows.map((row, r) => ({ ...row, r, c: 0 }));
   }
@@ -94,6 +98,9 @@ export class AboutPage {
       }
       case BETA:
         u.setBeta(!u.beta());
+        return true;
+      case SETUP:
+        this.#h.runSetup();
         return true;
       default:
         return false;

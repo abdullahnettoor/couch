@@ -34,7 +34,7 @@ describe("Settings → About", () => {
   test("About sits just above Quit Couch; it shows the version and build, Check for updates and Beta updates", async () => {
     const phone = await openAbout();
     expect(last().about?.version).toBe("0.2.0 (12)");
-    expect(labels()).toEqual(["Check for updates", "Beta updates"]);
+    expect(labels()).toEqual(["Check for updates", "Beta updates", "Run setup again"]);
     expect(last().focusedLabel).toBe("Check for updates");
     expect(last().about?.beta).toBe(false);
     expect(last().back?.label).toBe("Settings");
@@ -63,11 +63,16 @@ describe("Settings → About", () => {
     h.updater.available();
     await changed(phone);
     expect(last().about?.check).toBe("Downloading…");
-    expect(labels()).toEqual(["Check for updates", "Beta updates"]);
+    expect(labels()).toEqual(["Check for updates", "Beta updates", "Run setup again"]);
     h.updater.download("Couch 0.2.1");
     await changed(phone);
     expect(last().about?.check).toBe("0.2.1 is ready");
-    expect(labels()).toEqual(["Check for updates", "Restart to update", "Beta updates"]);
+    expect(labels()).toEqual([
+      "Check for updates",
+      "Restart to update",
+      "Beta updates",
+      "Run setup again",
+    ]);
   });
 
   test("Restart to update asks first; Cancel leaves Couch running, Restart installs", async () => {

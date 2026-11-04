@@ -434,6 +434,10 @@ export class Core {
         ports.updates.restart();
       },
       toast: (text) => this.#toast(text),
+      runSetup: () => {
+        this.#setView("home");
+        this.#setup.rerun();
+      },
     });
     this.#offUpdates = ports.updates.onChange(() => this.#emit());
     this.#detailsPage = new DetailsPage(this.#state, {

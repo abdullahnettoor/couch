@@ -534,3 +534,101 @@ describe("the Apps step", () => {
     expect(h.screen.last.setup?.switches?.find((s) => s.label === "Extra")?.on).toBe(false);
   });
 });
+
+describe("Settings → About → Run setup again", () => {
+  const SEEN = ["welcome", "pair", "listener", "apps", "videos", "done"];
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+
+  async function openAbout(store = new MemoryStore(), options = {}) {
+    h = await startHarness(store, options);
+    const phone = await h.connectPhone();
+    await phone.press("openSettings");
+    for (let i = 0; i < 12 && h.screen.last.focusedLabel !== "About"; i++)
+      await phone.press("down");
+    await phone.press("ok");
+    expect(h.screen.last.state.view).toBe("about");
+    return { phone, store };
+  }
+  const runAgain = async (phone: Awaited<ReturnType<typeof openAbout>>["phone"]) => {
+    expect(h.screen.last.grid.map((i) => i.label)).toContain("Run setup again");
+    for (let i = 0; i < 6 && h.screen.last.focusedLabel !== "Run setup again"; i++)
+      await phone.press("down");
+    await phone.press("ok");
+  };
+  const press = (label: string) => {
+    const i =
+      h.screen.last.setup!.buttons.indexOf(label) + (h.screen.last.setup!.switches?.length ?? 0);
+    expect(i).toBeGreaterThanOrEqual(0);
+    h.app.screenCommand({ command: "confirmAt", args: { index: i } });
+  };
+
+  test("About lists it; OK opens Setup at Welcome", async () => {
+    const { phone } = await openAbout();
+    await runAgain(phone);
+    expect(h.screen.last.setup).toMatchObject({ id: "welcome", step: 0 });
+    expect(h.screen.last.state.view).toBe("home");
+  });
+
+  test("with a phone and folders already there, those steps show their Continue versions", async () => {
+    const store = new MemoryStore();
+    store.write("library", { folders: ["/Movies"] });
+    const { phone } = await openAbout(store, { loginItemOn: true });
+    await runAgain(phone);
+    press("Use the Mac's keyboard or mouse for now");
+    expect(h.screen.last.setup).toMatchObject({
+      id: "pair",
+      title: "1 phone connected",
+      buttons: ["Continue", "Add another phone", "Skip for now", "Set up later"],
+    });
+    press("Continue");
+    expect(h.screen.last.setup).toMatchObject({
+      id: "listener",
+      buttons: expect.arrayContaining(["Continue"]),
+    });
+    press("Continue");
+    press("Continue");
+    expect(h.screen.last.setup).toMatchObject({
+      id: "videos",
+      list: ["/Movies"],
+      buttons: ["Add more", "Continue", "Skip, I only use the Apps", "Set up later"],
+    });
+  });
+
+  test("closing goes Home, leaves the seen set alone, and Setup doesn't show on the next start", async () => {
+    const store = new MemoryStore();
+    store.write("setup", { finished: true, seen: SEEN });
+    const { phone } = await openAbout(store);
+    await runAgain(phone);
+    h.app.screenCommand({ command: "home" });
+    await flush();
+    expect(h.screen.last.setup).toBeUndefined();
+    expect(h.screen.last.state.view).toBe("home");
+    expect(store.read("setup", undefined)).toEqual({ finished: true, seen: SEEN });
+    await h.stop();
+    h = await startHarness(store);
+    expect(h.screen.last.setup).toBeUndefined();
+  });
+
+  test("going through it to the end changes nothing saved, and shows no New in Couch", async () => {
+    const store = new MemoryStore();
+    const { phone } = await openAbout(store);
+    const before = store.read("setup", undefined);
+    await runAgain(phone);
+    for (let i = 0; i < 12 && h.screen.last.setup; i++) {
+      h.app.screenCommand({
+        command: "confirmAt",
+        args: {
+          index:
+            h.screen.last.setup.id === "done"
+              ? 0
+              : (h.screen.last.setup.switches?.length ?? 0) +
+                h.screen.last.setup.buttons.length -
+                2,
+        },
+      });
+      await flush();
+    }
+    expect(h.screen.last.setup).toBeUndefined();
+    expect(store.read("setup", undefined)).toEqual(before);
+  });
+});

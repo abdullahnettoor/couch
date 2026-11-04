@@ -77,6 +77,7 @@ const TAKEN = [
 export class Setup {
   #h: SetupHost;
   #steps: SetupStep[];
+  #all: SetupStep[];
   #open = false;
   #index = 0;
   #focus = 0;
@@ -88,6 +89,14 @@ export class Setup {
   #justConnected = false;
   #addingPhone = false;
   #cancelAdvance?: () => void;
+  /** Settings → About → Run setup again: the full list, saving nothing; `#before` is what to put back. */
+  #before?: {
+    steps: SetupStep[];
+    open: boolean;
+    whatsNew: boolean;
+    index: number;
+    seen: Set<string>;
+  };
 
   constructor(host: SetupHost, steps: SetupStep[] = SETUP_STEPS) {
     this.#h = host;
@@ -100,6 +109,7 @@ export class Setup {
       addFolder: () => host.addFolder(),
     };
     this.#steps = steps;
+    this.#all = steps;
     const saved = host.store.read<Partial<Saved> | undefined>("setup", undefined);
     if (saved === undefined) {
       this.#seen = new Set();
@@ -146,7 +156,38 @@ export class Setup {
     this.#focus = 0;
   }
 
+  /** Opens the full Setup at Welcome. Steps already done show their Continue versions; nothing is saved. */
+  rerun(): void {
+    if (!this.#before)
+      this.#before = {
+        steps: this.#steps,
+        open: this.#open,
+        whatsNew: this.#whatsNew,
+        index: this.#index,
+        seen: new Set(this.#seen),
+      };
+    this.#steps = this.#all;
+    this.#whatsNew = false;
+    this.#open = true;
+    this.#goTo(0);
+    this.#h.changed();
+  }
+
+  /** A re-run is over: put back what was there before it, so the saved record is untouched. */
+  #endRerun(): boolean {
+    const b = this.#before;
+    if (!b) return false;
+    this.#before = undefined;
+    this.#steps = b.steps;
+    this.#open = b.open;
+    this.#whatsNew = b.whatsNew;
+    this.#seen = b.seen;
+    this.#goTo(Math.min(b.index, b.steps.length - 1));
+    return true;
+  }
+
   #save(finished: boolean): void {
+    if (this.#before) return;
     this.#h.store.write("setup", {
       finished,
       seen: [...this.#seen],
@@ -156,6 +197,7 @@ export class Setup {
 
   /** Setup ends: every step counts as seen. */
   #finish(): void {
+    if (this.#endRerun()) return;
     for (const s of this.#steps) this.#seen.add(s.id);
     this.#deferred = 0;
     this.#open = false;
@@ -164,6 +206,7 @@ export class Setup {
 
   /** "Set up later" or Home: a fresh Setup is over; an update's steps ask once more next start, then count as seen. */
   #later(): void {
+    if (this.#endRerun()) return;
     if (!this.#whatsNew) return this.#finish();
     this.#deferred++;
     if (this.#deferred >= 2) return this.#finish();
