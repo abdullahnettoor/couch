@@ -558,17 +558,6 @@ summary { transition: color .2s; } summary:active { transform: scale(.99); }
 .win-copy p { margin: 8px 0 0; color: var(--t2); max-width: 34em; }
 .win-copy .win-fine { font-size: 14px; color: var(--t3); margin-top: 12px; }
 .win-act { display: grid; justify-items: end; gap: 10px; min-width: 0; }
-.win-act > * { grid-area: 1 / 1; }
-.win-done { margin: 0; display: inline-flex; align-items: center; gap: 10px; height: 56px; padding: 0 24px; border-radius: 999px; font-weight: 500; color: #0a0a0c; background: var(--amber-3); outline: none; }
-.win-done .i { width: 20px; height: 20px; }
-.win-done:not([hidden]) { animation: counted .5s var(--ease); }
-.win-done:not([hidden]) .i path { stroke-dasharray: 24; animation: tick-draw .45s var(--ease) .12s backwards; }
-@keyframes counted { from { opacity: 0; transform: scale(.9); } }
-@keyframes tick-draw { from { stroke-dashoffset: 24; } }
-.win.counted::after { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(50% 120% at 85% 50%, rgba(255, 176, 74, .16), transparent 70%); animation: glow-once 1.4s var(--ease) both; }
-@keyframes glow-once { from { opacity: 0; } 30% { opacity: 1; } to { opacity: .5; } }
-.win-err { grid-area: 2 / 1 !important; margin: 0; font-size: 14px; color: var(--amber-3); text-align: right; }
-.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* responsive */
 @media (max-width: 1024px) {
@@ -597,7 +586,7 @@ summary { transition: color .2s; } summary:active { transform: scale(.99); }
   .btn-lg { height: 54px; padding: 0 22px; font-size: 16px; max-width: 100%; }
   .panel { grid-template-columns: 1fr; }
   .hero { padding: 104px 0 40px; }
-  .win { grid-template-columns: 1fr; text-align: center; } .win-copy p { margin-inline: auto; } .win-act { justify-items: center; } .win-err { text-align: center; }
+  .win { grid-template-columns: 1fr; text-align: center; } .win-copy p { margin-inline: auto; } .win-act { justify-items: center; }
   .steps { grid-template-columns: 1fr; max-width: 480px; margin-inline: auto; }
   .step-art-wide { display: none; }
   summary { font-size: 18px; }

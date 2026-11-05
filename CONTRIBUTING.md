@@ -41,6 +41,7 @@ Open an issue on GitHub to discuss a change, or send a pull request. Build test-
 
 - **Work from `dev` and merge into `dev`.** Branch from `dev`, and send pull requests (or, for the maintainer and agents working locally, merge) into `dev`. CI runs `vp check` and `vp test run` on every push and pull request to `dev` and `main`.
 - **`main` only receives releases.** It changes in two ways only: merging `dev` into it for a stable release, and hotfixes for the released version, which are then merged back into `dev`. Never merge feature work straight into `main`.
+- **Site-only changes go to `main`.** `main` is the live website, so a change only under `site/` that doesn't depend on an unreleased app feature branches from `main` and merges into `main`; then merge `main` into `dev`. Site changes tied to an unreleased app feature go through `dev` and ship with the stable release. See site/README.md, "Publishing".
 - **Releases are the maintainer's.** Don't bump `version` in `package.json`, create `v*` tags or run `pnpm release` unless asked: `pnpm release` sets the version and tags, and refuses the wrong branch (betas from `dev`, stable versions from `main`). The whole flow is in SHIPPING.md, "Branches" and "Releasing".
 
 ## Screenshots

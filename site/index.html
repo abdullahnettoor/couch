@@ -81,7 +81,7 @@
         <p class="lead">A calm home screen for your TV, with YouTube, Netflix and your own videos. Your phone is the Remote.</p>
         <div class="cta">
           <a class="btn btn-primary btn-lg" href="{{GUMROAD_URL}}" rel="noopener">Get Couch, pay what you want</a>
-          <a class="sub" href="{{RELEASES_URL}}" rel="noopener">or download free from GitHub</a>
+          <a class="sub" href="{{DOWNLOAD_URL}}" rel="noopener">or download free from GitHub</a>
         </div>
         <ul class="meta" aria-label="Requirements">
           <li>macOS 14+</li><li>Apple silicon</li><li>Open source</li><li>No account</li>
@@ -226,7 +226,7 @@
             <li><strong>Your phone, over home Wi-Fi.</strong> The Remote page is served by your Mac on the local network, not by an internet service.</li>
           </ul>
           <p>Couch does not check for updates or send data to a Couch server.</p>
-          <p>The Couch for Windows button adds one anonymous count on this site, with no email and no cookies. Our counter stores only the platform and the total. Cloudflare, which hosts this site, processes request data under its own policies. Your browser keeps a note of the tap, so the same browser counts once.</p>
+          <p>This site itself keeps nothing about your visit. Cloudflare, which hosts it, processes request data under its own policies.</p>
         </div>
       </div>
     </section>
@@ -288,7 +288,7 @@
           <p class="lead">For Mac today. Free and open source. Choose a price on Gumroad, including $0, or download free from GitHub.</p>
           <div class="cta">
             <a class="btn btn-primary btn-lg" href="{{GUMROAD_URL}}" rel="noopener">Get Couch, pay what you want</a>
-            <a class="sub" href="{{RELEASES_URL}}" rel="noopener">or download free from GitHub</a>
+            <a class="sub" href="{{DOWNLOAD_URL}}" rel="noopener">or download free from GitHub</a>
           </div>
           <dl class="req">
             <div><dt>Mac</dt><dd>macOS 14 or later, Apple silicon</dd></div>
@@ -300,17 +300,14 @@
             <p>Try opening Couch once. If macOS says it cannot check the app, and you trust your download, go to System Settings → Privacy &amp; Security → Open Anyway, then confirm Open. On macOS 15 and later, right-click → Open is not enough.</p>
           </div>
         </div>
-        <div class="win reveal" id="windows" aria-labelledby="windows-h" data-demand-card>
+        <div class="win reveal" id="windows" aria-labelledby="windows-h">
           <div class="win-copy">
             <h3 id="windows-h">Couch for Windows</h3>
-            <p>Not yet. Tap if you'd use it, so we know what to build next.</p>
-            <p class="win-fine" id="windows-privacy">An anonymous count, with no email and no cookies. Our counter stores only the platform and the total. Cloudflare, which hosts this site, processes request data under its own policies.</p>
+            <p>Not yet. Windows is being considered, not promised. If you'd use it, add a 👍 on GitHub.</p>
+            <p class="win-fine" id="windows-note">The 👍 goes on a GitHub issue, so you need a GitHub account.</p>
           </div>
           <div class="win-act">
-            <button class="btn btn-ghost btn-lg" type="button" data-demand="windows" aria-describedby="windows-privacy"><span>I'd use Couch for Windows</span></button>
-            <p class="win-done" data-demand-confirmation tabindex="-1" hidden><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Counted. Thank you.</p>
-            <p class="win-err" data-demand-error hidden>That did not go through. Please try again in a moment.</p>
-            <p class="sr" role="status" data-demand-live></p>
+            <a class="btn btn-ghost btn-lg" href="{{WINDOWS_ISSUE_URL}}" rel="noopener" aria-describedby="windows-note"><span>Couch for Windows on GitHub</span></a>
           </div>
         </div>
       </div>
@@ -329,7 +326,7 @@
           <details><summary>How does Netflix work?</summary><p>Couch opens Netflix's own website inside the Screen. Sign in with your Netflix account and use the Remote to browse. Your subscription and Netflix's website determine what you can watch and how it plays on a Mac.</p></details>
           <details><summary>Why does macOS warn me?</summary><p>Couch is an early release and is not yet notarised by Apple. Try opening Couch once. If macOS says it cannot check the app, and you trust your download, go to System Settings → Privacy &amp; Security → Open Anyway, then confirm Open. On macOS 15 and later, right-click → Open is not enough. macOS then remembers the exception.</p></details>
           <details><summary>Can I read the source?</summary><p>Yes. Couch is licensed under GPL-3.0-or-later. Read the code on <a href="{{GITHUB_URL}}" rel="noopener">GitHub</a>, change it or build it yourself.</p></details>
-          <details><summary>Will Couch come to Windows?</summary><p>Windows is being considered, not promised. If you'd use it, tap Couch for Windows above: it adds one anonymous count. Our counter stores only the platform and the total. Cloudflare, which hosts this site, processes request data under its own policies. Linux is not supported. Today, Couch needs Apple silicon and macOS 14 or later. The Remote runs in a phone browser; Android with Chrome is what we test.</p></details>
+          <details><summary>Will Couch come to Windows?</summary><p>Windows is being considered, not promised. If you'd use it, add a 👍 to the Couch for Windows issue on GitHub (you need a GitHub account). Linux is not supported. Today, Couch needs Apple silicon and macOS 14 or later. The Remote runs in a phone browser; Android with Chrome is what we test.</p></details>
         </div>
       </div>
     </section>
