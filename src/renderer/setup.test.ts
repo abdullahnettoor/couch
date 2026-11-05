@@ -4,6 +4,17 @@ import { join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 import type { Command, ScreenPayload, SetupPayload } from "../shared/protocol.ts";
 
+const glass = new CSSStyleSheet();
+glass.replaceSync(readFileSync(join(import.meta.dirname, "glass.css"), "utf8"));
+/** Every style rule in glass.css, including those inside @media. */
+const glassRules = () =>
+  Array.from(glass.cssRules)
+    .flatMap((r) => (r instanceof CSSMediaRule ? Array.from(r.cssRules) : [r]))
+    .filter((r): r is CSSStyleRule => "selectorText" in r);
+/** The rule written exactly for `selector` in glass.css. */
+const glassRule = (selector: string) =>
+  glassRules().find((r) => r.selectorText === selector)?.style;
+
 const sent: Command[] = [];
 let renderSetup: (p: ScreenPayload) => void;
 let setupTakesKey: () => boolean;
@@ -212,9 +223,8 @@ describe("the Apps step", () => {
     expect(panel.querySelector<HTMLElement>(".s-tiles")!.style.getPropertyValue("--cols")).toBe(
       "3",
     );
-    const css = readFileSync(join(import.meta.dirname, "glass.css"), "utf8");
-    expect(css).toMatch(/\.s-tile\.off > \.g-tile \{[^}]*filter/);
-    expect(css).toMatch(/\.s-tile\.off \.s-tick \{[^}]*opacity: 0/);
+    expect(glassRule(".setup .s-tile.off > .g-tile")!.getPropertyValue("filter")).not.toBe("");
+    expect(glassRule(".setup .s-tile.off .s-tick")!.getPropertyValue("opacity")).toBe("0");
   });
 
   test("a switch flips in place; a click answers a tile, and a button counts after the tiles", () => {
@@ -275,16 +285,19 @@ describe("the intro", () => {
 });
 
 describe("Home under Setup", () => {
-  const read = (f: string) => readFileSync(new URL(f, import.meta.url), "utf8");
-  const css = read("./glass.css");
-
   test("only the panel is hidden when it is closed; Home takes its own modifier, so its wallpaper stays", () => {
-    const home = read("./views/home.ts");
+    // Reads home.ts's source: which class Home toggles is not something a rendered DOM shows without a Setup run.
+    const home = readFileSync(join(import.meta.dirname, "views/home.ts"), "utf8");
     expect(home).toContain('toggle("in-setup"');
     expect(home).not.toContain('toggle("setup"');
-    expect(css).not.toMatch(/\.home\.setup/);
-    const hides = /\.home\.in-setup[^{]*\{[^}]*display: none/.exec(css)?.[0] ?? "";
-    expect(hides).not.toContain(".h-photo");
-    expect(css).not.toMatch(/\n\.setup \{[^}]*opacity: 0/);
+    const selectors = glassRules().map((r) => r.selectorText);
+    expect(selectors.some((s) => s.includes(".home.setup"))).toBe(false);
+    const hidden = glassRules()
+      .filter((r) => r.selectorText.includes(".home.in-setup"))
+      .filter((r) => r.style.getPropertyValue("display") === "none")
+      .flatMap((r) => r.selectorText.split(",").map((s) => s.trim()));
+    expect(hidden).toContain(".home.in-setup .h-clock");
+    expect(hidden.some((s) => s.includes(".h-photo"))).toBe(false);
+    expect(glassRule(".setup")?.getPropertyValue("opacity") ?? "").not.toBe("0");
   });
 });

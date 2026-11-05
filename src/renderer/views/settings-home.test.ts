@@ -1,11 +1,19 @@
 // @vitest-environment happy-dom
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 import type { ScreenPayload } from "../../shared/protocol.ts";
 
-const css = readFileSync("src/renderer/glass.css", "utf8");
-const block = (selector: string) =>
-  new RegExp(`(?:^|\\n)${selector.replaceAll(".", "\\.")} \\{([^}]*)\\}`).exec(css)?.[1] ?? "";
+const glass = document.createElement("style");
+glass.textContent = readFileSync(join(import.meta.dirname, "../glass.css"), "utf8");
+document.head.append(glass);
+/** The rule written exactly for `selector` in glass.css. */
+const rule = (selector: string) =>
+  (
+    Array.from(glass.sheet!.cssRules).find(
+      (r) => (r as CSSStyleRule).selectorText === selector,
+    ) as CSSStyleRule
+  ).style;
 
 let views: typeof import("./index.ts").VIEWS;
 beforeAll(async () => {
@@ -37,17 +45,17 @@ function payload(focusedId: string): ScreenPayload {
 
 describe("wallpaper tile names", () => {
   test("a tile name is clipped to one line with an ellipsis", () => {
-    const name = block(".wp-name");
-    expect(name).toMatch(/white-space:\s*nowrap/);
-    expect(name).toMatch(/overflow:\s*hidden/);
-    expect(name).toMatch(/text-overflow:\s*ellipsis/);
+    const name = rule(".wp-name");
+    expect(name.getPropertyValue("white-space")).toBe("nowrap");
+    expect(name.getPropertyValue("overflow")).toBe("hidden");
+    expect(name.getPropertyValue("text-overflow")).toBe("ellipsis");
   });
 
   test("the focused picture's full name shows on one line under the row", () => {
     views.settingsHome!.render(payload("pic:folder:a.jpg"));
     const full = document.querySelector(".wp-full");
     expect(full?.textContent).toBe(LONG);
-    expect(block(".wp-full")).toMatch(/white-space:\s*nowrap/);
+    expect(rule(".wp-full").getPropertyValue("white-space")).toBe("nowrap");
   });
 
   test("the full name follows focus to another tile", () => {

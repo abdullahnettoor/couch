@@ -65,6 +65,22 @@ export interface Look {
       scrollMarginEdge: number;
       scrollMarginSearch: number;
     };
+    /** Home's own geometry (`--home-<name>`): the clock's box, the blur behind it, the tile rows and the photo's drift. */
+    home: {
+      clockTop: number;
+      /** Between the time and the date line; the clock's box is the time, this gap and the date line. */
+      clockDateGap: number;
+      /** How far the blur behind the clock stays fully opaque below the clock's box, then how far it fades. */
+      clockPad: number;
+      clockFade: number;
+      /** Each layout's tile row: its distance from the bottom and its tile height. */
+      rowBottom: number;
+      tileHeight: number;
+      emptyRowBottom: number;
+      emptyTileHeight: number;
+      /** How far a photo wallpaper zooms as it drifts (from 1). */
+      panScale: number;
+    };
   };
 }
 
@@ -868,6 +884,17 @@ export const GLASS: Look = {
       scrollMarginEdge: 96,
       scrollMarginSearch: 120,
     },
+    home: {
+      clockTop: 210,
+      clockDateGap: 18,
+      clockPad: 40,
+      clockFade: 140,
+      rowBottom: 84,
+      tileHeight: 170,
+      emptyRowBottom: 120,
+      emptyTileHeight: 236,
+      panScale: 1.06,
+    },
   },
 };
 
@@ -943,6 +970,8 @@ export function lookTokens(look: Look, unit: string, defineUnit = false): [strin
   add("scroll-margin-block", len(metrics.library.scrollMarginBlock));
   add("scroll-margin-edge", len(metrics.library.scrollMarginEdge));
   add("scroll-margin-search", len(metrics.library.scrollMarginSearch));
+  for (const [k, n] of entries(metrics.home))
+    add(`home-${kebab(k)}`, k === "panScale" ? String(n) : len(n));
   return out;
 }
 

@@ -3,10 +3,10 @@
   background: var(--wp-base, var(--backdrop));
   overflow: hidden;
   /* The clock's box (time, gap, date line), shared by the clock and the blur behind it so the blur follows the clock. */
-  --clock-top: calc(210 * var(--u));
-  --clock-h: calc((200 + 18 + 45) * var(--u));
-  --clock-pad: calc(40 * var(--u));
-  --clock-fade: calc(140 * var(--u));
+  --clock-top: var(--home-clock-top);
+  --clock-h: calc(var(--type-clock) + var(--home-clock-date-gap) + var(--line-height-clock-date));
+  --clock-pad: var(--home-clock-pad);
+  --clock-fade: var(--home-clock-fade);
   --clock-clear: calc(var(--clock-top) + var(--clock-h) + var(--clock-pad));
 }
 .h-drift {
@@ -87,7 +87,7 @@
     transform: scale(1);
   }
   to {
-    transform: scale(1.06);
+    transform: scale(var(--home-pan-scale));
   }
 }
 .h-scrim {
@@ -254,7 +254,7 @@
 .h-row {
   position: absolute;
   left: calc(110 * var(--u));
-  bottom: calc(84 * var(--u));
+  bottom: var(--home-row-bottom);
   display: flex;
   gap: calc(44 * var(--u));
   align-items: flex-start;
@@ -264,7 +264,7 @@
   width: calc(300 * var(--u));
 }
 .h-app .g-tile {
-  height: calc(170 * var(--u));
+  height: var(--home-tile-height);
   display: grid;
   place-items: center;
 }
@@ -350,19 +350,19 @@
 .h-clock .d {
   font-size: var(--type-clock-date);
   color: var(--text-secondary);
-  margin-top: calc(18 * var(--u));
+  margin-top: var(--home-clock-date-gap);
   line-height: var(--line-height-clock-date);
   font-weight: var(--weight-medium);
 }
 .home.empty .h-row {
-  bottom: calc(120 * var(--u));
+  bottom: var(--home-empty-row-bottom);
   gap: calc(56 * var(--u));
 }
 .home.empty .h-app {
   width: calc(420 * var(--u));
 }
 .home.empty .h-app .g-tile {
-  height: calc(236 * var(--u));
+  height: var(--home-empty-tile-height);
 }
 .home.empty .h-app .g-tile svg {
   width: calc(100 * var(--u));

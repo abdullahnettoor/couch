@@ -55,6 +55,34 @@ describe("the Library's numbers", () => {
   });
 });
 
+describe("Home's numbers", () => {
+  test("the clock's box and the tile rows are the Look's, written as lengths", () => {
+    const d = lookCss(GLASS, { unit: "var(--u)" });
+    for (const decl of [
+      "--home-clock-top: calc(210 * var(--u));",
+      "--home-clock-date-gap: calc(18 * var(--u));",
+      "--home-clock-pad: calc(40 * var(--u));",
+      "--home-clock-fade: calc(140 * var(--u));",
+      "--home-row-bottom: calc(84 * var(--u));",
+      "--home-tile-height: calc(170 * var(--u));",
+      "--home-empty-row-bottom: calc(120 * var(--u));",
+      "--home-empty-tile-height: calc(236 * var(--u));",
+      "--home-pan-scale: 1.06;",
+    ])
+      expect(d).toContain(decl);
+  });
+
+  test("a Look with other Home numbers writes those", () => {
+    const moved: Look = {
+      ...GLASS,
+      metrics: { ...GLASS.metrics, home: { ...GLASS.metrics.home, clockTop: 180, panScale: 1.1 } },
+    };
+    const d = lookCss(moved, { unit: "1px" });
+    expect(d).toContain("--home-clock-top: calc(180 * 1px);");
+    expect(d).toContain("--home-pan-scale: 1.1;");
+  });
+});
+
 describe("Setup", () => {
   test("takes its easings and unit from the Look, not its own copies", () => {
     const s = src("../renderer/setup.ts");

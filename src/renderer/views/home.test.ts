@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { readFileSync } from "node:fs";
 import { beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/test";
+import { GLASS } from "../../shared/look.ts";
 import type { LibraryEntry, ScreenPayload } from "../../shared/protocol.ts";
 import { WALLPAPERS, wallpaperVars, type PictureTile } from "../../shared/wallpapers.ts";
 
@@ -319,9 +320,15 @@ describe("Home with a picture from the Mac", () => {
     expect(rule(".h-photo-img")!.style.getPropertyValue("animation")).toContain(
       "--duration-photo-pan",
     );
-    const css = document.head.querySelector("style")!.textContent!;
-    expect(css).toMatch(/@keyframes h-kenburns\s*{\s*from\s*{\s*transform: scale\(1\)/);
-    expect(css).toMatch(/to\s*{\s*transform: scale\(1\.06\)/);
+    const kenburns = Array.from(document.styleSheets)
+      .flatMap((s) => Array.from(s.cssRules))
+      .find((r) => (r as CSSKeyframesRule).name === "h-kenburns") as CSSKeyframesRule;
+    const frames = Array.from(kenburns.cssRules) as CSSKeyframeRule[];
+    expect(frames.map((f) => [f.keyText, f.style.getPropertyValue("transform")])).toEqual([
+      ["0%", "scale(1)"],
+      ["100%", "scale(var(--home-pan-scale))"],
+    ]);
+    expect(GLASS.metrics.home.panScale).toBe(1.06);
   });
 
   test("the photo layer is hidden for built-ins, and the drift for photos", () => {
