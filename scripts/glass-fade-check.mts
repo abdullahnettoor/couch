@@ -17,6 +17,11 @@ import { loadFixtures } from "./look-fixture-data.ts";
 const SIZE = { width: 1280, height: 720 };
 /** Contrast across the box: frosted reads about 7 to 8, a see-through layer 23 and more at 99 %. */
 const FROSTED_BELOW = 14;
+/** The positive control (an unblurred box) must read at least this, and the frosted limit is also held under a third of it. */
+const CONTROL_ABOVE = 30;
+/** Readings of the same frame must agree within this. */
+const TOLERANCE = 2;
+const READINGS = 3;
 const STRIPES = "repeating-linear-gradient(90deg,#fff 0 4px,#000 4px 8px)";
 
 app.setPath("userData", mkdtempSync(join(tmpdir(), "glass-fade-check-")));
@@ -93,6 +98,19 @@ async function contrast(win: BrowserWindow, rect: { x: number; y: number; w: num
   return Math.max(...grey) - Math.min(...grey);
 }
 
+/** Three readings of the same spot; fails the run if they disagree. */
+async function steady(
+  label: string,
+  win: BrowserWindow,
+  rect: { x: number; y: number; w: number; h: number },
+) {
+  const reads: number[] = [];
+  for (let i = 0; i < READINGS; i++) reads.push(await contrast(win, rect));
+  const spread = Math.max(...reads) - Math.min(...reads);
+  check(`${label}: ${READINGS} readings agree`, spread <= TOLERANCE, `readings=${reads.join(",")}`);
+  return Math.max(...reads);
+}
+
 let shared: BrowserWindow | undefined;
 function newWindow() {
   if (shared) return shared;
@@ -123,18 +141,50 @@ async function measure(label: string, payload: unknown, box: string) {
     half.fades > 0,
     `animations=${half.fades}`,
   );
+  const own = Number(half.boxOpacity);
+  check(
+    `${label}: the box itself is mid-fade at 50 % (own opacity about 0.5)`,
+    Math.abs(own - 0.5) <= 0.1,
+    `box opacity=${half.boxOpacity}`,
+  );
   check(
     `${label}: no layer around the box is see-through while it fades`,
     half.layers.every((o) => o === "1"),
     `ancestor opacities=${half.layers.join(",")}`,
   );
   const late = await open(win, payload, box, 0.99);
-  const c = await contrast(win, late.rect);
+  const c = await steady(label, win, late.rect);
+  await win.webContents.executeJavaScript(`(() => {
+    const control = document.createElement("div");
+    control.id = "glass-control";
+    document.querySelector(${JSON.stringify(box)}).style.visibility = "hidden";
+    control.style.cssText = "position:fixed;z-index:99999;background:rgba(36,36,40,0.72);left:${late.rect.x}px;top:${late.rect.y}px;width:${late.rect.w}px;height:${late.rect.h}px";
+    document.body.append(control);
+  })()`);
+  await frame(win);
+  const control = await steady(`${label} (positive control, unblurred)`, win, late.rect);
+  if (process.env.OUT) {
+    const shot = await win.webContents.capturePage();
+    writeFileSync(join(process.env.OUT, `${label.replace(/\W+/g, "-")}-control.png`), shot.toPNG());
+  }
+  await win.webContents.executeJavaScript(
+    `document.getElementById("glass-control").remove(); document.querySelector(${JSON.stringify(box)}).style.visibility = ""`,
+  );
+  check(
+    `${label}: an unblurred box reads clearly see-through`,
+    control >= CONTROL_ABOVE,
+    `control contrast=${control}`,
+  );
+  const limit = Math.min(FROSTED_BELOW, control / 3);
   if (process.env.OUT) {
     const shot = await win.webContents.capturePage();
     writeFileSync(join(process.env.OUT, `${label.replace(/\W+/g, "-")}.png`), shot.toPNG());
   }
-  check(`${label} is frosted at 99 % of its fade`, c < FROSTED_BELOW, `stripe contrast=${c}`);
+  check(
+    `${label} is frosted at 99 % of its fade`,
+    c < limit,
+    `stripe contrast=${c}, limit=${limit.toFixed(1)}`,
+  );
 }
 
 /** The tint the question, the toast and the volume display take, with and without a WebKit App in front. */

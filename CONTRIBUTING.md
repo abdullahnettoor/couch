@@ -67,6 +67,10 @@ A pixel differs when any colour channel is more than 4 (of 255) away from the ba
 
 The fixtures are recorded from the core harness, so they are valid for old and new code alike: `pnpm look:record` drives it to each Page and overlay and rewrites `scripts/look-fixtures/`. Run it only when a payload changes shape, and commit the result.
 
+### Glass fade check
+
+`pnpm glass:fade` guards the question's and Setup's glass panels (#33): they must stay frosted while they fade in. Build the Screen first (`vp build`), then run it; it draws the real Screen in a hidden offscreen window over black and white stripes, freezes each fade at 50 % and 99 %, and checks that the box itself is half-faded at 50 % with every layer around it at full opacity, and that the stripes are blurred across it at 99 %. Each reading is taken three times and must agree, and an unblurred box is measured as a positive control so the threshold is calibrated every run. It also checks the stronger tint over a WebKit App. CI runs it on every push and pull request. Run it after any change to `glass.css`, the question or Setup's panel.
+
 ## Add a YouTube add-on
 
 An add-on is a small, switchable change to how YouTube behaves inside Couch. It shows up in Settings → YouTube add-ons by itself.

@@ -4,7 +4,13 @@ import type { Command, ScreenPayload } from "../shared/protocol.ts";
 class Node {
   children: Node[] = [];
   handlers: Record<string, Function[]> = {};
-  style = { setProperty() {}, height: "", background: "" } as Record<string, any>;
+  style = {
+    setProperty(k: string, v: string) {
+      (this as any)[k] = v;
+    },
+    height: "",
+    background: "",
+  } as Record<string, any>;
   classes = new Set<string>();
   classList = {
     toggle: (name: string, on?: boolean) => {
@@ -67,10 +73,20 @@ describe("the Screen's confirmation", () => {
     expect(confirmEl.children[0]!.classes.has("in")).toBe(true);
     const first = confirmEl.children[0]!;
     renderConfirm(payload(1));
-    expect(confirmEl.children[0]).not.toBe(first);
+    expect(confirmEl.children[0]).toBe(first);
     expect(confirmEl.children[0]!.classes.has("in")).toBe(true);
     renderConfirm({ state: {} } as unknown as ScreenPayload);
     expect(confirmEl.children[0]!.classes.has("in")).toBe(false);
+  });
+
+  test("moving the focus mid-fade keeps the same box and restyles the buttons", () => {
+    renderConfirm({ state: {} } as unknown as ScreenPayload);
+    renderConfirm(payload(0));
+    const box = confirmEl.children[0]!;
+    const before = buttons().map((b) => JSON.stringify(b.style));
+    renderConfirm(payload(1));
+    expect(confirmEl.children[0]).toBe(box);
+    expect(buttons().map((b) => JSON.stringify(b.style))).not.toEqual(before);
   });
 
   test("hover focuses a button and click answers it", () => {
@@ -84,13 +100,13 @@ describe("the Screen's confirmation", () => {
     ]);
   });
 
-  test("a click after the hover redraw still works", () => {
+  test("a click after the hover refocus still works", () => {
     sent.length = 0;
     renderConfirm(payload(0));
     const stale = buttons()[1]!;
     stale.fire("mouseenter");
     renderConfirm(payload(1));
-    expect(buttons()[1]).not.toBe(stale);
+    expect(buttons()[1]).toBe(stale);
     buttons()[1]!.fire("click");
     expect(sent.at(-1)).toEqual({ command: "confirmAt", args: { index: 1 } });
   });
