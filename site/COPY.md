@@ -171,8 +171,9 @@ No “plays every format”, codec guarantee or promise that the household's vid
   - **The services you open.** YouTube and Netflix load their own websites. Couch also downloads their pictures for Continue watching and keeps a local copy.
   - **Google's Widevine component.** Couch's Chromium engine downloads this at run time for DRM-protected video. Couch does not bundle it.
   - **TMDB, for optional online details.** Couch searches video titles and fetches posters and stills. Online details are on when a TMDB key is set. A release build can include a key, or you can add your own. Turn Online details off in Settings if you prefer.
+  - **GitHub, for updates.** Every few hours Couch asks whether a newer version is out, through update.electronjs.org (a free service run by the Electron project that reads Couch's GitHub releases), or a file on GitHub when Beta updates is on. The request carries Couch's version and the Mac's type, nothing about you. Updates download from GitHub.
   - **Your phone, over home Wi-Fi.** The Remote page is served by your Mac on the local network, not by an internet service.
-- Closing line: Couch does not check for updates or send data to a Couch server.
+- Closing line: Couch does not send data to a Couch server. (Was "Couch does not check for updates or send data to a Couch server." until the app gained its updater in 0.1.1.)
 - Site privacy line (counter removed, November 2026): This site itself keeps nothing about your visit. Cloudflare, which hosts it, processes request data under its own policies. (Ticket 138's line, retired with the counter: The Couch for Windows button adds one anonymous count on this site, with no email and no cookies. Our counter stores only the platform and the total. Cloudflare, which hosts this site, processes request data under its own policies. Your browser keeps a note of the tap, so the same browser counts once.)
 
 Do not shorten this to “nothing leaves your Mac”, “fully offline” or “no cookies” for the whole app. Services can track and keep cookies. Library title searches and online artwork make requests. The site's own hosting is a website matter, not an app connection.
