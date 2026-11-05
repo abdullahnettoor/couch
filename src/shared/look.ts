@@ -91,6 +91,7 @@ export type ColorName =
   | "glass"
   | "glassStrong"
   | "glassSolid"
+  | "glassOverWebApp"
   | "glassNativeTint"
   | "backdrop"
   | "showBackdrop"
@@ -475,6 +476,8 @@ export const GLASS: Look = {
     glass: "rgba(44, 44, 48, 0.46)",
     glassStrong: "rgba(36, 36, 40, 0.72)",
     glassSolid: "rgba(30, 30, 34, 0.92)",
+    /** The Screen's glass (the question, the toast, the volume display) while a WebKit App is in front: Chromium can't blur a native view, so the glass is only its tint and reads as solid. */
+    glassOverWebApp: "rgba(36, 36, 40, 0.9)",
     glassNativeTint: "rgba(20, 20, 24, 0.1)",
     backdrop: "#000",
     showBackdrop: "#1c1c1e",

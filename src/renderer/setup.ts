@@ -93,8 +93,10 @@ function open(): void {
     shell = null;
     panel.replaceChildren();
   }
-  panel.classList.add("show");
-  if (shell) return;
+  if (shell) {
+    panel.classList.add("show");
+    return;
+  }
   const box = el("div", "box glass");
   const mark = el("div", "s-mark");
   const img = el("img", "");
@@ -108,6 +110,8 @@ function open(): void {
   box.append(halo, mark, stage, dots);
   panel.replaceChildren(el("div", "s-veil"), el("div", "s-light"), box);
   shell = { box, stage, dots, mark };
+  void box.offsetWidth;
+  panel.classList.add("show");
 }
 
 function drawDots(s: SetupPayload): void {

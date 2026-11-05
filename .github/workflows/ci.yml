@@ -27,3 +27,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec vp check
       - run: pnpm exec vp test run
+      # The glass-fade check (#33) draws the real Screen in an offscreen, never-shown Electron window; it needs only the
+      # renderer build, not the native mpv add-on.
+      - run: pnpm exec vp build
+      - run: pnpm glass:fade

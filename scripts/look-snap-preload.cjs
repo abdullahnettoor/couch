@@ -122,6 +122,11 @@ window.__ready = async () => {
     const imgs = [...document.images];
     const urls = cssPictures();
     await Promise.all([...imgs.map((i) => i.decode().catch(() => {})), ...[...urls].map(decode)]);
+    // A tile Chromium drew early can keep an earlier raster of a picture (the sofa mark's edges) until something repaints it, so which
+    // of two valid-looking captures came out depended on load. Repainting everything here makes it one.
+    document.body.style.display = "none";
+    void document.body.offsetHeight;
+    document.body.style.display = "";
     await frame();
     const now = JSON.stringify([imgs.map((i) => i.currentSrc), [...urls]]);
     if (now === seen && loading.size === 0 && document.fonts.status === "loaded") return pass;
