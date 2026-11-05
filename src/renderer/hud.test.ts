@@ -5,7 +5,19 @@ class Node {
   children: Node[] = [];
   handlers: Record<string, Function[]> = {};
   style = { setProperty() {}, height: "", background: "" } as Record<string, any>;
-  classList = { toggle() {} };
+  classes = new Set<string>();
+  classList = {
+    toggle: (name: string, on?: boolean) => {
+      if (on ?? !this.classes.has(name)) this.classes.add(name);
+      else this.classes.delete(name);
+    },
+    add: (name: string) => this.classes.add(name),
+    remove: (name: string) => this.classes.delete(name),
+    contains: (name: string) => this.classes.has(name),
+  };
+  get firstElementChild() {
+    return this.children[0] ?? null;
+  }
   className = "";
   textContent = "";
   innerHTML = "";
@@ -18,8 +30,9 @@ class Node {
   append(...nodes: Node[]) {
     this.children.push(...nodes);
   }
-  querySelector() {
-    return new Node();
+  querySelector(selector: string) {
+    const found = this.children.find((c) => c.classes.has(selector.slice(1)));
+    return found ?? new Node();
   }
   fire(type: string) {
     const event = { stopPropagation() {} };
@@ -48,6 +61,18 @@ const payload = (focus: number): ScreenPayload =>
 const buttons = () => confirmEl.children[0]!.children[1]!.children;
 
 describe("the Screen's confirmation", () => {
+  test("the box fades in and out itself; moving the focus doesn't fade it again", () => {
+    renderConfirm({ state: {} } as unknown as ScreenPayload);
+    renderConfirm(payload(0));
+    expect(confirmEl.children[0]!.classes.has("in")).toBe(true);
+    const first = confirmEl.children[0]!;
+    renderConfirm(payload(1));
+    expect(confirmEl.children[0]).not.toBe(first);
+    expect(confirmEl.children[0]!.classes.has("in")).toBe(true);
+    renderConfirm({ state: {} } as unknown as ScreenPayload);
+    expect(confirmEl.children[0]!.classes.has("in")).toBe(false);
+  });
+
   test("hover focuses a button and click answers it", () => {
     sent.length = 0;
     renderConfirm(payload(0));

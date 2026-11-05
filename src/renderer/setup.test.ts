@@ -290,8 +290,10 @@ describe("Home under Setup", () => {
       .filter((s) => s.includes(".home.in-setup"));
     expect(hidden).toContain(".home.in-setup .h-clock");
     expect(hidden.some((s) => s.includes(".h-photo"))).toBe(false);
-    // The closed panel fades out by its id; no rule for the bare `.setup` class (which could match more than the panel) does.
-    expect(glass.prop("#setup.setup", "opacity")).toBe("0");
+    // The full-screen layer is never see-through (a faded parent turns off its glass box's blur: #33); the panel's box fades itself.
+    expect(glass.prop("#setup.setup", "opacity")).toBe("");
+    expect(glass.prop(".setup .box", "opacity")).toBe("0");
+    expect(glass.prop(".setup.show .box", "opacity")).toBe("1");
     const subject = (s: string) => s.split(/\s*[\s>+~]\s*/).at(-1)!;
     const fadesSetup = glass.rules
       .filter((r) => r.style.getPropertyValue("opacity") === "0")

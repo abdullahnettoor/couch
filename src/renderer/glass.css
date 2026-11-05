@@ -255,23 +255,45 @@ svg.i {
   font-weight: var(--weight-bold);
   font-size: var(--type-body);
 }
+/* The full-screen layer never fades: Chromium blurs a glass box only as far as its parent layer is opaque (a layer even slightly see-through
+   leaves the box blurring just the scrim, then jumping to frosted at the end). The scrim and the box fade on their own. */
 .confirm {
   position: fixed;
   inset: 0;
   display: grid;
   place-items: center;
-  opacity: 0;
   pointer-events: none;
-  transition: opacity var(--duration-dialog-fade) var(--ease-glass);
   z-index: 40;
 }
-.confirm.show {
+.confirm::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+  opacity: 0;
+  transition: opacity var(--duration-dialog-fade) var(--ease-glass);
+}
+.confirm.show::before {
   opacity: 1;
+}
+.confirm.show {
   pointer-events: auto;
 }
 .confirm .box {
+  position: relative;
   color: var(--text-primary);
   background: var(--glass-strong);
+  opacity: 0;
+  transition: opacity var(--duration-dialog-fade) var(--ease-glass);
+}
+.confirm .box.in {
+  opacity: 1;
+}
+/* Over a WebKit App Chromium can't blur the native view, so Couch's glass is only its tint: a stronger one. */
+body.native-app-front .toast,
+body.native-app-front .volhud,
+body.native-app-front .confirm .box {
+  background: var(--glass-over-web-app);
 }
 .home.in-setup .h-clock,
 .home.in-setup .h-hero,
@@ -287,17 +309,22 @@ svg.i {
   inset: 0;
   display: grid;
   place-items: center;
-  opacity: 0;
   pointer-events: none;
-  transition: opacity var(--duration-base) var(--ease-glass);
   z-index: 35;
-}
-#setup.setup.show,
-#setup.setup.farewell {
-  opacity: 1;
 }
 #setup.setup.show {
   pointer-events: auto;
+}
+/* The full-screen layer stays opaque (see .confirm): the panel's own opacity fades, and the intro's layers fade in themselves. */
+.setup.intro .s-veil,
+.setup.intro .s-light,
+.setup.intro .s-intro {
+  animation: s-fade-in var(--duration-base) var(--ease-glass) both;
+}
+@keyframes s-fade-in {
+  from {
+    opacity: 0;
+  }
 }
 .setup .s-veil,
 .setup .s-light,
@@ -406,6 +433,14 @@ svg.i {
   color: var(--text-primary);
   background: var(--glass-strong);
   text-align: center;
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--ease-glass);
+}
+.setup.show .box {
+  opacity: 1;
+}
+body.native-app-front .setup .box {
+  background: var(--glass-over-web-app);
 }
 .setup .box:has(.s-apps:not(.s-leaving)) {
   width: auto;
