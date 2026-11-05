@@ -2,6 +2,10 @@
 export const GUMROAD_URL = "https://abdullahnettoor.gumroad.com/l/couch";
 export const GITHUB_URL = "https://github.com/abdullahnettoor/couch";
 export const RELEASES_URL = "https://github.com/abdullahnettoor/couch/releases";
+/** "or download free from GitHub": the newest stable release's .dmg. Keep it exactly this (site README, "Publishing"). */
+export const DOWNLOAD_URL = `${RELEASES_URL}/latest/download/Couch-arm64.dmg`;
+/** The Couch for Windows card links here: a GitHub issue where people add a 👍 if they'd use it. */
+export const WINDOWS_ISSUE_URL = `${GITHUB_URL}/issues/34`;
 export const SITE_URL = "https://couch.abdullahnettoor.com";
 /** How to add a web App to Couch (the Apps section and "Why I made Couch" link here). */
 export const ADD_APP_URL = `${GITHUB_URL}/blob/main/CONTRIBUTING.md#add-a-web-app`;

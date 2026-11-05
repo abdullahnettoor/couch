@@ -1,6 +1,6 @@
 # Couch website (`site/`)
 
-The landing page for [Couch](https://github.com/abdullahnettoor/couch), planned for `couch.abdullahnettoor.com`. A static site: plain HTML, CSS and TypeScript built with Vite, plus one small Cloudflare Worker for the anonymous Couch for Windows count (`worker/`). No framework, no analytics, no cookies, no third-party requests (Geist and Geist Mono are self-hosted, SIL OFL); the only exception is the launch video's YouTube player, once there is a video and only after the visitor presses play (see "The launch video").
+The landing page for [Couch](https://github.com/abdullahnettoor/couch), planned for `couch.abdullahnettoor.com`. A fully static site: plain HTML, CSS and TypeScript built with Vite into `dist/`, served by Cloudflare Workers static assets with no Worker script. No framework, no server code, no analytics, no cookies, no third-party requests (Geist and Geist Mono are self-hosted, SIL OFL); the only exception is the launch video's YouTube player, once there is a video and only after the visitor presses play (see "The launch video").
 
 ## Run it
 
@@ -11,17 +11,14 @@ cd site
 pnpm install
 pnpm dev          # http://localhost:5173
 pnpm build        # type-check, then build to dist/
-pnpm preview      # serve dist/ at http://localhost:4173 (static only: the Windows button shows its error line here)
-pnpm test         # CSS-scope fixtures, the Worker's unit tests, and the browser tests (intro, page, launch video)
+pnpm preview      # serve dist/ at http://localhost:4173
+pnpm test         # CSS-scope fixtures, unit tests, and the browser tests (intro, page, launch video)
 pnpm launch:thumb # save the launch video's thumbnail (pnpm build runs it too; does nothing while LAUNCH_VIDEO.id is empty)
-pnpm dev:worker   # build, apply the D1 migration to a local database, then wrangler dev --local at http://127.0.0.1:8790
 ```
-
-`pnpm dev:worker` runs everything locally (Miniflare): the site, `/api/*` and a local D1 file in `.wrangler/`. It never touches the Cloudflare account.
 
 ## Settings in one place
 
-`src/config.ts` holds `GUMROAD_URL` (a **placeholder** until the Gumroad product exists), `GITHUB_URL`, `RELEASES_URL` and `SITE_URL`. They are filled into `index.html` at build time (`{{GUMROAD_URL}}` and so on), so every link works without JavaScript. `SOCIAL` (ticket 143) is the footer's list of social links, shown as icons only: the footer shows exactly the entries there (GitHub, X, LinkedIn and YouTube) and no list when it is empty. Each entry is `{ label, href, icon }`; `label` is the link's accessible name and tooltip, and `icon` picks a Phosphor brand mark from `SOCIAL_ICONS` in `vite.config.ts` (inline SVG, no requests; Phosphor is MIT, `public/licenses/`). An entry without an icon is shown as its label.
+`src/config.ts` holds `GUMROAD_URL` (a **placeholder** until the Gumroad product exists), `GITHUB_URL`, `RELEASES_URL`, `DOWNLOAD_URL` (the "or download free from GitHub" links: always `https://github.com/abdullahnettoor/couch/releases/latest/download/Couch-arm64.dmg`, see "Publishing"), `WINDOWS_ISSUE_URL` and `SITE_URL`. They are filled into `index.html` at build time (`{{GUMROAD_URL}}` and so on), so every link works without JavaScript. `SOCIAL` (ticket 143) is the footer's list of social links, shown as icons only: the footer shows exactly the entries there (GitHub, X, LinkedIn and YouTube) and no list when it is empty. Each entry is `{ label, href, icon }`; `label` is the link's accessible name and tooltip, and `icon` picks a Phosphor brand mark from `SOCIAL_ICONS` in `vite.config.ts` (inline SVG, no requests; Phosphor is MIT, `public/licenses/`). An entry without an icon is shown as its label.
 
 Section spacing (ticket 143) is four tokens in `src/style.css` `:root`, used by every section: `--section-pad` (section top and bottom), `--eyebrow-gap` (eyebrow → headline: 20px, 16px on phones), `--head-gap` (headline → body: 24px, 20px on phones) and `--intro-gap` (a centred heading → its content: 56px, 40px on phones).
 
@@ -29,20 +26,9 @@ Section spacing (ticket 143) is four tokens in `src/style.css` `:root`, used by 
 
 `COPY.md` is the copy deck (tickets 137 and 138): every page string, headline alternatives, picks and factual evidence. Keep it in step with text changes, including screenshot alternatives and social-card text.
 
-## The Couch for Windows count
+## Couch for Windows
 
-A demand button, not a waitlist. `button[data-demand="windows"]` in the download section (`#windows`; the hero links to it) sends one `POST /api/demand/windows` with no body and `credentials: "omit"`. On success the card shows "Counted. Thank you." and `localStorage` (`couch:demand:windows`) remembers the tap, so the same browser counts once; on failure an error line shows and the button stays. No cookies.
-
-The Worker (`worker/index.ts` is the entry and exports only its default handler, because workerd treats named exports as entrypoints; the logic is `worker/demand.ts`):
-
-| Route | Does |
-| --- | --- |
-| `POST /api/demand/windows` | Adds one to the `windows` row in D1 (`migrations/0001_demand.sql`: `platform`, `count`, nothing else). 204. Refuses other methods (405), unknown platforms (404), requests whose `Origin` is not the site (or the request's own origin, for local dev and previews) or whose `Sec-Fetch-Site` is not `same-origin` (403). The Origin and Fetch-Metadata checks are sanity checks against other sites triggering the count, not anti-abuse: anyone can send those headers with curl. A burst cap (Workers rate limit `DEMAND_LIMIT`, 60 a minute, keyed by the platform name, never by the visitor) answers 429; it is approximate and counted separately in each Cloudflare location, so it smooths bursts rather than enforcing one worldwide limit ([Cloudflare: Rate Limiting, Locality and Accuracy](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/#locality)). If the rate limit binding fails, or the database does, the answer is 503 (`no-store`) and nothing is counted, never a false success. The body is never read. |
-| `GET /api/demand` | The counts as JSON, e.g. `{"windows": 12}`, `no-store`. For the site owner; the numbers are not secret. |
-| any other `/api/*` | 404 |
-| everything else | Static assets, as before (`run_worker_first: ["/api/*"]`, so the Worker never sees page requests). |
-
-The Worker stores nothing about the visitor: no IP, no user agent, no body, no cookie; the counter keeps only the platform and the total. Workers Logs and invocation logs are off in `wrangler.jsonc`. Cloudflare, which hosts the site, still processes request data under its own policies (see "Before publishing"). `pnpm test` covers all of this with a fake D1 and rate limit (`worker/demand.test.ts`).
+Not a waitlist and not a counter. The Couch for Windows card in the download section (`#windows`; the hero's "On Windows? Tell us you'd use it" links to it) says Windows is being considered, not promised, and its button is a plain link to GitHub issue #34, "Couch for Windows: add a 👍 if you'd use it" (`WINDOWS_ISSUE_URL`). Interest is the issue's 👍 count, on GitHub; the site sends nothing, stores nothing and needs no script for it. `scripts/page.test.mjs` checks the link and that following the card makes no request of its own.
 
 ## Screenshot slots
 
@@ -156,7 +142,7 @@ Home has no focus ring: Couch's focus is the lift-and-sheen above (and solid whi
 
 ## The site's own motion (ticket 138)
 
-Everything uses Couch's `--ease` and its durations (0.38s for moves and lifts, .12s and scale(.95) for presses, 0.7s for fades). Movement (lifts, presses, parallax, reveals, the sheen, the nav light, rolling digits, the cursor and card lights) is done with `transform` and `opacity` only, and no shadow ever animates: buttons and cards keep one static shadow and lift with a transform. The only other properties that change over time are paint-only: short colour and background fades on hover (≤ .25s) and the stroke drawn in the Windows check. The hero light is blended once, not animated. (Couch's copied CSS keeps its own tile motion, `transform` and `box-shadow` on focus; see "Motion" above.) `prefers-reduced-motion: reduce` turns all of it off at any time (the hero intro never starts, or ends at once if the setting changes mid-way) (no transitions, no animations, no parallax, no pointer light, no hover lift or press scale on buttons, cards and step numbers; a digit already rolling is cancelled and shows its new value); the content and every end state are complete without it.
+Everything uses Couch's `--ease` and its durations (0.38s for moves and lifts, .12s and scale(.95) for presses, 0.7s for fades). Movement (lifts, presses, parallax, reveals, the sheen, the nav light, rolling digits, the cursor and card lights) is done with `transform` and `opacity` only, and no shadow ever animates: buttons and cards keep one static shadow and lift with a transform. The only other properties that change over time are paint-only: short colour and background fades on hover (≤ .25s). The hero light is blended once, not animated. (Couch's copied CSS keeps its own tile motion, `transform` and `box-shadow` on focus; see "Motion" above.) `prefers-reduced-motion: reduce` turns all of it off at any time (the hero intro never starts, or ends at once if the setting changes mid-way) (no transitions, no animations, no parallax, no pointer light, no hover lift or press scale on buttons, cards and step numbers; a digit already rolling is cancelled and shows its new value); the content and every end state are complete without it.
 
 | Where | What | How |
 | --- | --- | --- |
@@ -172,7 +158,6 @@ Everything uses Couch's `--ease` and its durations (0.38s for moves and lifts, .
 | Remote stage (ticket 143) | From 900 px wide and 740 px tall, with motion and script (`pinQuery`, the same media query in `style.css` and `main.ts`), `.how-pin` (the head and the stage) is sticky at `--pin-top` (the nav's `--nav-h` + 12 px) inside `.how-track` (340vh), so the headline is never under the nav; the devices are sized to the height left (`.how-stage` is a size container). The track's scroll progress picks the step (`STEP_AT` 0 / .30 / .55 / .84: QR, pair, press, highlight; the end holds briefly), forward and back, fills the rail between the step numbers and brings the phone forward a little; a step's button scrolls to the middle of its stretch. The track's geometry is cached and measured again only on layout changes (ResizeObserver on the body, track and pin); scroll frames do nothing away from the track or when the progress has not changed. Native scroll only, no wheel or touch listener, no Replay. Narrower or shorter windows and reduced motion: unpinned, the sequence plays once the devices (60%) and the first step are in view below the nav, with Replay (reduced motion: the end state). The Screen is about two thirds of the content width with the phone (`--ph`) in front of its lower-right corner, on phones too | `[data-how-track]`, `stageScroll()`, `.seq-devices` |
 | Cards | A light under the pointer (a transformed layer) and a lift on the setup cards | `.spot::before`, `.step:hover` |
 | FAQ | Answers settle in on open and fade out before the row closes | `details p`, `details.closing` |
-| Couch for Windows | Confirmation scales in with a drawn check and a one-off warm glow | `.win-done`, `.win.counted::after` |
 
 ## The launch video (ticket 145)
 
@@ -220,23 +205,17 @@ The site goes live only when all of these are true. The page links to the GitHub
 - [ ] The first-open steps on the page (open once, then System Settings → Privacy & Security → Open Anyway) are verified on the release build.
 - [ ] Korataki Desktop licence bought; outlines regenerated from the purchased file. Buy Typodermic's Desktop licence for Korataki (typodermicfonts.com or MyFonts; it covers logos and static graphics made from the outlines), keep the purchased font outside this repo, then run `pnpm wordmark:font <purchased Korataki ExtraBold>` and `pnpm wordmark`, check the diff (the SHA-256 in `src/brand/korataki.ts` changes; the outlines should not, or barely), rebuild and look at the nav, the intro and the social card (`node scripts/og.mjs`). Until then the outlines come from a copy supplied for evaluation, from an unofficial site.
 
-- [ ] The Windows count's database exists and is bound (once, from this folder, logged in to the right account):
-  ```sh
-  pnpm wrangler d1 create couch-site-demand        # paste the printed database_id into wrangler.jsonc (d1_databases[0].database_id)
-  pnpm wrangler d1 migrations apply couch-site-demand --remote
-  ```
-  The rate limit (`ratelimits`, `namespace_id` 1138) needs no setup; pick another integer if 1138 is taken on the account. `SITE_ORIGIN` in `wrangler.jsonc` must be the public origin.
-- [ ] The page's privacy wording still matches the hosting: "Our counter stores only the platform and the total. Cloudflare, which hosts this site, processes request data under its own policies." The site turns off what it controls: Workers Logs and invocation logs stay off (`observability` in `wrangler.jsonc`), and no Logpush job or Tail Worker is added for this Worker. Cloudflare keeps some request data on its own regardless, and the site cannot switch that off: for example, Security Analytics shows sampled request logs (IP, user agent, path) for every zone, kept up to 31 days on the Free plan, and Security Events keeps the requests its rules act on ([Security Analytics](https://developers.cloudflare.com/waf/analytics/security-analytics/), [Security Events](https://developers.cloudflare.com/waf/analytics/security-events/), [Cloudflare privacy policy](https://www.cloudflare.com/privacypolicy/)). Check those pages for the current periods before publishing, and do not reword the page into a "no IP stored" promise.
-- [ ] The custom domain can be attached: the `abdullahnettoor.com` zone is added and **active** in the same Cloudflare account that deploys the Worker (`wrangler whoami` shows that account), and any existing DNS record for `couch.abdullahnettoor.com` (a CNAME, A/AAAA, or an old Pages/Workers custom domain) is removed first: Cloudflare refuses a Custom Domain on a hostname that already has a CNAME record, and any other record left for the name would conflict with the one the Custom Domain creates ([Cloudflare: Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/)).
-- [ ] After the first deploy: `curl -X POST https://couch.abdullahnettoor.com/api/demand/windows` answers 403 (no Origin), the button on the live page shows "Counted. Thank you.", and `curl https://couch.abdullahnettoor.com/api/demand` shows the count.
+- [ ] The page's privacy wording still matches the hosting: "This site itself keeps nothing about your visit. Cloudflare, which hosts it, processes request data under its own policies." The site has no Worker script, no logging and no storage of its own, and no Logpush job or Tail Worker is added. Cloudflare keeps some request data on its own regardless, and the site cannot switch that off: for example, Security Analytics shows sampled request logs (IP, user agent, path) for every zone, and Security Events keeps the requests its rules act on ([Security Analytics](https://developers.cloudflare.com/waf/analytics/security-analytics/), [Security Events](https://developers.cloudflare.com/waf/analytics/security-events/), [Cloudflare privacy policy](https://www.cloudflare.com/privacypolicy/)). Do not reword the page into a "no IP stored" promise.
+- [ ] The custom domain can be attached: the `abdullahnettoor.com` zone is added and **active** in the same Cloudflare account that deploys the site (`wrangler whoami` shows that account), and any existing DNS record for `couch.abdullahnettoor.com` (a CNAME, A/AAAA, or an old Pages/Workers custom domain) is removed first: Cloudflare refuses a Custom Domain on a hostname that already has a CNAME record, and any other record left for the name would conflict with the one the Custom Domain creates ([Cloudflare: Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/)).
+- [ ] After the first deploy: the live page loads over HTTPS on `couch.abdullahnettoor.com`, an unknown path shows the 404 page, "or download free from GitHub" downloads `Couch-arm64.dmg`, and the Couch for Windows button opens issue #34.
 
 Also re-read the "What Couch connects to" list on the page against the release build (the TMDB key, Widevine, and any updater added since).
 
 ## Deploy (not done yet)
 
-`wrangler.jsonc` serves `dist/` with Workers static assets on the custom domain `couch.abdullahnettoor.com`. `pnpm deploy` builds and runs `wrangler deploy`, which creates the subdomain and its certificate. Do not run it until every item in "Before publishing" is ticked and the screenshots are in.
+`wrangler.jsonc` serves `dist/` with Workers static assets on the custom domain `couch.abdullahnettoor.com`: `assets.directory` and `not_found_handling: "404-page"` (`public/404.html`), and nothing else. There is no `main`, so no Worker script runs: every request is a file from `dist/` or the 404 page ([Cloudflare: Static Assets](https://developers.cloudflare.com/workers/static-assets/)). `pnpm deploy` builds and runs `wrangler deploy`, which creates the subdomain and its certificate. Do not run it until every item in "Before publishing" is ticked and the screenshots are in.
 
-The site is a **Worker with static assets**, not a Cloudflare Pages project: the Windows count needs the Worker (`worker/index.ts`) and its D1 database, which Pages' static hosting doesn't run. Two ways to deploy, both from `site/`:
+Two ways to deploy, both from `site/`:
 
 - **From this Mac:** `cd site && pnpm deploy` (needs `wrangler login` with the account that owns the `abdullahnettoor.com` zone).
 - **From GitHub (Workers Builds),** if the repo is connected in the Cloudflare dashboard (Workers & Pages → the `couch-site` Worker → Settings → Build):
@@ -248,8 +227,17 @@ The site is a **Worker with static assets**, not a Cloudflare Pages project: the
   | Deploy command | `npx wrangler deploy` |
   | Output | `dist/` (set by `assets.directory` in `wrangler.jsonc`; not a separate setting) |
   | Production branch | `main` |
-  | Build watch paths | `site/*` (so app-only commits don't rebuild the site) |
+  | Non-production branches | Builds on, so other branches (`dev` among them) get preview URLs |
+  | Build watch paths | `site/**` (so app-only commits don't rebuild the site) |
 
   `pnpm build` also runs `tsc` and `scripts/launch-thumb.mjs` (which fetches nothing while `LAUNCH_VIDEO.id` is empty, and uses the committed thumbnail once it isn't). The Korataki outlines are committed, so the build never needs the font.
 
 Nothing has been deployed and no Cloudflare setting has been changed yet.
+
+## Publishing
+
+`main` is the live site: Workers Builds deploys it on every push that touches `site/**`. `dev` acts as staging: its builds get a preview URL, not the live domain.
+
+- **Site-only changes** (copy, design, fixes that don't wait on the app): branch from `main`, merge into `main`, then merge `main` into `dev` so `dev` keeps them.
+- **Site changes tied to an unreleased app feature** go through `dev` like app work, and reach the live site with the stable release (the `dev` → `main` merge).
+- **The download link** ("or download free from GitHub", `DOWNLOAD_URL`) always points at `https://github.com/abdullahnettoor/couch/releases/latest/download/Couch-arm64.dmg`. The release assets keep that file name with no version in it, so the link always gets the newest stable release and never needs changing for a release.
