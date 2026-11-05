@@ -2,31 +2,10 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "couch-site",
   "compatibility_date": "2025-11-01",
-  // Only /api/* runs the Worker (worker/index.ts); every other path is a static file, as before.
-  "main": "worker/index.ts",
+  // Static assets only: no Worker script. Every request is a file from dist/ (Vite's output), or the 404 page.
   "assets": {
     "directory": "./dist",
-    "binding": "ASSETS",
-    "not_found_handling": "404-page",
-    "run_worker_first": ["/api/*"]
+    "not_found_handling": "404-page"
   },
-  "vars": { "SITE_ORIGIN": "https://couch.abdullahnettoor.com" },
-  // The Windows demand counter. Create it before the first deploy (README, "Before publishing"):
-  //   pnpm wrangler d1 create couch-site-demand   -> paste the database_id below
-  //   pnpm wrangler d1 migrations apply couch-site-demand --remote
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "couch-site-demand",
-      "database_id": "REPLACE-WITH-D1-DATABASE-ID",
-      "migrations_dir": "migrations"
-    }
-  ],
-  // A burst cap on counting, keyed by the platform name (never by the visitor). Workers rate limits
-  // are approximate and counted per Cloudflare location, not globally:
-  // https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/
-  "ratelimits": [{ "name": "DEMAND_LIMIT", "namespace_id": "1138", "simple": { "limit": 60, "period": 60 } }],
-  // No Workers Logs and no invocation logs: request details are not kept.
-  "observability": { "enabled": false, "logs": { "enabled": false, "invocation_logs": false } },
   "routes": [{ "pattern": "couch.abdullahnettoor.com", "custom_domain": true }]
 }

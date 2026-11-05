@@ -47,4 +47,5 @@ no API key, $0).
 ## Branches
 
 - **Branch from `dev`, and merge or open pull requests into `dev`**, even when a task says "merge to main": `main` only receives releases (a `dev` merge for a stable release, or a hotfix that then goes back into `dev`). Details in CONTRIBUTING.md, "Branches".
+- **Site-only changes are the exception:** a change only under `site/` that doesn't wait on an unreleased app feature branches from `main` and merges into `main` (the live site), then `main` is merged into `dev`. Details in site/README.md, "Publishing".
 - **Don't release unless asked:** no `version` bumps in `package.json`, no `v*` tags, no `pnpm release`. Releasing is in SHIPPING.md, "Releasing".

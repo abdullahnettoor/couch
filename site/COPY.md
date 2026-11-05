@@ -1,6 +1,6 @@
 # Couch — landing page copy
 
-Ticket 137 · 2 November 2026 · picked copy applied on `ticket/137`. Updated in ticket 138 (design upgrade): the two accepted copy-review edits, the hero's new layout, the working Windows count and the strings it needs. Changes are marked “ticket 138”.
+Ticket 137 · 2 November 2026 · picked copy applied on `ticket/137`. Updated in ticket 138 (design upgrade): the two accepted copy-review edits, the hero's new layout, the Windows card's strings. Changes are marked “ticket 138”. Since the Windows counter was removed (November 2026), the Windows card links to a GitHub issue instead and the site stores nothing.
 
 ## Direction and implementation boundaries
 
@@ -10,7 +10,7 @@ Ticket 137 was a copy pass, not a redesign; ticket 138 redesigned the page aroun
 
 **Publication gates still apply.** The app README says Couch is not distributed yet. The page's Gumroad, Releases and source links are the planned distribution routes, not evidence that a public release exists. The Gumroad URL remains a placeholder. Do not publish until the README's existing release, source, Gumroad and first-open checks are complete.
 
-**Windows counting (ticket 138).** `button[data-demand="windows"]` sends one `POST /api/demand/windows` with no body to the site's Worker (`worker/`), which adds one to a per-platform number in D1 and stores nothing else (no IP, user agent, body or cookie; Workers logs off). Cloudflare, which hosts the site, still processes request data under its own policies, so the page says "Our counter stores only the platform and the total" and never "no IP stored". The confirmation shows only after the Worker answers with success; `localStorage` remembers the tap so the same browser counts once. If the request fails, the error line shows and the button stays. Before publishing, re-check Cloudflare's own retention against that wording (README, “Before publishing”).
+**Windows interest (counter removed, November 2026).** The site no longer counts anything. The Couch for Windows button is a plain link to GitHub issue #34, “Couch for Windows: add a 👍 if you'd use it” (`WINDOWS_ISSUE_URL`); interest is that issue's 👍 count, and adding one needs a GitHub account. The site has no Worker script, no `/api/*`, no database and no `localStorage` key. Cloudflare, which hosts the site, still processes request data under its own policies, so the page says “This site itself keeps nothing about your visit” and never “no IP stored”. Before publishing, re-check Cloudflare's own retention against that wording (README, “Before publishing”). Ticket 138's counter (a `POST /api/demand/windows` to a Worker and a D1 total, the “Counted. Thank you.” confirmation and the error line) is retired.
 
 ## 1. Navigation and shared controls
 
@@ -42,7 +42,7 @@ Ticket 137 was a copy pass, not a redesign; ticket 138 redesigned the page aroun
 - Headline turn (ticket 143, the user's pick): after the intro it shows, once, **Sit back.** → **Press play.** → **Lights down.** → back to **Settle in.**, about 2.6s each. Short phrases only, so the box never changes. The h1's text and accessible name stay "Settle in."; reduced motion and no script show only "Settle in.".
 - Body: A calm home screen for your TV, with YouTube, Netflix and your own videos. Your phone is the Remote.
 - Primary button: **Get Couch, pay what you want**
-- Secondary link: **or download free from GitHub**
+- Secondary link: **or download free from GitHub** (`DOWNLOAD_URL`: the latest release's `Couch-arm64.dmg`, a direct download)
 - Meta strip (ticket 143): **macOS 14+** / **Apple silicon** / **Open source** / **No account**, set in sentence case (no capitals or mono), so "macOS" reads as Apple writes it. Until ticket 143 it was "Mac today · macOS 14+ / Apple silicon / GPL-3.0-or-later / No Couch account"; the licence stays named in the footer, the FAQ and the README.
 - Meta strip accessible name: **Requirements**
 - Link under the meta strip (ticket 138), to the Windows card: **On Windows? Tell us you'd use it**
@@ -173,9 +173,9 @@ No “plays every format”, codec guarantee or promise that the household's vid
   - **TMDB, for optional online details.** Couch searches video titles and fetches posters and stills. Online details are on when a TMDB key is set. A release build can include a key, or you can add your own. Turn Online details off in Settings if you prefer.
   - **Your phone, over home Wi-Fi.** The Remote page is served by your Mac on the local network, not by an internet service.
 - Closing line: Couch does not check for updates or send data to a Couch server.
-- Windows privacy line (ticket 138, counting connected; "no IP stored" retired in the 138 review): The Couch for Windows button adds one anonymous count on this site, with no email and no cookies. Our counter stores only the platform and the total. Cloudflare, which hosts this site, processes request data under its own policies. Your browser keeps a note of the tap, so the same browser counts once.
+- Site privacy line (counter removed, November 2026): This site itself keeps nothing about your visit. Cloudflare, which hosts it, processes request data under its own policies. (Ticket 138's line, retired with the counter: The Couch for Windows button adds one anonymous count on this site, with no email and no cookies. Our counter stores only the platform and the total. Cloudflare, which hosts this site, processes request data under its own policies. Your browser keeps a note of the tap, so the same browser counts once.)
 
-Do not shorten this to “nothing leaves your Mac”, “fully offline” or “no cookies” for the whole app. Services can track and keep cookies. Library title searches and online artwork make requests. The Windows count is a website feature, not an app connection.
+Do not shorten this to “nothing leaves your Mac”, “fully offline” or “no cookies” for the whole app. Services can track and keep cookies. Library title searches and online artwork make requests. The site's own hosting is a website matter, not an app connection.
 
 ## 7. Setup (`#setup`)
 
@@ -244,7 +244,7 @@ The user's own words, approved as written (ticket 143, Addendum 4). Do not edit 
 - Headline: **Bring Couch home.**
 - Body: For Mac today. Free and open source. Choose a price on Gumroad, including $0, or download free from GitHub.
 - Primary button: **Get Couch, pay what you want**
-- Secondary link: **or download free from GitHub**
+- Secondary link: **or download free from GitHub** (`DOWNLOAD_URL`: the latest release's `Couch-arm64.dmg`, a direct download)
 - Requirements:
   - **Mac** — macOS 14 or later, Apple silicon
   - **Screen** — A TV or monitor connected to the Mac
@@ -260,16 +260,14 @@ The user's own words, approved as written (ticket 143, Addendum 4). Do not edit 
 3. **Windows, perhaps next.** — Signals uncertainty, but is less useful as a card label.
 
 - Card heading: **Couch for Windows**
-- Body (ticket 138, the enabled-state copy below, now applied): **Not yet. Tap if you'd use it, so we know what to build next.**
-- Button: **I'd use Couch for Windows**
-- Short privacy line: **An anonymous count, with no email and no cookies. Our counter stores only the platform and the total. Cloudflare, which hosts this site, processes request data under its own policies.** (Was "An anonymous count. No email, no cookies, no IP stored." until the 138 review: the site's hosting can see and keep request data, IPs included, so "no IP stored" was not a claim the site could make.)
-- Confirmation, shown only after the Worker confirms the count (or when this browser already counted): **Counted. Thank you.**
-- Error line (ticket 138), shown if the count did not go through: **That did not go through. Please try again in a moment.**
-- Decorative, not read: a check mark drawn in the confirmation.
-- Markup contract: `type="button" data-demand="windows"`, described by the privacy line; confirmation `[data-demand-confirmation]`, error `[data-demand-error]`, both announced through a visually hidden `role="status"` (`[data-demand-live]`).
+- Body (counter removed, November 2026): **Not yet. Windows is being considered, not promised. If you'd use it, add a 👍 on GitHub.**
+- Button, a link: **Couch for Windows on GitHub** → GitHub issue #34, “Couch for Windows: add a 👍 if you'd use it” (`WINDOWS_ISSUE_URL`, `rel="noopener"`, same tab, like the page's other external links)
+- Short note, describes the button: **The 👍 goes on a GitHub issue, so you need a GitHub account.**
+- Markup contract: `a.btn.btn-ghost.btn-lg` in `.win-act`, `aria-describedby="windows-note"`. No script, no request, no stored state.
+- Retired with the counter (ticket 138): body “Not yet. Tap if you'd use it, so we know what to build next.”, button “I'd use Couch for Windows”, privacy line “An anonymous count, with no email and no cookies. Our counter stores only the platform and the total. Cloudflare, which hosts this site, processes request data under its own policies.”, confirmation “Counted. Thank you.” and error line “That did not go through. Please try again in a moment.”
 - Before ticket 138 (stub, retired): body “Not yet. Would you use it? Help us decide what to build next.”, notice “Demand counting is not connected yet.”, privacy line “Anonymous count when enabled. No email, no cookies, no IP stored.”
 
-**Applied in ticket 138.** The 137 hand-off note, kept for the record: remove the stub notice and the “when enabled” qualification together, update the privacy paragraph and FAQ, and show the confirmation only after success. Recommended enabled body: **Not yet. Tap if you'd use it, so we know what to build next.** Recommended enabled privacy line: **An anonymous count. No email, no cookies, no IP stored.** (superseded in the 138 review by the line above). These enabled-state strings are hand-off copy, not applied as current facts. No email waitlist, promise of a Windows release or false success message.
+No email waitlist, no promise of a Windows release.
 
 ## 9. FAQ (`#faq`)
 
@@ -306,7 +304,7 @@ Yes. Couch is licensed under GPL-3.0-or-later. Read the code on GitHub, change i
 
 **Will Couch come to Windows?**
 
-Windows is being considered, not promised. If you'd use it, tap Couch for Windows above: it adds one anonymous count. Our counter stores only the platform and the total. Cloudflare, which hosts this site, processes request data under its own policies. Linux is not supported. Today, Couch needs Apple silicon and macOS 14 or later. The Remote runs in a phone browser; Android with Chrome is what we test.
+Windows is being considered, not promised. If you'd use it, add a 👍 to the Couch for Windows issue on GitHub (you need a GitHub account). Linux is not supported. Today, Couch needs Apple silicon and macOS 14 or later. The Remote runs in a phone browser; Android with Chrome is what we test.
 
 ## 10. Footer
 
@@ -422,9 +420,9 @@ All app paths below are in the app repo (the folder above `site/`).
 | No Couch analytics, crash reporting or automatic update checks | No matches for `analytics`, `telemetry`, `sentry`, `crashReporter` or `autoUpdater` in app `src`; `SHIPPING.md` Updates says an updater is still needed. This is a source review, not a guarantee about third-party services. |
 | Not yet notarised | `SHIPPING.md` Signing and notarisation; `scripts/package.mjs` ad-hoc default. Existing README first-open advice is older; preserve ticket 135's macOS 15+ correction. Apple's current “Open apps safely” instructions at https://support.apple.com/en-gb/102445 support try opening → Privacy & Security → Open Anyway → confirm Open. Verify again on the release build before publishing. |
 | Free/open source vs planned downloads | App `LICENSE` and `README.md` Licence: GPL-3.0-or-later. Gumroad/$0 and GitHub Releases are ticket 135 distribution decisions. `SHIPPING.md` and the site README make clear that publishing is still gated. |
-| Windows interest, not a delivery promise | Ticket 137 permits demand markup only. `SHIPPING.md` Other platforms explains native work and a separate Netflix trial would be needed. Ticket 138 connected the counter (`worker/demand.ts`, unit tests in `worker/demand.test.ts`): only a platform name and a number are stored. |
-| Site cookies/analytics and licence notices | Local site source and request/storage check; self-hosted fonts; `public/licenses/` full legal notices; `LICENSE` and `package.json`. Future counting must honour no-IP-storage at the hosting/logging layer as well as in code. |
+| Windows interest, not a delivery promise | Ticket 137 permits demand markup only. `SHIPPING.md` Other platforms explains native work and a separate Netflix trial would be needed. Interest is a 👍 on GitHub issue #34; the site's own counter (ticket 138) was removed in November 2026, so the site stores nothing. |
+| Site cookies/analytics and licence notices | Local site source and request/storage check; self-hosted fonts; `public/licenses/` full legal notices; `LICENSE` and `package.json`. The site is static assets only: no Worker script, no storage, no logging of its own; Cloudflare's own processing is named, not denied. |
 
 ### Checks for this pass
 
-Run the build, drift check and existing tests; inspect picked copy against this deck and the built HTML; check local renders at the existing desktop/phone widths and 200% zoom, no overflow, reduced motion and keyboard access. (Ticket 138: the Windows button now makes exactly one same-origin POST, sets one `localStorage` key and shows the confirmation only after success.) No deployment, no remote, no live Couch, no service sign-in.
+Run the build, drift check and existing tests; inspect picked copy against this deck and the built HTML; check local renders at the existing desktop/phone widths and 200% zoom, no overflow, reduced motion and keyboard access. (Since the counter was removed: the Windows button is a link to GitHub issue #34, and the page makes no request and sets no storage for it.) No deployment, no remote, no live Couch, no service sign-in.

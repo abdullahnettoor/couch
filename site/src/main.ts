@@ -410,50 +410,6 @@ for (const d of document.querySelectorAll<HTMLDetailsElement>(".acc details")) {
   });
 }
 
-// Couch for Windows: one anonymous count. POST /api/demand/windows (worker/index.ts) with no body;
-// localStorage remembers the tap so this browser counts once. No cookies.
-const DEMAND_KEY = "couch:demand:windows";
-const demandBtn = document.querySelector<HTMLButtonElement>('[data-demand="windows"]');
-const demandCard = demandBtn?.closest<HTMLElement>("[data-demand-card]");
-const done = demandCard?.querySelector<HTMLElement>("[data-demand-confirmation]");
-const fail = demandCard?.querySelector<HTMLElement>("[data-demand-error]");
-const live = demandCard?.querySelector<HTMLElement>("[data-demand-live]");
-const remembered = () => { try { return localStorage.getItem(DEMAND_KEY) === "1"; } catch { return false; } };
-const showCounted = (announce: boolean) => {
-  if (!demandBtn || !done) return;
-  const hadFocus = document.activeElement === demandBtn;
-  demandBtn.hidden = true;
-  done.hidden = false;
-  if (fail) fail.hidden = true;
-  if (announce) {
-    demandCard!.classList.add("counted");
-    if (live) live.textContent = done.textContent;
-    if (hadFocus) done.focus({ preventScroll: true });
-  }
-};
-if (demandBtn && done) {
-  if (remembered()) showCounted(false);
-  demandBtn.addEventListener("click", async () => {
-    if (demandBtn.getAttribute("aria-busy") === "true") return;
-    if (remembered()) { showCounted(true); return; }
-    demandBtn.setAttribute("aria-busy", "true");
-    if (fail) fail.hidden = true;
-    let ok = false;
-    try {
-      const res = await fetch("/api/demand/windows", { method: "POST", credentials: "omit", cache: "no-store" });
-      ok = res.ok;
-    } catch { ok = false; }
-    demandBtn.removeAttribute("aria-busy");
-    if (ok) {
-      try { localStorage.setItem(DEMAND_KEY, "1"); } catch { /* private mode: still counted once */ }
-      showCounted(true);
-    } else if (fail) {
-      fail.hidden = false;
-      if (live) live.textContent = fail.textContent;
-    }
-  });
-}
-
 // Reduced motion can change at any time: settle everything now; going back to motion needs no reset.
 motionQuery.addEventListener("change", () => {
   if (reduced()) {

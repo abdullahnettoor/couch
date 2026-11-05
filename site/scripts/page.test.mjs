@@ -425,3 +425,50 @@ describe("the Remote stage", { skip }, () => {
     await page.close();
   });
 });
+
+describe("Couch for Windows and the download link", { skip }, () => {
+  const ISSUE = "https://github.com/abdullahnettoor/couch/issues/34";
+  const DMG = "https://github.com/abdullahnettoor/couch/releases/latest/download/Couch-arm64.dmg";
+
+  test("the Windows button is a plain link to issue #34, and following it is the only request the card makes", async () => {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1440, height: 900 });
+    await page.emulateMediaFeatures([{ name: "prefers-reduced-motion", value: "reduce" }]);
+    const away = [];
+    await page.setRequestInterception(true);
+    page.on("request", (r) => {
+      if (r.url().startsWith(url) || r.url().startsWith("data:")) { r.continue().catch(() => {}); return; }
+      away.push({ url: r.url(), method: r.method(), type: r.resourceType() });
+      r.abort().catch(() => {});
+    });
+    await page.goto(`${url}#windows`, { waitUntil: "load" });
+    await wait(800);
+    const card = await page.$eval("#windows", (c) => ({
+      links: [...c.querySelectorAll("a")].map((a) => ({ href: a.href, rel: a.rel, target: a.target, text: a.textContent.trim() })),
+      buttons: c.querySelectorAll("button").length,
+      text: c.textContent.replace(/\s+/g, " ").trim(),
+    }));
+    assert.deepEqual(card.links, [{ href: ISSUE, rel: "noopener", target: "", text: "Couch for Windows on GitHub" }]);
+    assert.equal(card.buttons, 0, "no counting button");
+    assert.match(card.text, /being considered, not promised/);
+    assert.match(card.text, /GitHub account/);
+    assert.doesNotMatch(card.text, /Counted|did not go through|anonymous count/);
+    assert.equal(await page.$("[data-demand]"), null, "no demand markup left");
+    assert.deepEqual(away, [], "nothing leaves the local server before the click");
+    await page.click("#windows a");
+    await wait(500);
+    assert.deepEqual(away.map((r) => [r.method, r.url, r.type]), [["GET", ISSUE, "document"]], "the click only navigates to the issue");
+    await page.close();
+  });
+
+  test("nothing is stored, and both download links fetch the latest release's .dmg", async () => {
+    const page = await open({ width: 1440, height: 900, reduce: true });
+    const s = await page.evaluate(() => ({
+      local: Object.keys(localStorage),
+      dl: [...document.querySelectorAll("a.sub")].filter((a) => /download free from GitHub/.test(a.textContent)).map((a) => a.href),
+    }));
+    assert.deepEqual(s.local, []);
+    assert.deepEqual(s.dl, [DMG, DMG]);
+    await page.close();
+  });
+});
