@@ -7,7 +7,7 @@ import { rowCss } from "./row-style.ts";
 export const QUICK_SLIDE_MS = durationMs(GLASS.motion.duration.drawer);
 
 /** The panel's width and its inner corner radius (`--radius-panel`) in design pixels. */
-const DRAWER = { width: 633.6, radius: GLASS.radius.panel } as const;
+export const DRAWER = { width: 633.6, radius: GLASS.radius.panel } as const;
 
 /** The panel's rectangle in window points, for the native glass behind it. `r` is the corner radius. */
 export function drawerGlassRect(width: number, height: number) {

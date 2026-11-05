@@ -3,7 +3,12 @@ import { describe, expect, test } from "vite-plus/test";
 import type { QuickPayload } from "./protocol.ts";
 import { CONFIRM_LAYOUT } from "./confirm-layout.ts";
 import { GLASS, lookCss } from "./look.ts";
-import { QUICK_SLIDE_MS, drawerGlassRect, quickSettingsPage } from "./quick-settings-page.ts";
+import {
+  DRAWER,
+  QUICK_SLIDE_MS,
+  drawerGlassRect,
+  quickSettingsPage,
+} from "./quick-settings-page.ts";
 import { ICON_PATHS } from "./icons.ts";
 
 /** Custom properties declared on the root element, with var() resolved; undefined where a var() has no value there (CSS makes that invalid). */
@@ -228,8 +233,9 @@ describe("the Quick settings page", () => {
 
   test("the native glass starts where the panel starts: at the window's right edge, the same travel", () => {
     const r = drawerGlassRect(1920, 1080);
-    const panelWidth = Number(/width:calc\(([\d.]+)\*var\(--u\)\)/.exec(pageCss())![1]);
-    expect(r.w).toBeCloseTo(panelWidth);
+    const drawer = /#drawer \{([^}]*)\}/.exec(pageCss())![1]!;
+    expect(drawer).toContain(`width:calc(${DRAWER.width}*var(--u));`);
+    expect(r.w).toBeCloseTo(DRAWER.width);
     expect(r.x + r.w).toBeCloseTo(1920);
   });
 
