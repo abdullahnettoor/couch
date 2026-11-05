@@ -67,18 +67,18 @@ export interface Look {
     };
     /** Home's own geometry (`--home-<name>`): the clock's box, the blur behind it, the tile rows and the photo's drift. */
     home: {
-      clockTop: number;
-      /** Between the time and the date line; the clock's box is the time, this gap and the date line. */
-      clockDateGap: number;
-      /** How far the blur behind the clock stays fully opaque below the clock's box, then how far it fades. */
-      clockPad: number;
-      clockFade: number;
+      /** The clock's lengths (`--home-clock-<name>`). */
+      clock: {
+        top: number;
+        /** Between the time and the date line; the clock's box is the time, this gap and the date line (`homeClockHeight`). */
+        dateGap: number;
+        /** How far the blur behind the clock stays fully opaque below the clock's box, then how far it fades. */
+        pad: number;
+        fade: number;
+      };
       /** Each layout's tile row: its distance from the bottom and its tile height. */
-      rowBottom: number;
-      tileHeight: number;
-      emptyRowBottom: number;
-      emptyTileHeight: number;
-      /** How far a photo wallpaper zooms as it drifts (from 1). */
+      rows: Record<"film" | "empty", { bottom: number; tileHeight: number }>;
+      /** How far a photo wallpaper zooms as it drifts (from 1): a scale, not a length. */
       panScale: number;
     };
   };
@@ -885,14 +885,11 @@ export const GLASS: Look = {
       scrollMarginSearch: 120,
     },
     home: {
-      clockTop: 210,
-      clockDateGap: 18,
-      clockPad: 40,
-      clockFade: 140,
-      rowBottom: 84,
-      tileHeight: 170,
-      emptyRowBottom: 120,
-      emptyTileHeight: 236,
+      clock: { top: 210, dateGap: 18, pad: 40, fade: 140 },
+      rows: {
+        film: { bottom: 84, tileHeight: 170 },
+        empty: { bottom: 120, tileHeight: 236 },
+      },
       panScale: 1.06,
     },
   },
@@ -903,6 +900,13 @@ export function durationMs(duration: string): number {
   const m = /^(\d*\.?\d+)(ms|s)$/.exec(duration);
   if (!m) throw new Error(`not a duration: ${duration}`);
   return Math.round(Number(m[1]) * (m[2] === "s" ? 1000 : 1));
+}
+
+/** The height of Home's clock box in design pixels: the time, the gap and the date line (home.css's `--clock-h`). */
+export function homeClockHeight(look: Look): number {
+  return (
+    look.type.size.clock + look.metrics.home.clock.dateGap + look.type.lineHeightSize.clockDate
+  );
 }
 
 /** The CSS length of one design pixel for a viewport: `min(100vw / 1920, 100vh / 1080)`. */
@@ -970,8 +974,13 @@ export function lookTokens(look: Look, unit: string, defineUnit = false): [strin
   add("scroll-margin-block", len(metrics.library.scrollMarginBlock));
   add("scroll-margin-edge", len(metrics.library.scrollMarginEdge));
   add("scroll-margin-search", len(metrics.library.scrollMarginSearch));
-  for (const [k, n] of entries(metrics.home))
-    add(`home-${kebab(k)}`, k === "panScale" ? String(n) : len(n));
+  const { clock, rows, panScale } = metrics.home;
+  for (const [k, n] of entries(clock)) add(`home-clock-${kebab(k)}`, len(n));
+  add("home-row-bottom", len(rows.film.bottom));
+  add("home-tile-height", len(rows.film.tileHeight));
+  add("home-empty-row-bottom", len(rows.empty.bottom));
+  add("home-empty-tile-height", len(rows.empty.tileHeight));
+  add("home-pan-scale", String(panScale));
   return out;
 }
 

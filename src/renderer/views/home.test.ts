@@ -4,6 +4,7 @@ import { beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/tes
 import { GLASS } from "../../shared/look.ts";
 import type { LibraryEntry, ScreenPayload } from "../../shared/protocol.ts";
 import { WALLPAPERS, wallpaperVars, type PictureTile } from "../../shared/wallpapers.ts";
+import { readCss } from "../testing/css-rules.ts";
 
 /** Images load when a test says so: a picture only replaces the one on screen once it has loaded. */
 class FakeImage {
@@ -22,6 +23,7 @@ const loaded = () => {
 };
 
 type Mod = { render(p: ScreenPayload): void };
+const css = readCss("home.css", "glass.css");
 let home: Mod;
 let settingsHome: Mod;
 let screen: HTMLElement;
@@ -123,13 +125,10 @@ describe("Home's scrim", () => {
 
   test("the stylesheet gives it a gradient and keeps it visible", () => {
     home.render(payload());
-    const rule = Array.from(document.styleSheets)
-      .flatMap((s) => Array.from(s.cssRules))
-      .find((r) => (r as CSSStyleRule).selectorText === ".h-scrim") as CSSStyleRule;
-    expect(rule.style.getPropertyValue("position")).toBe("absolute");
-    expect(rule.style.getPropertyValue("inset")).toBe("0");
-    expect(rule.style.getPropertyValue("opacity")).toBe("");
-    expect(rule.style.getPropertyValue("display")).not.toBe("none");
+    expect(css.prop(".h-scrim", "position")).toBe("absolute");
+    expect(css.prop(".h-scrim", "inset")).toBe("0");
+    expect(css.prop(".h-scrim", "opacity")).toBe("");
+    expect(css.prop(".h-scrim", "display")).not.toBe("none");
   });
 });
 
@@ -180,12 +179,9 @@ describe("Settings → Home keeps the real Home mounted", () => {
     settingsHome.render(page("wp:forest"));
     const row = screen.querySelector(".wp-tiles")!;
     expect(row.querySelectorAll(".wp-tile").length).toBe(6);
-    const rule = Array.from(document.styleSheets)
-      .flatMap((s) => Array.from(s.cssRules))
-      .find((r) => (r as CSSStyleRule).selectorText === ".wp-tiles") as CSSStyleRule;
-    expect(rule.style.getPropertyValue("display")).toBe("flex");
-    expect(rule.style.getPropertyValue("flex-wrap")).not.toBe("wrap");
-    expect(rule.style.getPropertyValue("overflow-x")).toBe("auto");
+    expect(css.prop(".wp-tiles", "display")).toBe("flex");
+    expect(css.prop(".wp-tiles", "flex-wrap")).not.toBe("wrap");
+    expect(css.prop(".wp-tiles", "overflow-x")).toBe("auto");
   });
 
   test("leaving the page removes the panel; Home alone has none", () => {
@@ -219,10 +215,6 @@ describe("Home with a picture from the Mac", () => {
     extra: Partial<ScreenPayload> = {},
   ) => payload({ home: { wallpaper: choice, artwork: true, pictures }, ...extra });
   const bPhoto = { kind: "folder", file: "b.jpg" } as const;
-  const rule = (selector: string) =>
-    Array.from(document.styleSheets)
-      .flatMap((s) => Array.from(s.cssRules))
-      .find((r) => (r as CSSStyleRule).selectorText === selector) as CSSStyleRule | undefined;
 
   test("the picture and its dim are set as variables and the photo layer is on", () => {
     home.render(withPhoto(bPhoto));
@@ -313,17 +305,12 @@ describe("Home with a picture from the Mac", () => {
 
   test("the stylesheet: dim comes from --wp-dim, a blur sits behind the clock and the tiles, and the drift is 1.0 to 1.06 over 120 s", () => {
     home.render(withPhoto({ kind: "mac" }));
-    expect(rule(".h-photo-dim")!.style.getPropertyValue("opacity")).toBe("var(--wp-dim, 0.5)");
-    expect(rule(".h-photo-blur")!.style.getPropertyValue("backdrop-filter")).toContain("--blur-");
-    expect(rule(".h-photo-blur.top")!.style.getPropertyValue("top")).toBe("0px");
-    expect(rule(".h-photo-blur.bottom")!.style.getPropertyValue("bottom")).toBe("0px");
-    expect(rule(".h-photo-img")!.style.getPropertyValue("animation")).toContain(
-      "--duration-photo-pan",
-    );
-    const kenburns = Array.from(document.styleSheets)
-      .flatMap((s) => Array.from(s.cssRules))
-      .find((r) => (r as CSSKeyframesRule).name === "h-kenburns") as CSSKeyframesRule;
-    const frames = Array.from(kenburns.cssRules) as CSSKeyframeRule[];
+    expect(css.prop(".h-photo-dim", "opacity")).toBe("var(--wp-dim, 0.5)");
+    expect(css.prop(".h-photo-blur", "backdrop-filter")).toContain("--blur-");
+    expect(css.prop(".h-photo-blur.top", "top")).toBe("0px");
+    expect(css.prop(".h-photo-blur.bottom", "bottom")).toBe("0px");
+    expect(css.prop(".h-photo-img", "animation")).toContain("--duration-photo-pan");
+    const frames = Array.from(css.keyframes("h-kenburns").cssRules) as CSSKeyframeRule[];
     expect(frames.map((f) => [f.keyText, f.style.getPropertyValue("transform")])).toEqual([
       ["0%", "scale(1)"],
       ["100%", "scale(var(--home-pan-scale))"],
@@ -332,9 +319,9 @@ describe("Home with a picture from the Mac", () => {
   });
 
   test("the photo layer is hidden for built-ins, and the drift for photos", () => {
-    expect(rule(".h-photo")!.style.getPropertyValue("display")).toBe("none");
-    expect(rule(".home.photo .h-photo")!.style.getPropertyValue("display")).toBe("block");
-    expect(rule(".home.photo .h-drift")!.style.getPropertyValue("display")).toBe("none");
+    expect(css.prop(".h-photo", "display")).toBe("none");
+    expect(css.prop(".home.photo .h-photo", "display")).toBe("block");
+    expect(css.prop(".home.photo .h-drift", "display")).toBe("none");
   });
 });
 

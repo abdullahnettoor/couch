@@ -3,17 +3,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 import type { Command, ScreenPayload, SetupPayload } from "../shared/protocol.ts";
+import { readCss, selectorsOf } from "./testing/css-rules.ts";
 
-const glass = new CSSStyleSheet();
-glass.replaceSync(readFileSync(join(import.meta.dirname, "glass.css"), "utf8"));
-/** Every style rule in glass.css, including those inside @media. */
-const glassRules = () =>
-  Array.from(glass.cssRules)
-    .flatMap((r) => (r instanceof CSSMediaRule ? Array.from(r.cssRules) : [r]))
-    .filter((r): r is CSSStyleRule => "selectorText" in r);
-/** The rule written exactly for `selector` in glass.css. */
-const glassRule = (selector: string) =>
-  glassRules().find((r) => r.selectorText === selector)?.style;
+const glass = readCss("glass.css");
 
 const sent: Command[] = [];
 let renderSetup: (p: ScreenPayload) => void;
@@ -223,8 +215,8 @@ describe("the Apps step", () => {
     expect(panel.querySelector<HTMLElement>(".s-tiles")!.style.getPropertyValue("--cols")).toBe(
       "3",
     );
-    expect(glassRule(".setup .s-tile.off > .g-tile")!.getPropertyValue("filter")).not.toBe("");
-    expect(glassRule(".setup .s-tile.off .s-tick")!.getPropertyValue("opacity")).toBe("0");
+    expect(glass.prop(".setup .s-tile.off > .g-tile", "filter")).not.toBe("");
+    expect(glass.prop(".setup .s-tile.off .s-tick", "opacity")).toBe("0");
   });
 
   test("a switch flips in place; a click answers a tile, and a button counts after the tiles", () => {
@@ -290,14 +282,21 @@ describe("Home under Setup", () => {
     const home = readFileSync(join(import.meta.dirname, "views/home.ts"), "utf8");
     expect(home).toContain('toggle("in-setup"');
     expect(home).not.toContain('toggle("setup"');
-    const selectors = glassRules().map((r) => r.selectorText);
+    const selectors = glass.rules.flatMap(selectorsOf);
     expect(selectors.some((s) => s.includes(".home.setup"))).toBe(false);
-    const hidden = glassRules()
-      .filter((r) => r.selectorText.includes(".home.in-setup"))
+    const hidden = glass.rules
       .filter((r) => r.style.getPropertyValue("display") === "none")
-      .flatMap((r) => r.selectorText.split(",").map((s) => s.trim()));
+      .flatMap(selectorsOf)
+      .filter((s) => s.includes(".home.in-setup"));
     expect(hidden).toContain(".home.in-setup .h-clock");
     expect(hidden.some((s) => s.includes(".h-photo"))).toBe(false);
-    expect(glassRule(".setup")?.getPropertyValue("opacity") ?? "").not.toBe("0");
+    // The closed panel fades out by its id; no rule for the bare `.setup` class (which could match more than the panel) does.
+    expect(glass.prop("#setup.setup", "opacity")).toBe("0");
+    const subject = (s: string) => s.split(/\s*[\s>+~]\s*/).at(-1)!;
+    const fadesSetup = glass.rules
+      .filter((r) => r.style.getPropertyValue("opacity") === "0")
+      .flatMap(selectorsOf)
+      .filter((s) => /\.setup(?![\w-])/.test(subject(s)) && !subject(s).includes("#setup"));
+    expect(fadesSetup).toEqual([]);
   });
 });

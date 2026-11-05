@@ -1,25 +1,13 @@
 // @vitest-environment happy-dom
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, test } from "vite-plus/test";
-import { GLASS } from "../shared/look.ts";
+import { GLASS, homeClockHeight } from "../shared/look.ts";
+import { readCss } from "./testing/css-rules.ts";
 
-const style = document.createElement("style");
-style.textContent = readFileSync(join(import.meta.dirname, "home.css"), "utf8");
-document.head.append(style);
-/** A property as the last rule written exactly for `selector` in home.css that sets it has it. */
-const prop = (selector: string, name: string) => {
-  const rules = Array.from(style.sheet!.cssRules).filter(
-    (r) => (r as CSSStyleRule).selectorText === selector,
-  ) as CSSStyleRule[];
-  expect(rules.length, selector).toBeGreaterThan(0);
-  const values = rules.map((r) => r.style.getPropertyValue(name).trim()).filter(Boolean);
-  return values.at(-1) ?? "";
-};
+const { prop } = readCss("home.css");
 
 describe("the blur behind the clock (1920 × 1080: 1 u = 1 px)", () => {
-  const home = GLASS.metrics.home;
-  const height = GLASS.type.size.clock + home.clockDateGap + GLASS.type.lineHeightSize.clockDate;
+  const { clock } = GLASS.metrics.home;
+  const height = homeClockHeight(GLASS);
 
   test("the clock sits at the shared top and its box is the time, the gap and the date line", () => {
     expect(prop(".home", "--clock-top")).toBe("var(--home-clock-top)");
@@ -31,7 +19,7 @@ describe("the blur behind the clock (1920 × 1080: 1 u = 1 px)", () => {
       "calc(var(--type-clock) + var(--home-clock-date-gap) + var(--line-height-clock-date))",
     );
     expect(GLASS.type.size.clock).toBe(200);
-    expect(home.clockTop).toBe(210);
+    expect(clock.top).toBe(210);
   });
 
   test("the top blur is fully opaque to below the date, then fades", () => {
@@ -43,7 +31,9 @@ describe("the blur behind the clock (1920 × 1080: 1 u = 1 px)", () => {
     expect(prop(".home", "--clock-clear")).toBe(
       "calc(var(--clock-top) + var(--clock-h) + var(--clock-pad))",
     );
-    expect(home.clockTop + height + home.clockPad).toBeGreaterThanOrEqual(210 + 200 + 18 + 36);
+    const dateTextBottom =
+      clock.top + GLASS.type.size.clock + clock.dateGap + GLASS.type.size.clockDate;
+    expect(clock.top + height + clock.pad).toBeGreaterThanOrEqual(dateTextBottom);
     expect(prop(".h-photo-blur.top", "height")).toBe(
       "calc(var(--clock-clear) + var(--clock-fade))",
     );

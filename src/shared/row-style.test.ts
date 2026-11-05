@@ -1,10 +1,10 @@
-import { readFileSync } from "node:fs";
+// @vitest-environment happy-dom
 import { describe, expect, test } from "vite-plus/test";
+import { readCss } from "../renderer/testing/css-rules.ts";
 import { GLASS, lookCss } from "./look.ts";
 import { ROW, rowCss } from "./row-style.ts";
 
-const glass = readFileSync(new URL("../renderer/glass.css", import.meta.url), "utf8");
-const block = /\.g-row\s*\{([^}]*)\}/.exec(glass)![1]!;
+const glass = readCss("glass.css");
 
 describe("the row look shared with Settings", () => {
   test("its sizes are the Look's, and the Screen's row reads them as variables", () => {
@@ -15,11 +15,11 @@ describe("the row look shared with Settings", () => {
     expect(vars).toContain(`--row-gap: calc(${ROW.gap} * var(--u))`);
     expect(vars).toContain(`--row-pad-x: calc(${ROW.padX} * var(--u))`);
     expect(vars).toContain(`--row-value-font: calc(${ROW.valueFont} * var(--u))`);
-    expect(block).toMatch(/height:\s*var\(--row-height\)/);
-    expect(block).toMatch(/font-size:\s*var\(--row-font\)/);
-    expect(block).toMatch(/margin-bottom:\s*var\(--row-gap\)/);
-    expect(block).toMatch(/padding:\s*0 var\(--row-pad-x\)/);
-    expect(glass).toMatch(/\.g-row \.v\s*\{[^}]*font-size:\s*var\(--row-value-font\)/);
+    expect(glass.prop(".g-row", "height")).toBe("var(--row-height)");
+    expect(glass.prop(".g-row", "font-size")).toBe("var(--row-font)");
+    expect(glass.prop(".g-row", "margin-bottom")).toBe("var(--row-gap)");
+    expect(glass.prop(".g-row", "padding")).toBe("0px var(--row-pad-x)");
+    expect(glass.prop(".g-row .v", "font-size")).toBe("var(--row-value-font)");
   });
 
   test("renders the focus highlight and value style for a selector", () => {
