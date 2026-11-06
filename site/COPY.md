@@ -17,7 +17,7 @@ Ticket 137 was a copy pass, not a redesign; ticket 138 redesigned the page aroun
 | Location | Picked string |
 | --- | --- |
 | Skip link | Skip to content |
-| Brand | Couch (ticket 142: the COUCH wordmark from Korataki ExtraBold's outlines, an SVG with no text; the link's accessible name below carries it) |
+| Brand | Couch (ticket 142: the COUCH wordmark as SVG paths with no text; the link's accessible name below carries it) |
 | Brand accessible name | Couch, back to top |
 | Main navigation accessible name | Main |
 | Navigation, desktop and mobile | How it works / Apps / Library / Privacy / FAQ |
