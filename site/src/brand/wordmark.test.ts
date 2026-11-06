@@ -21,6 +21,8 @@ test("the U and O keep their shapes: arm tops rounded like the Cs' ends, round b
   // arm tops (outer, inner, inner, outer) are rounded like the Cs' stroke ends; the base is rounder
   for (const i of [0, 1, 4, 5]) assert.equal(u[i][2], 15);
   assert.equal(letters.c1.match(/A15 15 /g)?.length, 4, "each C end has two radius-15 corners");
+  assert.equal(letters.h.match(/A15 15 /g)?.length, 8, "the H's four stem ends are rounded like the Cs'");
+  assert.equal(letters.h.match(/A5 5 /g)?.length, 4, "the crossbar's joints are softened");
   for (const i of [6, 7]) assert.ok(u[i][2] > 20);
   // the U sits on the baseline at cap height, its counter open at the top
   assert.equal(Math.min(...u.map((c) => c[1])), -CAP);
