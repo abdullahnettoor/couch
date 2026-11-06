@@ -199,12 +199,12 @@ The site is licensed **GPL-3.0-or-later**, the same as Couch (`LICENSE`, `packag
 
 The site goes live only when all of these are true. The page links to the GitHub repo and its Releases, and sells on Gumroad, so none of them can be missing.
 
-- [ ] The Couch GitHub repo is public.
-- [ ] A first release exists on GitHub Releases.
-- [ ] The Gumroad product exists, and `GUMROAD_URL` in `src/config.ts` points at it (it is a placeholder today).
-- [ ] The first-open steps on the page (open once, then System Settings → Privacy & Security → Open Anyway) are verified on the release build.
+- [x] The Couch GitHub repo is public.
+- [x] A first release exists on GitHub Releases.
+- [x] The Gumroad product exists (https://abdullahnettoor.gumroad.com/l/couch), and `GUMROAD_URL` in `src/config.ts` points at it.
+- [x] The first-open steps on the page (open once, then System Settings → Privacy & Security → Open Anyway) are verified on the release build.
 
-- [ ] The page's privacy wording still matches the hosting: "This site itself keeps nothing about your visit. Cloudflare, which hosts it, processes request data under its own policies." The site has no Worker script, no logging and no storage of its own, and no Logpush job or Tail Worker is added. Cloudflare keeps some request data on its own regardless, and the site cannot switch that off: for example, Security Analytics shows sampled request logs (IP, user agent, path) for every zone, and Security Events keeps the requests its rules act on ([Security Analytics](https://developers.cloudflare.com/waf/analytics/security-analytics/), [Security Events](https://developers.cloudflare.com/waf/analytics/security-events/), [Cloudflare privacy policy](https://www.cloudflare.com/privacypolicy/)). Do not reword the page into a "no IP stored" promise.
+- [x] The page's privacy wording still matches the hosting: "This site itself keeps nothing about your visit. Cloudflare, which hosts it, processes request data under its own policies." The site has no Worker script, no logging and no storage of its own, and no Logpush job or Tail Worker is added. Cloudflare keeps some request data on its own regardless, and the site cannot switch that off: for example, Security Analytics shows sampled request logs (IP, user agent, path) for every zone, and Security Events keeps the requests its rules act on ([Security Analytics](https://developers.cloudflare.com/waf/analytics/security-analytics/), [Security Events](https://developers.cloudflare.com/waf/analytics/security-events/), [Cloudflare privacy policy](https://www.cloudflare.com/privacypolicy/)). Do not reword the page into a "no IP stored" promise.
 - [ ] The custom domain can be attached: the `abdullahnettoor.com` zone is added and **active** in the same Cloudflare account that deploys the site (`wrangler whoami` shows that account), and any existing DNS record for `couch.abdullahnettoor.com` (a CNAME, A/AAAA, or an old Pages/Workers custom domain) is removed first: Cloudflare refuses a Custom Domain on a hostname that already has a CNAME record, and any other record left for the name would conflict with the one the Custom Domain creates ([Cloudflare: Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/)).
 - [ ] After the first deploy: the live page loads over HTTPS on `couch.abdullahnettoor.com`, an unknown path shows the 404 page, "or download free from GitHub" downloads `Couch-arm64.dmg`, and the Couch for Windows button opens issue #34.
 
