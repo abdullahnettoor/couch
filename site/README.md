@@ -205,14 +205,14 @@ The site goes live only when all of these are true. The page links to the GitHub
 - [x] The first-open steps on the page (open once, then System Settings → Privacy & Security → Open Anyway) are verified on the release build.
 
 - [x] The page's privacy wording still matches the hosting: "This site itself keeps nothing about your visit. Cloudflare, which hosts it, processes request data under its own policies." The site has no Worker script, no logging and no storage of its own, and no Logpush job or Tail Worker is added. Cloudflare keeps some request data on its own regardless, and the site cannot switch that off: for example, Security Analytics shows sampled request logs (IP, user agent, path) for every zone, and Security Events keeps the requests its rules act on ([Security Analytics](https://developers.cloudflare.com/waf/analytics/security-analytics/), [Security Events](https://developers.cloudflare.com/waf/analytics/security-events/), [Cloudflare privacy policy](https://www.cloudflare.com/privacypolicy/)). Do not reword the page into a "no IP stored" promise.
-- [ ] The custom domain can be attached: the `abdullahnettoor.com` zone is added and **active** in the same Cloudflare account that deploys the site (`wrangler whoami` shows that account), and any existing DNS record for `couch.abdullahnettoor.com` (a CNAME, A/AAAA, or an old Pages/Workers custom domain) is removed first: Cloudflare refuses a Custom Domain on a hostname that already has a CNAME record, and any other record left for the name would conflict with the one the Custom Domain creates ([Cloudflare: Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/)).
-- [ ] After the first deploy: the live page loads over HTTPS on `couch.abdullahnettoor.com`, an unknown path shows the 404 page, "or download free from GitHub" downloads `Couch-arm64.dmg`, and the Couch for Windows button opens issue #34.
+- [x] The custom domain can be attached: the `abdullahnettoor.com` zone is added and **active** in the same Cloudflare account that deploys the site (`wrangler whoami` shows that account), and any existing DNS record for `couch.abdullahnettoor.com` (a CNAME, A/AAAA, or an old Pages/Workers custom domain) is removed first: Cloudflare refuses a Custom Domain on a hostname that already has a CNAME record, and any other record left for the name would conflict with the one the Custom Domain creates ([Cloudflare: Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/)).
+- [x] After the first deploy: the live page loads over HTTPS on `couch.abdullahnettoor.com`, an unknown path shows the 404 page, "or download free from GitHub" downloads `Couch-arm64.dmg`, and the Couch for Windows button opens issue #34.
 
 Also re-read the "What Couch connects to" list on the page against the release build (the TMDB key, Widevine, and any updater added since).
 
-## Deploy (not done yet)
+## Deploy
 
-`wrangler.jsonc` serves `dist/` with Workers static assets on the custom domain `couch.abdullahnettoor.com`: `assets.directory` and `not_found_handling: "404-page"` (`public/404.html`), and nothing else. There is no `main`, so no Worker script runs: every request is a file from `dist/` or the 404 page ([Cloudflare: Static Assets](https://developers.cloudflare.com/workers/static-assets/)). `pnpm deploy` builds and runs `wrangler deploy`, which creates the subdomain and its certificate. Do not run it until every item in "Before publishing" is ticked and the screenshots are in.
+`wrangler.jsonc` serves `dist/` with Workers static assets on the custom domain `couch.abdullahnettoor.com`: `assets.directory` and `not_found_handling: "404-page"` (`public/404.html`), and nothing else. There is no `main`, so no Worker script runs: every request is a file from `dist/` or the 404 page ([Cloudflare: Static Assets](https://developers.cloudflare.com/workers/static-assets/)). `pnpm deploy` builds and runs `wrangler deploy`, which creates the subdomain and its certificate. 
 
 Two ways to deploy, both from `site/`:
 
@@ -231,7 +231,7 @@ Two ways to deploy, both from `site/`:
 
   `pnpm build` also runs `tsc` and `scripts/launch-thumb.mjs` (which fetches nothing while `LAUNCH_VIDEO.id` is empty, and uses the committed thumbnail once it isn't).
 
-Nothing has been deployed and no Cloudflare setting has been changed yet.
+**Live since 6 November 2026** at https://couch.abdullahnettoor.com, first deployed from the maintainer's Mac with `pnpm deploy` (Worker `couch-site`). The Worker's workers.dev address is off (`workers_dev` is not set, so `wrangler deploy` disables it); `preview_urls` is on, so once the repo is connected in Workers Builds, branches other than `main` get preview links. Until it's connected, deploy from the Mac after merging a site change into `main`.
 
 ## Publishing
 
