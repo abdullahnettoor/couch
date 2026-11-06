@@ -7,7 +7,7 @@ import { logo, mix, path, toEm, type Poly } from "./logo.ts";
 
 const xs = (polys: Poly[]) => polys.flat().map(([x]) => x);
 /** Every coordinate pair in an outline path. */
-const pts = (d: string) => [...d.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
+const pts = (d: string) => [...d.replace(/A[\d.]+ [\d.]+ \d \d \d /g, "L").matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
 
 test("the morphing letters have the logo's corners, one for one", () => {
   assert.equal(letters.u.length, 1);
@@ -16,10 +16,11 @@ test("the morphing letters have the logo's corners, one for one", () => {
   letters.o.forEach((p, i) => assert.equal(p.length, logo.frame[i].length));
 });
 
-test("the U and O keep their shapes: sharp arm tops, round base, a slot for the Screen", () => {
+test("the U and O keep their shapes: arm tops rounded like the Cs' ends, round base, a slot for the Screen", () => {
   const [u] = letters.u;
-  // arm tops (outer, inner, inner, outer) are square; the base is round
-  for (const i of [0, 1, 4, 5]) assert.equal(u[i][2], 0);
+  // arm tops (outer, inner, inner, outer) are rounded like the Cs' stroke ends; the base is rounder
+  for (const i of [0, 1, 4, 5]) assert.equal(u[i][2], 15);
+  assert.equal(letters.c1.match(/A15 15 /g)?.length, 4, "each C end has two radius-15 corners");
   for (const i of [6, 7]) assert.ok(u[i][2] > 20);
   // the U sits on the baseline at cap height, its counter open at the top
   assert.equal(Math.min(...u.map((c) => c[1])), -CAP);
