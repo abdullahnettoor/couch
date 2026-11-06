@@ -4,7 +4,6 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { CAP, LEFT, WIDTH, introHead, letters } from "./wordmark.ts";
 import { logo, mix, path, toEm, type Poly } from "./logo.ts";
-import * as korataki from "./korataki.ts";
 
 const xs = (polys: Poly[]) => polys.flat().map(([x]) => x);
 /** Every coordinate pair in an outline path. */
@@ -17,9 +16,9 @@ test("the morphing letters have the logo's corners, one for one", () => {
   letters.o.forEach((p, i) => assert.equal(p.length, logo.frame[i].length));
 });
 
-test("the U and O keep the font's shapes: sharp arm tops, round base, a slot for the Screen", () => {
+test("the U and O keep their shapes: sharp arm tops, round base, a slot for the Screen", () => {
   const [u] = letters.u;
-  // arm tops (outer, inner, inner, outer) are the font's square ends; the base is round
+  // arm tops (outer, inner, inner, outer) are square; the base is round
   for (const i of [0, 1, 4, 5]) assert.equal(u[i][2], 0);
   for (const i of [6, 7]) assert.ok(u[i][2] > 20);
   // the U sits on the baseline at cap height, its counter open at the top
@@ -61,9 +60,7 @@ test("a morph starts and ends on its shapes, and every frame is a closed path of
   }
 });
 
-test("the outlines are generated from Korataki, and no font file is in the repository", () => {
-  assert.equal(korataki.SOURCE.font, "Korataki ExtraBold");
-  assert.match(korataki.SOURCE.sha256, /^[0-9a-f]{64}$/);
+test("no font file other than the Geist web fonts is in the repository", () => {
   const files = execFileSync("git", ["ls-files"], { cwd: new URL("../..", import.meta.url), encoding: "utf8" }).split("\n");
   const fonts = files.filter((f) => /\.(ttf|otf|woff2?)$/i.test(f));
   assert.deepEqual(fonts.filter((f) => !/^src\/fonts\/Geist(Mono)?-Variable\.woff2$/.test(f)), [], "only the Geist web fonts are committed");

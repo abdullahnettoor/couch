@@ -1,12 +1,11 @@
 /**
- * The COUCH wordmark (ticket 142): Korataki ExtraBold's outlines (Typodermic), generated into ./korataki.ts by
- * scripts/korataki.mjs. C, C and H are the font's own outlines; U and O are the font's shapes traced as rounded
+ * The COUCH wordmark (ticket 142), from the letters in ./letters.ts. C, C and H are paths; U and O are rounded
  * polygons with the logo's corners (./logo.ts), so the U can widen into the sofa and the O settle as the Screen's
  * frame. Letters are in em units: cap height 100, baseline y = 0, the U centred on x = 0. No font ships.
  */
 
 import type { IntroMode } from "../config.ts";
-import { C1, C2, H, LEFT, O, U, WIDTH } from "./korataki.ts";
+import { C1, C2, H, LEFT, O, U, WIDTH } from "./letters.ts";
 import { MARK, logo, path, paths, type Poly } from "./logo.ts";
 
 export { LEFT, WIDTH };
