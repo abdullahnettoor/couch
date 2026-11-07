@@ -253,35 +253,50 @@ const hero = document.querySelector<HTMLElement>(".hero");
 const room = document.querySelector<HTMLElement>("[data-room]")?.parentElement;
 const stage = document.querySelector<HTMLElement>("[data-stage-scroll]");
 const stageGlow = stage?.querySelector<HTMLElement>(".stage-glow");
+// The TV's growth is a CSS view timeline (style.css, "first look"); where there is none, it is done here instead.
+const stageTv = CSS.supports?.("animation-timeline: view()") ? null : stage?.querySelector<HTMLElement>(".tv");
+const wideTv = matchMedia("(min-width: 1180px) and (min-height: 860px)");
 let scrollQueued = false;
 const scrollScene = () => {
   scrollQueued = false;
   if (reduced()) {
     for (const el of [room, stage]) if (el) el.style.transform = "";
     if (stageGlow) stageGlow.style.opacity = "";
+    if (stageTv) stageTv.style.scale = "";
     return;
   }
   const y = scrollY;
   // read before writing, so a scroll frame never forces a second layout
   const top = stage ? stage.parentElement!.getBoundingClientRect().top : 0;
+  const tvTop = stageTv ? top + stage!.offsetTop + stageTv.offsetTop : 0;
+  const tvH = stageTv?.offsetHeight ?? 0;
   if (y < innerHeight * 1.5 && room) room.style.transform = `translate3d(0, ${(y * 0.35).toFixed(1)}px, 0)`;
   if (stage && top < innerHeight * 1.2 && top > -innerHeight) {
     // 0 when the first look's top meets the bottom of the window, 1 when it reaches 35% from the top
     const p = Math.max(0, Math.min(1, (innerHeight - top) / (innerHeight * 0.65)));
     const e = 1 - Math.pow(1 - p, 3);
-    stage.style.transform = `rotateX(${((1 - e) * 14).toFixed(2)}deg) translate3d(0, ${((1 - e) * 36).toFixed(1)}px, 0) scale(${(0.94 + e * 0.06).toFixed(4)})`;
+    // the tilt and rise only: the TV's own growth (below, or the CSS view timeline) is its scale
+    stage.style.transform = `rotateX(${((1 - e) * 14).toFixed(2)}deg) translate3d(0, ${((1 - e) * 36).toFixed(1)}px, 0)`;
     if (stageGlow) stageGlow.style.opacity = (0.35 + e * 0.65).toFixed(3);
+  }
+  if (stageTv && tvTop < innerHeight * 1.2 && tvTop + tvH > -innerHeight) {
+    // the view timeline's cover 0% → 50%: from its top entering the window to its being centred
+    const g = Math.max(0, Math.min(1, (innerHeight - tvTop) / ((innerHeight + tvH) / 2)));
+    const to = wideTv.matches ? 1.06 : 1;
+    stageTv.style.scale = (0.86 + g * (to - 0.86)).toFixed(4);
   }
 };
 addEventListener("scroll", () => { if (!scrollQueued) { scrollQueued = true; requestAnimationFrame(scrollScene); } }, { passive: true });
 addEventListener("resize", scrollScene, { passive: true });
 scrollScene();
 
-// The Screen in the mark "plays" only while the hero is on screen and the tab is visible.
+// The Screen in the mark "plays" only while the hero is on screen and the tab is visible. Once the hero is gone,
+// the nav's pill deepens a little and its soft shade (there for the hero's light) goes.
+const navEl = document.querySelector<HTMLElement>(".nav");
 if (hero) {
   let heroVisible = true;
   const playState = () => hero.classList.toggle("paused", !heroVisible || document.hidden);
-  new IntersectionObserver((es) => { heroVisible = es.some((e) => e.isIntersecting); playState(); }).observe(hero);
+  new IntersectionObserver((es) => { heroVisible = es.some((e) => e.isIntersecting); playState(); navEl?.classList.toggle("deep", !heroVisible); }).observe(hero);
   document.addEventListener("visibilitychange", playState);
   if (!reduced()) hero.classList.add("playing");
 }

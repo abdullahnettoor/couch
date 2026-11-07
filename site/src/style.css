@@ -60,11 +60,20 @@ html { scrollbar-color: #3a3a3e var(--bg); }
 .progress { position: fixed; inset: 0 0 auto 0; height: 2px; z-index: 60; }
 .progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--amber-2), var(--amber-3)); transform: scaleX(0); transform-origin: left; }
 .nav { position: fixed; inset: 0 0 auto 0; z-index: 50; padding: 12px 0; }
+/* a soft shade behind the pill, so the hero's light fades into the bar instead of being cut by its lower edge */
+.nav::before { content: ""; position: absolute; inset: 0 0 -32px; z-index: -1; pointer-events: none; transition: opacity .7s var(--ease);
+  background: linear-gradient(180deg, rgba(6, 6, 8, .5), rgba(6, 6, 8, .26) 58%, rgba(6, 6, 8, 0)); }
+.nav.deep::before { opacity: 0; }
+/* the pill: dark enough that its links read over the hero's brightest light (WCAG AA), with a lighter top and
+   Couch's edge highlight so it stays glass, not a slab; a little darker still once the hero is gone */
 .nav-in {
   width: min(100% - 32px, 1100px); margin-inline: auto; display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 8px 10px 8px 16px; border-radius: 999px; background: rgba(14, 14, 16, 0.62);
-  backdrop-filter: blur(24px) saturate(1.6); -webkit-backdrop-filter: blur(24px) saturate(1.6); box-shadow: var(--edge), 0 12px 40px rgba(0,0,0,.35);
+  padding: 8px 10px 8px 16px; border-radius: 999px; background-color: rgba(12, 12, 14, .78);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, 0) 60%); transition: background-color .7s var(--ease);
+  -webkit-backdrop-filter: blur(32px) saturate(1.3); backdrop-filter: blur(32px) saturate(1.3);
+  box-shadow: var(--edge), inset 0 0 0 1px rgba(255, 255, 255, .05), 0 16px 40px -8px rgba(6, 6, 8, .75), 0 4px 14px rgba(6, 6, 8, .3);
 }
+.nav.deep .nav-in { background-color: rgba(12, 12, 14, .84); }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; padding: 6px 4px; border-radius: 8px; }
 .brand .wm { display: block; width: auto; height: 20px; }
 .nav nav { display: flex; gap: 2px; position: relative; }
@@ -79,7 +88,7 @@ html { scrollbar-color: #3a3a3e var(--bg); }
 .menu summary::after { display: none; }
 .menu summary:hover, .menu[open] summary { background: rgba(255,255,255,.08); color: #fff; }
 .menu .i { width: 22px; height: 22px; }
-.menu-list { position: absolute; right: 0; top: calc(100% + 14px); min-width: 220px; display: grid; padding: 8px; border-radius: 18px; background: rgba(20,20,22,.94); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); box-shadow: var(--edge), 0 24px 60px rgba(0,0,0,.55); border: 1px solid var(--line); }
+.menu-list { position: absolute; right: 0; top: calc(100% + 14px); min-width: 220px; display: grid; padding: 8px; border-radius: 18px; background: rgba(16,16,18,.94); -webkit-backdrop-filter: blur(32px) saturate(1.3); backdrop-filter: blur(32px) saturate(1.3); box-shadow: var(--edge), 0 24px 60px rgba(0,0,0,.55); border: 1px solid var(--line); }
 .menu-list a { text-decoration: none; padding: 12px 14px; border-radius: 12px; font-size: 16px; color: var(--t2); }
 .menu-list a:hover { background: rgba(255,255,255,.08); color: #fff; }
 .link-quiet { font-size: 14px; color: var(--t2); text-decoration: none; padding: 8px 12px; border-radius: 999px; }
@@ -149,12 +158,17 @@ p { text-wrap: pretty; }
 h1 { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 /* "Settle in." The nav's wordmark and the logo already say Couch; the headline only has to say how it feels.
    Its gradient is drawn on each phrase (stops in em, so every phrase gets the same light); after the intro the
-   phrases turn once (src/headline.ts), laid over the real text so the h1 never changes size. */
+   phrases loop (src/headline.ts), laid over the real text so the h1 never changes size. */
 .hero h1 { position: relative; font-size: clamp(60px, min(13vw, 14.5vh), 144px); line-height: .96; letter-spacing: -.04em; font-weight: 600; }
 .hero h1 > span { display: block; padding: 0 .04em .06em; color: transparent; -webkit-background-clip: text; background-clip: text;
   background-image: linear-gradient(180deg, #ffd9a6 0, #fff4e6 .347em, #fff .592em, #cfc9c3 1.02em); }
 .hero h1 > .h1-alt { position: absolute; left: 50%; top: 0; translate: -50% 0; width: max-content; padding-bottom: .2em; white-space: nowrap; opacity: 0; pointer-events: none; }
 .h1-alt::before { content: attr(data-text); }
+/* the loop's line (src/headline.ts): a short segment per phrase, centred in the gap under the h1. It takes no room
+   of its own (no height, and its negative margin gives back the column's gap), so it never moves the copy. */
+.h1-steps { align-self: stretch; height: 0; margin-top: -24px; display: flex; align-items: flex-start; justify-content: center; gap: 6px; pointer-events: none; }
+.h1-steps i { position: relative; top: var(--steps-y, 10px); width: 26px; height: 2px; border-radius: 2px; overflow: hidden; background: rgba(255, 255, 255, .14); }
+.h1-steps b { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--amber-3), var(--amber)); transform-origin: 0 50%; transform: scaleX(0); }
 /* fine film grain over the hero: a small tile of static noise, blended so it lives in the light and nearly vanishes in the blacks */
 .hero::after { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: .15; mix-blend-mode: overlay;
   background: url("./shots/grain.png") 0 0 / 64px 64px; }
@@ -212,7 +226,7 @@ html.intro .hero .room-glow, html.intro .hero.playing .room-glow { animation-del
 html.intro .hero.playing .lamp-film { animation-delay: 3.8s; }
 /* the copy may arrive over the morph's last 0.6s, so the page is readable as the logo completes */
 html.intro:not(.intro-logo) .hero-copy > :not(.mark) { animation: intro-copy .9s var(--ease) calc(2.6s + var(--d, 0s)) backwards; }
-html.intro .hero-copy > h1 { --d: .02s; } html.intro .hero-copy > .lead { --d: .12s; } html.intro .hero-copy > .cta { --d: .2s; }
+html.intro .hero-copy > h1, html.intro .hero-copy > .h1-steps { --d: .02s; } html.intro .hero-copy > .lead { --d: .12s; } html.intro .hero-copy > .cta { --d: .2s; }
 html.intro .hero-copy > .meta { --d: .26s; } html.intro .hero-copy > .win-chip { --d: .3s; }
 /* skipped (any scroll, click, tap, key, focus or resize): everything arrives at once. In the logo-only mode
    (html.intro-logo, src/config.ts) the copy is there from the first paint and only the logo area plays. */
@@ -229,6 +243,17 @@ html.intro.intro-now .lamp, html.intro.intro-now .hero-copy > :not(.mark) { anim
 
 /* first look: Couch's real Home, settling into place as it scrolls in (the Remote has its own section) */
 .first-look { position: relative; padding: 8px 0 clamp(40px, 6vw, 80px); perspective: 1600px; }
+/* The TV (the whole device) grows as it comes in: .86 as its top enters the window, full size once it is centred,
+   which is about when the launch sequence starts (60% in view); 1.06 on windows wide and tall enough to hold it.
+   Scroll-driven (a view timeline), transform only; main.ts does the same where view timelines are missing. */
+.first-look .tv { --tv-to: 1; }
+@media (min-width: 1180px) and (min-height: 860px) { .first-look .tv { --tv-to: 1.06; } }
+@keyframes tv-grow { from { scale: .86; } to { scale: var(--tv-to); } }
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .first-look .tv { animation: tv-grow linear both; animation-timeline: view(); animation-range: cover 0% cover 50%; }
+  }
+}
 .stage-glow { position: absolute; left: 6%; right: 6%; top: 18%; bottom: 0; z-index: -1; pointer-events: none; opacity: .35;
   background: radial-gradient(50% 50% at 50% 50%, rgba(255, 150, 60, .22), transparent 70%); filter: blur(10px); }
 
@@ -597,7 +622,8 @@ summary { transition: color .2s; } summary:active { transform: scale(.99); }
   *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; transition-delay: 0s !important; }
   .reveal-ready .reveal.pre, .reveal-ready .shelf.pre { transform: none; }
   .stage, .room, .room-cursor { transform: none !important; }
-  .room-cursor, .lamp-film, .spot::before, .btn-primary::after, html.intro .wm-intro, .wm-dust { display: none; }
+  .first-look .tv { scale: none !important; }
+  .room-cursor, .lamp-film, .spot::before, .btn-primary::after, html.intro .wm-intro, .wm-dust, .h1-steps { display: none; }
   /* no decorative movement on hover or press: buttons, links, cards, step numbers and their icons stay where they are */
   .btn:hover, .btn:active, .btn.is-pressed, .pill:active, .pill:hover .i, .win-chip:hover .i,
   .nav nav a:active, .link-quiet:active, .seq-steps button:active, summary:active,

@@ -1,20 +1,24 @@
 /*
- * The hero headline's one turn (ticket 143): after the intro, "Settle in." gives way to the phrases in the h1's
- * data-rotate ("Sit back." → "Press play." → "Lights down."), about 2.6s each, then comes back and stays.
- * One cycle, never a loop. The h1's real text is always "Settle in." (its first span: LCP, screen readers, no
- * script, reduced motion); the other phrases are drawn by aria-hidden spans laid over it (absolutely placed,
- * so nothing moves) whose words come from CSS (content: attr(data-text)), so they are not in the page's text.
- * A soft blur and fade in the headline's own gradient. It waits while the pointer is on the headline, while
- * something in the hero has focus, while the headline is off screen and while the tab is hidden; a switch to
- * reduced motion puts "Settle in." back at once.
+ * The hero headline's loop: after the intro, "Settle in." gives way to the phrases in the h1's data-rotate
+ * ("Sit back." → "Press play." → "Lights down."), about 3s each, then "Settle in." again, and round it goes.
+ * A thin line of four segments under the h1 (.h1-steps, one per phrase, like story bars) says that it turns and
+ * when: the current segment fills over its phrase's time, the ones before it stay filled until the loop restarts.
+ * The fill is the clock: when a segment is full, the next phrase comes in, so pausing the fill pauses everything
+ * with no jump. The h1's real text is always "Settle in." (its first span: LCP, screen readers, no script, reduced
+ * motion); the other phrases are drawn by aria-hidden spans laid over it (absolutely placed, so nothing moves) whose
+ * words come from CSS (content: attr(data-text)), so they are not in the page's text. A soft blur and fade in the
+ * headline's own gradient. It waits while the pointer is on the headline, while something in the hero has focus
+ * (so keyboard users pause it by tabbing into the hero), while the headline is off screen and while the tab is
+ * hidden; a switch to reduced motion puts "Settle in." back at once and hides the line, for good.
  */
-const HOLD = 2600; // each phrase, "Settle in." included, is on screen about this long
+const HOLD = 3000; // each phrase, "Settle in." included, is on screen about this long
 const EASE = "cubic-bezier(0.16, 1, 0.3, 1)"; // Couch's ease
 
 export function headline(reduced: () => boolean, onChange: (fn: () => void) => () => void) {
   const h1 = document.querySelector<HTMLElement>(".hero h1[data-rotate]");
   const real = h1?.firstElementChild as HTMLElement | null;
   const hero = h1?.closest<HTMLElement>(".hero");
+  const bar = hero?.querySelector<HTMLElement>(".h1-steps");
   if (!h1 || !real || !hero || reduced() || !h1.animate) return;
   const words = (h1.dataset.rotate ?? "").split("|").map((w) => w.trim()).filter(Boolean);
   if (!words.length) return;
@@ -28,6 +32,14 @@ export function headline(reduced: () => boolean, onChange: (fn: () => void) => (
     return s;
   });
   const items = [real, ...alts];
+  // one segment per phrase; the markup has the line's place, the segments are made to match the phrases
+  const fills = items.map(() => {
+    const seg = document.createElement("i");
+    const fill = document.createElement("b");
+    seg.append(fill);
+    bar?.append(seg);
+    return fill;
+  });
   // a phrase wider than the column (only on the narrowest phones) is scaled to fit, not wrapped. The fit is the
   // span's own `scale`, apart from the animated transform, so a resize applies at once to whatever is showing;
   // measured again once the web font is in (it changes the phrases' widths).
@@ -64,36 +76,54 @@ export function headline(reduced: () => boolean, onChange: (fn: () => void) => (
     ], 1040, EASE);
   };
 
-  // the turn: hold "Settle in.", then each phrase, then back to "Settle in." for good. It is over only once
-  // "Settle in." has fully come back; until then a switch to reduced motion still stops it at once.
-  const order = [...alts.map((_, k) => k + 1), 0];
-  let step = 0, timer = 0, due = 0, left = HOLD, started = false, done = false;
-  const blockers = new Set<string>();
-  const tick = () => {
-    timer = 0;
-    show(order[step]!);
-    step++;
-    if (step >= order.length) {
-      h1.dataset.rotation = "returning";
-      anims.get(real)!.finished.then(() => { if (!done) finish(); }, () => {});
-      return;
+  // the segments: the current one fills over HOLD (linear, it is a clock), and its end brings the next phrase
+  const segs = new Map<HTMLElement, Animation>();
+  let clock: Animation | undefined;
+  const fillSeg = (k: number) => {
+    const el = fills[k]!;
+    segs.get(el)?.cancel();
+    const a = el.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: HOLD, easing: "linear", fill: "forwards" });
+    segs.set(el, a);
+    return a;
+  };
+  /** Back to an empty line as the loop restarts: the full segments fade out together, then empty (the first one
+   *  starts filling again at once). */
+  const emptySegs = () => {
+    for (const el of fills.slice(1)) {
+      const a = el.animate([{ transform: "scaleX(1)", opacity: 1 }, { transform: "scaleX(1)", opacity: 0, offset: 0.99 }, { transform: "scaleX(0)", opacity: 1 }], { duration: 440, easing: "ease-out", fill: "forwards" });
+      segs.get(el)?.cancel();
+      segs.set(el, a);
     }
-    left = HOLD;
-    run();
+  };
+
+  let started = false, stopped = false;
+  const blockers = new Set<string>();
+  const state = () => {
+    if (stopped) return;
+    h1.dataset.rotation = !started ? "waiting" : blockers.size ? "paused" : "running";
+  };
+  /** The phrase k holds: its segment fills, and when it is full the next phrase comes in. */
+  const hold = (k: number) => {
+    clock = fillSeg(k);
+    clock.onfinish = () => {
+      if (stopped) return;
+      const next = (k + 1) % items.length;
+      show(next);
+      if (next === 0) emptySegs();
+      hold(next);
+    };
+    if (blockers.size) clock.pause();
   };
   const run = () => {
-    if (!started || done || timer || blockers.size || step >= order.length) return;
-    h1.dataset.rotation = "running";
-    due = performance.now() + left;
-    timer = window.setTimeout(tick, left);
+    if (!started || stopped) return;
+    if (!clock) hold(0);
+    else if (!blockers.size && clock.playState === "paused") clock.play();
+    state();
   };
   const pause = (why: string) => {
     blockers.add(why);
-    if (!timer) return;
-    clearTimeout(timer);
-    timer = 0;
-    left = Math.max(400, due - performance.now());
-    h1.dataset.rotation = "paused";
+    if (clock?.playState === "running") clock.pause();
+    state();
   };
   const resume = (why: string) => { blockers.delete(why); run(); };
   const offs: Array<() => void> = [];
@@ -101,21 +131,21 @@ export function headline(reduced: () => boolean, onChange: (fn: () => void) => (
     el.addEventListener(type, fn, { passive: true });
     offs.push(() => el.removeEventListener(type, fn));
   };
-  function finish(how: "rested" | "stopped" = "rested") {
-    done = true;
-    clearTimeout(timer);
-    timer = 0;
+  /** Reduced motion, now: straight back to the real text, no fade, no line, and it does not start again. */
+  function stop() {
+    stopped = true;
     offs.forEach((f) => f());
     io.disconnect();
     offMotion();
-    h1!.dataset.rotation = how;
-    if (how === "stopped") {
-      // straight back to the real text, no fade
-      anims.forEach((a) => a.cancel());
-      anims.clear();
-      showing = 0;
-      h1!.dataset.showing = "0";
-    }
+    if (clock) clock.onfinish = null;
+    anims.forEach((a) => a.cancel());
+    anims.clear();
+    segs.forEach((a) => a.cancel());
+    segs.clear();
+    showing = 0;
+    h1!.dataset.showing = "0";
+    h1!.dataset.rotation = "stopped";
+    if (bar) bar.hidden = true;
   }
 
   on(h1, "pointerenter", () => pause("hover"));
@@ -126,9 +156,9 @@ export function headline(reduced: () => boolean, onChange: (fn: () => void) => (
   on(window, "resize", measure);
   const io = new IntersectionObserver((es) => (es.some((e) => e.isIntersecting) ? resume("away") : pause("away")));
   io.observe(h1);
-  const offMotion = onChange(() => { if (reduced()) finish("stopped"); });
+  const offMotion = onChange(() => { if (reduced()) stop(); });
   h1.dataset.showing = "0";
-  h1.dataset.rotation = "waiting";
+  state();
 
   // after the intro (or at once when there is none): the hero is whole before anything turns
   const root = document.documentElement;
