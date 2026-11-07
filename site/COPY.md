@@ -39,7 +39,7 @@ Ticket 137 was a copy pass, not a redesign; ticket 138 redesigned the page aroun
 
 - Badge: **Early release · Free and open source**
 - Headline: **Settle in.** (ticket 142; one `h1`, set large in the warm white gradient. Until ticket 142 it was "Settle in with" above a large "Couch.")
-- Headline turn (ticket 143, the user's pick): after the intro it shows, once, **Sit back.** → **Press play.** → **Lights down.** → back to **Settle in.**, about 2.6s each. Short phrases only, so the box never changes. The h1's text and accessible name stay "Settle in."; reduced motion and no script show only "Settle in.".
+- Headline loop (ticket 143, the user's pick; a loop since the hero tweaks): after the intro it turns, round and round, **Settle in.** → **Sit back.** → **Press play.** → **Lights down.** → **Settle in.** → …, about 3s each, with a thin four-segment line under it that fills with each phrase, so visitors can see it is meant to change. It holds while the pointer is on it or anything in the hero has focus. Short phrases only, so the box never changes. The h1's text and accessible name stay "Settle in."; reduced motion and no script show only "Settle in.", with no line.
 - Body: A calm home screen for your TV, with YouTube, Netflix and your own videos. Your phone is the Remote.
 - Primary button: **Get Couch, pay what you want**
 - Secondary link: **or download free from GitHub** (`DOWNLOAD_URL`: the latest release's `Couch-arm64.dmg`, a direct download)

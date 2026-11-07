@@ -76,8 +76,10 @@
           </div>
           {{intro:svg}}
         </div>
-        <!-- The headline turns once after the intro (src/headline.ts): data-rotate's phrases, then back to "Settle in.", the h1's only text. -->
+        <!-- The headline loops after the intro (src/headline.ts): "Settle in.", the h1's only text, then data-rotate's phrases,
+             round and round, about 3s each. .h1-steps is the thin line under it (a segment per phrase, filled by the script). -->
         <h1 data-rotate="Sit back.|Press play.|Lights down."><span>Settle in.</span></h1>
+        <div class="h1-steps" aria-hidden="true"></div>
         <p class="lead">A calm home screen for your TV, with YouTube, Netflix and your own videos. Your phone is the Remote.</p>
         <div class="cta">
           <a class="btn btn-primary btn-lg" href="{{GUMROAD_URL}}" rel="noopener">Get Couch, pay what you want</a>

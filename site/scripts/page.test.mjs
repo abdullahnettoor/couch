@@ -1,5 +1,5 @@
-// Behavioural tests of ticket 143's second part in headless Chrome, on one build: the hero headline's one turn
-// (the sequence, the rest on "Settle in.", the pauses, reduced motion, no layout shift) and the Remote stage
+// Behavioural tests of ticket 143's second part in headless Chrome, on one build: the hero headline's loop and its
+// line (the order, round again, the segments, the pauses, reduced motion, no layout shift) and the Remote stage
 // (#how): pinned and driven by the scroll from 900 px, forward and back; a step's button scrolls to its step;
 // unpinned with Replay on phones and under reduced motion; the TV and phone proportions.
 // Needs Google Chrome (CHROME overrides the path); skipped without it.
@@ -63,95 +63,153 @@ async function open({ width = 1280, height = 860, reduce = false } = {}) {
   return page;
 }
 
-/** The headline now: which phrases show (opacity > .5), the rotation state, its text and its box. */
+/** The headline now: which phrases show (opacity > .5), the rotation state, its text and its box, and the line under
+ *  it: each segment's fill (0–1), whether it shows, and where it sits. */
 const head = (page) => page.evaluate(() => {
   const h1 = document.querySelector(".hero h1");
   const shown = [...h1.children].filter((e) => Number(getComputedStyle(e).opacity) > 0.5).map((e) => e.dataset.text ?? e.textContent);
+  const bar = document.querySelector(".h1-steps");
+  const fills = [...bar.querySelectorAll("i > b")].map((b) => {
+    const m = getComputedStyle(b).transform.match(/^matrix\(([^,]+)/);
+    return m ? Number(m[1]) : 1;
+  });
+  const segs = [...bar.querySelectorAll("i")].map((i) => i.getBoundingClientRect());
+  const hr = h1.getBoundingClientRect(), lead = document.querySelector(".hero .lead").getBoundingClientRect();
   // the layout box (offsets), not the painted one: the intro moves the copy with a transform
-  return { shown: shown.join("+"), state: h1.dataset.rotation, text: h1.textContent, box: [h1.offsetLeft, h1.offsetTop, h1.offsetWidth, h1.offsetHeight], cls: window.__cls, clsAll: window.__clsAll };
+  return { shown: shown.join("+"), state: h1.dataset.rotation, showing: h1.dataset.showing, text: h1.textContent,
+    box: [h1.offsetLeft, h1.offsetTop, h1.offsetWidth, h1.offsetHeight], lead: document.querySelector(".hero .lead").offsetTop, fills,
+    bar: { display: getComputedStyle(bar).display, op: Number(getComputedStyle(bar).opacity), h1Op: Number(getComputedStyle(h1).opacity),
+      mid: segs.length ? (segs[0].left + segs.at(-1).right) / 2 - (hr.left + hr.right) / 2 : null,
+      top: segs.length ? segs[0].top - hr.bottom : null, room: lead.top - hr.bottom, h: segs[0]?.height ?? 0 },
+    cls: window.__cls, clsAll: window.__clsAll };
 });
 /** Turns reduced motion on (or off) while the page runs; matchMedia's change event follows. */
 const setReduce = (page, on) => page.emulateMediaFeatures([{ name: "prefers-reduced-motion", value: on ? "reduce" : "no-preference" }]);
+const near = (a, b, d = 0.02) => Math.abs(a - b) <= d;
 
-describe("the hero headline turns once", { skip }, () => {
-  test("after the intro: Settle in. → Sit back. → Press play. → Lights down. → rests on Settle in., with no layout shift", async () => {
+describe("the hero headline loops, with its line", { skip }, () => {
+  test("after the intro: Settle in. → Sit back. → Press play. → Lights down. → Settle in. → Sit back. …, the line filling with it, with no layout shift", async () => {
     const page = await open();
     const first = await head(page);
     assert.equal(first.state, "waiting", "nothing turns while the intro plays");
     assert.equal(first.shown, "Settle in.");
-    // a key skips the intro; the turn starts once it is done
+    assert.equal(first.fills.length, 4, "a segment per phrase");
+    assert.ok(near(first.bar.op, first.bar.h1Op, 0.05), `the line arrives with the headline (${first.bar.op} / ${first.bar.h1Op})`);
+    // a key skips the intro; the loop starts once it is done
     await page.keyboard.press("Shift");
     await page.waitForFunction(() => document.documentElement.classList.contains("intro-done"));
-    const seen = [];
+    const polls = [];
     const t0 = Date.now();
-    while (Date.now() - t0 < 14500) {
-      const s = await head(page);
-      if (s.shown && s.shown !== seen.at(-1)?.shown) seen.push({ ...s, t: Date.now() - t0 });
+    while (Date.now() - t0 < 16500) {
+      polls.push({ ...(await head(page)), t: Date.now() - t0 });
       await wait(80);
     }
+    const seen = polls.filter((s, i) => s.shown && s.shown !== polls.slice(0, i).findLast((p) => p.shown)?.shown);
     const phrases = seen.map((s) => s.shown).filter((v) => !v.includes("+"));
-    assert.deepEqual(phrases, ["Settle in.", "Sit back.", "Press play.", "Lights down.", "Settle in."], JSON.stringify(seen));
+    assert.deepEqual(phrases, ["Settle in.", "Sit back.", "Press play.", "Lights down.", "Settle in.", "Sit back."], JSON.stringify(seen.map((s) => [s.shown, s.t])));
     const at = (p, k = 0) => seen.filter((s) => s.shown === p)[k].t;
-    for (const [a, b] of [["Sit back.", "Press play."], ["Press play.", "Lights down."]]) {
-      const held = at(b) - at(a);
-      assert.ok(held > 2200 && held < 3000, `${a} shows about 2.6s (${held} ms)`);
+    for (const [a, b] of [["Sit back.", "Press play."], ["Press play.", "Lights down."], ["Lights down.", "Settle in."]]) {
+      const held = at(b, a === "Lights down." ? 1 : 0) - at(a);
+      assert.ok(held > 2600 && held < 3400, `${a} shows about 3s (${held} ms)`);
     }
-    const end = await head(page);
-    assert.equal(end.state, "rested");
-    assert.equal(end.shown, "Settle in.");
-    assert.ok(Date.now() - t0 - at("Settle in.", 1) > 1500, "it stays on Settle in.");
+    // mid "Press play.": the two before it full, its own filling, the last empty
+    const mid = polls.find((s) => s.shown === "Press play." && s.t > at("Press play.") + 1000);
+    assert.ok(near(mid.fills[0], 1) && near(mid.fills[1], 1), `done segments stay full: ${mid.fills}`);
+    assert.ok(mid.fills[2] > 0.2 && mid.fills[2] < 0.95, `the current one is filling: ${mid.fills}`);
+    assert.equal(mid.fills[3], 0, "the next is empty");
+    // back on "Settle in.": the line starts again
+    const again = polls.find((s) => s.shown === "Settle in." && s.t > at("Settle in.", 1) + 700);
+    assert.deepEqual(again.fills.slice(1), [0, 0, 0], `the loop restarts the line: ${again.fills}`);
+    assert.ok(again.fills[0] > 0 && again.fills[0] < 0.6, `and fills the first again: ${again.fills}`);
+    const end = polls.at(-1);
+    assert.equal(end.state, "running", "it keeps going");
     assert.equal(end.text, "Settle in.", "the h1's text is only Settle in.");
     const ax = await page.accessibility.snapshot({ root: await page.$(".hero h1") });
     assert.equal(ax.name, "Settle in.", "screen readers hear Settle in.");
-    assert.deepEqual(seen.map((s) => s.box.join()).filter((v, i, a) => a.indexOf(v) === i), [first.box.join()], "the h1's box never changes");
+    assert.deepEqual(polls.map((s) => s.box.join()).filter((v, i, a) => a.indexOf(v) === i), [first.box.join()], "the h1's box never changes");
+    // the line: small, centred under the h1, in the gap above the lead
+    assert.ok(Math.abs(end.bar.mid) < 1, `centred (${end.bar.mid})`);
+    assert.ok(end.bar.top > 0 && end.bar.top + end.bar.h < end.bar.room, `in the gap under the h1 (${end.bar.top} of ${end.bar.room})`);
     assert.equal(end.cls, 0, "no layout shift");
     await page.close();
   });
 
-  test("it waits while the pointer is on the headline", async () => {
+  test("it waits while the pointer is on the headline, and the line waits with it", async () => {
     const page = await open();
     await page.keyboard.press("Shift");
-    await page.waitForFunction(() => document.querySelector(".hero h1").dataset.rotation === "running");
+    await page.waitForFunction(() => document.querySelector(".hero h1").dataset.showing === "1", { timeout: 6000 });
+    await wait(1000);
     await page.hover(".hero h1");
-    assert.equal((await head(page)).state, "paused");
+    const paused = await head(page);
+    assert.equal(paused.state, "paused");
     await wait(3400);
-    assert.equal((await head(page)).shown, "Settle in.", "nothing turned while paused");
+    const still = await head(page);
+    assert.equal(still.shown, "Sit back.", "nothing turned while paused");
+    assert.ok(near(still.fills[1], paused.fills[1], 0.01), `the segment held still (${paused.fills[1]} → ${still.fills[1]})`);
     await page.mouse.move(5, 5);
-    await page.waitForFunction(() => document.querySelector(".hero h1").dataset.showing === "1", { timeout: 4000 });
+    await wait(250);
+    const after = await head(page);
+    assert.equal(after.state, "running");
+    assert.ok(after.fills[1] > still.fills[1] && after.fills[1] < still.fills[1] + 0.2, `it goes on from where it was, no jump (${still.fills[1]} → ${after.fills[1]})`);
+    await page.waitForFunction(() => document.querySelector(".hero h1").dataset.showing === "2", { timeout: 3000 });
     await page.close();
   });
 
-  test("with reduced motion it is Settle in., still", async () => {
+  test("it waits while something in the hero has focus (the keyboard's pause)", async () => {
+    const page = await open();
+    await page.keyboard.press("Shift");
+    await page.waitForFunction(() => document.querySelector(".hero h1").dataset.rotation === "running");
+    await page.focus(".hero .cta .btn");
+    const paused = await head(page);
+    assert.equal(paused.state, "paused");
+    await wait(3400);
+    const still = await head(page);
+    assert.equal(still.shown, paused.shown, "nothing turned while focused");
+    assert.deepEqual(still.fills, paused.fills, "the line held still");
+    await page.evaluate(() => document.activeElement.blur());
+    await page.waitForFunction(() => document.querySelector(".hero h1").dataset.rotation === "running", { timeout: 1000 });
+    await page.close();
+  });
+
+  test("with reduced motion it is Settle in., still, and there is no line", async () => {
     const page = await open({ reduce: true });
     await wait(3000);
     const s = await head(page);
     assert.equal(s.shown, "Settle in.");
-    assert.equal(s.state, undefined, "the turn never starts");
+    assert.equal(s.state, undefined, "the loop never starts");
     assert.equal(await page.evaluate(() => document.querySelectorAll(".hero h1 > *").length), 1);
+    assert.equal(s.bar.display, "none", "no line");
+    assert.equal(s.fills.length, 0);
     assert.equal(s.cls, 0, "no shift once the font is in");
     assert.equal(s.clsAll, 0, "and none over the whole navigation, the font's swap included");
     await page.close();
   });
 
   for (const [when, ready] of [
-    ["while a phrase shows", (s) => s.shown === "Press play."],
-    ["during the last return to Settle in.", (s) => s.state === "returning"],
+    ["while a phrase shows", async (page) => page.waitForFunction(() => document.querySelector('.hero h1 [data-text="Press play."]') && getComputedStyle(document.querySelector('.hero h1 [data-text="Press play."]')).opacity > 0.5, { timeout: 15000 })],
+    ["as the loop comes back to Settle in.", async (page) => {
+      await page.waitForFunction(() => document.querySelector(".hero h1").dataset.showing === "3", { timeout: 15000 });
+      await page.waitForFunction(() => document.querySelector(".hero h1").dataset.showing === "0", { timeout: 5000 });
+    }],
   ]) {
-    test(`a switch to reduced motion ${when} puts Settle in. back at once, for good`, async () => {
+    test(`a switch to reduced motion ${when} puts Settle in. back at once and hides the line, for good`, async () => {
       const page = await open();
       await page.keyboard.press("Shift");
-      const t0 = Date.now();
-      while (!ready(await head(page))) { assert.ok(Date.now() - t0 < 15000, "the moment never came"); await wait(30); }
+      await ready(page);
+      const before = await head(page);
       await setReduce(page, true);
-      await wait(60);
+      await page.waitForFunction(() => document.querySelector(".hero h1").dataset.rotation === "stopped", { timeout: 1000 });
       let s = await head(page);
+      assert.equal(s.lead, before.lead, "the copy under the h1 stays put as the line goes");
       assert.equal(s.shown, "Settle in.", "back at once");
       assert.equal(s.state, "stopped");
+      assert.equal(s.bar.display, "none", "no line");
       await setReduce(page, false);
-      await wait(3200);
+      await wait(3400);
       s = await head(page);
       assert.equal(s.shown, "Settle in.", "and it does not start again");
       assert.equal(s.state, "stopped");
+      assert.equal(s.bar.display, "none", "and the line stays gone");
       await page.close();
     });
   }
@@ -233,6 +291,47 @@ async function scrollTrack(page, p) {
   await wait(250);
   return stage(page);
 }
+
+/** The first-look TV's scale after scrolling to `g` of its growth (0: its top at the window's bottom, 1: centred). */
+async function tvAt(page, g) {
+  await page.evaluate((g) => {
+    const tv = document.querySelector(".first-look .tv"), stage = tv.parentElement, sec = stage.parentElement;
+    const top = sec.offsetTop + stage.offsetTop + tv.offsetTop;
+    document.documentElement.style.scrollBehavior = "auto";
+    scrollTo(0, top - innerHeight + g * (innerHeight + tv.offsetHeight) / 2);
+  }, g);
+  await wait(200);
+  return page.evaluate(() => {
+    const s = getComputedStyle(document.querySelector(".first-look .tv")).scale;
+    return s === "none" ? 1 : Number(s.split(" ")[0]);
+  });
+}
+
+describe("the first-look TV grows as it comes in", { skip }, () => {
+  for (const [w, h, full] of [[1440, 900, 1.06], [1024, 768, 1], [390, 844, 1]]) {
+    test(`at ${w} × ${h}: .86 as it enters, ${full} when centred, scale only`, async () => {
+      const page = await open({ width: w, height: h });
+      const box = () => page.evaluate(() => { const tv = document.querySelector(".first-look .tv"); return [tv.offsetLeft, tv.offsetTop, tv.offsetWidth, tv.offsetHeight].join(); });
+      const before = await box();
+      const enter = await tvAt(page, 0), half = await tvAt(page, 0.5), mid = await tvAt(page, 1);
+      const r = await page.evaluate(() => document.querySelector(".first-look .tv").getBoundingClientRect().toJSON());
+      const past = await tvAt(page, 1.4);
+      assert.ok(near(enter, 0.86, 0.005), `entering ${enter}`);
+      assert.ok(near(half, (0.86 + full) / 2, 0.01), `half way ${half}`);
+      assert.ok(near(mid, full, 0.002), `centred ${mid}`);
+      assert.ok(near(past, full, 0.002), `and it stays ${past}`);
+      assert.ok(r.left >= 0 && r.right <= w && r.top >= 0 && r.bottom <= h, `it fits the window when centred: ${JSON.stringify(r)}`);
+      assert.equal(await box(), before, "the layout box never changes");
+      await page.close();
+    });
+  }
+
+  test("with reduced motion it is full size wherever it is", async () => {
+    const page = await open({ width: 1440, height: 900, reduce: true });
+    for (const g of [0, 0.5, 1]) assert.equal(await tvAt(page, g), 1);
+    await page.close();
+  });
+});
 
 describe("the Remote stage", { skip }, () => {
   test("from 900 px it pins and the scroll moves the steps forward and back", async () => {
