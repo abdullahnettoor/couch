@@ -224,8 +224,8 @@ describe("with a video (a fake id, a local thumbnail and a local teaser)", { ski
   const waitTeaser = (page, t, timeout = 8000) => page.waitForFunction((t) => document.querySelector("[data-launch]").dataset.teaser === t, { timeout }, t);
   const links = (page) => page.$$eval(".lv-under a", (as) => as.map((a) => ({ text: a.textContent.trim(), href: a.href, rel: a.rel })));
   const LINKS = [
-    { text: "Subscribe on YouTube", href: CHANNEL, rel: "noopener" },
     { text: "Watch on YouTube", href: `https://www.youtube.com/watch?v=${FAKE_ID}`, rel: "noopener" },
+    { text: "Subscribe on YouTube", href: CHANNEL, rel: "noopener" },
   ];
 
   test("the teaser: not requested at load, then muted, looping and inline at the end; Subscribe and Watch; the privacy lines; nothing from YouTube until Watch with sound", async () => {
@@ -252,6 +252,8 @@ describe("with a video (a fake id, a local thumbnail and a local teaser)", { ski
     assert.equal(sound.label, `Watch with sound: ${sound.title}`);
     assert.equal(sound.vis, "visible");
     assert.deepEqual(await links(page), LINKS);
+    const pills = await page.$$eval(".lv-under a", (as) => as.map((a) => { const c = getComputedStyle(a); return [c.borderTopColor, c.color, c.minHeight, !!a.querySelector("svg")].join(); }));
+    assert.equal(pills[0], pills[1], "Watch and Subscribe look the same, each with its icon");
     assert.equal(await page.$eval(".lv-note", (e) => e.textContent), "The preview on the Screen comes from this site. YouTube loads only when you press Watch with sound or play.");
     assert.equal(await page.$eval("#privacy .facts li:nth-child(3) span", (e) => e.textContent),
       "Couch adds no analytics or cookies. The launch video's preview comes from this site; YouTube loads only when you press Watch with sound or play, and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies.");
@@ -264,7 +266,8 @@ describe("with a video (a fake id, a local thumbnail and a local teaser)", { ski
     await page.click(".lv-sound");
     await page.waitForSelector("[data-launch] iframe");
     const fr = await page.$eval("[data-launch] iframe", (e) => ({ src: e.src, title: e.title, allow: e.allow, fs: e.allowFullscreen, referrer: e.referrerPolicy, referrerAttr: e.getAttribute("referrerpolicy"), focused: document.activeElement === e, w: e.offsetWidth, sw: e.parentElement.offsetWidth }));
-    assert.equal(fr.src, `https://www.youtube-nocookie.com/embed/${FAKE_ID}?autoplay=1&rel=0&playsinline=1`);
+    assert.equal(fr.src, `https://www.youtube-nocookie.com/embed/${FAKE_ID}?rel=0&playsinline=1`, "cued, not autoplaying: the visitor's press on YouTube's play counts as a view");
+    assert.ok(!/autoplay|enablejsapi/.test(new URL(fr.src).search));
     assert.equal(fr.title, `${sound.title} (YouTube video)`);
     for (const a of ["autoplay", "encrypted-media", "picture-in-picture"]) assert.ok(fr.allow.includes(a), `allow ${a}`);
     assert.ok(fr.fs, "fullscreen allowed");
@@ -343,6 +346,7 @@ describe("with a video (a fake id, a local thumbnail and a local teaser)", { ski
       assert.deepEqual(page.away, []);
       await page.keyboard.press(key);
       await page.waitForSelector("[data-launch] iframe", { timeout: 2000 });
+      assert.ok(!(await page.$eval("[data-launch] iframe", (e) => e.src)).includes("autoplay"), "no autoplay");
       await page.close();
     });
   }
@@ -366,6 +370,7 @@ describe("with a video (a fake id, a local thumbnail and a local teaser)", { ski
     assert.equal(await page.evaluate(() => document.activeElement?.className), "lv-play", "the play button is the first thing in the TV");
     await page.keyboard.press("Enter");
     await page.waitForSelector("[data-launch] iframe", { timeout: 2000 });
+    assert.equal(await page.$eval("[data-launch] iframe", (e) => e.src), `https://www.youtube-nocookie.com/embed/${FAKE_ID}?rel=0&playsinline=1`, "the play button opens the player cued, without autoplay");
   };
 
   test("reduced motion: the thumbnail and the play button at once, and the teaser never loads", async () => {

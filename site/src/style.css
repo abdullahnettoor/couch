@@ -589,8 +589,6 @@ details p a { color: var(--amber-3); }
 .lv-links a { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding: 0 18px 0 15px; border-radius: 999px; font-size: 15px; font-weight: 500; color: var(--t2); text-decoration: none; border: 1px solid var(--line); transition: color .2s, background .2s, border-color .2s; }
 .lv-links a:hover { color: #fff; background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .18); }
 .lv-links .i { width: 18px; height: 18px; flex: none; }
-/* Watch on YouTube, next to Subscribe: the quieter of the two */
-.lv-links .lv-quiet { border-color: transparent; color: var(--t3); }
 .lv-note { margin: 0; max-width: 36em; font-size: 13.5px; color: var(--t3); }
 
 /* micro: cursor spotlight on cards (a transformed light, nothing repaints), lift on hover like a focused tile (0.38s); the shadow stays put */

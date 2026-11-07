@@ -6,7 +6,7 @@
  *  - video (an id): the TV ends on a muted, looping teaser of the video (the site's own file, public/launch/<id>.mp4,
  *    made by scripts/launch-teaser.mjs) with "Watch with sound" and a pause button; without the teaser (reduced
  *    motion, Save-Data, or it fails) on the video's thumbnail (a local file, saved by scripts/launch-thumb.mjs), its
- *    title and a play button. Under the TV "Subscribe on YouTube", "Watch on YouTube" and the privacy line. The
+ *    title and a play button. Under the TV "Watch on YouTube", "Subscribe on YouTube" and the privacy line. The
  *    player's URL is only in a data attribute until the visitor presses "Watch with sound" or play.
  * Read by vite.config.ts at build time (node), never shipped as script.
  */
@@ -33,8 +33,12 @@ const soundPath = `<path d="M160,32.25V223.69a8.29,8.29,0,0,1-3.91,7.18,8,8,0,0,
 const pausePath = `<path d="M216,48V208a16,16,0,0,1-16,16H160a16,16,0,0,1-16-16V48a16,16,0,0,1,16-16h40A16,16,0,0,1,216,48ZM96,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V48A16,16,0,0,0,96,32Z"/>`;
 const svg = (path: string, cls = "") => `<svg${cls ? ` class="${cls}"` : ""} viewBox="0 0 256 256" aria-hidden="true">${path}</svg>`;
 
-/** The player's address: YouTube's privacy-enhanced embed, playing at once (the press is the visitor's), inline on phones. */
-export const embedUrl = (id: string) => `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0&playsinline=1`;
+/**
+ * The player's address: YouTube's privacy-enhanced embed, inline on phones, cued and not autoplaying: it shows
+ * YouTube's own thumbnail and play button, and the visitor's press on that is what starts it, so the play counts as a
+ * YouTube view (YouTube: "Embedded videos that are autoplayed don't increment video views").
+ */
+export const embedUrl = (id: string) => `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?rel=0&playsinline=1`;
 export const watchUrl = (id: string) => `https://www.youtube.com/watch?v=${encodeURIComponent(id)}`;
 
 /** Everything inside the TV after the screenshot: the live Home, the opening App, and the poster or the facade. */
@@ -74,6 +78,6 @@ export function launchUnder(o: LaunchOptions): string {
   const playIcon = `<svg class="i" viewBox="0 0 256 256" aria-hidden="true" fill="currentColor">${playPath}</svg>`;
   const subscribe = `<a href="${esc(o.channel)}" rel="noopener">${ytIcon}Subscribe on YouTube</a>`;
   if (!o.id) return `<div class="lv-under"><p class="lv-links">${subscribe}</p></div>`;
-  return `<div class="lv-under"><p class="lv-links">${subscribe}<a class="lv-quiet" href="${esc(watchUrl(o.id))}" rel="noopener">${playIcon}Watch on YouTube</a></p>`
+  return `<div class="lv-under"><p class="lv-links"><a href="${esc(watchUrl(o.id))}" rel="noopener">${playIcon}Watch on YouTube</a>${subscribe}</p>`
     + `<p class="lv-note">${o.teaser ? "The preview on the Screen comes from this site. YouTube loads only when you press Watch with sound or play." : "The launch video plays from YouTube and loads only when you press play."}</p></div>`;
 }
