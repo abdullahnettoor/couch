@@ -255,7 +255,6 @@ const stage = document.querySelector<HTMLElement>("[data-stage-scroll]");
 const stageGlow = stage?.querySelector<HTMLElement>(".stage-glow");
 // The TV's growth is a CSS view timeline (style.css, "first look"); where there is none, it is done here instead.
 const stageTv = CSS.supports?.("animation-timeline: view()") ? null : stage?.querySelector<HTMLElement>(".tv");
-const wideTv = matchMedia("(min-width: 1180px) and (min-height: 860px)");
 let scrollQueued = false;
 const scrollScene = () => {
   scrollQueued = false;
@@ -282,8 +281,7 @@ const scrollScene = () => {
   if (stageTv && tvTop < innerHeight * 1.2 && tvTop + tvH > -innerHeight) {
     // the view timeline's cover 0% → 50%: from its top entering the window to its being centred
     const g = Math.max(0, Math.min(1, (innerHeight - tvTop) / ((innerHeight + tvH) / 2)));
-    const to = wideTv.matches ? 1.06 : 1;
-    stageTv.style.scale = (0.86 + g * (to - 0.86)).toFixed(4);
+    stageTv.style.scale = (0.88 + g * 0.12).toFixed(4);
   }
 };
 addEventListener("scroll", () => { if (!scrollQueued) { scrollQueued = true; requestAnimationFrame(scrollScene); } }, { passive: true });

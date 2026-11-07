@@ -94,9 +94,10 @@
 
     <!-- The product, as it looks today: Couch's real Home (src/couch-ui/). The Remote follows in its own section.
          Ticket 145: once the TV is mostly in view, the highlight moves to YouTube, it opens and fills the Screen,
-         and the TV ends on the launch video (src/launch.ts; the poster while LAUNCH_VIDEO has no id). -->
+         and the TV ends on the launch video (src/launch.ts): its muted teaser with "Watch with sound", or the poster while
+         LAUNCH_VIDEO has no id. The TV is as big as the window holds (style.css, "first look"). -->
     <section class="first-look" aria-label="Couch Home on the Screen, and the launch video">
-      <div class="wrap stage" data-stage-scroll>
+      <div class="stage" data-stage-scroll>
         <div class="stage-glow" aria-hidden="true"></div>
         <div class="device tv">
           <div class="tv-screen slot" data-slot="hero-screen">

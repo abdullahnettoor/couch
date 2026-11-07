@@ -61,10 +61,11 @@ Placeholder mode (today: `LAUNCH_VIDEO.id` is empty):
 - Under the TV, one link to the channel (`YOUTUBE_CHANNEL`): **Subscribe on YouTube** (Phosphor's YouTube mark).
 - No privacy line under the TV (nothing plays), and the privacy fact keeps its old wording (below).
 
-With a video (`LAUNCH_VIDEO.id` set):
-- On the Screen: the video's thumbnail (saved into the build), its title (`LAUNCH_VIDEO.title`) and a play button, accessible name **Play the launch video: {title}**. The player's frame is titled **{title} (YouTube video)**.
-- Under the TV: **Watch on YouTube** (the video's page) and **Subscribe** (the channel), then the line: **The launch video plays from YouTube and loads only when you press play.**
-- Privacy fact **No Couch analytics** becomes: Couch adds no analytics or cookies. YouTube loads only when you press play and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies. (145 review: was "This site uses no cookies or analytics, and loads nothing from YouTube until you press play on the launch video", which did not say what YouTube may do once played.)
+With a video (`LAUNCH_VIDEO.id` set; today the stand-in **PumpOS | The operating system for fuel retail**, `Hy7ry2TbjIg`):
+- On the Screen: a muted, looping teaser of the video, served by the site itself (no text of ours over it), with two controls in the lower-right corner: **Watch with sound** (a speaker icon; accessible name **Watch with sound: {title}**) and an icon-only pause toggle, accessible name **Pause the preview** / **Play the preview**. "Watch with sound" loads YouTube's player in its place.
+- Without the teaser (reduced motion, Save-Data, or it fails to load or play): the video's thumbnail (saved into the build), its title (`LAUNCH_VIDEO.title`) and a play button, accessible name **Play the launch video: {title}**. The player's frame is titled **{title} (YouTube video)**.
+- Under the TV: **Subscribe on YouTube** (the channel) and, quieter beside it, **Watch on YouTube** (the video's page), then the line: **The preview on the Screen comes from this site. YouTube loads only when you press Watch with sound or play.** (ticket 145 review: was "Watch on YouTube" and "Subscribe", and "The launch video plays from YouTube and loads only when you press play.", which predates the teaser.)
+- Privacy fact **No Couch analytics** becomes: Couch adds no analytics or cookies. The launch video's preview comes from this site; YouTube loads only when you press Watch with sound or play, and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies. (145 review: was "This site uses no cookies or analytics, and loads nothing from YouTube until you press play on the launch video", which did not say what YouTube may do once played; then "Couch adds no analytics or cookies. YouTube loads only when you press play and may use…", before the teaser.)
 - Footer line becomes: © **2026** Abdullah Nettoor. **No cookies or analytics from Couch.**
 
 Rejected: "Launch video coming soon" as a kicker over a title (the page bans kickers over headings; the two lines read as one sentence); a Subscribe pill drawn inside the poster (it would look pressable on a picture that is not); stating the site's privacy change while there is no video (it would describe something that does not happen yet). No FAQ answer said the site makes no third-party requests, so the FAQ is unchanged.
@@ -157,7 +158,7 @@ No “plays every format”, codec guarantee or promise that the household's vid
 - Facts:
   - **One household, one Screen** — No Couch sign-up and no Couch profiles. Pair a phone and join in.
   - **Kept on your Mac** — Your Library, Couch's saved viewing positions and your settings stay on the Mac. There is no Couch cloud.
-  - **No Couch analytics** — This site uses no cookies or analytics. Services opened in Couch have their own sign-ins, cookies and privacy policies. (With a launch video, ticket 145 review: Couch adds no analytics or cookies. YouTube loads only when you press play and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies.)
+  - **No Couch analytics** — This site uses no cookies or analytics. Services opened in Couch have their own sign-ins, cookies and privacy policies. (With a launch video, ticket 145 review: Couch adds no analytics or cookies. The launch video's preview comes from this site; YouTube loads only when you press Watch with sound or play, and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies.)
   - **Open to a closer look** — Couch is free and open source under GPL-3.0-or-later. Read the code or build it yourself.
 
 ### Connection-list headline options

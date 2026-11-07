@@ -13,8 +13,12 @@
  * Reduced motion: the end state at once, before the TV is even seen, and a switch to it mid-sequence ends it.
  * Without script: the screenshot of Home, and the links under the TV.
  *
- * With a video (data-mode="video"), the play button is a click-to-load facade: nothing is requested from YouTube
- * until it is pressed (click, Enter or Space); then YouTube's privacy-enhanced player fills the Screen.
+ * With a video (data-mode="video"), the end is the site's own muted, looping teaser of it (once it plays; until
+ * then, and without it, the thumbnail). It loads only once the TV comes into view and plays only while the TV is
+ * 60% in view and the tab is visible; reduced motion and Save-Data never load it, and if it fails or autoplay is
+ * refused, the thumbnail and play button stay. "Watch with sound" (and the play button) is a click-to-load facade:
+ * nothing is requested from YouTube until it is pressed (click, Enter or Space); then YouTube's privacy-enhanced
+ * player fills the Screen.
  */
 
 /** When each beat starts, in ms from the start (the opening and the ending last OPEN_MS and END_MS). */
@@ -27,6 +31,8 @@ export const LAUNCH_TIMES = {
   end: 3520, // the thumbnail (or the poster) comes up over it
 };
 const OPEN_MS = 900;
+/** How long the teaser may take to start playing (once asked to, in view) before the thumbnail and play button stay. */
+const TEASER_WAIT_MS = 6000;
 const END_MS = 700;
 const EASE = "cubic-bezier(0.16, 1, 0.3, 1)";
 /** The highlight's path: from the screenshot's (the Continue tile) to YouTube. */
@@ -63,6 +69,7 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
     step("end");
     setState("ended");
     stopWatching();
+    teaserOff();
   };
 
   /**
@@ -109,7 +116,7 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
       [T.press, () => yt.classList.add("lv-pressed")],
       [T.release, () => yt.classList.remove("lv-pressed")],
       [T.open, openApp],
-      [T.end, () => step("end")],
+      [T.end, () => { step("end"); syncTeaser(); }],
       [T.end + END_MS, () => { setState("ended"); anims.forEach((a) => a.cancel()); anims = []; }],
     ];
     // on the document's animation clock, like the CSS it drives (so it pauses with a hidden tab, and DevTools'
@@ -124,6 +131,64 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
     };
     tick();
   };
+
+  // The teaser (with a video): data-teaser is "wait" (it may come), "on" (playing) or "off" (the thumbnail and play
+  // button). It plays only at the end, while the TV is 60 % in view (as the sequence's start) and the tab is visible,
+  // and pauses otherwise, going on from where it was.
+  const video = endEl.querySelector<HTMLVideoElement>(".lv-video");
+  const pauseBtn = endEl.querySelector<HTMLButtonElement>(".lv-pause");
+  const saveData = () => !!(navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData;
+  let teaser: "wait" | "on" | "off" = video && !reduced() && !saveData() ? "wait" : "off";
+  if (video) lv.dataset.teaser = teaser;
+  let inView = false;
+  let userPaused = false;
+  let waitTimer = 0;
+  let vio: IntersectionObserver | undefined;
+  const onVisibility = () => syncTeaser();
+  const teaserOff = () => {
+    if (!video || teaser === "off") return;
+    teaser = "off";
+    lv.dataset.teaser = "off";
+    clearTimeout(waitTimer);
+    vio?.disconnect(); vio = undefined;
+    document.removeEventListener("visibilitychange", onVisibility);
+    video.pause();
+    if (video.hasAttribute("src")) { video.removeAttribute("src"); video.load(); }
+  };
+  /** Gives the video its file (once, when the TV first comes near, after the page's load); preload stays "none" until then. */
+  const loadTeaser = () => {
+    if (!video || teaser === "off" || video.hasAttribute("src")) return;
+    if (document.readyState !== "complete") { addEventListener("load", loadTeaser, { once: true }); return; }
+    const webm = video.dataset.webm && video.canPlayType('video/webm; codecs="vp9"') === "probably" ? video.dataset.webm : "";
+    video.muted = true;
+    video.preload = "auto";
+    video.src = webm || video.dataset.mp4!;
+  };
+  const syncTeaser = () => {
+    if (!video || teaser === "off") return;
+    const go = lv.dataset.step === "end" && inView && !document.hidden && !userPaused;
+    if (!go) {
+      video.pause();
+      if (teaser === "wait") { clearTimeout(waitTimer); waitTimer = 0; }
+      return;
+    }
+    loadTeaser();
+    if (!video.paused) return;
+    video.play().catch((e: DOMException) => { if (e.name !== "AbortError") teaserOff(); });
+    if (teaser === "wait" && !waitTimer) waitTimer = window.setTimeout(() => { if (teaser === "wait") teaserOff(); }, TEASER_WAIT_MS);
+  };
+  if (video && teaser === "wait" && "IntersectionObserver" in window) {
+    video.addEventListener("playing", () => { if (teaser === "wait") { teaser = "on"; lv.dataset.teaser = "on"; clearTimeout(waitTimer); } });
+    video.addEventListener("error", () => teaserOff());
+    document.addEventListener("visibilitychange", onVisibility);
+    vio = new IntersectionObserver(([e]) => {
+      if (!e) return;
+      const room = (e.rootBounds?.height ?? innerHeight) * 0.6;
+      inView = e.isIntersecting && (e.intersectionRatio >= 0.6 || e.intersectionRect.height >= room);
+      syncTeaser();
+    }, { threshold: [0, 0.2, 0.4, 0.6, 0.8, 1] });
+    vio.observe(tv);
+  }
 
   // Its pictures (the Continue tile's, the poster's light or the thumbnail) load once the page's own are in: after
   // the load event and the intro, when the browser is idle, or as soon as the TV starts to come into view.
@@ -156,12 +221,13 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
     idle(arm);
   };
 
-  onChange(() => { if (reduced() && state !== "ended") finish(); });
+  onChange(() => { if (!reduced()) return; if (state !== "ended") finish(); else teaserOff(); });
   if (reduced()) finish();
   else if ("IntersectionObserver" in window) {
     io = new IntersectionObserver(([e]) => {
       if (!e?.isIntersecting) return;
       arm();
+      loadTeaser();
       const room = (e.rootBounds?.height ?? innerHeight) * 0.6;
       seen = e.intersectionRatio >= 0.6 || e.intersectionRect.height >= room;
       tryStart();
@@ -175,11 +241,12 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
     else addEventListener("load", armWhenIdle, { once: true });
   } else finish();
 
-  // The play facade (with a video): YouTube is loaded only now, into the Screen.
+  // The facade (with a video): YouTube is loaded only now, into the Screen, by the play button or "Watch with sound".
   const btn = endEl.querySelector<HTMLButtonElement>(".lv-play");
-  btn?.addEventListener("click", () => {
+  const watch = () => {
     if (lv.querySelector("iframe")) return;
     if (state === "playing") { cancelAnimationFrame(raf); raf = 0; setState("ended"); }
+    teaserOff();
     const frame = document.createElement("iframe");
     frame.className = "lv-frame";
     frame.src = lv.dataset.embed!;
@@ -190,5 +257,13 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
     lv.append(frame);
     lv.dataset.playing = "";
     frame.focus();
+  };
+  btn?.addEventListener("click", watch);
+  endEl.querySelector(".lv-sound")?.addEventListener("click", watch);
+  pauseBtn?.addEventListener("click", () => {
+    userPaused = !userPaused;
+    pauseBtn.toggleAttribute("data-paused", userPaused);
+    pauseBtn.setAttribute("aria-label", userPaused ? "Play the preview" : "Pause the preview");
+    syncTeaser();
   });
 }

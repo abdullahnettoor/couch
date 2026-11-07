@@ -307,21 +307,42 @@ async function tvAt(page, g) {
   });
 }
 
-describe("the first-look TV grows as it comes in", { skip }, () => {
-  for (const [w, h, full] of [[1440, 900, 1.06], [1024, 768, 1], [390, 844, 1]]) {
-    test(`at ${w} × ${h}: .86 as it enters, ${full} when centred, scale only`, async () => {
+describe("the first-look TV: as big as the window holds, growing as it comes in", { skip }, () => {
+  // [width, height, the TV's expected width (± 2 px)]: the gutter (24 px, 16 px on phones), or the width at which the
+  // whole TV (the 16:10 Screen, its 9 px bezel and the 14 px stand) fits below the nav with 12 px above and below
+  for (const [w, h, tvW] of [[1440, 900, 1262.8], [1024, 768, 976], [390, 844, 358]]) {
+    test(`at ${w} × ${h}: ${tvW} px wide, .88 as it enters, 1 when centred, scale only`, async () => {
       const page = await open({ width: w, height: h });
       const box = () => page.evaluate(() => { const tv = document.querySelector(".first-look .tv"); return [tv.offsetLeft, tv.offsetTop, tv.offsetWidth, tv.offsetHeight].join(); });
       const before = await box();
+      const size = await page.evaluate(() => { const tv = document.querySelector(".first-look .tv"); return { w: tv.offsetWidth, h: tv.offsetHeight }; });
+      assert.ok(near(size.w, tvW, 2), `width ${size.w}`);
+      assert.ok(size.h <= h - 66 - 24 + 1, `the whole TV fits below the nav (${size.h} of ${h - 66})`);
       const enter = await tvAt(page, 0), half = await tvAt(page, 0.5), mid = await tvAt(page, 1);
       const r = await page.evaluate(() => document.querySelector(".first-look .tv").getBoundingClientRect().toJSON());
       const past = await tvAt(page, 1.4);
-      assert.ok(near(enter, 0.86, 0.005), `entering ${enter}`);
-      assert.ok(near(half, (0.86 + full) / 2, 0.01), `half way ${half}`);
-      assert.ok(near(mid, full, 0.002), `centred ${mid}`);
-      assert.ok(near(past, full, 0.002), `and it stays ${past}`);
+      assert.ok(near(enter, 0.88, 0.005), `entering ${enter}`);
+      assert.ok(near(half, 0.94, 0.01), `half way ${half}`);
+      assert.ok(near(mid, 1, 0.002), `centred ${mid}`);
+      assert.ok(near(past, 1, 0.002), `and it stays ${past}`);
       assert.ok(r.left >= 0 && r.right <= w && r.top >= 0 && r.bottom <= h, `it fits the window when centred: ${JSON.stringify(r)}`);
+      if (w <= 700) assert.ok(near(r.left, 16, 1) && near(w - r.right, 16, 1), `edge to edge but the gutter: ${r.left}, ${w - r.right}`);
       assert.equal(await box(), before, "the layout box never changes");
+      assert.equal(await page.evaluate(() => window.__cls), 0, "no layout shift");
+      // the Remote section starts below the first look, clear of it
+      const gap = await page.evaluate(() => document.querySelector("#how").getBoundingClientRect().top - document.querySelector(".first-look").getBoundingClientRect().bottom);
+      assert.ok(gap >= 0, `the Remote section follows the first look (${gap})`);
+      await page.close();
+    });
+  }
+
+  // (on windows this tall the TV already shows at load, so the growth is checked on the sizes above)
+  for (const [w, h, tvW] of [[1920, 1080, 1550.8], [2560, 1440, 1600]]) {
+    test(`at ${w} × ${h}: ${tvW} px wide (1600 at most), fitting below the nav`, async () => {
+      const page = await open({ width: w, height: h });
+      const size = await page.$eval(".first-look .tv", (tv) => ({ w: tv.offsetWidth, h: tv.offsetHeight }));
+      assert.ok(near(size.w, tvW, 2), `width ${size.w}`);
+      assert.ok(size.h <= h - 66 - 24 + 1, `height ${size.h}`);
       await page.close();
     });
   }

@@ -33,7 +33,7 @@ const SETUP_SIZES = "(max-width: 700px) calc(100vw - 82px), min(30vw, 340px)";
 // Foundation, CC BY 3.0) and the posters and backdrops come from TMDB; the footer and /licenses/ credit both.
 export const slots = {
   "hero-screen": {
-    file: "home.webp", ...SHOT_16X10, srcset: { widths, sizes: "(max-width: 1048px) calc(100vw - 66px), 982px" },
+    file: "home.webp", ...SHOT_16X10, srcset: { widths, sizes: "(max-width: 700px) calc(100vw - 50px), min(calc(100vw - 66px), calc((100vh - 122px) * 1.6), 1582px)" },
     alt: "Couch Home on the Screen: Big Buck Bunny under Continue watching, its picture filling the Screen with Resume and From start, and the YouTube, Netflix and Library Apps below",
   },
   "remote-screen": {

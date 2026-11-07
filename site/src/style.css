@@ -243,12 +243,15 @@ html.intro.intro-now .lamp, html.intro.intro-now .hero-copy > :not(.mark) { anim
 
 /* first look: Couch's real Home, settling into place as it scrolls in (the Remote has its own section) */
 .first-look { position: relative; padding: 8px 0 clamp(40px, 6vw, 80px); perspective: 1600px; }
-/* The TV (the whole device) grows as it comes in: .86 as its top enters the window, full size once it is centred,
-   which is about when the launch sequence starts (60% in view); 1.06 on windows wide and tall enough to hold it.
-   Scroll-driven (a view timeline), transform only; main.ts does the same where view timelines are missing. */
-.first-look .tv { --tv-to: 1; }
-@media (min-width: 1180px) and (min-height: 860px) { .first-look .tv { --tv-to: 1.06; } }
-@keyframes tv-grow { from { scale: .86; } to { scale: var(--tv-to); } }
+/* The TV is as big as the window holds (ticket 145 review): out of the column, the page's gutter wide at most, never
+   wider than 1600px, and short enough that the whole device (the Screen at --tv-ar, its 9px bezel and the 14px stand)
+   fits the window's height below the fixed nav with 12px of room above and below. It grows as it comes in: .88 as
+   its top enters the window, full size once it is centred, which is about when the launch sequence starts (60% in
+   view). Scroll-driven (a view timeline), transform only; main.ts does the same where view timelines are missing. */
+.first-look { --tv-gutter: 24px; --tv-ar: 1.6; }
+.first-look .tv { width: min(100% - 2 * var(--tv-gutter), (100vh - var(--nav-h) - 24px - 32px) * var(--tv-ar) + 18px, 1600px); }
+@supports (height: 100svh) { .first-look .tv { width: min(100% - 2 * var(--tv-gutter), (100svh - var(--nav-h) - 24px - 32px) * var(--tv-ar) + 18px, 1600px); } }
+@keyframes tv-grow { from { scale: .88; } }
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
     .first-look .tv { animation: tv-grow linear both; animation-timeline: view(); animation-range: cover 0% cover 50%; }
@@ -555,14 +558,39 @@ details p a { color: var(--amber-3); }
 .lv-play:hover, .lv-play:focus-visible { background: #fff; color: #000; transform: scale(1.06); }
 .lv-play:focus-visible { outline: 2px solid var(--amber-3); outline-offset: 4px; border-radius: 50%; }
 .lv-play:active { transform: scale(.95); transition-duration: .12s; }
+/* the teaser (with a video): the site's own muted loop over the thumbnail. src/launch.ts sets data-teaser: "wait"
+   (it may still come: the thumbnail stays up as its poster, without the title and play button), "on" (playing: it
+   fades in over .7s with its controls) or "off" (no teaser: the thumbnail, title and play button, as before) */
+.lv-teaser { position: absolute; inset: 0; z-index: 3; opacity: 0; transition: opacity .7s var(--ease); }
+.lv-video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.lv[data-teaser="on"] .lv-teaser { opacity: 1; }
+.lv[data-teaser="wait"] .lv-facade > .lv-text, .lv[data-teaser="wait"] .lv-play,
+.lv[data-teaser="on"] .lv-facade > .lv-text, .lv[data-teaser="on"] .lv-play { visibility: hidden; }
+.lv-ctrl { position: absolute; right: max(10px, calc(44 * var(--u))); bottom: max(10px, calc(44 * var(--u))); display: flex; gap: max(6px, calc(14 * var(--u))); visibility: hidden; }
+.lv[data-teaser="on"] .lv-ctrl { visibility: visible; }
+/* the controls: Couch's pills (glass.css .g-pill: dark glass, white with the highlight, .3s), sized with the Screen */
+.lv-sound, .lv-pause { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: .5em; height: clamp(30px, calc(76 * var(--u)), 48px); cursor: pointer;
+  border-radius: 999px; font: 500 clamp(12px, calc(26 * var(--u)), 16px)/1 var(--sans); color: #fff; background: rgba(22, 22, 26, .62); -webkit-backdrop-filter: blur(24px) saturate(1.5); backdrop-filter: blur(24px) saturate(1.5);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .2), inset 0 0 0 1px rgba(255, 255, 255, .1), 0 8px 24px rgba(0, 0, 0, .3); transition: transform .3s var(--ease), background .25s, color .25s; }
+.lv-sound { padding: 0 1.15em 0 .95em; }
+.lv-pause { aspect-ratio: 1; }
+.lv-sound svg, .lv-pause svg { width: 1.2em; height: 1.2em; flex: none; fill: currentColor; }
+.lv-pause svg { width: 1.05em; height: 1.05em; }
+.lv-pause .lv-i-play, .lv-pause[data-paused] .lv-i-pause { display: none; }
+.lv-pause[data-paused] .lv-i-play { display: block; margin-left: .1em; }
+.lv-sound:hover, .lv-sound:focus-visible, .lv-pause:hover, .lv-pause:focus-visible { background: #fff; color: #000; transform: scale(1.06); }
+.lv-sound:focus-visible, .lv-pause:focus-visible { outline: 2px solid var(--amber-3); outline-offset: 3px; }
+.lv-sound:active, .lv-pause:active { transform: scale(.95); transition-duration: .12s; }
 .lv-frame { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; border: 0; background: #000; pointer-events: auto; }
 .lv[data-playing] .lv-end { visibility: hidden; }
-/* under the TV: Watch and Subscribe (always there, so they work without script) and the privacy line */
+/* under the TV: Subscribe and Watch (always there, so they work without script) and the privacy line */
 .lv-under { display: grid; justify-items: center; gap: 12px; margin-top: 16px; text-align: center; }
 .lv-links { margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 10px; }
 .lv-links a { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding: 0 18px 0 15px; border-radius: 999px; font-size: 15px; font-weight: 500; color: var(--t2); text-decoration: none; border: 1px solid var(--line); transition: color .2s, background .2s, border-color .2s; }
 .lv-links a:hover { color: #fff; background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .18); }
 .lv-links .i { width: 18px; height: 18px; flex: none; }
+/* Watch on YouTube, next to Subscribe: the quieter of the two */
+.lv-links .lv-quiet { border-color: transparent; color: var(--t3); }
 .lv-note { margin: 0; max-width: 36em; font-size: 13.5px; color: var(--t3); }
 
 /* micro: cursor spotlight on cards (a transformed light, nothing repaints), lift on hover like a focused tile (0.38s); the shadow stays put */
@@ -608,6 +636,7 @@ summary { transition: color .2s; } summary:active { transform: scale(.99); }
   .wrap, .narrow { width: min(100% - 32px, var(--wrap)); }
   .nav nav { display: none; } .menu { display: block; }
   .stage { padding-bottom: 0; }
+  .first-look { --tv-gutter: 16px; }
   .btn-lg { height: 54px; padding: 0 22px; font-size: 16px; max-width: 100%; }
   .panel { grid-template-columns: 1fr; }
   .hero { padding: 104px 0 40px; }
@@ -627,6 +656,7 @@ summary { transition: color .2s; } summary:active { transform: scale(.99); }
   /* no decorative movement on hover or press: buttons, links, cards, step numbers and their icons stay where they are */
   .btn:hover, .btn:active, .btn.is-pressed, .pill:active, .pill:hover .i, .win-chip:hover .i,
   .nav nav a:active, .link-quiet:active, .seq-steps button:active, summary:active,
-  .step:hover, .step:hover .n, .lv-play:hover, .lv-play:focus-visible, .lv-play:active { transform: none !important; }
+  .step:hover, .step:hover .n, .lv-play:hover, .lv-play:focus-visible, .lv-play:active,
+  .lv-sound:hover, .lv-sound:focus-visible, .lv-sound:active, .lv-pause:hover, .lv-pause:focus-visible, .lv-pause:active { transform: none !important; }
   .step:hover .inst-drag { translate: none !important; }
 }
