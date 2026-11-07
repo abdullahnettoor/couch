@@ -255,6 +255,8 @@ const stage = document.querySelector<HTMLElement>("[data-stage-scroll]");
 const stageGlow = stage?.querySelector<HTMLElement>(".stage-glow");
 // The TV's growth is a CSS view timeline (style.css, "first look"); where there is none, it is done here instead.
 const stageTv = CSS.supports?.("animation-timeline: view()") ? null : stage?.querySelector<HTMLElement>(".tv");
+const flTrack = document.querySelector<HTMLElement>("[data-fl-track]");
+const flSection = stage?.closest<HTMLElement>(".first-look");
 let scrollQueued = false;
 const scrollScene = () => {
   scrollQueued = false;
@@ -266,9 +268,8 @@ const scrollScene = () => {
   }
   const y = scrollY;
   // read before writing, so a scroll frame never forces a second layout
-  const top = stage ? stage.parentElement!.getBoundingClientRect().top : 0;
-  const tvTop = stageTv ? top + stage!.offsetTop + stageTv.offsetTop : 0;
-  const tvH = stageTv?.offsetHeight ?? 0;
+  const top = flSection ? flSection.getBoundingClientRect().top : 0;
+  const trackTop = stageTv && flTrack ? flTrack.getBoundingClientRect().top : 0;
   if (y < innerHeight * 1.5 && room) room.style.transform = `translate3d(0, ${(y * 0.35).toFixed(1)}px, 0)`;
   if (stage && top < innerHeight * 1.2 && top > -innerHeight) {
     // 0 when the first look's top meets the bottom of the window, 1 when it reaches 35% from the top
@@ -278,10 +279,11 @@ const scrollScene = () => {
     stage.style.transform = `rotateX(${((1 - e) * 14).toFixed(2)}deg) translate3d(0, ${((1 - e) * 36).toFixed(1)}px, 0)`;
     if (stageGlow) stageGlow.style.opacity = (0.35 + e * 0.65).toFixed(3);
   }
-  if (stageTv && tvTop < innerHeight * 1.2 && tvTop + tvH > -innerHeight) {
-    // the view timeline's cover 0% → 50%: from its top entering the window to its being centred
-    const g = Math.max(0, Math.min(1, (innerHeight - tvTop) / ((innerHeight + tvH) / 2)));
-    stageTv.style.scale = (0.88 + g * 0.12).toFixed(4);
+  if (stageTv && trackTop < innerHeight * 1.2 && trackTop > -innerHeight * 3) {
+    // the CSS range (entry 0% → entry 100% − the nav): from the track's top entering the window to its reaching the
+    // nav, where the TV pins
+    const g = Math.max(0, Math.min(1, (innerHeight - trackTop) / (innerHeight - 66)));
+    stageTv.style.scale = (0.85 + g * 0.15).toFixed(4);
   }
 };
 addEventListener("scroll", () => { if (!scrollQueued) { scrollQueued = true; requestAnimationFrame(scrollScene); } }, { passive: true });

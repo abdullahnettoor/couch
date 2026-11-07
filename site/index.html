@@ -23,6 +23,7 @@
   <meta name="twitter:title" content="Couch · Settle in." />
   <meta name="twitter:description" content="Your TV. Your evening. Your phone as the Remote. A calm home for YouTube, Netflix and your own videos. For Mac today." />
   <meta name="twitter:image" content="{{SITE_URL}}/og.png" />
+  <script>document.documentElement.classList.add("js")</script>
   {{intro:head}}
   <!-- Geist, early: the same hashed file style.css asks for (Vite rewrites this href), so the text never swaps late -->
   <link rel="preload" href="/src/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin />
@@ -93,10 +94,12 @@
     </section>
 
     <!-- The product, as it looks today: Couch's real Home (src/couch-ui/). The Remote follows in its own section.
-         Ticket 145: once the TV is mostly in view, the highlight moves to YouTube, it opens and fills the Screen,
-         and the TV ends on the launch video (src/launch.ts): its muted teaser with "Watch with sound", or the poster while
-         LAUNCH_VIDEO has no id. The TV is as big as the window holds (style.css, "first look"). -->
+         Ticket 145: the TV is as big as the window holds; with script and motion it pins below the nav while the
+         track scrolls past, and Couch's live Home on it can be used (mouse, keys, touch): its Apps open, and YouTube
+         opens the launch video's player (src/launch.ts). Until the visitor uses it, the scroll moves the highlight.
+         Without script: the Home screenshot. -->
     <section class="first-look" aria-label="Couch Home on the Screen, and the launch video">
+      <div class="fl-track" data-fl-track><div class="fl-pin">
       <div class="stage" data-stage-scroll>
         <div class="stage-glow" aria-hidden="true"></div>
         <div class="device tv">
@@ -107,7 +110,7 @@
           <div class="tv-stand" aria-hidden="true"></div>
         </div>
       </div>
-      <div class="wrap">{{launch:under}}</div>
+      </div></div>
     </section>
 
     <!-- 3. Phone is the remote. From 900 px (with motion) the stage pins while the track scrolls past and the

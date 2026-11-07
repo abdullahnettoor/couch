@@ -23,17 +23,14 @@ export const SOCIAL: readonly SocialLink[] = [
   { label: "Abdullah Nettoor on YouTube", href: "https://www.youtube.com/@abdullahnettoor", icon: "youtube" },
 ];
 
-/** The channel the launch video lives on: "Subscribe" under the first-look TV links here (ticket 145). */
-export const YOUTUBE_CHANNEL = "https://www.youtube.com/@abdullahnettoor";
-
 /**
- * The launch video in the first-look TV (ticket 145). Empty `id`: placeholder mode (a Couch-made poster, "Launch
- * video, coming soon", and Subscribe; nothing is fetched from YouTube, at build time or ever). With an `id` (the part
- * after watch?v=): the TV ends on the video's thumbnail, saved into the build by scripts/launch-thumb.mjs (pnpm build
- * runs it), and a muted teaser of it loops on the Screen, served by the site itself (public/launch/<id>.mp4, made by
- * scripts/launch-teaser.mjs); YouTube loads only when the visitor presses "Watch with sound" (or play).
- * `title` is the video's title, as on YouTube. COUCH_LAUNCH_ID (with COUCH_LAUNCH_THUMB, a local picture, and
- * COUCH_LAUNCH_TEASER, a local clip) override them for a build; the tests use them.
+ * The launch video in the first-look TV (ticket 145): opening YouTube on the TV plays it. Empty `id`: placeholder mode
+ * (YouTube opens to a Couch-made poster, "Launch video", "Coming soon to YouTube"; nothing is fetched from YouTube, at
+ * build time or ever). With an `id` (the part after watch?v=): YouTube opens to YouTube's own player for it, cued, over
+ * the video's thumbnail (saved into the build by scripts/launch-thumb.mjs; pnpm build runs it); nothing is requested
+ * from YouTube until the visitor opens YouTube. `title` is the video's title, as on YouTube. Today a stand-in (a PumpOS
+ * video) until Couch's own is out. COUCH_LAUNCH_ID (and COUCH_LAUNCH_THUMB, a local picture) override them for a
+ * build; the tests use them.
  */
 export const LAUNCH_VIDEO: { id: string; title: string } = { id: "Hy7ry2TbjIg", title: "PumpOS | The operating system for fuel retail" };
 

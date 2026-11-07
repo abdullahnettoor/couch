@@ -1,83 +1,90 @@
 /**
- * The launch video in the first-look TV (ticket 145). Once, when the TV is mostly in view (and the hero's intro is
- * done), Couch's Home comes alive over the screenshot and does what a Remote would make it do: the highlight leaves
- * Big Buck Bunny and moves left to YouTube (three presses of Left: Library, Netflix, YouTube; the hero picture gives
- * way to the wallpaper and the clock, as Couch does), YouTube is pressed, it opens and fills the Screen, and the TV
- * ends on the launch video: its thumbnail and a play button, or the poster while there is no video yet.
+ * The first look's live TV (ticket 145). Couch's Home, over the screenshot of it, works as it does on a real Screen:
+ * the highlight (Couch's .focused, its .38s lift) moves along the row, and a tile opens. Opening grows the tile's face
+ * to fill the Screen (a .9s clip, the mark riding along), then its view comes up: YouTube is the launch video in
+ * YouTube's own player (cued: the visitor's press on YouTube's play starts it, so it counts as a view; the placeholder
+ * poster while there is no video), the Library a glimpse of Couch's Library, Continue Couch's player on Big Buck
+ * Bunny, Netflix a card. "Home" (or Esc) goes back. Nothing is requested from YouTube until YouTube is opened.
  *
- * Motion: Couch's own. The highlight is the .focused class and its transition (glass.css: lift .38s); the hero
- * picture → clock fade is home.css's .7s; the ease everywhere is Couch's cubic-bezier(0.16, 1, 0.3, 1). Couch has no
- * press on a tile, so the press is the Remote's key press (page.ts: .12s, scale .95) on the lifted tile. The opening
- * (the tile's rect → the Screen's) and the ending's fade are the site's, on the same ease.
+ * Use: the mouse (pointing at a tile moves the highlight to it, a click opens it), the keys (the row is a toolbar, one
+ * tab stop: ← → Home End move the highlight while the focus is in the TV, Enter or Space opens; a click into the TV
+ * focuses it), touch (a tap opens). A hint over the Screen says how, until the visitor first uses it.
  *
- * Reduced motion: the end state at once, before the TV is even seen, and a switch to it mid-sequence ends it.
- * Without script: the screenshot of Home, and the links under the TV.
+ * The scroll: with motion, the TV is pinned below the nav while its track scrolls past (style.css, "first look").
+ * Until the visitor uses the TV, the track's progress moves the highlight for them, in even steps: Continue →
+ * Library → Netflix → YouTube (scrolling back moves it back), and on YouTube the hint says how to watch. The scroll
+ * never opens anything, and once the visitor has used the TV it no longer moves the highlight.
  *
- * With a video (data-mode="video"), the end is the site's own muted, looping teaser of it (once it plays; until
- * then, and without it, the thumbnail). It loads only once the TV comes into view and plays only while the TV is
- * 60% in view and the tab is visible; reduced motion and Save-Data never load it, and if it fails or autoplay is
- * refused, the thumbnail and play button stay. "Watch with sound" (and the play button) is a click-to-load facade:
- * nothing is requested from YouTube until it is pressed (click, Enter or Space); then YouTube's privacy-enhanced
- * player fills the Screen.
+ * Reduced motion: no pin, no scroll-driven highlight, no growth and no transitions; the TV works the same.
+ * Without script: the screenshot of Home.
  */
 
-/** When each beat starts, in ms from the start (the opening and the ending last OPEN_MS and END_MS). */
-export const LAUNCH_TIMES = {
-  row: 0, // the live row takes over from the screenshot's (a .25s fade; they are drawn in the same place)
-  hops: [800, 1320, 1840] as const, // Home held a moment, then Left, Left, Left (520 ms apart): Library, Netflix, YouTube
-  press: 2540, // the Remote's key press on the lifted YouTube tile, held .14s
-  release: 2680,
-  open: 2720, // YouTube opens: its tile grows to fill the Screen
-  end: 3520, // the thumbnail (or the poster) comes up over it
-};
 const OPEN_MS = 900;
-/** How long the teaser may take to start playing (once asked to, in view) before the thumbnail and play button stay. */
-const TEASER_WAIT_MS = 6000;
-const END_MS = 700;
+/** The Remote's key press on the lifted tile before it opens (page.ts: .12s), held a little. */
+const PRESS_MS = 140;
 const EASE = "cubic-bezier(0.16, 1, 0.3, 1)";
-/** The highlight's path: from the screenshot's (the Continue tile) to YouTube. */
-const PATH = ["library", "netflix", "youtube"] as const;
+/** The highlight's path as the scroll moves it: from the screenshot's (the Continue tile) left to YouTube. */
+export const SCROLL_PATH = ["continue", "library", "netflix", "youtube"] as const;
 
 export function launch(reduced: () => boolean, onChange: (fn: () => void) => () => void) {
   const lv = document.querySelector<HTMLElement>("[data-launch]");
   if (!lv) return;
   const tv = lv.closest<HTMLElement>(".tv") ?? lv;
-  const tiles = new Map([...lv.querySelectorAll<HTMLElement>(".lv-home .h-app")].map((t) => [t.dataset.id!, t]));
-  const yt = tiles.get("youtube")!;
-  const open = lv.querySelector<HTMLElement>(".lv-open")!;
-  const openMark = open.querySelector<HTMLElement>(".lv-open-mark")!;
-  const endEl = lv.querySelector<HTMLElement>(".lv-end")!;
-  let raf = 0;
+  const track = document.querySelector<HTMLElement>("[data-fl-track]");
+  const pin = track?.firstElementChild as HTMLElement | null;
+  const home = lv.querySelector<HTMLElement>(".lv-home")!;
+  const row = home.querySelector<HTMLElement>(".h-row")!;
+  const tiles = new Map([...row.querySelectorAll<HTMLElement>(".h-app")].map((t) => [t.dataset.id!, t]));
+  const ids = [...tiles.keys()];
+  const button = (id: string) => tiles.get(id)!.querySelector<HTMLButtonElement>(".lv-tile")!;
+  const openEl = lv.querySelector<HTMLElement>(".lv-open")!;
+  const views = new Map([...lv.querySelectorAll<HTMLElement>(".lv-view")].map((v) => [v.dataset.view!, v]));
+  const back = lv.querySelector<HTMLButtonElement>(".lv-back")!;
+  const hint = lv.querySelector<HTMLElement>(".lv-hint")!;
+  const touch = matchMedia("(hover: none), (pointer: coarse)");
+
+  let live = false;
+  let used = false;
+  let focus = "continue";
+  let opened: string | null = null;
   let anims: Animation[] = [];
-  let state: "waiting" | "starting" | "playing" | "ended" = "waiting";
-  const setState = (s: typeof state) => { state = s; lv.dataset.state = s; };
-  setState("waiting");
+  let timers: number[] = [];
+  const later = (ms: number, fn: () => void) => timers.push(window.setTimeout(fn, ms));
+  const clearLater = () => { timers.forEach(clearTimeout); timers = []; anims.forEach((a) => a.cancel()); anims = []; };
 
-  const focusOn = (id: string) => tiles.forEach((t, k) => t.classList.toggle("focused", k === id));
-  // the end (and its play button) is out of reach until it shows
-  endEl.inert = true;
-  const step = (s: string) => { lv.dataset.step = s; endEl.inert = s !== "end"; };
-
-  /** The end state, at once (reduced motion): YouTube open, the thumbnail (or poster) on the Screen, no fades. */
-  const finish = () => {
-    cancelAnimationFrame(raf); raf = 0;
-    anims.forEach((a) => a.cancel()); anims = [];
-    lv.classList.add("lv-now", "armed");
-    focusOn("youtube");
-    yt.classList.remove("lv-pressed");
-    lv.classList.add("lit");
-    step("end");
-    setState("ended");
-    stopWatching();
-    teaserOff();
+  const updateHint = () => {
+    if (used || !live) { delete lv.dataset.hint; return; }
+    const d = hint.dataset;
+    const text = focus === "youtube" ? (touch.matches ? d.ytTouch : d.ytKey) : (touch.matches ? d.touch : d.key);
+    hint.textContent = text ?? "";
+    lv.dataset.hint = "";
+  };
+  /** The visitor used the TV: the hint goes, and the scroll no longer moves the highlight. */
+  const interact = () => {
+    if (used) return;
+    used = true;
+    lv.dataset.used = "";
+    updateHint();
   };
 
-  /**
-   * The lifted YouTube tile's box in the Screen's own coordinates (offsets, so the first look's scroll tilt and
-   * scale don't count), as insets from each edge, and its corner radius.
-   */
-  const tileBox = () => {
-    const face = yt.querySelector<HTMLElement>(".g-tile")!;
+  /** Moves the highlight (and the toolbar's one tab stop) to `id`; with `move`, the focus too. */
+  const setFocus = (id: string, move = false) => {
+    if (!tiles.has(id)) return;
+    focus = id;
+    lv.dataset.focus = id;
+    tiles.forEach((t, k) => {
+      t.classList.toggle("focused", k === id);
+      button(k).tabIndex = k === id ? 0 : -1;
+    });
+    // off the Continue tile, Home shows its wallpaper, the clock and the greeting, as Couch does
+    lv.classList.toggle("lit", id !== "continue");
+    if (move) button(id).focus({ preventScroll: true });
+    updateHint();
+  };
+
+  /** The lifted tile's box in the Screen's own coordinates (offsets, so the first look's tilt and scale don't count). */
+  const tileBox = (id: string) => {
+    const face = tiles.get(id)!.querySelector<HTMLElement>(".g-tile")!;
     let x = 0, y = 0;
     for (let el: HTMLElement | null = face; el && el !== lv; el = el.offsetParent as HTMLElement | null) { x += el.offsetLeft; y += el.offsetTop; }
     const W = lv.offsetWidth, H = lv.offsetHeight, u = W / 1920;
@@ -85,185 +92,166 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
     const w = face.offsetWidth * 1.09, h = face.offsetHeight * 1.09;
     const cx = x + face.offsetWidth / 2, cy = y + face.offsetHeight / 2 - 6 * u;
     const r = (parseFloat(getComputedStyle(face).borderTopLeftRadius) || 0) * 1.09;
-    return { top: cy - h / 2, right: W - (cx + w / 2), bottom: H - (cy + h / 2), left: cx - w / 2, r, cx, cy, W, H };
+    return { top: cy - h / 2, right: W - (cx + w / 2), bottom: H - (cy + h / 2), left: cx - w / 2, r, cx, cy, w, h, W, H };
   };
 
-  const openApp = () => {
-    const b = tileBox();
+  /** Grows the tile's face to the Screen: a clip from the tile's box, and its mark (or picture) riding along. */
+  const grow = (id: string) => {
+    const b = tileBox(id);
     const px = (n: number) => `${n.toFixed(1)}px`;
-    step("open");
-    anims.push(open.animate(
+    anims.push(openEl.animate(
       [{ clipPath: `inset(${px(b.top)} ${px(b.right)} ${px(b.bottom)} ${px(b.left)} round ${px(b.r)})` }, { clipPath: "inset(0px 0px 0px 0px round 0px)" }],
       { duration: OPEN_MS, easing: EASE },
     ));
-    // the mark rides with the tile: from the tile's centre at its own size to the Screen's centre, larger
-    const markW = openMark.offsetWidth || 1;
-    const from = (112 * (b.W / 1920) * 1.09) / markW;
-    anims.push(openMark.animate(
+    const rider = id === "continue" ? openEl.querySelector<HTMLElement>(".lv-open-art") : openEl.querySelector<HTMLElement>(`.lv-open-mark[data-for="${id}"]`);
+    if (!rider) return;
+    // a mark goes from its size on the tile (112u, lifted) to its own; the picture from the tile's box to the Screen
+    const from = id === "continue" ? b.w / b.W : (112 * (b.W / 1920) * 1.09) / (rider.offsetWidth || 1);
+    anims.push(rider.animate(
       [{ transform: `translate(${px(b.cx - b.W / 2)}, ${px(b.cy - b.H / 2)}) scale(${from.toFixed(4)})` }, { transform: "none" }],
       { duration: OPEN_MS, easing: EASE },
     ));
   };
 
-  const play = () => {
-    if (state !== "starting") return;
-    if (reduced()) { finish(); return; }
-    setState("playing");
-    const T = LAUNCH_TIMES;
-    const beats: Array<[number, () => void]> = [
-      [T.row, () => step("row")],
-      ...PATH.map((id, i): [number, () => void] => [T.hops[i]!, () => { focusOn(id); if (i === 0) lv.classList.add("lit"); }]),
-      [T.press, () => yt.classList.add("lv-pressed")],
-      [T.release, () => yt.classList.remove("lv-pressed")],
-      [T.open, openApp],
-      [T.end, () => { step("end"); syncTeaser(); }],
-      [T.end + END_MS, () => { setState("ended"); anims.forEach((a) => a.cancel()); anims = []; }],
-    ];
-    // on the document's animation clock, like the CSS it drives (so it pauses with a hidden tab, and DevTools'
-    // animation speed slows it too); data-start is that clock's time at the start
-    const t0 = document.timeline.currentTime as number;
-    lv.dataset.start = String(t0);
-    let k = 0;
-    const tick = () => {
-      const t = (document.timeline.currentTime as number) - t0;
-      while (k < beats.length && beats[k]![0] <= t) beats[k++]![1]();
-      raf = k < beats.length ? requestAnimationFrame(tick) : 0;
+  /** Opens a tile: YouTube's player is created only now. */
+  const openApp = (id: string) => {
+    if (!live || opened || !tiles.has(id)) return;
+    interact();
+    setFocus(id);
+    opened = id;
+    const view = views.get(id)!;
+    const show = () => {
+      view.classList.add("on");
+      // YouTube's player goes in once its view shows (a player loaded while hidden may not draw its thumbnail)
+      if (id === "youtube" && lv.dataset.embed) {
+        const frame = document.createElement("iframe");
+        frame.className = "lv-frame";
+        frame.src = lv.dataset.embed;
+        frame.title = `${lv.dataset.title} (YouTube video)`;
+        frame.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+        frame.referrerPolicy = "strict-origin-when-cross-origin";
+        frame.allowFullscreen = true;
+        view.append(frame);
+        frame.focus();
+      } else back.focus({ preventScroll: true });
     };
-    tick();
+    const start = () => {
+      tiles.get(id)!.classList.remove("lv-pressed");
+      lv.dataset.open = id;
+      back.focus({ preventScroll: true });
+      if (reduced()) { show(); return; }
+      grow(id);
+      later(OPEN_MS * 0.7, show);
+    };
+    if (reduced()) { start(); return; }
+    tiles.get(id)!.classList.add("lv-pressed");
+    later(PRESS_MS, start);
   };
 
-  // The teaser (with a video): data-teaser is "wait" (it may come), "on" (playing) or "off" (the thumbnail and play
-  // button). It plays only at the end, while the TV is 60 % in view (as the sequence's start) and the tab is visible,
-  // and pauses otherwise, going on from where it was.
-  const video = endEl.querySelector<HTMLVideoElement>(".lv-video");
-  const pauseBtn = endEl.querySelector<HTMLButtonElement>(".lv-pause");
-  const saveData = () => !!(navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData;
-  let teaser: "wait" | "on" | "off" = video && !reduced() && !saveData() ? "wait" : "off";
-  if (video) lv.dataset.teaser = teaser;
-  let inView = false;
-  let userPaused = false;
-  let waitTimer = 0;
-  let vio: IntersectionObserver | undefined;
-  const onVisibility = () => syncTeaser();
-  const teaserOff = () => {
-    if (!video || teaser === "off") return;
-    teaser = "off";
-    lv.dataset.teaser = "off";
-    clearTimeout(waitTimer);
-    vio?.disconnect(); vio = undefined;
-    document.removeEventListener("visibilitychange", onVisibility);
-    video.pause();
-    if (video.hasAttribute("src")) { video.removeAttribute("src"); video.load(); }
+  /** Back to Home: the view goes (and YouTube's player with it), and the highlight is where it was. */
+  const close = () => {
+    if (!opened) return;
+    const id = opened;
+    clearLater();
+    tiles.get(id)!.classList.remove("lv-pressed");
+    const view = views.get(id)!;
+    view.querySelector("iframe")?.remove();
+    view.classList.remove("on");
+    delete lv.dataset.open;
+    opened = null;
+    setFocus(id, true);
   };
-  /** Gives the video its file (once, when the TV first comes near, after the page's load); preload stays "none" until then. */
-  const loadTeaser = () => {
-    if (!video || teaser === "off" || video.hasAttribute("src")) return;
-    if (document.readyState !== "complete") { addEventListener("load", loadTeaser, { once: true }); return; }
-    const webm = video.dataset.webm && video.canPlayType('video/webm; codecs="vp9"') === "probably" ? video.dataset.webm : "";
-    video.muted = true;
-    video.preload = "auto";
-    video.src = webm || video.dataset.mp4!;
-  };
-  const syncTeaser = () => {
-    if (!video || teaser === "off") return;
-    const go = lv.dataset.step === "end" && inView && !document.hidden && !userPaused;
-    if (!go) {
-      video.pause();
-      if (teaser === "wait") { clearTimeout(waitTimer); waitTimer = 0; }
-      return;
-    }
-    loadTeaser();
-    if (!video.paused) return;
-    video.play().catch((e: DOMException) => { if (e.name !== "AbortError") teaserOff(); });
-    if (teaser === "wait" && !waitTimer) waitTimer = window.setTimeout(() => { if (teaser === "wait") teaserOff(); }, TEASER_WAIT_MS);
-  };
-  if (video && teaser === "wait" && "IntersectionObserver" in window) {
-    video.addEventListener("playing", () => { if (teaser === "wait") { teaser = "on"; lv.dataset.teaser = "on"; clearTimeout(waitTimer); } });
-    video.addEventListener("error", () => teaserOff());
-    document.addEventListener("visibilitychange", onVisibility);
-    vio = new IntersectionObserver(([e]) => {
-      if (!e) return;
-      const room = (e.rootBounds?.height ?? innerHeight) * 0.6;
-      inView = e.isIntersecting && (e.intersectionRatio >= 0.6 || e.intersectionRect.height >= room);
-      syncTeaser();
-    }, { threshold: [0, 0.2, 0.4, 0.6, 0.8, 1] });
-    vio.observe(tv);
-  }
 
-  // Its pictures (the Continue tile's, the poster's light or the thumbnail) load once the page's own are in: after
-  // the load event and the intro, when the browser is idle, or as soon as the TV starts to come into view.
+  /** Brings Home to life over the screenshot (they are drawn in the same place), once its picture is in. */
   const arm = () => lv.classList.add("armed");
-  const tileImg = lv.querySelector<HTMLImageElement>(".lv-home img");
-  /** Waits (a little, at most) for the Continue tile's picture, so the live row never shows it empty. */
-  const ready = () => {
+  const wake = () => {
+    if (live) return;
     arm();
-    const img = tileImg;
-    if (!img || (img.complete && img.naturalWidth)) return Promise.resolve();
-    return Promise.race([img.decode().catch(() => {}), new Promise((ok) => setTimeout(ok, 1200))]);
+    const img = home.querySelector<HTMLImageElement>(".h-film-art img");
+    const ready = !img || (img.complete && img.naturalWidth)
+      ? Promise.resolve()
+      : Promise.race([img.decode().catch(() => {}), new Promise((ok) => setTimeout(ok, 1200))]);
+    ready.then(() => {
+      if (live) return;
+      live = true;
+      home.inert = false;
+      home.removeAttribute("aria-hidden");
+      lv.dataset.step = "row";
+      setFocus(focus);
+      drive();
+    });
   };
 
-  // Once, when the TV is mostly in view (60 %, or 60 % of a window it does not fit in) and the hero's intro is done.
-  let io: IntersectionObserver | undefined;
-  let mo: MutationObserver | undefined;
-  let seen = false;
+  // The scroll moves the highlight while the TV is pinned, until the visitor uses it.
+  let queued = false;
+  const drive = () => {
+    queued = false;
+    if (!live || used || opened || reduced() || !track || !pin) return;
+    const r = track.getBoundingClientRect();
+    const range = r.height - pin.offsetHeight;
+    if (range < 1 || r.bottom < -innerHeight || r.top > innerHeight * 2) return;
+    const into = Math.max(0, Math.min(1, (stickyTop() - r.top) / range));
+    const k = Math.min(SCROLL_PATH.length - 1, Math.floor(into * SCROLL_PATH.length));
+    if (SCROLL_PATH[k] !== focus) setFocus(SCROLL_PATH[k]!);
+  };
+  let topCache = NaN;
+  const stickyTop = () => (Number.isNaN(topCache) ? (topCache = parseFloat(getComputedStyle(pin!).top) || 0) : topCache);
+  addEventListener("resize", () => { topCache = NaN; }, { passive: true });
+  addEventListener("scroll", () => { if (!queued) { queued = true; requestAnimationFrame(drive); } }, { passive: true });
+
+  // the mouse: pointing moves the highlight (only a real move: a tile sliding under a still pointer as the page
+  // scrolls is not the visitor's doing); a click (or a tap) opens
+  row.addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "mouse" || opened || (!e.movementX && !e.movementY)) return;
+    const id = (e.target as HTMLElement).closest<HTMLElement>(".h-app")?.dataset.id;
+    if (!id) return;
+    interact();
+    if (id !== focus) setFocus(id, row.contains(document.activeElement));
+  });
+  row.addEventListener("click", (e) => {
+    const id = (e.target as HTMLElement).closest<HTMLElement>(".h-app")?.dataset.id;
+    if (!id) return;
+    button(id).focus({ preventScroll: true });
+    openApp(id);
+  });
+  // a click into the TV, off the tiles, puts the keys in it
+  home.addEventListener("pointerdown", (e) => {
+    if ((e.target as HTMLElement).closest(".lv-tile")) return;
+    e.preventDefault();
+    button(focus).focus({ preventScroll: true });
+  });
+  // the keys, only while the focus is in the TV
+  lv.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && opened) { e.preventDefault(); close(); return; }
+    if (opened || !row.contains(e.target as Node)) return;
+    const i = ids.indexOf(focus);
+    const to = e.key === "ArrowLeft" ? i - 1 : e.key === "ArrowRight" ? i + 1 : e.key === "Home" ? 0 : e.key === "End" ? ids.length - 1 : null;
+    if (to == null) return;
+    e.preventDefault();
+    interact();
+    setFocus(ids[Math.max(0, Math.min(ids.length - 1, to))]!, true);
+  });
+  row.addEventListener("focusin", () => { if (live) interact(); });
+  back.addEventListener("click", close);
+  touch.addEventListener("change", updateHint);
+
+  const motion = () => { lv.classList.toggle("lv-now", reduced()); if (!reduced()) drive(); };
+  onChange(motion);
+  motion();
+
+  // Home comes to life once the page's own pictures are in: after the load event and the intro, when the browser is
+  // idle, or as soon as the TV starts to come into view
   const root = document.documentElement;
   const introDone = () => !root.classList.contains("intro") || root.classList.contains("intro-done");
-  const tryStart = () => {
-    if (!seen || !introDone() || state !== "waiting") return;
-    setState("starting");
-    stopWatching();
-    ready().then(() => { if (state === "starting") play(); });
-  };
-  function stopWatching() { io?.disconnect(); mo?.disconnect(); io = mo = undefined; }
-  const armWhenIdle = () => {
-    if (!introDone() || document.readyState !== "complete") return;
-    const idle = window.requestIdleCallback ?? ((fn: () => void) => setTimeout(fn, 200));
-    idle(arm);
-  };
-
-  onChange(() => { if (!reduced()) return; if (state !== "ended") finish(); else teaserOff(); });
-  if (reduced()) finish();
-  else if ("IntersectionObserver" in window) {
-    io = new IntersectionObserver(([e]) => {
-      if (!e?.isIntersecting) return;
-      arm();
-      loadTeaser();
-      const room = (e.rootBounds?.height ?? innerHeight) * 0.6;
-      seen = e.intersectionRatio >= 0.6 || e.intersectionRect.height >= room;
-      tryStart();
-    }, { threshold: [0, 0.2, 0.4, 0.6, 0.8, 1] });
+  if ("IntersectionObserver" in window) {
+    const io = new IntersectionObserver(([e]) => { if (e?.isIntersecting) { io.disconnect(); wake(); } }, { rootMargin: "0px 0px 25% 0px" });
     io.observe(tv);
-    if (!introDone()) {
-      mo = new MutationObserver(() => { if (introDone()) { mo?.disconnect(); tryStart(); armWhenIdle(); } });
-      mo.observe(root, { attributes: true, attributeFilter: ["class"] });
-    }
-    if (document.readyState === "complete") armWhenIdle();
-    else addEventListener("load", armWhenIdle, { once: true });
-  } else finish();
-
-  // The facade (with a video): YouTube is loaded only now, into the Screen, by the play button or "Watch with sound".
-  const btn = endEl.querySelector<HTMLButtonElement>(".lv-play");
-  const watch = () => {
-    if (lv.querySelector("iframe")) return;
-    if (state === "playing") { cancelAnimationFrame(raf); raf = 0; setState("ended"); }
-    teaserOff();
-    const frame = document.createElement("iframe");
-    frame.className = "lv-frame";
-    frame.src = lv.dataset.embed!;
-    frame.title = `${lv.dataset.title} (YouTube video)`;
-    frame.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
-    frame.referrerPolicy = "strict-origin-when-cross-origin";
-    frame.allowFullscreen = true;
-    lv.append(frame);
-    lv.dataset.playing = "";
-    frame.focus();
+  }
+  const whenIdle = () => {
+    if (!introDone()) { setTimeout(whenIdle, 400); return; }
+    const idle = window.requestIdleCallback ?? ((fn: () => void) => setTimeout(fn, 200));
+    idle(wake);
   };
-  btn?.addEventListener("click", watch);
-  endEl.querySelector(".lv-sound")?.addEventListener("click", watch);
-  pauseBtn?.addEventListener("click", () => {
-    userPaused = !userPaused;
-    pauseBtn.toggleAttribute("data-paused", userPaused);
-    pauseBtn.setAttribute("aria-label", userPaused ? "Play the preview" : "Pause the preview");
-    syncTeaser();
-  });
+  if (document.readyState === "complete") whenIdle();
+  else addEventListener("load", whenIdle, { once: true });
 }

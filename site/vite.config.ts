@@ -1,9 +1,9 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
-import { GUMROAD_URL, GITHUB_URL, RELEASES_URL, DOWNLOAD_URL, WINDOWS_ISSUE_URL, SITE_URL, ADD_APP_URL, INTRO_MODE, SOCIAL, LAUNCH_VIDEO, YOUTUBE_CHANNEL, type IntroMode, type SocialLink } from "./src/config.ts";
+import { GUMROAD_URL, GITHUB_URL, RELEASES_URL, DOWNLOAD_URL, WINDOWS_ISSUE_URL, SITE_URL, ADD_APP_URL, INTRO_MODE, SOCIAL, LAUNCH_VIDEO, type IntroMode, type SocialLink } from "./src/config.ts";
 import { home, install, remote, shelf, sprite } from "./src/mocks.ts";
-import { launchScreen, launchUnder, type LaunchOptions } from "./src/launch-markup.ts";
+import { launchScreen, type LaunchOptions } from "./src/launch-markup.ts";
 import { introHead, introSvg, wordmarkSvg } from "./src/brand/wordmark.ts";
 import { slots, type Slot, type SlotName } from "./src/slots.ts";
 
@@ -28,21 +28,6 @@ function launchThumb(): LaunchOptions["thumb"] {
   const rel = "/" + file.slice(import.meta.dirname.length + 1).split("\\").join("/");
   const small = file.replace(/\.webp$/, "-640.webp");
   return { src: rel, small: !given && existsSync(small) ? rel.replace(/\.webp$/, "-640.webp") : undefined };
-}
-
-/**
- * The launch video's muted teaser (scripts/launch-teaser.mjs): public/launch/<id>.mp4 (and .webm when there is one),
- * served as is from /launch/. COUCH_LAUNCH_TEASER names a local clip instead (the tests' fixture), written into the
- * build at the same address. The build fails with a hint if there is none, or if it is over Cloudflare's 25 MiB.
- */
-const teaserGiven = process.env.COUCH_LAUNCH_TEASER ? resolve(import.meta.dirname, process.env.COUCH_LAUNCH_TEASER) : "";
-function launchTeaser(): LaunchOptions["teaser"] {
-  if (!launchId) return undefined;
-  const mp4 = teaserGiven || resolve(import.meta.dirname, "public/launch", `${launchId}.mp4`);
-  if (!existsSync(mp4)) throw new Error(`No teaser for the launch video at ${mp4}: run pnpm launch:teaser (it makes public/launch/${launchId}.mp4 from the YouTube video)`);
-  const webm = mp4.replace(/\.mp4$/, ".webm");
-  for (const f of [mp4, webm]) if (existsSync(f) && statSync(f).size > 25 * 1024 * 1024) throw new Error(`The launch teaser ${f} is over 25 MiB, which Cloudflare's static assets refuse: run pnpm launch:teaser --refresh with a shorter --start/--end`);
-  return { mp4: `/launch/${launchId}.mp4`, webm: !teaserGiven && existsSync(webm) ? `/launch/${launchId}.webm` : undefined };
 }
 
 /** The file a slot shows: a dropped-in slot-<name>.* replacement wins over the manifest's interim file. */
@@ -104,17 +89,14 @@ const slotOf = (name: string): Slot => {
 /** Fills {{NAME}} placeholders from src/config.ts and writes every product image from src/slots.ts. */
 const sitePlugin = (): Plugin => ({
   name: "couch-site",
-  generateBundle() {
-    if (launchId && teaserGiven) this.emitFile({ type: "asset", fileName: `launch/${launchId}.mp4`, source: readFileSync(teaserGiven) });
-  },
   transformIndexHtml: {
     order: "pre",
     handler(html) {
       const used = new Set<string>();
-      const launch: LaunchOptions = { id: launchId, title: LAUNCH_VIDEO.title, channel: YOUTUBE_CHANNEL, thumb: launchThumb(), teaser: launchTeaser(), youtubeMark: SOCIAL_ICONS.youtube };
-      // the site's own privacy lines: with a video, they say what is Couch's and what YouTube may do once played
+      const launch: LaunchOptions = { id: launchId, title: LAUNCH_VIDEO.title, thumb: launchThumb() };
+      // the site's own privacy lines: with a video, they say what is Couch's and what YouTube may do once opened
       const privacy = launchId
-        ? "Couch adds no analytics or cookies. The launch video's preview comes from this site; YouTube loads only when you press Watch with sound or play, and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies."
+        ? "Couch adds no analytics or cookies. YouTube loads only when you open YouTube on the TV above, and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies."
         : "This site uses no cookies or analytics. Services opened in Couch have their own sign-ins, cookies and privacy policies.";
       const legal = launchId ? "No cookies or analytics from Couch." : "No cookies. No analytics.";
       const out = html
@@ -136,7 +118,6 @@ const sitePlugin = (): Plugin => ({
         .replace("{{intro:head}}", `<script>${introHead(introMode)}</script>`)
         .replace("{{mock:shelf}}", shelf())
         .replace("{{launch:screen}}", launchScreen(launch))
-        .replace("{{launch:under}}", launchUnder(launch))
         .replace("{{launch:privacy}}", privacy)
         .replace("{{launch:legal}}", legal)
         .replace(/\{\{slot:([\w-]+)\}\}/g, (_m, name: string) => {

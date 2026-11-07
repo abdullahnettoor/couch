@@ -52,23 +52,29 @@ Ticket 137 was a copy pass, not a redesign; ticket 138 redesigned the page aroun
 
 The Mac requirement is visible here, but is not the headline or the proposition.
 
-### The launch video in the first-look TV (ticket 145)
+### The first look's TV (ticket 145)
 
-Once the TV is mostly in view, the Home screenshot comes alive: the highlight moves left to **YouTube**, it is pressed, opens and fills the Screen, and the TV ends on the launch video. The Screen's own text in the moving part is the shoot's: **3:36 PM**, **Good afternoon · Monday 2 November**, **1 phone connected**, **YouTube**, **Netflix**, **Library**, **Big Buck Bunny (2008)**, **7 min left** (decorative, hidden from screen readers like the screenshot it continues).
+The TV pins under the hero and Couch's Home on it can be used. The Screen's own text is the shoot's: **3:36 PM**, **Good afternoon · Monday 2 November**, **1 phone connected**, **YouTube**, **Netflix**, **Library**, **Big Buck Bunny (2008)**, **7 min left** (decorative, hidden from screen readers; the tiles' buttons carry the names below).
 
-Placeholder mode (today: `LAUNCH_VIDEO.id` is empty):
-- On the Screen, a Couch-made poster (the icon's sofa-and-Screen light in a dark, warm room): **Launch video** / **Coming soon to YouTube**. No play button.
-- Under the TV, one link to the channel (`YOUTUBE_CHANNEL`): **Subscribe on YouTube** (Phosphor's YouTube mark).
-- No privacy line under the TV (nothing plays), and the privacy fact keeps its old wording (below).
+- The TV's accessible name: **Couch on the Screen** (a group, described as **TV**); the row: **Couch Home** (a toolbar).
+- The tiles' buttons: **Open YouTube: {title}** (placeholder: **Open YouTube**), **Open Netflix**, **Open the Library**, **Continue Big Buck Bunny (2008), 7 min left**.
+- The hint (a small pill over the Screen, until the visitor first uses the TV): **Use ← → or your mouse. Press Enter to open.** Touch screens: **Tap a tile.**
+- The hint while the scroll has moved the highlight to YouTube: **Press Enter or click to watch the launch video.** Touch: **Tap YouTube to watch the launch video.** Placeholder: **Press Enter or click to open YouTube.** / **Tap YouTube to open it.**
+- In an opened App: **‹ Home** (accessible name **Back to Home**).
+- Netflix's card: **Netflix opens Netflix's own website, signed in with your account.** (The Apps section's wording: the services' own websites, with your own accounts.)
+- Library: Couch's Library screenshot, alt **Couch's Library: the Films shelf with Big Buck Bunny, Sintel and Tears of Steel**. Continue: Couch's player, alt **Couch's player: Big Buck Bunny (2008) at 2:04, 7:52 left, with its controls**.
+
+Placeholder mode (`LAUNCH_VIDEO.id` empty):
+- YouTube opens a Couch-made poster (the icon's sofa-and-Screen light in a dark, warm room): **Launch video** / **Coming soon to YouTube**.
+- The privacy fact keeps its old wording (below).
 
 With a video (`LAUNCH_VIDEO.id` set; today the stand-in **PumpOS | The operating system for fuel retail**, `Hy7ry2TbjIg`):
-- On the Screen: a muted, looping teaser of the video, served by the site itself (no text of ours over it), with two controls in the lower-right corner: **Watch with sound** (a speaker icon; accessible name **Watch with sound: {title}**) and an icon-only pause toggle, accessible name **Pause the preview** / **Play the preview**. "Watch with sound" loads YouTube's player in its place, cued (not autoplaying): the visitor starts it with YouTube's own play button, so the play counts as a YouTube view.
-- Without the teaser (reduced motion, Save-Data, or it fails to load or play): the video's thumbnail (saved into the build), its title (`LAUNCH_VIDEO.title`) and a play button, accessible name **Play the launch video: {title}**. The player's frame is titled **{title} (YouTube video)**.
-- Under the TV, two equal pill links: **Watch on YouTube** (a play icon; the video's page) first, then **Subscribe on YouTube** (the channel); then the line: **The preview on the Screen comes from this site. YouTube loads only when you press Watch with sound or play.** (ticket 145 review: Watch moved first and made a pill like Subscribe so both are equally visible; earlier "Watch on YouTube" and "Subscribe", and "The launch video plays from YouTube and loads only when you press play.", which predates the teaser.)
-- Privacy fact **No Couch analytics** becomes: Couch adds no analytics or cookies. The launch video's preview comes from this site; YouTube loads only when you press Watch with sound or play, and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies. (145 review: was "This site uses no cookies or analytics, and loads nothing from YouTube until you press play on the launch video", which did not say what YouTube may do once played; then "Couch adds no analytics or cookies. YouTube loads only when you press play and may use…", before the teaser.)
+- YouTube opens YouTube's own player, cued (not autoplaying): the visitor starts it with YouTube's play button, so the play counts as a YouTube view. The player's frame is titled **{title} (YouTube video)**.
+- Nothing under the TV (ticket 145 review: the "Watch on YouTube" and "Subscribe on YouTube" pills and the line "The preview on the Screen comes from this site…" went with the self-hosted teaser; the channel stays in the footer's links).
+- Privacy fact **No Couch analytics** becomes: Couch adds no analytics or cookies. YouTube loads only when you open YouTube on the TV above, and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies. (145 review: earlier "…YouTube loads only when you press play…" and, with the teaser, "…The launch video's preview comes from this site; YouTube loads only when you press Watch with sound or play…".)
 - Footer line becomes: © **2026** Abdullah Nettoor. **No cookies or analytics from Couch.**
 
-Rejected: "Launch video coming soon" as a kicker over a title (the page bans kickers over headings; the two lines read as one sentence); a Subscribe pill drawn inside the poster (it would look pressable on a picture that is not); stating the site's privacy change while there is no video (it would describe something that does not happen yet). No FAQ answer said the site makes no third-party requests, so the FAQ is unchanged.
+Rejected: "Launch video coming soon" as a kicker over a title (the page bans kickers over headings; the two lines read as one sentence); a Subscribe pill drawn inside the poster (it would look pressable on a picture that is not); stating the site's privacy change while there is no video (it would describe something that does not happen yet); a self-hosted muted teaser with "Watch with sound" (the maintainer preferred the real Home, used); links and a note under the TV. No FAQ answer said the site makes no third-party requests, so the FAQ is unchanged.
 
 ## 3. The Remote (`#how`)
 
@@ -158,7 +164,7 @@ No “plays every format”, codec guarantee or promise that the household's vid
 - Facts:
   - **One household, one Screen** — No Couch sign-up and no Couch profiles. Pair a phone and join in.
   - **Kept on your Mac** — Your Library, Couch's saved viewing positions and your settings stay on the Mac. There is no Couch cloud.
-  - **No Couch analytics** — This site uses no cookies or analytics. Services opened in Couch have their own sign-ins, cookies and privacy policies. (With a launch video, ticket 145 review: Couch adds no analytics or cookies. The launch video's preview comes from this site; YouTube loads only when you press Watch with sound or play, and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies.)
+  - **No Couch analytics** — This site uses no cookies or analytics. Services opened in Couch have their own sign-ins, cookies and privacy policies. (With a launch video, ticket 145 review: Couch adds no analytics or cookies. YouTube loads only when you open YouTube on the TV above, and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies.)
   - **Open to a closer look** — Couch is free and open source under GPL-3.0-or-later. Read the code or build it yourself.
 
 ### Connection-list headline options
