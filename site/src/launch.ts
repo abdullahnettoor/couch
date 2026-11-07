@@ -16,6 +16,9 @@
  * Library → Netflix → YouTube (scrolling back moves it back), and on YouTube the hint says how to watch. The scroll
  * never opens anything, and once the visitor has used the TV it no longer moves the highlight.
  *
+ * Phones: a small Couch Remote under the TV ([data-remote]) drives it like the keys: ← → move the highlight, OK opens,
+ * Back goes Home; its caption says what OK will do. A press keeps the focus on the Remote.
+ *
  * Reduced motion: no pin, no scroll-driven highlight, no growth and no transitions; the TV works the same.
  * Without script: the screenshot of Home.
  */
@@ -100,6 +103,13 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
     updateHint();
   };
 
+  // the phone Remote's caption: what OK does on the highlighted tile, or Back in an opened App
+  const remote = document.querySelector<HTMLElement>("[data-remote]");
+  const caption = remote?.querySelector<HTMLElement>(".fl-cap");
+  const liveRegion = remote?.querySelector<HTMLElement>(".fl-live");
+  const captionFor = () => remote?.getAttribute(`data-cap-${opened ? "open" : focus}`) ?? "";
+  const updateCaption = () => { if (caption) caption.textContent = captionFor(); };
+
   /** Moves the highlight (and the toolbar's one tab stop) to `id`; with `move`, the focus too. */
   const setFocus = (id: string, move = false) => {
     if (!tiles.has(id)) return;
@@ -113,6 +123,7 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
     lv.classList.toggle("lit", id !== "continue");
     if (move) button(id).focus({ preventScroll: true });
     updateHint();
+    updateCaption();
   };
 
   /** The lifted tile's box in the Screen's own coordinates (offsets, so the first look's tilt and scale don't count). */
@@ -147,7 +158,7 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
   };
 
   /** Opens a tile: YouTube's player is created only now. */
-  const openApp = (id: string) => {
+  const openApp = (id: string, keepFocus = false) => {
     if (!live || opened || !tiles.has(id)) return;
     interact();
     setFocus(id);
@@ -165,13 +176,14 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
         frame.referrerPolicy = "strict-origin-when-cross-origin";
         frame.allowFullscreen = true;
         view.append(frame);
-        frame.focus();
-      } else homeButton(id).focus({ preventScroll: true });
+        if (!keepFocus) frame.focus();
+      } else if (!keepFocus) homeButton(id).focus({ preventScroll: true });
     };
     const start = () => {
       tiles.get(id)!.classList.remove("lv-pressed");
       lv.dataset.open = id;
-      homeButton(id).focus({ preventScroll: true });
+      updateCaption();
+      if (!keepFocus) homeButton(id).focus({ preventScroll: true });
       if (reduced()) { show(); return; }
       grow(id);
       later(OPEN_MS * 0.7, show);
@@ -182,7 +194,7 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
   };
 
   /** Back to Home: the view goes (and YouTube's player with it), and the highlight is where it was. */
-  const close = () => {
+  const close = (keepFocus = false) => {
     if (!opened) return;
     const id = opened;
     clearLater();
@@ -192,7 +204,7 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
     view.classList.remove("on");
     delete lv.dataset.open;
     opened = null;
-    setFocus(id, true);
+    setFocus(id, !keepFocus);
   };
 
   /** Brings Home to life over the screenshot (they are drawn in the same place), once its picture is in. */
@@ -209,6 +221,7 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
       live = true;
       home.inert = false;
       home.removeAttribute("aria-hidden");
+      if (remote) remote.inert = false;
       lv.dataset.step = "row";
       setFocus(focus);
       drive();
@@ -279,8 +292,21 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
   screen.addEventListener("pointermove", (e) => { if (live && e.pointerType !== "touch" && (e.movementX || e.movementY)) veilGone(); });
   screen.addEventListener("pointerdown", () => { if (live) veilGone(); });
   lv.addEventListener("keydown", () => veilGone(), { capture: true });
-  back.addEventListener("click", close);
-  libHome?.addEventListener("click", close);
+  back.addEventListener("click", () => close());
+  libHome?.addEventListener("click", () => close());
+  // the phone Remote: the keys' work, the focus kept on the Remote, and a polite word for screen readers on a move
+  remote?.addEventListener("click", (e) => {
+    const cmd = (e.target as HTMLElement).closest<HTMLElement>("[data-cmd]")?.dataset.cmd;
+    if (!cmd || !live) return;
+    interact();
+    if (cmd === "back") { close(true); return; }
+    if (opened) return;
+    if (cmd === "ok") { openApp(focus, true); return; }
+    const i = ids.indexOf(focus) + (cmd === "left" ? -1 : 1);
+    if (i < 0 || i >= ids.length) return;
+    setFocus(ids[i]!);
+    if (liveRegion) liveRegion.textContent = button(focus).getAttribute("aria-label") ?? "";
+  });
   touch.addEventListener("change", updateHint);
 
   const motion = () => {

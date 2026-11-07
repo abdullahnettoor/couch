@@ -35,11 +35,13 @@ const tapIcon = `<svg viewBox="0 0 256 256" aria-hidden="true"><path d="M56,76a6
 export const VEIL = {
   key: { title: "Use the arrow keys or your mouse", sub: "Enter or click opens a tile" },
   touch: { title: "Tap a tile to open it" },
+  remote: { title: "Use the Remote below, or tap a tile" },
 };
+export const NETFLIX_LINE = "Netflix opens Netflix's own website, signed in with your account.";
 const veil = `<div class="lv-veil" aria-hidden="true">`
   + `<div class="lv-veil-key"><div class="lv-veil-glyphs"><span class="lv-key">←</span><span class="lv-key">→</span><span class="lv-veil-or">or</span>${mouseIcon}</div>`
   + `<p class="lv-veil-title">${VEIL.key.title}</p><p class="lv-veil-sub">${VEIL.key.sub}</p></div>`
-  + `<div class="lv-veil-touch"><div class="lv-veil-glyphs">${tapIcon}</div><p class="lv-veil-title">${VEIL.touch.title}</p></div></div>`;
+  + `<div class="lv-veil-touch"><div class="lv-veil-glyphs">${tapIcon}</div><p class="lv-veil-title lv-veil-tap">${VEIL.touch.title}</p><p class="lv-veil-title lv-veil-remote">${VEIL.remote.title}</p></div></div>`;
 
 /** The Screen's pictures: 16:10, as wide as the first-look TV's Screen. */
 const SIZES = "(max-width: 700px) calc(100vw - 50px), min(calc(100vw - 66px), calc((100vh - 122px) * 1.6), 1582px)";
@@ -87,10 +89,38 @@ export function launchScreen(o: LaunchOptions): string {
   const libHome = `<button class="lv-libhome" type="button" aria-label="Home"></button>`;
   const library = `<div class="lv-view" data-view="library">${libHome}<img src="/src/shots/library.webp" srcset="/src/shots/library-640.webp 640w, /src/shots/library-1280.webp 1280w, /src/shots/library.webp 1920w" sizes="${SIZES}" width="1920" height="1200" alt="Couch's Library: the Films shelf with Big Buck Bunny, Sintel and Tears of Steel" loading="lazy" decoding="async" /></div>`;
   const player = `<div class="lv-view" data-view="continue"><img src="/src/shots/player.webp" srcset="/src/shots/player-640.webp 640w, /src/shots/player.webp 1280w" sizes="${SIZES}" width="1280" height="800" alt="Couch's player: Big Buck Bunny (2008) at 2:04, 7:52 left, with its controls" loading="lazy" decoding="async" /></div>`;
-  const netflix = `<div class="lv-view" data-view="netflix"><div class="lv-card">${faceMark("netflix")}<p>Netflix opens Netflix's own website, signed in with your account.</p></div></div>`;
+  // Netflix's signed-in home inside Couch (a friend's account, the profile picture painted out; README, screenshots)
+  const netflix = `<div class="lv-view" data-view="netflix"><img src="/src/shots/netflix.webp" srcset="/src/shots/netflix-640.webp 640w, /src/shots/netflix-1280.webp 1280w, /src/shots/netflix.webp 1920w" sizes="${SIZES}" width="1920" height="1206" alt="${NETFLIX_LINE}" loading="lazy" decoding="async" />`
+    + `<p class="lv-caption" aria-hidden="true">${NETFLIX_LINE}</p></div>`;
   const back = `<button class="lv-back" type="button" aria-label="Back to Home">${caretLeft}Home</button>`;
   const h = hints(video);
   const hint = `<p class="lv-hint" id="lv-hint" data-key="${esc(h.key)}" data-touch="${esc(h.touch)}" data-yt-key="${esc(h.ytKey)}" data-yt-touch="${esc(h.ytTouch)}"></p>`;
   const mode = video ? `data-mode="video" data-embed="${esc(embedUrl(o.id))}" data-title="${esc(o.title)}"` : `data-mode="placeholder"`;
   return `<div class="lv" data-launch ${mode} role="group" aria-roledescription="TV" aria-label="Couch on the Screen">${launchHome(labels)}${open}${youtube}${library}${player}${netflix}${back}${hint}${veil}</div>`;
+}
+
+/** What the phone Remote's caption says for the highlighted tile, and in an opened App. */
+export const REMOTE_CAPTIONS: Record<string, string> = {
+  continue: "Big Buck Bunny · Tap OK to resume",
+  library: "Your own films · Tap OK to open",
+  netflix: "Netflix, with your own account · Tap OK",
+  youtube: "YouTube · Tap OK to watch the launch video",
+  open: "Tap Back to go Home",
+};
+
+/**
+ * Phones (the layout where the TV pins just below the nav): a small Couch Remote under the TV that drives it. Couch's
+ * own D-pad (src/couch-ui/remote.css: .pad, .dir, .ok; only Left, Right and OK, the keys that do something here) and a
+ * Back key; the caption says what OK will do. Hidden without script and off the phone layout (style.css), inert until
+ * the TV comes to life (src/launch.ts).
+ */
+export function launchRemote(o: LaunchOptions): string {
+  const caps: Record<string, string> = { ...REMOTE_CAPTIONS, youtube: o.id ? REMOTE_CAPTIONS.youtube! : "YouTube · Tap OK to open" };
+  const dir = (cls: string, cmd: string, label: string, path: string) => `<button class="dir ${cls}" type="button" data-cmd="${cmd}" aria-label="${label}"><svg class="i" viewBox="0 0 256 256" aria-hidden="true"><path d="${path}"/></svg></button>`;
+  const left = dir("l", "left", "Left", "M168,48V208a8,8,0,0,1-13.66,5.66l-80-80a8,8,0,0,1,0-11.32l80-80A8,8,0,0,1,168,48Z");
+  const right = dir("r", "right", "Right", "M181.66,133.66l-80,80A8,8,0,0,1,88,208V48a8,8,0,0,1,13.66-5.66l80,80A8,8,0,0,1,181.66,133.66Z");
+  const back = `<button class="fl-back" type="button" data-cmd="back" aria-label="Back">${caretLeft}Back</button>`;
+  const data = Object.entries(caps).map(([k, v]) => `data-cap-${k}="${esc(v)}"`).join(" ");
+  return `<div class="fl-remote-wrap" data-remote ${data} inert><div class="cr fl-remote" role="group" aria-label="Remote">${back}<div class="pad">${left}${right}<button class="ok" type="button" data-cmd="ok" aria-label="OK">OK</button></div></div>`
+    + `<p class="fl-cap" aria-hidden="true">${esc(caps.continue!)}</p><p class="fl-live" aria-live="polite"></p></div>`;
 }

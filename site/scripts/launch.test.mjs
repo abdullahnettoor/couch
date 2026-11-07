@@ -29,6 +29,7 @@ const EMBED = `https://www.youtube-nocookie.com/embed/${FAKE_ID}?rel=0&playsinli
 const BLOCKED = ["youtube.com", "youtube-nocookie.com", "ytimg.com", "googlevideo.com", "ggpht.com", "google.com", "gstatic.com", "googleapis.com", "doubleclick.net", "netflix.com", "nflxext.com", "nflximg.net"];
 const isYouTube = (host) => BLOCKED.slice(0, 9).some((d) => host === d || host.endsWith(`.${d}`));
 const KEY_HINT = "Use ← → or your mouse. Press Enter to open.";
+const NETFLIX = "Netflix opens Netflix's own website, signed in with your account.";
 
 function serve(dir) {
   const server = createServer((req, res) => {
@@ -337,6 +338,121 @@ describe("the overlay: how to use the TV, each time it comes into place until it
   });
 });
 
+describe("phones: a small Couch Remote under the pinned TV drives it", { skip }, () => {
+  const phone = (opts = {}) => open("video", { width: 390, height: 844, touch: true, ...opts });
+  const rm = (page) => page.evaluate(() => {
+    const w = document.querySelector("[data-remote]"), r = w.getBoundingClientRect(), tv = document.querySelector(".first-look .tv").getBoundingClientRect();
+    return { display: getComputedStyle(w).display, top: r.top, bottom: r.bottom, tvTop: tv.top, tvBottom: tv.bottom, cap: w.querySelector(".fl-cap").textContent, live: w.querySelector(".fl-live").textContent, active: document.activeElement?.dataset.cmd ?? "" };
+  });
+  const press = async (page, cmd) => { await page.tap(`[data-remote] [data-cmd="${cmd}"]`); await wait(120); };
+
+  test("only on the phone layout: Left, Right, OK and Back, in a group named Remote; nothing on a 1440 window", async () => {
+    let page = await open("video");
+    assert.equal((await rm(page)).display, "none");
+    await page.close();
+    page = await phone();
+    await at(page, 0.02);
+    await live(page);
+    const g = await page.$eval("[data-remote] .fl-remote", (e) => ({ role: e.getAttribute("role"), label: e.getAttribute("aria-label"), buttons: [...e.querySelectorAll("button")].map((b) => b.getAttribute("aria-label")) }));
+    assert.deepEqual(g, { role: "group", label: "Remote", buttons: ["Back", "Left", "Right", "OK"] });
+    const s = await rm(page);
+    assert.equal(s.display, "grid");
+    assert.equal(s.cap, "Big Buck Bunny · Tap OK to resume");
+    assert.equal(await page.$eval(".lv-hint", (e) => getComputedStyle(e).display), "none", "the caption replaces the hint pill");
+    assert.equal(await page.evaluate(() => { document.documentElement.classList.remove("js"); return getComputedStyle(document.querySelector("[data-remote]")).display; }), "none", "no script: hidden");
+    await page.close();
+  });
+
+  for (const [w, h] of [[390, 844], [360, 740], [375, 667]]) {
+    test(`at ${w} × ${h} it pins with the TV, just below it, and fits the window`, async () => {
+      const page = await phone({ width: w, height: h });
+      for (const p of [0.02, 0.5, 0.95]) {
+        await at(page, p);
+        const s = await rm(page);
+        assert.ok(Math.abs(s.tvTop - 78) < 1.5, `the TV 12px under the nav (${s.tvTop})`);
+        assert.ok(s.top >= s.tvBottom && s.top - s.tvBottom < 30, `the Remote right under the TV (${s.tvBottom} → ${s.top})`);
+        assert.ok(s.bottom <= h, `inside the window (${s.bottom} of ${h})`);
+      }
+      assert.equal((await lv(page)).cls, 0);
+      await page.close();
+    });
+  }
+
+  test("← → move the highlight with the caption; a press counts as using the TV (the overlay goes, the scroll stops driving)", async () => {
+    const page = await phone();
+    await at(page, -0.4);
+    await live(page);
+    await at(page, 0.02);
+    assert.equal((await lv(page)).veil, "on");
+    await press(page, "left");
+    let s = await lv(page);
+    assert.equal(s.veil, null, "the overlay goes");
+    assert.equal(s.focus, "library");
+    assert.equal(s.used, true);
+    assert.equal((await rm(page)).cap, "Your own films · Tap OK to open");
+    assert.equal((await rm(page)).live, "Open the Library", "a polite word for screen readers, on a Remote move only");
+    await press(page, "left");
+    assert.equal((await rm(page)).cap, "Netflix, with your own account · Tap OK");
+    await press(page, "left");
+    assert.equal((await rm(page)).cap, "YouTube · Tap OK to watch the launch video");
+    await press(page, "left");
+    assert.equal((await lv(page)).focus, "youtube", "the end of the row");
+    await press(page, "right");
+    await press(page, "right");
+    await press(page, "right");
+    assert.equal((await rm(page)).cap, "Big Buck Bunny · Tap OK to resume");
+    await at(page, 0.9);
+    assert.equal((await lv(page)).focus, "continue", "the scroll no longer moves it");
+    assert.equal((await rm(page)).active, "right", "the focus stays on the Remote");
+    await page.close();
+  });
+
+  test("OK opens YouTube's player (cued, no autoplay) and Back goes Home; and the others", async () => {
+    const page = await phone();
+    await at(page, 0.9);
+    await live(page);
+    assert.equal((await lv(page)).focus, "youtube");
+    assert.deepEqual(page.away, []);
+    await press(page, "ok");
+    await page.waitForSelector("[data-launch] iframe", { timeout: 3000 });
+    let s = await lv(page);
+    assert.equal(s.frame, EMBED);
+    assert.equal((await rm(page)).cap, "Tap Back to go Home");
+    assert.equal((await rm(page)).active, "ok", "the focus stays on the Remote");
+    await press(page, "left");
+    assert.equal((await lv(page)).focus, "youtube", "← does nothing in an opened App");
+    await press(page, "back");
+    s = await lv(page);
+    assert.equal(s.open, "");
+    assert.equal(s.frame, null);
+    assert.equal((await rm(page)).cap, "YouTube · Tap OK to watch the launch video");
+    for (const [moves, id] of [[1, "netflix"], [2, "library"], [3, "continue"]]) {
+      for (let k = 0; k < moves; k++) await press(page, "right");
+      await press(page, "ok");
+      await page.waitForFunction((id) => document.querySelector(`.lv-view[data-view="${id}"]`).classList.contains("on"), { timeout: 3000 }, id);
+      await press(page, "back");
+      assert.equal((await lv(page)).open, "", id);
+      for (let k = 0; k < moves; k++) await press(page, "left");
+    }
+    assert.ok(page.away.every((u) => isYouTube(new URL(u).hostname)), page.away.join(" "));
+    await page.close();
+  });
+
+  test("reduced motion: no pin, and the Remote still sits under the TV and works", async () => {
+    const page = await phone({ reduce: true });
+    await centre(page);
+    await live(page);
+    const s = await rm(page);
+    assert.equal(s.display, "grid");
+    assert.ok(s.top >= s.tvBottom);
+    await press(page, "left");
+    assert.equal((await lv(page)).focus, "library");
+    await press(page, "ok");
+    assert.equal((await lv(page)).on, "library", "at once");
+    await page.close();
+  });
+});
+
 describe("using the TV", { skip }, () => {
   test("keys: one tab stop, ← → only while the focus is in the TV, and a click into the TV puts the keys there", async () => {
     const page = await open("video");
@@ -435,7 +551,7 @@ describe("using the TV", { skip }, () => {
     await live(page);
     for (const [id, check] of [
       ["library", (v) => v.img && v.img.local && v.img.loaded && /Library/.test(v.img.alt)],
-      ["netflix", (v) => v.text === "Netflix opens Netflix's own website, signed in with your account."],
+      ["netflix", (v) => v.img && v.img.local && v.img.loaded && v.img.alt === NETFLIX && v.text === NETFLIX],
       ["continue", (v) => v.img && v.img.local && v.img.loaded && /player/.test(v.img.alt)],
     ]) {
       await page.click(`.h-app[data-id="${id}"] .lv-tile`);
@@ -468,7 +584,7 @@ describe("using the TV", { skip }, () => {
         assert.equal(e.active, "library");
         continue;
       }
-      await page.keyboard.press("Enter"); // Home
+      await page.keyboard.press(id === "netflix" ? "Escape" : "Enter"); // Esc, or Enter on Home
       await wait(100);
       const b = await lv(page);
       assert.equal(b.open, "");

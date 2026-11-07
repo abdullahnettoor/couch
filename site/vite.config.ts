@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import { GUMROAD_URL, GITHUB_URL, RELEASES_URL, DOWNLOAD_URL, WINDOWS_ISSUE_URL, SITE_URL, ADD_APP_URL, INTRO_MODE, SOCIAL, LAUNCH_VIDEO, type IntroMode, type SocialLink } from "./src/config.ts";
 import { home, install, remote, shelf, sprite } from "./src/mocks.ts";
-import { launchScreen, type LaunchOptions } from "./src/launch-markup.ts";
+import { launchRemote, launchScreen, type LaunchOptions } from "./src/launch-markup.ts";
 import { introHead, introSvg, wordmarkSvg } from "./src/brand/wordmark.ts";
 import { slots, type Slot, type SlotName } from "./src/slots.ts";
 
@@ -118,6 +118,7 @@ const sitePlugin = (): Plugin => ({
         .replace("{{intro:head}}", `<script>${introHead(introMode)}</script>`)
         .replace("{{mock:shelf}}", shelf())
         .replace("{{launch:screen}}", launchScreen(launch))
+        .replace("{{launch:remote}}", launchRemote(launch))
         .replace("{{launch:privacy}}", privacy)
         .replace("{{launch:legal}}", legal)
         .replace(/\{\{slot:([\w-]+)\}\}/g, (_m, name: string) => {
