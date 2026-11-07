@@ -44,7 +44,7 @@ const veil = `<div class="lv-veil" aria-hidden="true">`
   + `<div class="lv-veil-touch"><div class="lv-veil-glyphs">${tapIcon}</div><p class="lv-veil-title lv-veil-tap">${VEIL.touch.title}</p><p class="lv-veil-title lv-veil-remote">${VEIL.remote.title}</p></div></div>`;
 
 /** The Screen's pictures: 16:10, as wide as the first-look TV's Screen. */
-const SIZES = "(max-width: 700px) calc(100vw - 50px), min(calc(100vw - 66px), calc((100vh - 122px) * 1.6), 1582px)";
+const SIZES = "(max-width: 700px) calc(100vw - 50px), min(calc(100vw - 66px), calc((100vh - 158px) * 1.6), 1582px)";
 
 /**
  * The player's address: YouTube's privacy-enhanced embed, inline on phones, cued and not autoplaying: it shows
@@ -105,13 +105,13 @@ export const REMOTE_CAPTIONS: Record<string, string> = {
   library: "Your own films · Tap OK to open",
   netflix: "Netflix, with your own account · Tap OK",
   youtube: "YouTube · Tap OK to watch the launch video",
-  open: "Tap Back to go Home",
+  open: "Tap ‹ Home on the TV to go back",
 };
 
 /**
  * Phones (the layout where the TV pins just below the nav): a small Couch Remote under the TV that drives it. Couch's
- * own D-pad (src/couch-ui/remote.css: .pad, .dir, .ok; only Left, Right and OK, the keys that do something here) and a
- * Back key; the caption says what OK will do. Hidden without script and off the phone layout (style.css), inert until
+ * own D-pad (src/couch-ui/remote.css: .pad, .dir, .ok; only Left, Right and OK, the keys that do something here),
+ * nothing else; going back is the Home pill on the Screen. The caption says what OK will do. Hidden without script and off the phone layout (style.css), inert until
  * the TV comes to life (src/launch.ts).
  */
 export function launchRemote(o: LaunchOptions): string {
@@ -119,8 +119,7 @@ export function launchRemote(o: LaunchOptions): string {
   const dir = (cls: string, cmd: string, label: string, path: string) => `<button class="dir ${cls}" type="button" data-cmd="${cmd}" aria-label="${label}"><svg class="i" viewBox="0 0 256 256" aria-hidden="true"><path d="${path}"/></svg></button>`;
   const left = dir("l", "left", "Left", "M168,48V208a8,8,0,0,1-13.66,5.66l-80-80a8,8,0,0,1,0-11.32l80-80A8,8,0,0,1,168,48Z");
   const right = dir("r", "right", "Right", "M181.66,133.66l-80,80A8,8,0,0,1,88,208V48a8,8,0,0,1,13.66-5.66l80,80A8,8,0,0,1,181.66,133.66Z");
-  const back = `<button class="fl-back" type="button" data-cmd="back" aria-label="Back">${caretLeft}Back</button>`;
   const data = Object.entries(caps).map(([k, v]) => `data-cap-${k}="${esc(v)}"`).join(" ");
-  return `<div class="fl-remote-wrap" data-remote ${data} inert><div class="cr fl-remote" role="group" aria-label="Remote">${back}<div class="pad">${left}${right}<button class="ok" type="button" data-cmd="ok" aria-label="OK">OK</button></div></div>`
+  return `<div class="fl-remote-wrap" data-remote ${data} inert><div class="cr fl-remote" role="group" aria-label="Remote"><div class="pad">${left}${right}<button class="ok" type="button" data-cmd="ok" aria-label="OK">OK</button></div></div>`
     + `<p class="fl-cap" aria-hidden="true">${esc(caps.continue!)}</p><p class="fl-live" aria-live="polite"></p></div>`;
 }

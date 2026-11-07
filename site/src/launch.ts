@@ -16,8 +16,11 @@
  * Library → Netflix → YouTube (scrolling back moves it back), and on YouTube the hint says how to watch. The scroll
  * never opens anything, and once the visitor has used the TV it no longer moves the highlight.
  *
- * Phones: a small Couch Remote under the TV ([data-remote]) drives it like the keys: ← → move the highlight, OK opens,
- * Back goes Home; its caption says what OK will do. A press keeps the focus on the Remote.
+ * Phones: a small Couch Remote under the TV ([data-remote]), only its D-pad, drives it like the keys: ← → move the
+ * highlight, OK opens; the Home pill on the Screen goes back. Its caption says what OK will do. A press keeps the
+ * focus on the Remote.
+ *
+ * Skip ([data-skip], shown while the TV is pinned) scrolls on to the next section; it leaves the TV as it is.
  *
  * Reduced motion: no pin, no scroll-driven highlight, no growth and no transitions; the TV works the same.
  * Without script: the screenshot of Home.
@@ -245,13 +248,26 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
   let topCache = NaN;
   const stickyTop = () => (Number.isNaN(topCache) ? (topCache = parseFloat(getComputedStyle(pin!).top) || 0) : topCache);
   addEventListener("resize", () => { topCache = NaN; }, { passive: true });
-  /** Whether the TV is pinned (its track's top at the sticky offset, its bottom not yet past the pin's). */
+  /** Whether the TV is pinned (its track's top at the sticky offset, its bottom not yet past the pin's): Skip shows,
+   *  and (once Home is alive) the overlay comes. */
   const place = () => {
-    if (!live || reduced() || !track || !pin) return;
-    const r = track.getBoundingClientRect();
-    const t = stickyTop();
-    setInPlace(r.height - pin.offsetHeight > 1 && r.top <= t + 1 && r.bottom >= t + pin.offsetHeight - 1);
+    if (!track || !pin) return;
+    let pinned = false;
+    if (!reduced()) {
+      const r = track.getBoundingClientRect();
+      const t = stickyTop();
+      pinned = r.height - pin.offsetHeight > 1 && r.top <= t + 1 && r.bottom >= t + pin.offsetHeight - 1;
+    }
+    track.toggleAttribute("data-pinned", pinned);
+    if (live && !reduced()) setInPlace(pinned);
   };
+  // Skip: on to the next section, its top under the nav (smoothly, or at once under reduced motion); the TV is untouched
+  document.querySelector("[data-skip]")?.addEventListener("click", () => {
+    const next = track?.closest("section")?.nextElementSibling;
+    if (!next) return;
+    const nav = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--nav-h")) || 66;
+    scrollTo({ top: next.getBoundingClientRect().top + scrollY - nav, behavior: reduced() ? "auto" : "smooth" });
+  });
   addEventListener("scroll", () => { if (!queued) { queued = true; requestAnimationFrame(() => { drive(); place(); }); } }, { passive: true });
 
   // the mouse: pointing moves the highlight (only a real move: a tile sliding under a still pointer as the page
@@ -299,8 +315,7 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
     const cmd = (e.target as HTMLElement).closest<HTMLElement>("[data-cmd]")?.dataset.cmd;
     if (!cmd || !live) return;
     interact();
-    if (cmd === "back") { close(true); return; }
-    if (opened) return;
+    if (opened) return; // in an opened App, the Home pill on the Screen goes back
     if (cmd === "ok") { openApp(focus, true); return; }
     const i = ids.indexOf(focus) + (cmd === "left" ? -1 : 1);
     if (i < 0 || i >= ids.length) return;

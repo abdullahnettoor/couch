@@ -338,6 +338,62 @@ describe("the overlay: how to use the TV, each time it comes into place until it
   });
 });
 
+describe("Skip: while the TV is pinned, on to the next section", { skip }, () => {
+  const sk = (page) => page.evaluate(() => {
+    const b = document.querySelector("[data-skip]"), r = b.getBoundingClientRect(), sc = document.querySelector(".tv-screen").getBoundingClientRect(), rm = document.querySelector("[data-remote]").getBoundingClientRect();
+    const cs = getComputedStyle(b);
+    return { shown: cs.display !== "none" && cs.visibility === "visible", display: cs.display, label: b.getAttribute("aria-label"), tag: b.tagName, text: b.textContent, top: r.top, bottom: r.bottom, left: r.left, right: r.right,
+      screenBottom: sc.bottom, screenRight: sc.right, remoteBottom: rm.bottom, remoteH: rm.height, how: document.querySelector("#how").getBoundingClientRect().top, vh: innerHeight };
+  });
+  const tvState = (page) => page.evaluate(() => { const el = document.querySelector("[data-launch]"); return { used: el.dataset.used != null, open: el.dataset.open ?? "" }; });
+
+  test("shown only while pinned, under the Screen's bottom-right corner; a real button that scrolls the next section to the top under the nav, and leaves the TV as it is", async () => {
+    const page = await open("video");
+    await at(page, -0.4);
+    await live(page);
+    let s = await sk(page);
+    assert.equal(s.shown, false, "not before the pin");
+    await at(page, 0.3);
+    s = await sk(page);
+    assert.ok(s.shown, "while pinned");
+    assert.deepEqual([s.tag, s.label, s.text], ["BUTTON", "Skip the TV demo", "Skip"]);
+    assert.ok(s.top >= s.screenBottom && s.bottom <= s.vh, `under the Screen, in the window (${s.screenBottom} → ${s.top}–${s.bottom})`);
+    assert.ok(Math.abs(s.right - s.screenRight) < 2, "lined up with the TV's right edge");
+    const before = await tvState(page);
+    await page.focus("[data-skip]");
+    assert.equal(await page.evaluate(() => document.activeElement?.dataset.skip != null), true, "focusable");
+    await page.keyboard.press("Enter");
+    await page.waitForFunction(() => Math.abs(document.querySelector("#how").getBoundingClientRect().top - 66) < 2, { timeout: 4000 });
+    await wait(300);
+    s = await sk(page);
+    assert.ok(Math.abs(s.how - 66) < 2, `the next section under the nav (${s.how})`);
+    assert.equal(s.shown, false, "hidden once past the pin");
+    assert.deepEqual(await tvState(page), before, "not a use of the TV");
+    assert.equal((await tvState(page)).used, false);
+    await page.close();
+  });
+
+  test("phones: under the Remote's caption, clear of the Remote, and a tap skips", async () => {
+    const page = await open("video", { width: 390, height: 844, touch: true });
+    await at(page, 0.3);
+    await live(page);
+    const s = await sk(page);
+    assert.ok(s.shown);
+    assert.ok(s.top >= s.remoteBottom && s.bottom <= s.vh, `below the Remote (${s.remoteBottom} → ${s.top}–${s.bottom})`);
+    await page.tap("[data-skip]");
+    await page.waitForFunction(() => Math.abs(document.querySelector("#how").getBoundingClientRect().top - 66) < 2, { timeout: 4000 });
+    assert.equal((await tvState(page)).used, false);
+    await page.close();
+  });
+
+  test("reduced motion: nothing pins, so no Skip", async () => {
+    const page = await open("video", { reduce: true });
+    await centre(page);
+    assert.equal((await sk(page)).display, "none");
+    await page.close();
+  });
+});
+
 describe("phones: a small Couch Remote under the pinned TV drives it", { skip }, () => {
   const phone = (opts = {}) => open("video", { width: 390, height: 844, touch: true, ...opts });
   const rm = (page) => page.evaluate(() => {
@@ -346,7 +402,7 @@ describe("phones: a small Couch Remote under the pinned TV drives it", { skip },
   });
   const press = async (page, cmd) => { await page.tap(`[data-remote] [data-cmd="${cmd}"]`); await wait(120); };
 
-  test("only on the phone layout: Left, Right, OK and Back, in a group named Remote; nothing on a 1440 window", async () => {
+  test("only on the phone layout: just the D-pad (Left, Right, OK), in a group named Remote; nothing on a 1440 window", async () => {
     let page = await open("video");
     assert.equal((await rm(page)).display, "none");
     await page.close();
@@ -354,7 +410,7 @@ describe("phones: a small Couch Remote under the pinned TV drives it", { skip },
     await at(page, 0.02);
     await live(page);
     const g = await page.$eval("[data-remote] .fl-remote", (e) => ({ role: e.getAttribute("role"), label: e.getAttribute("aria-label"), buttons: [...e.querySelectorAll("button")].map((b) => b.getAttribute("aria-label")) }));
-    assert.deepEqual(g, { role: "group", label: "Remote", buttons: ["Back", "Left", "Right", "OK"] });
+    assert.deepEqual(g, { role: "group", label: "Remote", buttons: ["Left", "Right", "OK"] });
     const s = await rm(page);
     assert.equal(s.display, "grid");
     assert.equal(s.cap, "Big Buck Bunny · Tap OK to resume");
@@ -407,7 +463,7 @@ describe("phones: a small Couch Remote under the pinned TV drives it", { skip },
     await page.close();
   });
 
-  test("OK opens YouTube's player (cued, no autoplay) and Back goes Home; and the others", async () => {
+  test("OK opens YouTube's player (cued, no autoplay) and the Screen's Home pill goes back (32px at least, in each view); and the others", async () => {
     const page = await phone();
     await at(page, 0.9);
     await live(page);
@@ -417,11 +473,14 @@ describe("phones: a small Couch Remote under the pinned TV drives it", { skip },
     await page.waitForSelector("[data-launch] iframe", { timeout: 3000 });
     let s = await lv(page);
     assert.equal(s.frame, EMBED);
-    assert.equal((await rm(page)).cap, "Tap Back to go Home");
+    assert.equal((await rm(page)).cap, "Tap ‹ Home on the TV to go back");
     assert.equal((await rm(page)).active, "ok", "the focus stays on the Remote");
     await press(page, "left");
     assert.equal((await lv(page)).focus, "youtube", "← does nothing in an opened App");
-    await press(page, "back");
+    await press(page, "ok");
+    assert.equal((await lv(page)).open, "youtube", "OK in an opened App does nothing");
+    await page.tap(".lv-back");
+    await wait(120);
     s = await lv(page);
     assert.equal(s.open, "");
     assert.equal(s.frame, null);
@@ -430,7 +489,13 @@ describe("phones: a small Couch Remote under the pinned TV drives it", { skip },
       for (let k = 0; k < moves; k++) await press(page, "right");
       await press(page, "ok");
       await page.waitForFunction((id) => document.querySelector(`.lv-view[data-view="${id}"]`).classList.contains("on"), { timeout: 3000 }, id);
-      await press(page, "back");
+      await wait(400);
+      const pill = await page.$eval(".lv-back", (b) => { const r = b.getBoundingClientRect(), sc = b.closest(".tv-screen").getBoundingClientRect(), hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+        return { w: b.offsetWidth, h: b.offsetHeight, inside: r.left >= sc.left && r.right <= sc.right && r.top >= sc.top && r.bottom <= sc.bottom, visible: getComputedStyle(b).visibility === "visible" && Number(getComputedStyle(b).opacity) > 0.9, onTop: hit === b || b.contains(hit), text: b.textContent }; });
+      assert.ok(pill.visible && pill.onTop && pill.inside && pill.h >= 32 && pill.w >= 32 && pill.text === "Home", `${id}: ${JSON.stringify(pill)}`);
+      assert.equal((await rm(page)).cap, "Tap ‹ Home on the TV to go back");
+      await page.tap(".lv-back");
+      await wait(120);
       assert.equal((await lv(page)).open, "", id);
       for (let k = 0; k < moves; k++) await press(page, "left");
     }
