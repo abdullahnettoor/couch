@@ -8,7 +8,8 @@
  *
  * Use: the mouse (pointing at a tile moves the highlight to it, a click opens it), the keys (the row is a toolbar, one
  * tab stop: ← → Home End move the highlight while the focus is in the TV, Enter or Space opens; a click into the TV
- * focuses it), touch (a tap opens). A hint over the Screen says how, until the visitor first uses it.
+ * focuses it), touch (a tap opens). A hint over the Screen says how, until the visitor first uses it, and each time
+ * the TV comes into place (until then) an overlay over the whole Screen says it large, for VEIL_MS.
  *
  * The scroll: with motion, the TV is pinned below the nav while its track scrolls past (style.css, "first look").
  * Until the visitor uses the TV, the track's progress moves the highlight for them, in even steps: Continue →
@@ -23,6 +24,9 @@ const OPEN_MS = 900;
 /** The Remote's key press on the lifted tile before it opens (page.ts: .12s), held a little. */
 const PRESS_MS = 140;
 const EASE = "cubic-bezier(0.16, 1, 0.3, 1)";
+/** How long the overlay stays before it fades (Couch's .7s fade, in style.css). */
+export const VEIL_MS = 2500;
+const VEIL_FADE_MS = 700;
 /** The highlight's path as the scroll moves it: from the screenshot's (the Continue tile) left to YouTube. */
 export const SCROLL_PATH = ["continue", "library", "netflix", "youtube"] as const;
 
@@ -40,6 +44,9 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
   const openEl = lv.querySelector<HTMLElement>(".lv-open")!;
   const views = new Map([...lv.querySelectorAll<HTMLElement>(".lv-view")].map((v) => [v.dataset.view!, v]));
   const back = lv.querySelector<HTMLButtonElement>(".lv-back")!;
+  // the Library's Home is its screenshot's own "‹ Home" (an invisible button over it); the others have the Home pill
+  const libHome = lv.querySelector<HTMLButtonElement>(".lv-libhome");
+  const homeButton = (id: string) => (id === "library" && libHome ? libHome : back);
   const hint = lv.querySelector<HTMLElement>(".lv-hint")!;
   const touch = matchMedia("(hover: none), (pointer: coarse)");
 
@@ -52,6 +59,31 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
   const later = (ms: number, fn: () => void) => timers.push(window.setTimeout(fn, ms));
   const clearLater = () => { timers.forEach(clearTimeout); timers = []; anims.forEach((a) => a.cancel()); anims = []; };
 
+  // The overlay: each time the TV comes into place (it pins; under reduced motion, 60% in view) until the visitor first
+  // uses it, a veil over the Screen says how, for VEIL_MS, then fades. Any use of the TV (a pointer moving over the
+  // Screen, a key in it, a tap or click) or the TV leaving its place takes it away at once, and after a use it never
+  // comes back. It never takes a pointer or a scroll (pointer-events: none).
+  let veilDone = false;
+  let veilTimer = 0;
+  const veilOff = () => { clearTimeout(veilTimer); veilTimer = 0; delete lv.dataset.veil; };
+  const veilOn = () => {
+    if (veilDone || opened || !live) return;
+    clearTimeout(veilTimer);
+    lv.dataset.veil = "on";
+    veilTimer = window.setTimeout(() => {
+      lv.dataset.veil = "fade";
+      veilTimer = window.setTimeout(veilOff, VEIL_FADE_MS);
+    }, VEIL_MS);
+  };
+  const veilGone = () => { veilDone = true; veilOff(); };
+  let inPlace = false;
+  const setInPlace = (now: boolean) => {
+    if (!live || now === inPlace) return;
+    inPlace = now;
+    if (now) veilOn();
+    else veilOff();
+  };
+
   const updateHint = () => {
     if (used || !live) { delete lv.dataset.hint; return; }
     const d = hint.dataset;
@@ -61,6 +93,7 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
   };
   /** The visitor used the TV: the hint goes, and the scroll no longer moves the highlight. */
   const interact = () => {
+    veilGone();
     if (used) return;
     used = true;
     lv.dataset.used = "";
@@ -133,12 +166,12 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
         frame.allowFullscreen = true;
         view.append(frame);
         frame.focus();
-      } else back.focus({ preventScroll: true });
+      } else homeButton(id).focus({ preventScroll: true });
     };
     const start = () => {
       tiles.get(id)!.classList.remove("lv-pressed");
       lv.dataset.open = id;
-      back.focus({ preventScroll: true });
+      homeButton(id).focus({ preventScroll: true });
       if (reduced()) { show(); return; }
       grow(id);
       later(OPEN_MS * 0.7, show);
@@ -179,6 +212,8 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
       lv.dataset.step = "row";
       setFocus(focus);
       drive();
+      if (reduced()) setInPlace(seen60);
+      else place();
     });
   };
 
@@ -197,7 +232,14 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
   let topCache = NaN;
   const stickyTop = () => (Number.isNaN(topCache) ? (topCache = parseFloat(getComputedStyle(pin!).top) || 0) : topCache);
   addEventListener("resize", () => { topCache = NaN; }, { passive: true });
-  addEventListener("scroll", () => { if (!queued) { queued = true; requestAnimationFrame(drive); } }, { passive: true });
+  /** Whether the TV is pinned (its track's top at the sticky offset, its bottom not yet past the pin's). */
+  const place = () => {
+    if (!live || reduced() || !track || !pin) return;
+    const r = track.getBoundingClientRect();
+    const t = stickyTop();
+    setInPlace(r.height - pin.offsetHeight > 1 && r.top <= t + 1 && r.bottom >= t + pin.offsetHeight - 1);
+  };
+  addEventListener("scroll", () => { if (!queued) { queued = true; requestAnimationFrame(() => { drive(); place(); }); } }, { passive: true });
 
   // the mouse: pointing moves the highlight (only a real move: a tile sliding under a still pointer as the page
   // scrolls is not the visitor's doing); a click (or a tap) opens
@@ -232,10 +274,30 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
     setFocus(ids[Math.max(0, Math.min(ids.length - 1, to))]!, true);
   });
   row.addEventListener("focusin", () => { if (live) interact(); });
+  // any use of the Screen takes the overlay away for good: a pointer moving over it (a real move), a tap or click, a key
+  const screen = lv.parentElement!;
+  screen.addEventListener("pointermove", (e) => { if (live && e.pointerType !== "touch" && (e.movementX || e.movementY)) veilGone(); });
+  screen.addEventListener("pointerdown", () => { if (live) veilGone(); });
+  lv.addEventListener("keydown", () => veilGone(), { capture: true });
   back.addEventListener("click", close);
+  libHome?.addEventListener("click", close);
   touch.addEventListener("change", updateHint);
 
-  const motion = () => { lv.classList.toggle("lv-now", reduced()); if (!reduced()) drive(); };
+  const motion = () => {
+    lv.classList.toggle("lv-now", reduced());
+    if (!reduced()) { drive(); place(); }
+    else setInPlace(seen60);
+  };
+  // under reduced motion nothing pins: the TV is in place when 60% of it is in view (or 60% of a window it doesn't fit)
+  let seen60 = false;
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(([e]) => {
+      if (!e) return;
+      const room = (e.rootBounds?.height ?? innerHeight) * 0.6;
+      seen60 = e.isIntersecting && (e.intersectionRatio >= 0.6 || e.intersectionRect.height >= room);
+      if (reduced()) setInPlace(seen60);
+    }, { threshold: [0, 0.2, 0.4, 0.6, 0.8, 1] }).observe(tv);
+  }
   onChange(motion);
   motion();
 

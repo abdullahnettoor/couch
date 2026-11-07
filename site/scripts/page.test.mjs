@@ -334,6 +334,9 @@ describe("the first-look TV: as big as the window holds, growing as it comes in,
         assert.ok(near(r.top, rects[0].top, 1), "and it stays put");
       }
       if (w <= 700) assert.ok(near(rects[0].left, 16, 1) && near(w - rects[0].right, 16, 1), `edge to edge but the gutter: ${rects[0].left}, ${w - rects[0].right}`);
+      // phones: pinned just below the nav (66 + 12), the room left over below the TV; wider windows: centred below the nav
+      if (w <= 700) assert.ok(near(rects[0].top, 78, 1.5), `just below the nav on a phone: ${rects[0].top}`);
+      else assert.ok(near(rects[0].top - 66, h - rects[0].bottom, 2), `centred below the nav: ${rects[0].top}, ${rects[0].bottom}`);
       assert.equal(await box(), before, "the layout box never changes");
       assert.equal(await page.evaluate(() => window.__cls), 0, "no layout shift");
       // the Remote section starts below the first look, clear of it

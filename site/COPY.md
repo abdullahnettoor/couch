@@ -58,9 +58,10 @@ The TV pins under the hero and Couch's Home on it can be used. The Screen's own 
 
 - The TV's accessible name: **Couch on the Screen** (a group, described as **TV**); the row: **Couch Home** (a toolbar).
 - The tiles' buttons: **Open YouTube: {title}** (placeholder: **Open YouTube**), **Open Netflix**, **Open the Library**, **Continue Big Buck Bunny (2008), 7 min left**.
+- The overlay over the whole Screen, each time the TV comes into place until the visitor first uses it (hidden from screen readers; the hint says the same): the keys **←** **→**, **or**, a mouse glyph; **Use the arrow keys or your mouse**; smaller, **Enter or click opens a tile**. Touch screens: a tap glyph and **Tap a tile to open it**.
 - The hint (a small pill over the Screen, until the visitor first uses the TV): **Use ← → or your mouse. Press Enter to open.** Touch screens: **Tap a tile.**
 - The hint while the scroll has moved the highlight to YouTube: **Press Enter or click to watch the launch video.** Touch: **Tap YouTube to watch the launch video.** Placeholder: **Press Enter or click to open YouTube.** / **Tap YouTube to open it.**
-- In an opened App: **‹ Home** (accessible name **Back to Home**).
+- In an opened App: **‹ Home** (accessible name **Back to Home**). In the Library, the screenshot's own **‹ Home** is the button (accessible name **Home**), and there is no pill.
 - Netflix's card: **Netflix opens Netflix's own website, signed in with your account.** (The Apps section's wording: the services' own websites, with your own accounts.)
 - Library: Couch's Library screenshot, alt **Couch's Library: the Films shelf with Big Buck Bunny, Sintel and Tears of Steel**. Continue: Couch's player, alt **Couch's player: Big Buck Bunny (2008) at 2:04, 7:52 left, with its controls**.
 

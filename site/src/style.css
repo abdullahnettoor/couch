@@ -260,6 +260,8 @@ html.intro.intro-now .lamp, html.intro.intro-now .hero-copy > :not(.mark) { anim
   html.js .fl-track { height: calc(100vh - var(--nav-h) + var(--fl-pin)); }
   html.js .fl-pin { position: sticky; top: var(--nav-h); height: calc(100vh - var(--nav-h)); display: grid; align-content: center; }
   html.js .fl-pin .stage { padding-bottom: 0; }
+  /* phones and tall windows: just below the nav (12px), so the room left over is below the TV, not around it */
+  @media (max-width: 700px), (max-aspect-ratio: 4/5) { html.js .fl-pin { align-content: start; padding-top: 12px; } }
   @supports (height: 100svh) {
     html.js .fl-track { height: calc(100svh - var(--nav-h) + var(--fl-pin)); }
     html.js .fl-pin { height: calc(100svh - var(--nav-h)); }
@@ -597,6 +599,27 @@ details p a { color: var(--amber-3); }
 .lv-back:active { transform: scale(.95); transition-duration: .12s; }
 .lv-hint { position: absolute; top: max(8px, calc(36 * var(--u))); left: 50%; translate: -50% 0; z-index: 4; margin: 0; padding: 0 1.1em; white-space: nowrap; opacity: 0; transition: opacity .5s var(--ease); }
 .lv[data-step][data-hint]:not([data-open]) .lv-hint { opacity: 1; }
+.lv[data-veil] .lv-hint { opacity: 0 !important; transition: none; }
+/* The Library's own "‹ Home" (in its screenshot, top left) is the view's Home: an invisible button over it, and no pill */
+.lv[data-open="library"] .lv-back { display: none; }
+.lv-libhome { all: unset; position: absolute; z-index: 1; left: calc(76 * var(--u)); top: calc(12 * var(--u)); width: calc(128 * var(--u)); height: calc(60 * var(--u)); border-radius: 999px; cursor: pointer; }
+.lv-libhome:focus-visible { outline: 2px solid var(--amber-3); outline-offset: 2px; }
+/* The overlay (src/launch.ts, data-veil): as the TV comes into place, a dark glass veil over the whole Screen says how to
+   use it, then fades (Couch's .7s); it never takes a pointer or a scroll (pointer-events: none) */
+.lv-veil { position: absolute; inset: 0; z-index: 5; display: grid; place-content: center; text-align: center; pointer-events: none; opacity: 0; visibility: hidden;
+  background: rgba(8, 8, 10, .62); -webkit-backdrop-filter: blur(10px) saturate(1.2); backdrop-filter: blur(10px) saturate(1.2); }
+.lv[data-veil="on"] .lv-veil { opacity: 1; visibility: visible; transition: opacity .35s var(--ease); }
+.lv[data-veil="fade"] .lv-veil { opacity: 0; visibility: visible; transition: opacity .7s var(--ease); }
+.lv-veil-key, .lv-veil-touch { display: grid; justify-items: center; gap: max(6px, calc(22 * var(--u))); }
+.lv-veil-glyphs { display: flex; align-items: center; gap: max(8px, calc(22 * var(--u))); margin-bottom: max(6px, calc(20 * var(--u))); color: #fff; }
+.lv-veil-glyphs svg { width: max(30px, calc(112 * var(--u))); height: max(30px, calc(112 * var(--u))); fill: currentColor; }
+.lv-key { display: grid; place-items: center; width: max(30px, calc(104 * var(--u))); aspect-ratio: 1; border-radius: max(7px, calc(22 * var(--u))); font: 600 max(15px, calc(50 * var(--u)))/1 var(--sans); color: #fff;
+  background: rgba(255, 255, 255, .1); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .26), inset 0 0 0 1px rgba(255, 255, 255, .18), inset 0 calc(-6 * var(--u)) 0 rgba(0, 0, 0, .25), 0 calc(10 * var(--u)) calc(28 * var(--u)) rgba(0, 0, 0, .35); }
+.lv-veil-or { font: 500 max(12px, calc(34 * var(--u)))/1 var(--sans); color: var(--t2); }
+.lv-veil-title { margin: 0; font: 600 max(17px, calc(76 * var(--u)))/1.1 var(--sans); letter-spacing: -.025em; color: #fff; text-wrap: balance; }
+.lv-veil-sub { margin: 0; font: 500 max(12px, calc(36 * var(--u)))/1.3 var(--sans); color: var(--t2); }
+.lv-veil-touch { display: none; }
+@media (hover: none), (pointer: coarse) { .lv-veil-key { display: none; } .lv-veil-touch { display: grid; } }
 
 /* micro: cursor spotlight on cards (a transformed light, nothing repaints), lift on hover like a focused tile (0.38s); the shadow stays put */
 .spot::before { content: ""; position: absolute; left: 0; top: 0; width: 420px; height: 420px; margin: -210px 0 0 -210px; z-index: -1; border-radius: 50%; pointer-events: none;

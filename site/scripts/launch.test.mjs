@@ -111,7 +111,8 @@ const lv = (page) => page.evaluate(() => {
     hint: el.dataset.hint != null ? el.querySelector(".lv-hint").textContent : null,
     hintOpacity: Number(getComputedStyle(el.querySelector(".lv-hint")).opacity),
     frame: el.querySelector("iframe")?.src ?? null,
-    active: a?.tagName === "IFRAME" ? "iframe" : a?.closest?.(".h-app")?.dataset.id ?? (a?.classList.contains("lv-back") ? "back" : a?.tagName ?? ""),
+    active: a?.tagName === "IFRAME" ? "iframe" : a?.closest?.(".h-app")?.dataset.id ?? (a?.classList.contains("lv-back") ? "back" : a?.classList.contains("lv-libhome") ? "libhome" : a?.tagName ?? ""),
+    veil: el.dataset.veil ?? null, veilOpacity: Number(getComputedStyle(el.querySelector(".lv-veil")).opacity),
     tv: { top: r.top, bottom: r.bottom, h: r.height }, cls: window.__cls,
   };
 });
@@ -142,7 +143,7 @@ describe("the pinned TV and the scroll", { skip }, () => {
     const page = await open("video");
     await at(page, 0);
     await live(page);
-    await wait(700); // the hint's fade in
+    await wait(4000); // the overlay's time and fade, then the hint's fade in
     let s = await lv(page);
     assert.equal(s.focus, "continue");
     assert.equal(s.lit, false, "on the Continue tile, Home shows its picture");
@@ -198,6 +199,140 @@ describe("the pinned TV and the scroll", { skip }, () => {
     const s = await lv(page);
     assert.equal(s.used, false);
     assert.equal(s.focus, "library");
+    await page.close();
+  });
+});
+
+describe("the overlay: how to use the TV, each time it comes into place until it is used", { skip }, () => {
+  /** Scrolls to before the pin, waits for the live Home, then into the pin. */
+  const pinIn = async (page, p = 0.02) => { await at(page, -0.4); await live(page); await at(page, p); };
+
+  test("it covers the Screen as the TV pins, stays about 2.5 s, then fades (.7 s); hidden from screen readers, and it takes no pointer", async () => {
+    const page = await open("video");
+    await at(page, -0.4);
+    await live(page);
+    await wait(300);
+    assert.equal((await lv(page)).veil, null, "not before the TV is in place");
+    await at(page, 0.02);
+    let s = await lv(page);
+    assert.equal(s.veil, "on");
+    const v = await page.evaluate(() => {
+      const veil = document.querySelector(".lv-veil"), sc = document.querySelector(".tv-screen").getBoundingClientRect(), r = veil.getBoundingClientRect();
+      const shown = (sel) => getComputedStyle(veil.querySelector(sel)).display !== "none";
+      return { hidden: veil.getAttribute("aria-hidden"), pe: getComputedStyle(veil).pointerEvents, covers: Math.abs(r.width - (sc.width - 18)) < 2 && Math.abs(r.height - (sc.height - 18)) < 2,
+        text: [...veil.querySelectorAll(".lv-veil-key p")].map((p) => p.textContent), keys: [...veil.querySelectorAll(".lv-key")].map((k) => k.textContent).join(""), key: shown(".lv-veil-key"), touch: shown(".lv-veil-touch") };
+    });
+    assert.deepEqual(v, { hidden: "true", pe: "none", covers: true, text: ["Use the arrow keys or your mouse", "Enter or click opens a tile"], keys: "←→", key: true, touch: false });
+    await wait(500);
+    assert.equal((await lv(page)).veilOpacity, 1);
+    await wait(1700);
+    assert.equal((await lv(page)).veil, "on", "still there at about 2.2 s");
+    await wait(600);
+    s = await lv(page);
+    assert.equal(s.veil, "fade", "fading after 2.5 s");
+    assert.ok(s.veilOpacity < 1 && s.veilOpacity > 0, `mid-fade ${s.veilOpacity}`);
+    await wait(800);
+    s = await lv(page);
+    assert.equal(s.veil, null);
+    assert.equal(s.veilOpacity, 0);
+    assert.equal(s.cls, 0);
+    await page.close();
+  });
+
+  test("without a use, it comes back each time the TV pins again (from above and from below); scrolling on past the pin takes it away at once", async () => {
+    const page = await open("video");
+    await pinIn(page);
+    assert.equal((await lv(page)).veil, "on");
+    await at(page, 1.3);
+    assert.equal((await lv(page)).veil, null, "gone at once past the pin");
+    await at(page, 0.9);
+    assert.equal((await lv(page)).veil, "on", "back, pinned again from below");
+    await at(page, 0.5);
+    assert.equal((await lv(page)).veil, "on", "a scroll inside the pin doesn't restart it");
+    await at(page, -0.4);
+    assert.equal((await lv(page)).veil, null);
+    await at(page, 0.1);
+    assert.equal((await lv(page)).veil, "on", "back, pinned again from above");
+    assert.equal((await lv(page)).used, false);
+    await page.close();
+  });
+
+  test("a pointer moving over the Screen takes it away at once, and after that it never comes back", async () => {
+    const page = await open("video");
+    await pinIn(page);
+    const c = await page.$eval(".lv-home .h-clock", (e) => { const b = e.getBoundingClientRect(); return { x: b.x + 20, y: b.y + 20 }; });
+    await page.mouse.move(c.x, c.y);
+    await page.mouse.move(c.x + 30, c.y + 5, { steps: 3 });
+    let s = await lv(page);
+    assert.equal(s.veil, null);
+    assert.equal(s.veilOpacity, 0, "at once, no fade");
+    for (const p of [1.3, 0.5, -0.4, 0.1]) {
+      await at(page, p);
+      assert.equal((await lv(page)).veil, null, `not again (${p})`);
+    }
+    await page.close();
+  });
+
+  test("the first click both takes it away and opens the tile under it", async () => {
+    const page = await open("video");
+    await pinIn(page);
+    const c = await tileCentre(page, "library");
+    await page.mouse.click(c.x, c.y);
+    await page.waitForFunction(() => document.querySelector("[data-launch]").dataset.open === "library", { timeout: 2000 });
+    assert.equal((await lv(page)).veil, null);
+    await page.close();
+  });
+
+  test("a key in the TV takes it away", async () => {
+    const page = await open("video");
+    await pinIn(page);
+    await page.evaluate(() => document.querySelector(".h-app[data-id=continue] .lv-tile").focus({ preventScroll: true }));
+    await page.keyboard.press("ArrowLeft");
+    const s = await lv(page);
+    assert.equal(s.veil, null);
+    assert.equal(s.focus, "library", "and the key does its job");
+    await page.close();
+  });
+
+  test("touch: a tap glyph and \"Tap a tile to open it\"", async () => {
+    const page = await open("video", { width: 390, height: 844, touch: true });
+    await pinIn(page);
+    assert.equal((await lv(page)).veil, "on");
+    const v = await page.evaluate(() => {
+      const veil = document.querySelector(".lv-veil");
+      return { key: getComputedStyle(veil.querySelector(".lv-veil-key")).display, touch: getComputedStyle(veil.querySelector(".lv-veil-touch")).display, text: veil.querySelector(".lv-veil-touch p").textContent, glyph: !!veil.querySelector(".lv-veil-touch svg") };
+    });
+    assert.deepEqual(v, { key: "none", touch: "grid", text: "Tap a tile to open it", glyph: true });
+    const c = await tileCentre(page, "netflix");
+    await page.touchscreen.tap(c.x, c.y);
+    await page.waitForFunction(() => document.querySelector("[data-launch]").dataset.open === "netflix", { timeout: 2000 });
+    assert.equal((await lv(page)).veil, null);
+    await page.close();
+  });
+
+  test("reduced motion: it shows (no fade in) once the TV is 60% in view, the same rules", async () => {
+    const page = await open("video", { reduce: true });
+    await page.evaluate(() => { const tv = document.querySelector(".first-look .tv"); let y = 0; for (let el = tv; el; el = el.offsetParent) y += el.offsetTop; document.documentElement.style.scrollBehavior = "auto"; scrollTo(0, y - innerHeight + tv.offsetHeight * 0.3); });
+    await wait(300);
+    assert.equal((await lv(page)).veil, null, "not at 30% in view");
+    await centre(page);
+    await live(page);
+    await wait(50);
+    let s = await lv(page);
+    assert.equal(s.veil, "on");
+    assert.equal(s.veilOpacity, 1, "at once");
+    await wait(2700);
+    s = await lv(page);
+    assert.ok(s.veil === "fade" || s.veil === null);
+    assert.equal(s.veilOpacity, 0, "and gone at once");
+    await page.evaluate(() => scrollTo(0, 0));
+    await wait(300);
+    await centre(page);
+    assert.equal((await lv(page)).veil, "on", "again, next time it comes into view");
+    const c = await tileCentre(page, "youtube");
+    await page.mouse.move(c.x, c.y);
+    await page.mouse.move(c.x + 20, c.y, { steps: 2 });
+    assert.equal((await lv(page)).veil, null);
     await page.close();
   });
 });
@@ -315,7 +450,24 @@ describe("using the TV", { skip }, () => {
       assert.ok(check(v), `${id}: ${JSON.stringify(v)}`);
       const s = await lv(page);
       assert.equal(s.open, id);
-      assert.equal(s.active, "back", "the focus is on Home");
+      assert.equal(s.active, id === "library" ? "libhome" : "back", "the focus is on Home");
+      if (id === "library") {
+        // one Home: the screenshot's own "‹ Home" (an invisible button over it), no pill
+        const h = await page.evaluate(() => {
+          const b = document.querySelector(".lv-libhome").getBoundingClientRect(), sc = document.querySelector("[data-launch]").getBoundingClientRect();
+          return { pill: getComputedStyle(document.querySelector(".lv-back")).display, label: document.activeElement.getAttribute("aria-label"),
+            x: (b.left - sc.left) / sc.width, y: (b.top - sc.top) / sc.height, w: b.width / sc.width, opacity: getComputedStyle(document.querySelector(".lv-libhome")).backgroundColor };
+        });
+        assert.equal(h.pill, "none", "no Home pill over the Library");
+        assert.equal(h.label, "Home");
+        assert.ok(h.x > 0.03 && h.x < 0.05 && h.y < 0.02 && h.w > 0.05 && h.w < 0.08, `over the screenshot's "‹ Home": ${JSON.stringify(h)}`);
+        await page.keyboard.press("Escape");
+        await wait(100);
+        const e = await lv(page);
+        assert.equal(e.open, "", "Esc goes back from the Library too");
+        assert.equal(e.active, "library");
+        continue;
+      }
       await page.keyboard.press("Enter"); // Home
       await wait(100);
       const b = await lv(page);
