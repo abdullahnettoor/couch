@@ -21,6 +21,7 @@
     "webkit-cookies-check": "node scripts/webkit-cookies-check.mjs",
     "look:snap": "electron scripts/look-snap.mts",
     "glass:fade": "electron scripts/glass-fade-check.mts",
+    "clock:frames": "electron scripts/clock-frames-check.mts",
     "look:record": "node scripts/look-record.mts",
     "drm-check": "node scripts/drm-check/run.mjs",
     "sample": "sh scripts/make-sample.sh",
