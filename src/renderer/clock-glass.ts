@@ -77,7 +77,7 @@ function glyphsOf(time: HTMLElement, box: DOMRect): Glyph[] {
   const probe = document.createElement("canvas").getContext("2d");
   for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
     const style = getComputedStyle(node.parentElement!);
-    const font = `font-family="${escape(style.fontFamily)}" font-size="${style.fontSize}" font-weight="${style.fontWeight}" style="font-variant-numeric:${style.fontVariantNumeric}"`;
+    const font = `font-family="${escapeXml(style.fontFamily)}" font-size="${style.fontSize}" font-weight="${style.fontWeight}" style="font-variant-numeric:${style.fontVariantNumeric}"`;
     const spacing = parseFloat(style.letterSpacing) || 0;
     // Where the baseline sits below the top of a line box's content area: the font's ascent.
     let ascent = parseFloat(style.fontSize) * 0.95;
@@ -102,7 +102,7 @@ function glyphsOf(time: HTMLElement, box: DOMRect): Glyph[] {
   return glyphs;
 }
 
-const escape = (text: string) => text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+const escapeXml = (text: string) => text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 
 /** The three masks as SVG pictures, sized to the time's box plus the glass's room on every side. */
 function writeMasks(
@@ -118,7 +118,7 @@ function writeMasks(
     `<g fill="${fill}" text-anchor="middle">${glyphs
       .map(
         (glyph) =>
-          `<text x="${(pad + glyph.x).toFixed(2)}" y="${(pad + glyph.y + dy).toFixed(2)}" ${glyph.font}>${escape(glyph.ch)}</text>`,
+          `<text x="${(pad + glyph.x).toFixed(2)}" y="${(pad + glyph.y + dy).toFixed(2)}" ${glyph.font}>${escapeXml(glyph.ch)}</text>`,
       )
       .join("")}</g>`;
   /** Everything but `cut`. */
