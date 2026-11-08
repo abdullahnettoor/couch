@@ -1,9 +1,11 @@
-// Regression check for #33: Couch's glass panels (the question, Setup's panel) stay frosted while they fade in.
+// Regression check for #33 and #35: Couch's glass (the question, Setup's panel, Home's clock) stays frosted while it fades in.
 //   env -u ELECTRON_RUN_AS_NODE ./node_modules/.bin/electron scripts/glass-fade-check.mts
 // Needs the built Screen (`vp build`). It draws the REAL Screen (dist/renderer) offscreen over black and white stripes,
 // opens the question and Setup's panel from the recorded fixtures, freezes their fade-in at 99 % and measures how
 // sharp the stripes are inside the glass box: about 7 is frosted, 20 and more is see-through. Chromium blurs only what is
 // inside a see-through parent layer (the plain scrim), so a layer that fades makes the box see-through until the end.
+// Home's glass clock (#35) is checked the same way over stripes laid under Home's layers, inside its digits: on Home, as
+// the idle clock, and as it comes in after Setup's last step.
 // It also checks the stronger tint the Screen's glass gets over a WebKit App (`body.native-app-front`), where Chromium
 // cannot blur the native view and the glass is only its tint. No visible window opens; user data is a temp folder.
 import { app, BrowserWindow } from "electron";
@@ -48,6 +50,26 @@ const frame = (win: BrowserWindow) =>
     "new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))",
   );
 
+type Rect = { x: number; y: number; w: number; h: number };
+/** A row of pixels to read: `width` pixels from (x, y). */
+type Row = { x: number; y: number; width: number };
+
+/** Every running fade (an opacity transition, or a CSS animation that changes opacity), held linear at `progress` of its run. In page. */
+const FREEZE = `(progress) => {
+  const fades = document.getAnimations().filter((a) => {
+    const fading = a.transitionProperty === "opacity" || (a.animationName && a.effect.getKeyframes().some((k) => "opacity" in k));
+    return fading && Number.isFinite(a.effect.getComputedTiming().activeDuration);
+  });
+  for (const a of fades) {
+    a.pause();
+    a.effect.updateTiming({ easing: "linear" });
+    if (a.animationName) a.effect.setKeyframes(a.effect.getKeyframes().map(({ computedOffset, easing, ...k }) => k));
+    const t = a.effect.getComputedTiming();
+    a.currentTime = (t.delay || 0) + progress * t.activeDuration;
+  }
+  return fades.length;
+}`;
+
 /** Opens `payload` on the real Screen over stripes, freezes every running transition and animation at `progress`, and returns the box's rectangle. */
 async function open(win: BrowserWindow, payload: unknown, box: string, progress: number) {
   await win.loadFile(join(import.meta.dirname, "../dist/renderer/index.html"));
@@ -60,36 +82,29 @@ async function open(win: BrowserWindow, payload: unknown, box: string, progress:
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const box = document.querySelector(${JSON.stringify(box)});
     if (!box) return { error: "no ${box}" };
-    const fades = document.getAnimations().filter((a) => a.transitionProperty === "opacity" || a.animationName);
-    for (const a of fades) {
-      a.pause();
-      a.effect.updateTiming({ easing: "linear" });
-      a.currentTime = ${progress} * (a.effect.getComputedTiming().endTime || 0);
-    }
+    const fades = (${FREEZE})(${progress});
     const rect = box.getBoundingClientRect();
     const layers = [];
     for (let e = box.parentElement; e; e = e.parentElement) layers.push(getComputedStyle(e).opacity);
-    return { rect: { x: rect.x, y: rect.y, w: rect.width, h: rect.height }, fades: fades.length, layers, boxOpacity: getComputedStyle(box).opacity };
+    return { rect: { x: rect.x, y: rect.y, w: rect.width, h: rect.height }, fades, layers, boxOpacity: getComputedStyle(box).opacity };
   })()`);
   if (info.error) throw new Error(info.error);
   await frame(win);
-  return info as {
-    rect: { x: number; y: number; w: number; h: number };
-    fades: number;
-    layers: string[];
-    boxOpacity: string;
-  };
+  return info as { rect: Rect; fades: number; layers: string[]; boxOpacity: string };
 }
 
-/** The spread of grey values along a 40-pixel row just inside the box's top edge, clear of its text. */
-async function contrast(win: BrowserWindow, rect: { x: number; y: number; w: number; h: number }) {
+/** A 40-pixel row just inside a box's top edge, clear of its text. */
+const topRow = (rect: Rect): Row => ({ x: rect.x + rect.w / 2 - 20, y: rect.y + 6, width: 40 });
+
+/** The spread of grey values along a row of pixels. */
+async function contrast(win: BrowserWindow, row: Row) {
   const painted = new Promise<void>((r) => win.webContents.once("paint", () => r()));
   win.webContents.invalidate();
   await painted;
   const image = await win.webContents.capturePage({
-    x: Math.round(rect.x + rect.w / 2 - 20),
-    y: Math.round(rect.y + 6),
-    width: 40,
+    x: Math.round(row.x),
+    y: Math.round(row.y),
+    width: Math.round(row.width),
     height: 1,
   });
   const { data, width } = decodePng(image.toPNG());
@@ -99,13 +114,9 @@ async function contrast(win: BrowserWindow, rect: { x: number; y: number; w: num
 }
 
 /** Three readings of the same spot; fails the run if they disagree. */
-async function steady(
-  label: string,
-  win: BrowserWindow,
-  rect: { x: number; y: number; w: number; h: number },
-) {
+async function steady(label: string, win: BrowserWindow, row: Row) {
   const reads: number[] = [];
-  for (let i = 0; i < READINGS; i++) reads.push(await contrast(win, rect));
+  for (let i = 0; i < READINGS; i++) reads.push(await contrast(win, row));
   const spread = Math.max(...reads) - Math.min(...reads);
   check(`${label}: ${READINGS} readings agree`, spread <= TOLERANCE, `readings=${reads.join(",")}`);
   return Math.max(...reads);
@@ -153,7 +164,7 @@ async function measure(label: string, payload: unknown, box: string) {
     `ancestor opacities=${half.layers.join(",")}`,
   );
   const late = await open(win, payload, box, 0.99);
-  const c = await steady(label, win, late.rect);
+  const c = await steady(label, win, topRow(late.rect));
   await win.webContents.executeJavaScript(`(() => {
     const control = document.createElement("div");
     control.id = "glass-control";
@@ -162,7 +173,7 @@ async function measure(label: string, payload: unknown, box: string) {
     document.body.append(control);
   })()`);
   await frame(win);
-  const control = await steady(`${label} (positive control, unblurred)`, win, late.rect);
+  const control = await steady(`${label} (positive control, unblurred)`, win, topRow(late.rect));
   if (process.env.OUT) {
     const shot = await win.webContents.capturePage();
     writeFileSync(join(process.env.OUT, `${label.replace(/\W+/g, "-")}-control.png`), shot.toPNG());
@@ -180,6 +191,120 @@ async function measure(label: string, payload: unknown, box: string) {
     const shot = await win.webContents.capturePage();
     writeFileSync(join(process.env.OUT, `${label.replace(/\W+/g, "-")}.png`), shot.toPNG());
   }
+  check(
+    `${label} is frosted at 99 % of its fade`,
+    c < limit,
+    `stripe contrast=${c}, limit=${limit.toFixed(1)}`,
+  );
+}
+
+/**
+ * Opens Home on the real Screen with stripes laid under its layers, shows `before` and then `after` (so the clock fades
+ * in), and freezes the fade at `progress`. `farewell` marks the page as Setup's last step closing. Returns the frost
+ * layer's opacity, the opacities of every layer around it, and a row of pixels inside the digits.
+ */
+async function openClock(
+  win: BrowserWindow,
+  steps: { before?: unknown; after: unknown; farewell?: boolean },
+  progress: number,
+) {
+  await win.loadFile(join(import.meta.dirname, "../dist/renderer/index.html"));
+  const info = await win.webContents.executeJavaScript(`(async () => {
+    const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const stripes = document.createElement("div");
+    stripes.style.cssText = "position:absolute;inset:0;background:" + ${JSON.stringify(STRIPES)};
+    const lay = () => document.querySelector(".home")?.firstElementChild !== stripes && document.querySelector(".home")?.prepend(stripes);
+    ${steps.farewell ? 'document.body.classList.add("setup-farewell");' : ""}
+    ${steps.before ? `window.__screen(${JSON.stringify(steps.before)}); lay(); await frame();` : ""}
+    window.__screen(${JSON.stringify(steps.after)});
+    lay();
+    await frame();
+    const frost = document.querySelector(".h-clock .cg-frost");
+    if (!frost) return { error: "no glass clock (.h-clock .cg-frost)" };
+    if (!document.querySelector(".h-clock .t.cg-drawn")) return { error: "the clock's glass was not drawn" };
+    const fades = (${FREEZE})(${progress});
+    const layers = [];
+    for (let e = frost.parentElement; e; e = e.parentElement) layers.push(getComputedStyle(e).opacity);
+    // The longest stretch of a mask row that is inside the digits, with solid mask a few pixels above and below.
+    const mask = new Image();
+    mask.src = /url\\("?([^")]+)"?\\)/.exec(getComputedStyle(frost).maskImage)[1];
+    await mask.decode();
+    const c = document.createElement("canvas");
+    c.width = mask.naturalWidth;
+    c.height = mask.naturalHeight;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(mask, 0, 0);
+    const alpha = ctx.getImageData(0, 0, c.width, c.height).data;
+    const solid = (x, y) => alpha[(y * c.width + x) * 4 + 3] > 250;
+    const margin = 4;
+    let best = { x: 0, y: 0, width: 0 };
+    for (let y = margin; y < c.height - margin; y++) {
+      let start = -1;
+      for (let x = 0; x <= c.width; x++) {
+        let inside = x < c.width;
+        for (let d = -margin; inside && d <= margin; d++) inside = solid(x, y + d);
+        if (inside && start < 0) start = x;
+        if (!inside && start >= 0) {
+          if (x - start > best.width) best = { x: start, y, width: x - start };
+          start = -1;
+        }
+      }
+    }
+    const r = frost.getBoundingClientRect();
+    const scale = r.width / c.width;
+    const width = Math.min(40, best.width * scale - 2 * margin);
+    const row = { x: r.x + (best.x + best.width / 2) * scale - width / 2, y: r.y + best.y * scale, width };
+    return { fades, layers, own: getComputedStyle(frost).opacity, row };
+  })()`);
+  if (info.error) throw new Error(info.error);
+  await frame(win);
+  return info as { fades: number; layers: string[]; own: string; row: Row };
+}
+
+async function measureClock(
+  label: string,
+  steps: { before?: unknown; after: unknown; farewell?: boolean },
+) {
+  const win = newWindow();
+  const half = await openClock(win, steps, 0.5);
+  check(`${label} fades in (something is mid-fade at 50 %)`, half.fades > 0, `fades=${half.fades}`);
+  check(
+    `${label}: the glass itself is mid-fade at 50 % (own opacity about 0.5)`,
+    Math.abs(Number(half.own) - 0.5) <= 0.1,
+    `glass opacity=${half.own}`,
+  );
+  check(
+    `${label}: no layer around the glass is see-through while it fades`,
+    half.layers.every((o) => o === "1"),
+    `ancestor opacities=${half.layers.join(",")}`,
+  );
+  const late = await openClock(win, steps, 0.99);
+  check(
+    `${label}: a row inside the digits to read`,
+    late.row.width >= 16,
+    `width=${late.row.width}`,
+  );
+  const c = await steady(label, win, late.row);
+  // The positive control: the same glass digits with their blur taken away.
+  await win.webContents.executeJavaScript(
+    `document.querySelector(".h-clock .cg-frost").style.backdropFilter = "none"`,
+  );
+  await frame(win);
+  const control = await steady(`${label} (positive control, unblurred)`, win, late.row);
+  check(
+    `${label}: unblurred digits read clearly see-through`,
+    control >= CONTROL_ABOVE,
+    `control contrast=${control}`,
+  );
+  await win.webContents.executeJavaScript(
+    `document.querySelector(".h-clock .cg-frost").style.backdropFilter = ""`,
+  );
+  await frame(win);
+  if (process.env.OUT) {
+    const shot = await win.webContents.capturePage();
+    writeFileSync(join(process.env.OUT, `${label.replace(/\W+/g, "-")}.png`), shot.toPNG());
+  }
+  const limit = Math.min(FROSTED_BELOW, control / 3);
   check(
     `${label} is frosted at 99 % of its fade`,
     c < limit,
@@ -225,6 +350,14 @@ void app.whenReady().then(async () => {
       { ...screen["overlay-setup"], setup: { ...screen["overlay-setup"].setup, intro: false } },
       "#setup .box",
     );
+    const home = screen.home;
+    const hero = screen["home-hero"];
+    await measureClock("Home's clock", { before: hero, after: home });
+    await measureClock("the idle clock", {
+      before: { ...hero, ambient: true },
+      after: screen["home-ambient"],
+    });
+    await measureClock("the clock after Setup", { after: home, farewell: true });
     await tints();
   } catch (error) {
     console.error(
