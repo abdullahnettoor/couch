@@ -65,16 +65,23 @@ export interface Look {
       scrollMarginEdge: number;
       scrollMarginSearch: number;
     };
-    /** Home's own geometry (`--home-<name>`): the clock's box, the blur behind it, the tile rows and the photo's drift. */
+    /** Home's own geometry (`--home-<name>`): the clock's box, its glass, the tile rows and the photo's drift. */
     home: {
       /** The clock's lengths (`--home-clock-<name>`). */
       clock: {
         top: number;
         /** Between the time and the date line; the clock's box is the time, this gap and the date line (`homeClockHeight`). */
         dateGap: number;
-        /** How far the blur behind the clock stays fully opaque below the clock's box, then how far it fades. */
+      };
+      /** The glass clock's masks (`--home-clock-glass-<name>`), drawn around the time's box. */
+      clockGlass: {
+        /** Room around the time's box for the shadow, on every side. */
         pad: number;
-        fade: number;
+        /** How soft the shadow outside the digits is, and how far below them it falls. */
+        shadowBlur: number;
+        shadowDrop: number;
+        /** How deep the light edge along the top of each stroke is. */
+        edge: number;
       };
       /** Each layout's tile row: its distance from the bottom and its tile height. */
       rows: Record<"film" | "empty", { bottom: number; tileHeight: number }>;
@@ -108,6 +115,12 @@ export type ColorName =
   | "scrimSheet"
   | "scrimUpNext"
   | "photoDim"
+  | "clockGlassTintDark"
+  | "clockGlassTintBright"
+  | "clockGlassTintBuiltin"
+  | "clockGlassShadowDark"
+  | "clockGlassShadowBright"
+  | "clockGlassShadowBuiltin"
   | "maskOpaque"
   | "buttonFill"
   | "buttonFillSoft"
@@ -180,7 +193,9 @@ export type GradientName =
   | "setupVeil"
   | "setupLight"
   | "setupGlow"
-  | "splitArtFace";
+  | "splitArtFace"
+  | "clockGlassSheen"
+  | "clockGlassEdge";
 
 export type TypeSizeName =
   // The Screen and Quick settings
@@ -390,7 +405,9 @@ export type BlurName =
   | "popover"
   | "badge"
   | "wallpaperPanel"
-  | "photo";
+  | "photo"
+  | "clockGlass"
+  | "clockGlassBuiltin";
 
 export type EaseName =
   | "glass"
@@ -494,6 +511,16 @@ export const GLASS: Look = {
     scrimSheet: "rgba(0, 0, 0, 0.6)",
     scrimUpNext: "rgba(0, 0, 0, 0.55)",
     photoDim: "#000",
+    /** The glass clock's tint over the darkest photo; it runs to the bright one with the picture's brightness. */
+    clockGlassTintDark: "rgba(255, 255, 255, 0.14)",
+    /** Over the brightest photo: whiter, so the digits read as glass rather than the picture's colour. */
+    clockGlassTintBright: "rgba(255, 255, 255, 0.52)",
+    /** Over the dark built-in Wallpapers, where plain glass would vanish. */
+    clockGlassTintBuiltin: "rgba(255, 255, 255, 0.5)",
+    /** The soft shadow outside the glass digits, over the darkest and the brightest photo, and over the built-ins. */
+    clockGlassShadowDark: "rgba(0, 0, 0, 0.2)",
+    clockGlassShadowBright: "rgba(0, 0, 0, 0.5)",
+    clockGlassShadowBuiltin: "rgba(0, 0, 0, 0.35)",
     maskOpaque: "#000",
     buttonFill: "rgba(255, 255, 255, 0.16)",
     buttonFillSoft: "rgba(255, 255, 255, 0.14)",
@@ -572,6 +599,11 @@ export const GLASS: Look = {
     setupLight: "radial-gradient(closest-side, rgba(255, 150, 70, 0.3), rgba(255, 150, 70, 0))",
     setupGlow: "radial-gradient(closest-side, rgba(255, 150, 70, 0.34), rgba(255, 150, 70, 0))",
     splitArtFace: "linear-gradient(160deg, #8e8e93, #3a3a3c)",
+    /** The glass digits are a touch lighter at the top, like light falling on glass. */
+    clockGlassSheen:
+      "linear-gradient(180deg, rgba(255, 255, 255, 0.14) 25%, rgba(255, 255, 255, 0) 75%)",
+    /** The faint light edge along the top of each glass stroke. */
+    clockGlassEdge: "linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.25))",
   },
   type: {
     family: '-apple-system, "SF Pro Text", system-ui, sans-serif',
@@ -788,6 +820,10 @@ export const GLASS: Look = {
     badge: "blur(20px) saturate(1.6)",
     wallpaperPanel: "blur(calc(40 * {u})) saturate(1.2)",
     photo: "blur(14px)",
+    /** The glass clock over a photo: the dimmed picture behind it, blurred and brightened. */
+    clockGlass: "blur(calc(24 * {u})) saturate(1.25) brightness(1.6)",
+    /** Over the dark built-ins, where the tint does more of the work. */
+    clockGlassBuiltin: "blur(calc(24 * {u})) saturate(1.25) brightness(1.3)",
   },
   motion: {
     ease: {
@@ -888,7 +924,8 @@ export const GLASS: Look = {
       scrollMarginSearch: 120,
     },
     home: {
-      clock: { top: 210, dateGap: 18, pad: 40, fade: 140 },
+      clock: { top: 210, dateGap: 18 },
+      clockGlass: { pad: 60, shadowBlur: 16, shadowDrop: 5, edge: 2.5 },
       rows: {
         film: { bottom: 84, tileHeight: 170 },
         empty: { bottom: 120, tileHeight: 236 },
@@ -977,8 +1014,9 @@ export function lookTokens(look: Look, unit: string, defineUnit = false): [strin
   add("scroll-margin-block", len(metrics.library.scrollMarginBlock));
   add("scroll-margin-edge", len(metrics.library.scrollMarginEdge));
   add("scroll-margin-search", len(metrics.library.scrollMarginSearch));
-  const { clock, rows, panScale } = metrics.home;
+  const { clock, clockGlass, rows, panScale } = metrics.home;
   for (const [k, n] of entries(clock)) add(`home-clock-${kebab(k)}`, len(n));
+  for (const [k, n] of entries(clockGlass)) add(`home-clock-glass-${kebab(k)}`, len(n));
   add("home-row-bottom", len(rows.film.bottom));
   add("home-tile-height", len(rows.film.tileHeight));
   add("home-empty-row-bottom", len(rows.empty.bottom));

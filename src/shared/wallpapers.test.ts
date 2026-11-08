@@ -106,10 +106,19 @@ describe("pictures from the Mac", () => {
     expect(tidyName("...")).toBe("...");
   });
 
-  test("a picture sets its picture and dim variables", () => {
+  test("a picture sets its picture, dim and brightness variables", () => {
     expect(photoVars({ url: "file:///u/wallpapers/a.jpg", dim: 0.5 })).toEqual({
       "--wp-photo": 'url("file:///u/wallpapers/a.jpg")',
       "--wp-dim": "0.5",
+      "--wp-light": "0.5",
     });
+  });
+
+  test("the brightness comes back from the dim: darkest 0, brightest 1", () => {
+    expect(photoVars({ url: "u", dim: 0.35 })["--wp-light"]).toBe("0");
+    expect(photoVars({ url: "u", dim: 0.65 })["--wp-light"]).toBe("1");
+    expect(photoVars({ url: "u", dim: 0.41 })["--wp-light"]).toBe("0.2");
+    expect(photoVars({ url: "u", dim: 0.2 })["--wp-light"]).toBe("0");
+    expect(photoVars({ url: "u", dim: 0.9 })["--wp-light"]).toBe("1");
   });
 });

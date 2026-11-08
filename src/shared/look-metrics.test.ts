@@ -66,8 +66,7 @@ describe("Home's numbers", () => {
     for (const decl of [
       "--home-clock-top: calc(210 * var(--u));",
       "--home-clock-date-gap: calc(18 * var(--u));",
-      "--home-clock-pad: calc(40 * var(--u));",
-      "--home-clock-fade: calc(140 * var(--u));",
+      "--home-clock-glass-pad: calc(60 * var(--u));",
       "--home-row-bottom: calc(84 * var(--u));",
       "--home-tile-height: calc(170 * var(--u));",
       "--home-empty-row-bottom: calc(120 * var(--u));",
@@ -84,6 +83,7 @@ describe("Home's numbers", () => {
         ...GLASS.metrics,
         home: {
           clock: { ...GLASS.metrics.home.clock, top: 180 },
+          clockGlass: GLASS.metrics.home.clockGlass,
           rows: { ...GLASS.metrics.home.rows, empty: { bottom: 100, tileHeight: 200 } },
           panScale: 1.1,
         },
