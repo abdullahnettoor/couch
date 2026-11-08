@@ -323,6 +323,30 @@ describe("Home with a picture from the Mac", () => {
     expect(layer()).toBe(1);
   });
 
+  test("the clock's tint and the dim follow the crossfade: they glide from the old picture's level to the new one's with it", () => {
+    vi.useFakeTimers();
+    try {
+      home.render(withPhoto({ kind: "mac" }));
+      loaded();
+      expect(cls(homeEl()).includes("crossfading")).toBe(false);
+      home.render(withPhoto(bPhoto));
+      loaded();
+      // The new levels are set at once, but while the class is on, the stylesheet eases to them.
+      expect(cls(homeEl()).includes("crossfading")).toBe(true);
+      vi.advanceTimersByTime(2500 + 250);
+      expect(cls(homeEl()).includes("crossfading")).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+    const fade = css.prop(".h-photo-prev", "transition").replace("opacity ", "");
+    expect(css.prop(".home.crossfading .h-clock", "transition")).toBe(`--wp-light ${fade}`);
+    expect(css.prop(".home.crossfading .h-photo-dim", "transition")).toBe(`--wp-dim ${fade}`);
+    // A transition needs the levels registered as numbers (the test DOM drops @property, so read the source).
+    const source = readFileSync(`${import.meta.dirname}/../home.css`, "utf8");
+    for (const name of ["--wp-light", "--wp-dim"])
+      expect(source).toMatch(new RegExp(`@property ${name} \\{[^}]*syntax: "<number>"`));
+  });
+
   test("layers: photo, dim and blur sit over the drift and under the scrim, clock and tiles; ambient keeps them", () => {
     home.render(withPhoto({ kind: "mac" }, { ambient: true }));
     const order = Array.from(homeEl().children).map((c) => c.className.split(" ")[0]);

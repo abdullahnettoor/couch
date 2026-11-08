@@ -110,7 +110,7 @@ function showPhoto(choice: "builtin" | "picture", ready: Photo | undefined): voi
     shownPhoto = undefined;
     loadingUrl = "";
     for (const name of ["--wp-photo", "--wp-dim", "--wp-light"]) v.style.removeProperty(name);
-    v.classList.remove("photo");
+    v.classList.remove("photo", "crossfading");
   } else if (plan === "load" && ready && loadingUrl !== ready.url) {
     loadingUrl = ready.url;
     const image = new Image();
@@ -133,6 +133,7 @@ function showPhoto(choice: "builtin" | "picture", ready: Photo | undefined): voi
 }
 
 /** A slow crossfade: the picture that was showing stays over the new one and fades out. */
+let crossfadeEnds: ReturnType<typeof setTimeout> | undefined;
 function fadeFrom(previous: string): void {
   const layer = photoEl?.querySelector<HTMLElement>(".h-photo-img");
   if (!layer) return;
@@ -142,6 +143,11 @@ function fadeFrom(previous: string): void {
   layer.after(old);
   requestAnimationFrame(() => (old.style.opacity = "0"));
   setTimeout(() => old.remove(), FADE_MS + 200);
+  // While this is on, the dim and the clock's tint ease to the new picture's levels with the fade.
+  const v = view!;
+  v.classList.add("crossfading");
+  clearTimeout(crossfadeEnds);
+  crossfadeEnds = setTimeout(() => v.classList.remove("crossfading"), FADE_MS + 200);
 }
 
 /** Layers that outlive a render so state changes can cross-fade. */

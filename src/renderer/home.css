@@ -18,6 +18,17 @@
 }
 /* Always on, over any wallpaper: keeps the edges dark and the clock and tile row readable. */
 /* A photo wallpaper: the photo, a dim over it (its level is set per photo), and a soft blur behind the tiles. */
+/* The photo's dim and brightness are numbers so they can ease with the slideshow's crossfade (`.crossfading`). */
+@property --wp-dim {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0.5;
+}
+@property --wp-light {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0.5;
+}
 .h-photo {
   position: absolute;
   inset: 0;
@@ -48,6 +59,13 @@
 .h-photo-dim {
   background: var(--photo-dim);
   opacity: var(--wp-dim, 0.5);
+}
+/* Eased on the layers that read them, not on .home, so only those restyle each frame. */
+.home.crossfading .h-photo-dim {
+  transition: --wp-dim var(--duration-photo-crossfade) var(--ease-ambient);
+}
+.home.crossfading .h-clock {
+  transition: --wp-light var(--duration-photo-crossfade) var(--ease-ambient);
 }
 .h-photo-blur {
   inset: auto 0;
