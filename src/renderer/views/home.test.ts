@@ -145,7 +145,7 @@ describe("Home's glass clock", () => {
     expect(clock().querySelector(".t")!.innerHTML).toBe("8:01<small>PM</small>");
   });
 
-  test("without a canvas to draw the digits' shapes, the time stays plain text", () => {
+  test("until the time is laid out (no size to cut the glass to), it stays plain text", () => {
     home.render(plain());
     expect(cls(clock().querySelector(".t")!)).not.toContain("cg-drawn");
   });
