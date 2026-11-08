@@ -113,6 +113,44 @@ describe("Home renders every wallpaper", () => {
   });
 });
 
+describe("Home's glass clock", () => {
+  const clock = () => homeEl().querySelector(".h-clock")!;
+  const at = (minute: number, second = 0) => new Date(2026, 0, 1, 20, minute, second).getTime();
+  const plain = (over: Partial<ScreenPayload> = {}) =>
+    payload({ homeVideos: [], now: at(0), timeFormat: "24", ...over });
+
+  test("the time, then its shadow, frost and edge layers, then the date line on top", () => {
+    home.render(plain());
+    expect(Array.from(clock().children).map((c) => c.className)).toEqual([
+      "t num",
+      "cg cg-shadow",
+      "cg cg-frost",
+      "cg cg-edge",
+      "d",
+    ]);
+    expect(clock().querySelector(".t")!.textContent).toBe("20:00");
+    expect(clock().querySelector(".d")!.textContent).toMatch(
+      /^Good evening · Thursday\b.*\bJanuary\b/,
+    );
+  });
+
+  test("renders within the same minute leave the time alone; the next minute and the 12-hour switch change it", () => {
+    home.render(plain());
+    const shown = clock().querySelector(".t")!.firstChild;
+    home.render(plain({ now: at(0, 40), focusedId: "x" }));
+    expect(clock().querySelector(".t")!.firstChild).toBe(shown);
+    home.render(plain({ now: at(1) }));
+    expect(clock().querySelector(".t")!.textContent).toBe("20:01");
+    home.render(plain({ now: at(1), timeFormat: "12" }));
+    expect(clock().querySelector(".t")!.innerHTML).toBe("8:01<small>PM</small>");
+  });
+
+  test("without a canvas to draw the digits' shapes, the time stays plain text", () => {
+    home.render(plain());
+    expect(cls(clock().querySelector(".t")!)).not.toContain("cg-drawn");
+  });
+});
+
 describe("Home's scrim", () => {
   test("sits over the wallpaper and under the artwork, clock and tiles", () => {
     home.render(payload());
@@ -293,21 +331,16 @@ describe("Home with a picture from the Mac", () => {
     for (const above of ["h-scrim", "h-clock", "h-hero", "h-chrome"])
       expect(at("h-photo"), above).toBeLessThan(at(above));
     const photoLayer = homeEl().querySelector(".h-photo")!;
-    for (const part of [
-      ".h-photo-img",
-      ".h-photo-dim",
-      ".h-photo-blur.top",
-      ".h-photo-blur.bottom",
-    ])
+    for (const part of [".h-photo-img", ".h-photo-dim", ".h-photo-blur.bottom"])
       expect(photoLayer.querySelector(part), part).not.toBeNull();
+    expect(photoLayer.querySelector(".h-photo-blur.top")).toBeNull();
     expect(homeEl().querySelector(".h-scrim")).not.toBeNull();
   });
 
-  test("the stylesheet: dim comes from --wp-dim, a blur sits behind the clock and the tiles, and the drift is 1.0 to 1.06 over 120 s", () => {
+  test("the stylesheet: dim comes from --wp-dim, a blur sits behind the tiles, and the drift is 1.0 to 1.06 over 120 s", () => {
     home.render(withPhoto({ kind: "mac" }));
     expect(css.prop(".h-photo-dim", "opacity")).toBe("var(--wp-dim, 0.5)");
     expect(css.prop(".h-photo-blur", "backdrop-filter")).toContain("--blur-");
-    expect(css.prop(".h-photo-blur.top", "top")).toBe("0px");
     expect(css.prop(".h-photo-blur.bottom", "bottom")).toBe("0px");
     expect(css.prop(".h-photo-img", "animation")).toContain("--duration-photo-pan");
     const frames = Array.from(css.keyframes("h-kenburns").cssRules) as CSSKeyframeRule[];

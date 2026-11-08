@@ -408,7 +408,6 @@ body.native-app-front .confirm .box {
     transform: scale(1.5);
   }
 }
-.setup-farewell .home .h-clock,
 .setup-farewell .home .h-hero,
 .setup-farewell .home .h-chrome {
   animation: s-home-in var(--duration-farewell) var(--ease-glass) var(--duration-farewell-delay)
@@ -417,6 +416,19 @@ body.native-app-front .confirm .box {
 @keyframes s-home-in {
   from {
     opacity: 0;
+    transform: translateY(calc(24 * var(--u)));
+  }
+}
+/* The clock is glass: it rises as one, and its parts fade on their own so the glass stays frosted (#33, #35). */
+.setup-farewell .home .h-clock {
+  animation: s-clock-rise var(--duration-farewell) var(--ease-glass) var(--duration-farewell-delay)
+    both;
+}
+.setup-farewell .home .h-clock > * {
+  animation: s-fade var(--duration-farewell) var(--ease-glass) var(--duration-farewell-delay) both;
+}
+@keyframes s-clock-rise {
+  from {
     transform: translateY(calc(24 * var(--u)));
   }
 }
@@ -795,10 +807,12 @@ body.native-app-front .setup .box {
     animation-name: s-fade;
   }
   .setup.farewell .s-light,
-  .setup-farewell .home .h-clock,
   .setup-farewell .home .h-hero,
   .setup-farewell .home .h-chrome {
     animation-name: s-fade;
+  }
+  .setup-farewell .home .h-clock {
+    animation-name: none;
   }
 }
 @keyframes s-fade {

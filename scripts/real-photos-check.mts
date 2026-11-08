@@ -300,17 +300,18 @@ void app.whenReady().then(async () => {
       !(await loads("default-src 'none'; img-src data:")),
     );
 
-    // Blur behind the clock: at 1920x1080 the top blur is fully opaque past the real clock and date boxes.
+    // The clock's box at 1920x1080: no blur band behind it any more (#35, the digits are glass), only the band behind the tiles.
     {
       const sheet = (f: string) => readFileSync(resolve("src/renderer", f), "utf8");
-      const page = join(userData, "home-blur.html");
+      const { GLASS, lookCss } = await import(resolve("src/shared/look.ts"));
+      const look = lookCss(GLASS, { unit: "var(--u)", defineUnit: true });
+      const page = join(userData, "home-clock.html");
       writeFileSync(
         page,
-        `<!doctype html><style>html,body{margin:0}${sheet("glass.css")}${sheet("home.css")}</style>` +
-          `<div class="screen-glass home photo ambient-off" style="position:relative;width:1920px;height:1080px">` +
-          `<div class="h-photo"><i class="h-photo-blur top"></i></div>` +
-          `<div class="h-clock on"><div class="t num">8:05<small>PM</small></div><div class="d">Good evening · Wednesday 28 October</div></div>` +
-          `<i id="probe" style="position:absolute;height:var(--clock-clear)"></i></div>`,
+        `<!doctype html><style>html,body{margin:0}${look}${sheet("glass.css")}${sheet("home.css")}</style>` +
+          `<div class="screen-glass home photo" style="position:relative;width:1920px;height:1080px">` +
+          `<div class="h-photo"><i class="h-photo-blur bottom"></i></div>` +
+          `<div class="h-clock on"><div class="t num">8:05<small>PM</small></div><div class="d">Good evening · Wednesday 28 October</div></div></div>`,
       );
       const win = new BrowserWindow({
         show: false,
@@ -322,30 +323,14 @@ void app.whenReady().then(async () => {
       await win.loadURL(pathToFileURL(page).href);
       const m = (await win.webContents.executeJavaScript(`(() => {
         const r = (s) => { const b = document.querySelector(s).getBoundingClientRect(); return { top: b.top, bottom: b.bottom }; };
-        const blur = getComputedStyle(document.querySelector('.h-photo-blur.top'));
-        return { t: r('.h-clock .t'), d: r('.h-clock .d'), clock: r('.h-clock'), blur: r('.h-photo-blur.top'),
-          clear: document.getElementById('probe').getBoundingClientRect().height, mask: blur.maskImage || blur.webkitMaskImage,
-          vw: innerWidth };
+        return { t: r('.h-clock .t'), d: r('.h-clock .d'), clock: r('.h-clock'), blur: r('.h-photo-blur.bottom'), vw: innerWidth };
       })()`)) as any;
       win.destroy();
       await new Promise((r) => setTimeout(r, 200));
       check("viewport is 1920 wide", m.vw === 1920, String(m.vw));
       check("clock starts near y=210", Math.abs(m.clock.top - 210) < 1, String(m.clock.top));
-      check(
-        "opaque stop is below the date's bottom",
-        m.clear >= m.d.bottom,
-        `${m.clear} >= ${m.d.bottom}`,
-      );
-      check(
-        "blur box covers the clock and fades beyond it",
-        m.blur.top === 0 && m.blur.bottom > m.clear,
-        `${m.blur.bottom}`,
-      );
-      check(
-        "the mask is a gradient to transparent",
-        /linear-gradient/.test(m.mask) && /rgba\(0, 0, 0, 0\)/.test(m.mask),
-        m.mask,
-      );
+      check("the date sits under the time", m.d.top >= m.t.bottom, `${m.d.top} >= ${m.t.bottom}`);
+      check("the tiles' blur stays clear of the clock", m.blur.top > m.d.bottom, `${m.blur.top}`);
     }
 
     // A real App session, held as one object, cancels file: loads; another session doesn't.

@@ -2,12 +2,7 @@
 .home {
   background: var(--wp-base, var(--backdrop));
   overflow: hidden;
-  /* The clock's box (time, gap, date line), shared by the clock and the blur behind it so the blur follows the clock. */
   --clock-top: var(--home-clock-top);
-  --clock-h: calc(var(--type-clock) + var(--home-clock-date-gap) + var(--line-height-clock-date));
-  --clock-pad: var(--home-clock-pad);
-  --clock-fade: var(--home-clock-fade);
-  --clock-clear: calc(var(--clock-top) + var(--clock-h) + var(--clock-pad));
 }
 .h-drift {
   position: absolute;
@@ -22,7 +17,7 @@
   animation-play-state: paused;
 }
 /* Always on, over any wallpaper: keeps the edges dark and the clock and tile row readable. */
-/* A photo wallpaper: the photo, a dim over it (its level is set per photo), and a soft blur behind the clock and the tiles. */
+/* A photo wallpaper: the photo, a dim over it (its level is set per photo), and a soft blur behind the tiles. */
 .h-photo {
   position: absolute;
   inset: 0;
@@ -58,23 +53,6 @@
   inset: auto 0;
   backdrop-filter: var(--blur-photo);
   -webkit-backdrop-filter: var(--blur-photo);
-}
-/* Fully blurred from the top edge past the date, then fading out below it. */
-.h-photo-blur.top {
-  top: 0;
-  height: calc(var(--clock-clear) + var(--clock-fade));
-  -webkit-mask-image: linear-gradient(
-    180deg,
-    var(--mask-opaque) 0,
-    var(--mask-opaque) var(--clock-clear),
-    transparent
-  );
-  mask-image: linear-gradient(
-    180deg,
-    var(--mask-opaque) 0,
-    var(--mask-opaque) var(--clock-clear),
-    transparent
-  );
 }
 .h-photo-blur.bottom {
   bottom: 0;
@@ -126,15 +104,16 @@
   opacity: 0;
   pointer-events: none;
 }
-.h-hero,
-.h-clock {
+.h-hero {
   opacity: 0;
   transition: opacity var(--duration-scene) var(--ease-glass);
   pointer-events: none;
 }
-.h-hero.on,
-.h-clock.on {
+.h-hero.on {
   opacity: 1;
+}
+.h-clock {
+  pointer-events: none;
 }
 .h-hero.on {
   pointer-events: auto;
@@ -348,11 +327,70 @@
   line-height: var(--line-height-display);
 }
 .h-clock .d {
+  /* Positioned after the glass, so the date draws over the digits' shadow. */
+  position: relative;
   font-size: var(--type-clock-date);
   color: var(--text-secondary);
   margin-top: var(--home-clock-date-gap);
   line-height: var(--line-height-clock-date);
   font-weight: var(--weight-medium);
+}
+/*
+ * The glass clock (#35): the digits are cut out of a frosted layer over the Wallpaper, with a soft shadow outside them
+ * and a light edge along their tops. clock-glass.ts draws the three masks from the laid-out time. The clock itself never
+ * fades: a see-through parent turns its children's blur off (#33), so each part fades on its own.
+ */
+.h-clock {
+  --cg-tint: var(--clock-glass-tint-builtin);
+  --cg-shadow: var(--clock-glass-shadow-builtin);
+  --cg-blur: var(--blur-clock-glass-builtin);
+}
+.home.photo .h-clock {
+  --cg-tint: color-mix(
+    in srgb,
+    var(--clock-glass-tint-bright) calc(var(--wp-light, 0.5) * 100%),
+    var(--clock-glass-tint-dark)
+  );
+  --cg-shadow: color-mix(
+    in srgb,
+    var(--clock-glass-shadow-bright) calc(var(--wp-light, 0.5) * 100%),
+    var(--clock-glass-shadow-dark)
+  );
+  --cg-blur: var(--blur-clock-glass);
+}
+.h-clock .t,
+.h-clock .d,
+.h-clock .cg {
+  opacity: 0;
+  transition: opacity var(--duration-scene) var(--ease-glass);
+}
+.h-clock.on .t,
+.h-clock.on .d,
+.h-clock.on .cg {
+  opacity: 1;
+}
+.h-clock .t.cg-drawn,
+.h-clock .t.cg-drawn small {
+  color: transparent;
+}
+.h-clock .cg {
+  position: absolute;
+  left: calc(-1 * var(--home-clock-glass-pad));
+  top: calc(-1 * var(--home-clock-glass-pad));
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+.h-clock .cg-shadow {
+  background: var(--cg-shadow);
+}
+.h-clock .cg-frost {
+  background: var(--clock-glass-sheen), var(--cg-tint);
+  backdrop-filter: var(--cg-blur);
+}
+.h-clock .cg-edge {
+  background: var(--clock-glass-edge);
 }
 .home.empty .h-row {
   bottom: var(--home-empty-row-bottom);
