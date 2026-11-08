@@ -7,9 +7,13 @@
 // composited frames the GPU hands back:
 //   - the slideshow's crossfade on Home, and while idle (the clock drifting, the picture panning, the old one fading);
 //   - the idle clock drifting over two built-ins and over a photo.
-// A frame is dropped when the gap to the one before covers more than one 60 fps slot. A scene passes with at most 2 %
-// of its slots dropped (either measure) and no gap over 50 ms. A positive control (Home under 64 full-screen blurs)
-// must drop frames, or the run proves nothing and fails. It also times the minute's redraw of the clock's masks.
+// A frame is dropped when the gap to the one before covers more than one 60 fps slot; each round is timed over a fixed
+// 3 s from the moment it starts, so the gaps before its first frame and after its last count too (the composited
+// frames are placed on the page's interval by wall time). A scene passes with at most 2 % of its slots dropped (either
+// measure), no gap over 50 ms, and frames for at least 95 % of its slots (either measure). Two controls must show up,
+// or the run proves nothing and fails: Home under 64 full-screen blurs must drop frames, and a 200 ms stall (the page
+// busy, painting stopped) as each round starts must show as a gap in both measures. It also times the minute's redraw
+// of the clock's masks, and checks that the clock's tint and the photo's dim follow the crossfade.
 // `--baseline <renderer dir>` measures another build the same way (dev's, for today's clock) and prints both.
 // No visible window opens; user data is a temp folder.
 import { app, BrowserWindow } from "electron";
@@ -31,9 +35,13 @@ const ROUNDS = 3;
 /** A scene passes with at most this share of its slots dropped, and no gap longer than LONGEST_MS. */
 const DROPPED_AT_MOST = 0.02;
 const LONGEST_MS = 50;
+/** Each measure must see at least this share of the interval's 60 fps slots as frames, or it can't vouch for them. */
+const COVERED_AT_LEAST = 0.95;
 /** The positive control must drop at least this share, or the measure can't see a busy GPU. */
 const CONTROL_DROPS_AT_LEAST = 0.1;
 const CONTROL_BLURS = 64;
+/** A stall this long at the start of each round must show as a gap, or the edges of the interval go unmeasured. */
+const STALL_MS = 200;
 /** The minute's redraw of the clock (its render with the masks rewritten) takes at most this long. */
 const REDRAW_MS = 12;
 const APPLE = "/System/Library/Desktop Pictures";
@@ -63,22 +71,28 @@ const check = (name: string, ok: boolean, extra = "") => {
   if (!ok) failed = true;
 };
 
-/** In page: times every animation frame for `ms` after `start()`, and checks `during()` half way through. */
+/**
+ * In page: times every animation frame from `start()` until `ms` later, and checks `during()` half way through. The
+ * interval's own start is returned too (on the page's clock, and as wall time for the composited frames), so a stall
+ * before the first frame or after the last counts.
+ */
 const RECORD = `async (ms, start, during) => {
   const times = [];
   let seen = false;
+  let from = 0;
   const done = new Promise((resolve) => {
     const step = (t) => {
       times.push(t);
-      if (!seen && t - times[0] > ms / 2) seen = during();
-      if (t - times[0] < ms) requestAnimationFrame(step);
+      if (!seen && t - from > ms / 2) seen = during();
+      if (t - from < ms) requestAnimationFrame(step);
       else resolve();
     };
     requestAnimationFrame(step);
   });
+  from = performance.now();
   start();
   await done;
-  return { times, seen };
+  return { times, seen, from, fromWall: performance.timeOrigin + from };
 }`;
 
 interface Scene {
@@ -91,9 +105,11 @@ interface Scene {
   during: string;
   /** Full-screen blurs laid over Home: the positive control. */
   blurs?: number;
+  /** The page is held busy, and painting stopped, this long as each round starts: the control for a stall there. */
+  stallMs?: number;
 }
 
-/** Frame gaps: frames seen, 60 fps slots covered, slots missed, and the longest gap. */
+/** Frame gaps over an interval: frames seen, 60 fps slots covered, slots missed, and the longest gap. */
 interface Gaps {
   frames: number;
   slots: number;
@@ -101,20 +117,21 @@ interface Gaps {
   longest: number;
 }
 
-function gaps(times: number[]): Gaps {
+/**
+ * The gaps between the frames in [from, to], counting the one from `from` to the first frame and from the last frame
+ * to `to`, so a stall at either end shows.
+ */
+function gaps(times: number[], from: number, to: number): Gaps {
+  const inside = times.filter((t) => t > from && t <= to);
+  const points = [from, ...inside, to];
   let dropped = 0;
   let longest = 0;
-  for (let i = 1; i < times.length; i++) {
-    const dt = times[i]! - times[i - 1]!;
+  for (let i = 1; i < points.length; i++) {
+    const dt = points[i]! - points[i - 1]!;
     dropped += Math.max(0, Math.round(dt / SLOT) - 1);
     longest = Math.max(longest, dt);
   }
-  return {
-    frames: times.length - 1,
-    slots: Math.round((times.at(-1)! - times[0]!) / SLOT),
-    dropped,
-    longest,
-  };
+  return { frames: inside.length, slots: Math.round((to - from) / SLOT), dropped, longest };
 }
 
 const sum = (a: Gaps, b: Gaps): Gaps => ({
@@ -124,10 +141,11 @@ const sum = (a: Gaps, b: Gaps): Gaps => ({
   longest: Math.max(a.longest, b.longest),
 });
 const share = (g: Gaps) => g.dropped / Math.max(1, g.slots);
+const coverage = (g: Gaps) => g.frames / Math.max(1, g.slots);
 const describe = (g: Gaps) =>
-  `${g.dropped}/${g.slots} dropped (${(share(g) * 100).toFixed(1)} %), longest ${g.longest.toFixed(1)} ms`;
+  `${g.frames} frames for ${g.slots} slots (${(coverage(g) * 100).toFixed(1)} %), ${g.dropped} dropped (${(share(g) * 100).toFixed(1)} %), longest ${g.longest.toFixed(1)} ms`;
 
-/** When each composited frame reached the main process. */
+/** When each composited frame reached the main process, as wall time (comparable with the page's). */
 const composited: number[] = [];
 
 function newWindow() {
@@ -146,7 +164,7 @@ function newWindow() {
     },
   });
   win.webContents.on("paint", (event) => {
-    composited.push(performance.now());
+    composited.push(performance.timeOrigin + performance.now());
     event.texture?.release();
   });
   win.webContents.setFrameRate(FPS);
@@ -166,15 +184,23 @@ async function time(win: BrowserWindow, renderer: string, scene: Scene) {
   // Settle: the pictures load and decode, and the first frames are drawn.
   await win.webContents.executeJavaScript("new Promise((r) => setTimeout(r, 1500))");
   for (let round = 0; round < ROUNDS; round++) {
-    const start = scene.next
-      ? `() => window.__screen(${JSON.stringify(scene.next(round))})`
-      : "() => {}";
+    const stall = scene.stallMs
+      ? `for (const t = performance.now(); performance.now() - t < ${scene.stallMs}; );`
+      : "";
+    const next = scene.next ? `window.__screen(${JSON.stringify(scene.next(round))});` : "";
+    const start = `() => { ${next} ${stall} }`;
     composited.length = 0;
-    const r = (await win.webContents.executeJavaScript(
+    const recording = win.webContents.executeJavaScript(
       `(${RECORD})(${ROUND_MS}, ${start}, () => ${scene.during})`,
-    )) as { times: number[]; seen: boolean };
-    const p = gaps(r.times);
-    const g = gaps(composited.slice(1));
+    ) as Promise<{ times: number[]; seen: boolean; from: number; fromWall: number }>;
+    if (scene.stallMs) {
+      win.webContents.stopPainting();
+      await new Promise((r) => setTimeout(r, scene.stallMs));
+      win.webContents.startPainting();
+    }
+    const r = await recording;
+    const p = gaps(r.times, r.from, r.from + ROUND_MS);
+    const g = gaps(composited, r.fromWall, r.fromWall + ROUND_MS);
     page = page ? sum(page, p) : p;
     gpu = gpu ? sum(gpu, g) : g;
     seen &&= r.seen;
@@ -206,6 +232,71 @@ async function redraw(win: BrowserWindow, renderer: string, home: Record<string,
     const median = (a) => [...a].sort((x, y) => x - y)[a.length >> 1];
     return { same: median(same), next: median(next), worst: Math.max(...next) };
   })()`)) as { same: number; next: number; worst: number };
+}
+
+/** In page: the clock's tint and shadow colours and the photo's dim, as drawn now. */
+const LOOK = `(() => {
+  const rgba = (c) => (c.match(/[\\d.]+/g) ?? []).map(Number);
+  const at = (s) => getComputedStyle(document.querySelector(s));
+  return {
+    tint: rgba(at(".h-clock .cg-frost").backgroundColor),
+    shadow: rgba(at(".h-clock .cg-shadow").backgroundColor),
+    dim: [Number(at(".h-photo-dim").opacity)],
+  };
+})()`;
+type Look = Record<"tint" | "shadow" | "dim", number[]>;
+
+/**
+ * How far `now` has gone from `from` towards `to`, 0 to 1, over the values that differ between them; NaN if none
+ * differs, or if `now` isn't on the way.
+ */
+function progress(from: number[], to: number[], now: number[]): number {
+  const parts = from
+    .map((a, i) => [a, to[i]!, now[i]!] as const)
+    .filter(([a, b]) => Math.abs(b - a) > 0.02 * Math.max(1, Math.abs(a), Math.abs(b)))
+    .map(([a, b, n]) => (n - a) / (b - a));
+  if (parts.length === 0 || parts.some((p) => p < -0.02 || p > 1.02)) return Number.NaN;
+  return parts.reduce((s, p) => s + p, 0) / parts.length;
+}
+
+/**
+ * The clock's tint and shadow and the photo's dim follow the slideshow's crossfade: just after the new picture
+ * arrives they still match the old one, half way they're between the two, and at the end they match the new one.
+ */
+async function tintFollowsCrossfade(
+  win: BrowserWindow,
+  renderer: string,
+  from: unknown,
+  to: unknown,
+): Promise<void> {
+  await win.loadFile(join(renderer, "index.html"));
+  const wait = (ms: number) =>
+    win.webContents.executeJavaScript(`new Promise((r) => setTimeout(r, ${ms}))`);
+  const look = async () => (await win.webContents.executeJavaScript(LOOK)) as Look;
+  await win.webContents.executeJavaScript(`window.__screen(${JSON.stringify(from)});0`);
+  await wait(1500);
+  const before = await look();
+  // The new picture arrives once it has loaded; time from when its crossfade starts.
+  await win.webContents.executeJavaScript(`new Promise((done) => {
+    window.__screen(${JSON.stringify(to)});
+    const seen = () => (document.querySelector(".h-photo-prev") ? done() : requestAnimationFrame(seen));
+    seen();
+  })`);
+  await wait(100);
+  const early = await look();
+  await wait(1150);
+  const half = await look();
+  await wait(2000);
+  const after = await look();
+  for (const part of ["tint", "shadow", "dim"] as const) {
+    const at = (now: Look) => progress(before[part], after[part], now[part]);
+    const [e, h, a] = [at(early), at(half), at(after)];
+    check(
+      `the clock's ${part === "dim" ? "photo dim" : part} follows the crossfade: old at its start, between half way, new at its end`,
+      e <= 0.15 && h >= 0.2 && h <= 0.8 && a >= 0.98,
+      `(${[e, h, a].map((p) => p.toFixed(2)).join(" → ")}; ${before[part].join(",")} → ${after[part].join(",")})`,
+    );
+  }
 }
 
 void app.whenReady().then(async () => {
@@ -261,9 +352,30 @@ void app.whenReady().then(async () => {
       },
     ];
     const win = newWindow();
+    await tintFollowsCrossfade(
+      win,
+      builds.at(-1)![1],
+      { ...home, home: picture(0) },
+      { ...home, home: picture(1) },
+    );
     const heavy = await time(win, builds.at(-1)![1], control);
     console.log(
       `           ${control.name.padEnd(44)} page ${describe(heavy.page)}; composited ${describe(heavy.gpu)}`,
+    );
+    const stalled: Scene = {
+      name: `control: a ${STALL_MS} ms stall as each round starts`,
+      setup: idle,
+      during: "true",
+      stallMs: STALL_MS,
+    };
+    const stall = await time(win, builds.at(-1)![1], stalled);
+    console.log(
+      `           ${stalled.name.padEnd(44)} page ${describe(stall.page)}; composited ${describe(stall.gpu)}`,
+    );
+    check(
+      "a stall at the start of a round shows in both measures",
+      [stall.page, stall.gpu].every((g) => g.longest >= STALL_MS * 0.8),
+      `longest: page ${stall.page.longest.toFixed(1)} ms, composited ${stall.gpu.longest.toFixed(1)} ms`,
     );
     check(
       "the positive control drops frames, so a busy GPU shows in the timings",
@@ -284,6 +396,10 @@ void app.whenReady().then(async () => {
         check(
           `${scene.name}: at most ${DROPPED_AT_MOST * 100} % of frames dropped, none longer than ${LONGEST_MS} ms`,
           [t.page, t.gpu].every((g) => share(g) <= DROPPED_AT_MOST && g.longest <= LONGEST_MS),
+        );
+        check(
+          `${scene.name}: frames for at least ${COVERED_AT_LEAST * 100} % of the slots, page and composited`,
+          [t.page, t.gpu].every((g) => coverage(g) >= COVERED_AT_LEAST),
         );
       }
     }
