@@ -182,6 +182,9 @@ describe("Library first page rows", () => {
   test("a film on a missing drive is dimmed and OK shows the toast", async () => {
     seed();
     await start();
+    // Opening the Library started a scan. Let it finish before the drive goes: a scan that is half way through when
+    // the folder vanishes keeps only what it had read, and the next one then dims only that (#41).
+    await h.app.core.library.settled();
     rmSync(at("Elemental.2023.mkv"));
     rmSync(root, { recursive: true });
     await h.app.core.library.refresh([root]);

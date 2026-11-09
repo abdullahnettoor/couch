@@ -25,6 +25,9 @@ const CONTROL_ABOVE = 30;
 /** Readings of the same frame must agree within this. */
 const TOLERANCE = 2;
 const READINGS = 3;
+const ATTEMPTS = 20;
+/** How many frames to wait for a state (a fade to start, a frame to carry a change) before giving up. */
+const FRAMES = 300;
 const STRIPES = "repeating-linear-gradient(90deg,#fff 0 4px,#000 4px 8px)";
 
 app.setPath("userData", mkdtempSync(join(tmpdir(), "glass-fade-check-")));
@@ -55,20 +58,40 @@ type Rect = { x: number; y: number; w: number; h: number };
 /** A row of pixels to read: `width` pixels from (x, y). */
 type Row = { x: number; y: number; width: number };
 
-/** Every running fade (an opacity transition, or a CSS animation that changes opacity), held linear at `progress` of its run. In page. */
+/**
+ * Holds every running transition and animation of the page at `progress` of its run (an infinite one, like the idle
+ * clock's drift, is paused where it is), so nothing moves or fades while it is read. Returns how many of them fade
+ * opacity (an opacity transition, or a CSS animation that changes opacity). In page.
+ */
 const FREEZE = `(progress) => {
-  const fades = document.getAnimations().filter((a) => {
-    const fading = a.transitionProperty === "opacity" || (a.animationName && a.effect.getKeyframes().some((k) => "opacity" in k));
-    return fading && Number.isFinite(a.effect.getComputedTiming().activeDuration);
-  });
-  for (const a of fades) {
+  let fades = 0;
+  for (const a of document.getAnimations()) {
+    const t = a.effect.getComputedTiming();
     a.pause();
+    if (!Number.isFinite(t.activeDuration)) continue;
+    if (a.transitionProperty === "opacity" || (a.animationName && a.effect.getKeyframes().some((k) => "opacity" in k))) fades++;
     a.effect.updateTiming({ easing: "linear" });
     if (a.animationName) a.effect.setKeyframes(a.effect.getKeyframes().map(({ computedOffset, easing, ...k }) => k));
-    const t = a.effect.getComputedTiming();
     a.currentTime = (t.delay || 0) + progress * t.activeDuration;
   }
-  return fades.length;
+  return fades;
+}`;
+
+/**
+ * Waits for a known state, not a time: freezes the fades in the task that finds them (a fade is created by the style
+ * update that follows the change, before it has run a frame, so a slow runner cannot let it finish first), looks again
+ * a frame later for any that start late, and gives up only after FRAMES frames with none. In page; ready() says
+ * the thing under test is on the page.
+ */
+const FREEZE_WHEN_RUNNING = `async (progress, ready) => {
+  const frame = () => new Promise((r) => requestAnimationFrame(r));
+  let fades = 0;
+  for (let i = 0; i < ${FRAMES} && !fades; i++) {
+    if (ready()) fades = (${FREEZE})(progress);
+    if (!fades) await frame();
+  }
+  await frame();
+  return ready() ? (${FREEZE})(progress) : 0;
 }`;
 
 /** Opens `payload` on the real Screen over stripes, freezes every running transition and animation at `progress`, and returns the box's rectangle. */
@@ -86,10 +109,9 @@ async function open(
     stripes.style.cssText = "position:fixed;inset:0;z-index:1;background:" + ${JSON.stringify(STRIPES)};
     document.body.prepend(stripes);
     window.__screen(${JSON.stringify(payload)});
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const fades = await (${FREEZE_WHEN_RUNNING})(${progress}, () => !!document.querySelector(${JSON.stringify(box)}));
     const box = document.querySelector(${JSON.stringify(box)});
     if (!box) return { error: "no ${box}" };
-    const fades = (${FREEZE})(${progress});
     const rect = box.getBoundingClientRect();
     const layers = [];
     for (let e = box.parentElement; e; e = e.parentElement) layers.push(getComputedStyle(e).opacity);
@@ -103,30 +125,67 @@ async function open(
 /** A 40-pixel row just inside a box's top edge, clear of its text. */
 const topRow = (rect: Rect): Row => ({ x: rect.x + rect.w / 2 - 20, y: rect.y + 6, width: 40 });
 
-/** The spread of grey values along a row of pixels. */
+let epoch = 0;
+/**
+ * The spread of grey values along a row of pixels, read from a frame known to carry the page as it is now. Two marker
+ * lines, one just above and one just below the row, are given a colour no earlier frame had, and the capture is
+ * repeated until both show it; the row is read from that same capture. The markers sit in the row's own tile because
+ * Chromium rasterises a changed area tile by tile, and under load can hand back a frame with a corner updated and the
+ * rest still the old picture (a marker in the corner is not enough). They lie over the glass, not under it, so they are
+ * not in what it blurs.
+ */
 async function contrast(win: BrowserWindow, row: Row) {
-  const painted = new Promise<void>((r) => win.webContents.once("paint", () => r()));
-  win.webContents.invalidate();
-  await painted;
-  const image = await win.webContents.capturePage({
-    x: Math.round(row.x),
-    y: Math.round(row.y),
-    width: Math.round(row.width),
-    height: 1,
-  });
-  const { data, width } = decodePng(image.toPNG());
-  const grey: number[] = [];
-  for (let i = 0; i < width; i++) grey.push(data[i * 4]);
-  return Math.max(...grey) - Math.min(...grey);
+  const x = Math.round(row.x);
+  const y = Math.round(row.y);
+  const width = Math.round(row.width);
+  const mark = (epoch++ % 250) + 3;
+  await win.webContents.executeJavaScript(`(() => {
+    for (const [id, top] of [["above", ${y - 2}], ["below", ${y + 2}]]) {
+      let m = document.getElementById("glass-frame-mark-" + id);
+      if (!m) {
+        m = document.createElement("i");
+        m.id = "glass-frame-mark-" + id;
+        document.body.append(m);
+      }
+      m.style.cssText = "position:fixed;height:1px;z-index:2147483647;pointer-events:none;left:${x}px;top:" + top + "px;width:${width}px;background:rgb(${mark},${mark},${mark})";
+    }
+  })()`);
+  for (let tries = 0; tries < FRAMES; tries++) {
+    const painted = new Promise<void>((r) => win.webContents.once("paint", () => r()));
+    win.webContents.invalidate();
+    await painted;
+    const { data, width: imageWidth } = decodePng((await win.webContents.capturePage()).toPNG());
+    const at = (px: number, py: number) => data[(py * imageWidth + px) * 4];
+    const marked = (py: number) => [x, x + width - 1].every((px) => Math.abs(at(px, py) - mark) <= 1);
+    if (!marked(y - 2) || !marked(y + 2)) continue;
+    const grey: number[] = [];
+    for (let i = 0; i < width; i++) grey.push(at(x + i, y));
+    return Math.max(...grey) - Math.min(...grey);
+  }
+  throw new Error(`no frame carried the page's current state (${FRAMES} captures)`);
 }
 
-/** Three readings of the same spot; fails the run if they disagree. */
+/**
+ * Takes readings of the same spot until the last READINGS agree (at most ATTEMPTS), and fails the run if they never do.
+ * A reading can still be of a frame that is partly the old picture (a layer that changed is redrawn on its own
+ * schedule, which the markers in contrast() cannot see), so the answer is the value the readings settle on, not the
+ * first one. A genuinely flickering result never settles and fails.
+ */
 async function steady(label: string, win: BrowserWindow, row: Row) {
   const reads: number[] = [];
-  for (let i = 0; i < READINGS; i++) reads.push(await contrast(win, row));
-  const spread = Math.max(...reads) - Math.min(...reads);
-  check(`${label}: ${READINGS} readings agree`, spread <= TOLERANCE, `readings=${reads.join(",")}`);
-  return Math.max(...reads);
+  let window: number[] = [];
+  for (let i = 0; i < ATTEMPTS; i++) {
+    reads.push(await contrast(win, row));
+    window = reads.slice(-READINGS);
+    if (window.length === READINGS && Math.max(...window) - Math.min(...window) <= TOLERANCE) break;
+  }
+  const spread = Math.max(...window) - Math.min(...window);
+  check(
+    `${label}: ${READINGS} readings agree`,
+    window.length === READINGS && spread <= TOLERANCE,
+    `readings=${reads.join(",")}`,
+  );
+  return Math.max(...window);
 }
 
 let shared: BrowserWindow | undefined;
@@ -232,11 +291,11 @@ async function openClock(
     ${steps.before ? `window.__screen(${JSON.stringify(steps.before)}); lay(); await frame();` : ""}
     window.__screen(${JSON.stringify(steps.after)});
     lay();
+    const fades = await (${FREEZE_WHEN_RUNNING})(${progress}, () => !!document.querySelector(".h-clock .cg-frost"));
     await frame();
     const frost = document.querySelector(".h-clock .cg-frost");
     if (!frost) return { error: "no glass clock (.h-clock .cg-frost)" };
     if (!document.querySelector(".h-clock .t.cg-drawn")) return { error: "the clock's glass was not drawn" };
-    const fades = (${FREEZE})(${progress});
     const layers = [];
     for (let e = frost.parentElement; e; e = e.parentElement) layers.push(getComputedStyle(e).opacity);
     // The longest stretch of a mask row that is inside the digits, with solid mask a few pixels above and below.
