@@ -70,7 +70,6 @@
 .h-photo-blur {
   inset: auto 0;
   backdrop-filter: var(--blur-photo);
-  -webkit-backdrop-filter: var(--blur-photo);
 }
 .h-photo-blur.bottom {
   bottom: 0;

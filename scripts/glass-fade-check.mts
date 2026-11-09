@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GLASS } from "../src/shared/look.ts";
 import { decodePng } from "./look-diff.ts";
+import { builtCssBlurOffenders } from "./built-css-blur.ts";
 import { loadFixtures } from "./look-fixture-data.ts";
 
 const SIZE = { width: 1280, height: 720 };
@@ -343,6 +344,12 @@ async function tints() {
 
 void app.whenReady().then(async () => {
   try {
+    const offenders = builtCssBlurOffenders(join(import.meta.dirname, "../dist/renderer"));
+    check(
+      "every built rule that blurs keeps the unprefixed backdrop-filter (#36)",
+      offenders.length === 0,
+      offenders.join(", "),
+    );
     const { screen } = loadFixtures();
     await measure("the question", screen["overlay-confirm"], ".confirm .box");
     await measure(
