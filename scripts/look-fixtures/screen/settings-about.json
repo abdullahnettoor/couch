@@ -4,11 +4,6 @@
  "back": {
   "label": "Settings"
  },
- "about": {
-  "version": "0.2.0 (12)",
-  "check": "Checking…",
-  "beta": false
- },
  "homeApps": [
   {
    "id": "youtube",
@@ -35,6 +30,17 @@
    "id": "couch"
   },
   "artwork": true
+ },
+ "about": {
+  "version": "0.2.0 (12)",
+  "check": "Checking…",
+  "beta": false,
+  "support": {
+   "line": "Couch is free and open source. If it's earned a place on your TV, you can buy me a coffee.",
+   "url": "https://buymeacoffee.com/abdullahnettoor",
+   "short": "buymeacoffee.com/abdullahnettoor",
+   "open": false
+  }
  },
  "continueCard": {
   "kind": "video",
@@ -122,6 +128,13 @@
    "label": "Run setup again",
    "action": "about:setup",
    "r": 2,
+   "c": 0
+  },
+  {
+   "id": "support",
+   "label": "Support Couch",
+   "action": "about:support",
+   "r": 3,
    "c": 0
   }
  ],

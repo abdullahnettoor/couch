@@ -64,6 +64,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .k.hero { background:var(--focus-bg); color:var(--focus-fg); }
   .k.txt { font-size:var(--type-phone-key-text); }
   .search { margin-top:18px; height:56px; border-radius:var(--radius-search); background:var(--card); display:flex; align-items:center; gap:12px; padding:0 20px; color:var(--text-tertiary); font-size:var(--type-phone-control); width:100%; }
+  a.search { text-decoration:none; }
   .search svg { font-size:var(--type-phone-icon); }
   .search.dim { opacity:.35; }
   .cw { margin-top:18px; display:flex; gap:14px; align-items:center; padding:10px; border-radius:var(--radius-card); background:var(--card); width:100%; text-align:left; }
@@ -264,6 +265,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   <div class="note-card" id="playback-note" role="status" hidden><b id="playback-title"></b><ol id="playback-steps"></ol></div>
   <button class="search" id="fixbtn" data-cmd="menu" hidden><span id="fix-label">Fix match</span></button>
   <button class="search" id="search" data-cmd="typeOpen" hidden><span data-i="search"></span><span id="search-label">Search</span></button>
+  <a class="search" id="link" href="#" target="_blank" rel="noopener" hidden><span id="link-label"></span></a>
   <div class="other" id="other" hidden>Typing on another phone</div>
   <div class="apps" id="apps" role="group" aria-label="Apps" hidden></div>
   <div class="padwrap"><div class="pad" id="dpad">__PAD__</div></div>
@@ -525,6 +527,8 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     }
     $("fixbtn").hidden = !s.fixAvailable || !!np;
     $("search").hidden = !(s.typeLabel && s.typeAvailable) || !!np || !!s.fixAvailable;
+    $("link").hidden = !s.link;
+    if (s.link) { $("link").href = s.link.url; $("link-label").textContent = s.link.label; }
     $("search-label").textContent = s.typeLabel || "Search";
     $("search").classList.toggle("dim", !s.typeAvailable);
     $("other").hidden = s.typing !== "other" && s.typing !== "screen";

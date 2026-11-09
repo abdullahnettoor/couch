@@ -192,6 +192,12 @@ for (const [row, name] of settingsPages) {
   await snap(name);
   await press("back");
 }
+await open("about");
+await open("support");
+await settled();
+await snap("settings-about-support");
+await press("back");
+await press("back");
 await open("remotes");
 await open("add-phone");
 await settled();

@@ -1851,3 +1851,61 @@ body:has(.ls-page) .toast:not(.notice) {
 .wp-panel .g-back {
   margin-left: 0;
 }
+/* Settings → About → Support Couch: a small glass panel over the page, with the QR code for the address. */
+.support-panel {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 40;
+}
+/* The full-screen layer stays opaque (see .confirm): the scrim over the whole About page and the box fade on their own. */
+.support-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--scrim-sheet);
+  animation: s-fade-in var(--duration-dialog-fade) var(--ease-glass) both;
+}
+.support-box {
+  position: relative;
+  animation: s-fade-in var(--duration-dialog-fade) var(--ease-glass) both;
+  display: grid;
+  justify-items: center;
+  gap: calc(24 * var(--u));
+  width: calc(720 * var(--u));
+  padding: calc(56 * var(--u)) calc(72 * var(--u));
+  box-sizing: border-box;
+  border-radius: var(--radius-dialog);
+  color: var(--text-primary);
+  text-align: center;
+  background: var(--glass-strong);
+  backdrop-filter: var(--blur-popover);
+}
+.support-qr {
+  width: calc(360 * var(--u));
+  height: calc(360 * var(--u));
+  padding: calc(24 * var(--u));
+  box-sizing: border-box;
+  border-radius: var(--radius-qr);
+  background: var(--qr-paper);
+}
+.support-qr svg {
+  width: 100%;
+  height: 100%;
+}
+.support-title {
+  margin: 0;
+  font-size: var(--type-title);
+  font-weight: var(--weight-bold);
+}
+.support-text {
+  margin: 0;
+  font-size: var(--type-body);
+  color: var(--text-secondary);
+}
+.support-url {
+  margin: 0;
+  font-size: var(--type-caption);
+  color: var(--text-tertiary);
+}

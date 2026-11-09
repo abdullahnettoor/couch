@@ -231,6 +231,7 @@ The user's own words, approved as written (ticket 143, Addendum 4). Do not edit 
   - So I built Couch. It brings YouTube, Netflix and our own videos to one calm home screen.
   - I only have accounts for those, so I built Couch so that more Apps can be added. If your favourite service is missing, you're welcome to **add it** (link: CONTRIBUTING.md, "Add a web App", `ADD_APP_URL`).
 - Signature: **— Abdullah**, then the social icons (list name "Abdullah elsewhere").
+- Under the signature (ticket 39), one quiet line: **Enjoying Couch? Buy me a coffee →**. The link (`COFFEE_URL` in `src/config.ts`, https://buymeacoffee.com/abdullahnettoor) opens in a new tab with `rel="noopener noreferrer"`. A plain link: no widget, script, iframe or image. Gumroad stays the only way to pay for the download; Download, the FAQ and the footer do not change.
 
 "the remote" and "home screen" stay lower-case here: it is the maker's story, not product UI.
 

@@ -42,6 +42,57 @@ describe("Settings → About", () => {
   });
 });
 
+describe("Settings → About → Support Couch panel", () => {
+  const support = (open: boolean) => ({
+    line: "Couch is free and open source. If it's earned a place on your TV, you can buy me a coffee.",
+    url: "https://buymeacoffee.com/abdullahnettoor",
+    short: "buymeacoffee.com/abdullahnettoor",
+    open,
+  });
+  const payload = (open: boolean) =>
+    ({
+      state: { view: "about", remotes: 0 },
+      focusedId: open ? "support-close" : "support",
+      grid: open
+        ? [{ id: "support-close", label: "Close", r: 0, c: 0 }]
+        : [{ id: "support", label: "Support Couch", r: 0, c: 0 }],
+      about: { version: "0.2.0", beta: false, support: support(open) },
+    }) as unknown as ScreenPayload;
+
+  test("closed: the row shows its line and no panel", () => {
+    page.render(payload(false));
+    expect(screen.querySelector(".support-panel")).toBeNull();
+    expect(screen.querySelector(".details-hint")?.textContent).toContain("buy me a coffee");
+  });
+
+  test("open: a QR code, the line and the short address, and a Close the mouse can click", () => {
+    page.render(payload(true));
+    const panel = screen.querySelector(".support-panel")!;
+    expect(panel.querySelector(".support-qr svg")).not.toBeNull();
+    expect(panel.textContent).toContain("buy me a coffee");
+    expect(panel.querySelector(".support-url")?.textContent).toBe(
+      "buymeacoffee.com/abdullahnettoor",
+    );
+    const close = panel.querySelector('[data-id="support-close"]')!;
+    expect(close.classList.contains("focused")).toBe(true);
+    expect(close.textContent).toContain("Close");
+  });
+
+  test("the QR code encodes the address", async () => {
+    const { qrSvg } = await import("./dom.ts");
+    page.render(payload(true));
+    const expected = document.createElement("div");
+    expected.innerHTML = qrSvg("https://buymeacoffee.com/abdullahnettoor");
+    expect(screen.querySelector(".support-qr")!.innerHTML).toBe(expected.innerHTML);
+    expect(screen.querySelector(".support-qr")!.innerHTML).not.toBe(
+      (() => {
+        expected.innerHTML = qrSvg("https://example.com/");
+        return expected.innerHTML;
+      })(),
+    );
+  });
+});
+
 describe("Home's top strip", () => {
   const home = (withUpdate: boolean, focusedId = "youtube") =>
     ({
