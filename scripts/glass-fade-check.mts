@@ -225,9 +225,9 @@ async function openClock(
     await frame();
     const lens = document.querySelector(".h-clock .cg-lens");
     if (!lens) return { error: "no liquid glass clock (.h-clock .cg-lens)" };
-    if (!document.querySelector(".h-clock .t.cg-drawn")) return { error: "the clock's glass was not drawn" };
     for (const t = performance.now(); !lens.style.getPropertyValue("--cg-refraction"); await frame())
       if (performance.now() - t > 5000) return { error: "the liquid clock's maps never arrived" };
+    if (!document.querySelector(".h-clock .t.cg-drawn")) return { error: "the clock's glass was not drawn" };
     const fades = (${FREEZE})(${progress});
     // Hold everything else still too (the clock rising after Setup, the idle drift), so readings of the bend agree.
     for (const a of document.getAnimations()) a.pause();
@@ -254,7 +254,12 @@ async function grab(win: BrowserWindow, rect: Rect): Promise<number[]> {
   const painted = new Promise<void>((r) => win.webContents.once("paint", () => r()));
   win.webContents.invalidate();
   await painted;
-  const image = await win.webContents.capturePage({ x: rect.x, y: rect.y, width: rect.w, height: rect.h });
+  const image = await win.webContents.capturePage({
+    x: rect.x,
+    y: rect.y,
+    width: rect.w,
+    height: rect.h,
+  });
   const { data, width, height } = decodePng(image.toPNG());
   const grey: number[] = [];
   for (let i = 0; i < width * height; i++) grey.push(data[i * 4]);
@@ -323,7 +328,10 @@ async function measureClock(
   );
   const late = await openClock(win, steps, 0.99);
   const mask = decodePng(Buffer.from(late.mask.split(",")[1]!, "base64"));
-  const inside = Array.from({ length: mask.width * mask.height }, (_, i) => mask.data[i * 4 + 3]! > 128);
+  const inside = Array.from(
+    { length: mask.width * mask.height },
+    (_, i) => mask.data[i * 4 + 3]! > 128,
+  );
   check(
     `${label}: the digits to read inside`,
     inside.filter(Boolean).length > 1000,
@@ -335,9 +343,16 @@ async function measureClock(
     writeFileSync(join(process.env.OUT, `${label.replace(/\W+/g, "-")}.png`), shot.toPNG());
   }
   // The negative control: the same clock faded as a whole, as before #35. Its lens must stop bending the stripes.
-  await win.webContents.executeJavaScript(`document.querySelector(".h-clock").style.opacity = "0.99"`);
+  await win.webContents.executeJavaScript(
+    `document.querySelector(".h-clock").style.opacity = "0.99"`,
+  );
   await frame(win);
-  const faded = await steadyBend(`${label} (control: the whole clock fading)`, win, late.rect, inside);
+  const faded = await steadyBend(
+    `${label} (control: the whole clock fading)`,
+    win,
+    late.rect,
+    inside,
+  );
   await win.webContents.executeJavaScript(`document.querySelector(".h-clock").style.opacity = ""`);
   check(
     `${label}: a clock fading as a whole stops bending the picture, so the reading can tell`,

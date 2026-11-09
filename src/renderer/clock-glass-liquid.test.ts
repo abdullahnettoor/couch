@@ -136,12 +136,25 @@ describe("the liquid clock's maps are built off the page", () => {
     expect(FakeWorker.all).toHaveLength(1);
   });
 
+  test("the new minute's digits show together with their maps, so the old rim never sits on new digits", () => {
+    glass.draw();
+    FakeWorker.all[0]!.answer(1);
+    const mask = lens().style.maskImage;
+    expect(mask).toContain("svg");
+    minute("20:01");
+    expect(lens().style.maskImage).toBe(mask);
+    FakeWorker.all[1]!.answer(2);
+    expect(lens().style.maskImage).not.toBe(mask);
+    expect(rim().style.backgroundImage).toContain(maps(2).rim);
+  });
+
   test("a worker that fails is let go, and the glass keeps its tint and lift", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     glass.draw();
     FakeWorker.all[0]!.fail();
     expect(FakeWorker.all[0]!.terminated).toBe(true);
     expect(refraction()).toBe("");
+    expect(lens().style.maskImage).toContain("svg");
     expect(error).toHaveBeenCalled();
     error.mockRestore();
   });

@@ -92,6 +92,25 @@ Object.defineProperty(HTMLImageElement.prototype, "src", {
 });
 
 const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+// Work the page hands to a worker (the clock's maps, #37) counts as loading until the worker answers, fails or is let
+// go. It settles a task later, once the page's own handler has shown what the worker sent.
+const RealWorker = window.Worker;
+window.Worker = class extends RealWorker {
+  #settle;
+  constructor(...args) {
+    super(...args);
+    const done = new Promise((r) => (this.#settle = () => setTimeout(r, 0)));
+    this.addEventListener("message", this.#settle, { once: true });
+    this.addEventListener("error", this.#settle, { once: true });
+    loading.add(done);
+    void done.then(() => loading.delete(done));
+  }
+  terminate() {
+    this.#settle();
+    super.terminate();
+  }
+};
 /** The pictures CSS draws: background images and masks, on elements and their ::before and ::after. */
 function cssPictures() {
   const urls = new Set();

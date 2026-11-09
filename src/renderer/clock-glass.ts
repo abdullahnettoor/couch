@@ -46,8 +46,8 @@ let filterCount = 0;
  * from the top left). CSS can't mask by live text, so each character is written into SVG masks in the page's font,
  * where the DOM laid it out. The lens's displacement map and the rim are built from the same characters in a worker,
  * at half resolution, and arrive as pictures: the displacement map behind a new SVG filter each time (Chromium ignores
- * changes to a filter an element already uses), the rim as a still image. Everything is redrawn only when the time's
- * text or its box changes: once a minute, or when the Screen changes size.
+ * changes to a filter an element already uses), the rim as a still image; the new masks go up with them, in one frame.
+ * Everything is redrawn only when the time's text or its box changes: once a minute, or when the Screen changes size.
  */
 export class ClockGlass {
   readonly #time: HTMLElement;
@@ -91,18 +91,21 @@ export class ClockGlass {
     const u = designUnit(window.innerWidth, window.innerHeight);
     const glyphs = glyphsOf(time, box);
     const masks = writeMasks(glyphs, box, u);
-    for (const name of LAYERS) {
-      const style = this.#layers[name].style;
-      style.width = `${masks.width}px`;
-      style.height = `${masks.height}px`;
-    }
-    const shadow = this.#layers.shadow.style;
-    shadow.maskImage = shadow.webkitMaskImage = masks.shadow;
-    const lens = this.#layers.lens.style;
-    lens.maskImage = lens.webkitMaskImage = masks.lens;
-    time.classList.add("cg-drawn");
     this.#drawn = key;
-    this.#buildMaps(glyphs, masks.width, masks.height, u, start);
+    // The digits' new shape goes up with their maps, in one frame: never the old rim over new digits.
+    const apply = () => {
+      for (const name of LAYERS) {
+        const style = this.#layers[name].style;
+        style.width = `${masks.width}px`;
+        style.height = `${masks.height}px`;
+      }
+      const shadow = this.#layers.shadow.style;
+      shadow.maskImage = shadow.webkitMaskImage = masks.shadow;
+      const lens = this.#layers.lens.style;
+      lens.maskImage = lens.webkitMaskImage = masks.lens;
+      time.classList.add("cg-drawn");
+    };
+    this.#buildMaps(glyphs, masks.width, masks.height, u, start, apply);
     measure("clock-glass:draw", start);
   }
 
@@ -112,12 +115,22 @@ export class ClockGlass {
     this.#worker = undefined;
   }
 
-  /** Asks a fresh worker for this drawing's maps; a worker still busy with an older drawing is let go. */
-  #buildMaps(glyphs: Glyph[], width: number, height: number, u: number, start: number): void {
+  /**
+   * Asks a fresh worker for this drawing's maps, and shows them with `apply` (the new masks) once they arrive; a worker
+   * still busy with an older drawing is let go. Without a worker, or if it fails, the masks go up alone.
+   */
+  #buildMaps(
+    glyphs: Glyph[],
+    width: number,
+    height: number,
+    u: number,
+    start: number,
+    apply: () => void,
+  ): void {
     this.#worker?.terminate();
     const worker = this.#startWorker();
     this.#worker = worker;
-    if (!worker) return;
+    if (!worker) return apply();
     const { clockGlass: g, clockGlassMap: map } = GLASS.metrics.home;
     const done = () => {
       worker.terminate();
@@ -127,12 +140,15 @@ export class ClockGlass {
       if (this.#worker !== worker) return;
       done();
       const shown = performance.now();
+      apply();
       this.#show(e.data, width, height, g.refraction * u);
       measure("clock-glass:show", shown);
       measure("clock-glass:map", start);
     };
     worker.onerror = (e) => {
+      if (this.#worker !== worker) return;
       done();
+      apply();
       console.error("clock glass: the maps' worker failed", e.message);
     };
     const job: MapJob = {
