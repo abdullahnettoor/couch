@@ -17,7 +17,8 @@
 // `--baseline <renderer dir>` measures another build the same way (dev's, for today's clock) and prints both.
 // No visible window opens; user data is a temp folder.
 import { app, BrowserWindow } from "electron";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -44,12 +45,38 @@ const CONTROL_BLURS = 64;
 const STALL_MS = 200;
 /** The minute's redraw of the clock (its render with the masks rewritten) takes at most this long. */
 const REDRAW_MS = 12;
+/**
+ * The minute's change on the page's main thread (the render, then showing the maps the worker built and the style
+ * they cause) takes at most this long, median (#37).
+ */
+const MINUTE_MEDIAN_MS = 8;
+/** Minute changes timed, and minute changes run to look for growth. */
+const MINUTES_TIMED = 20;
+const MINUTES_GROWTH = 60;
+/**
+ * The Screen's renderer with the clock shown costs at most this much more than with it hidden: #35's frosted clock
+ * cost about 6 MiB, and #37 allows the liquid one 25 MiB over that.
+ */
+const SHOWN_MIB_AT_MOST = 31;
+/**
+ * Over a second run of MINUTES_GROWTH minute changes, the renderer's footprint grows at most this much, and its
+ * JavaScript heap at most JS_GROWTH_MIB_AT_MOST. The first run fills the renderer's caches (it does for #35's clock
+ * too: both level off at about 75 to 85 MiB over a long run of minute changes, #37), so the footprint can still climb
+ * a few MiB in the second; the heap shows whether anything the page keeps grows.
+ */
+const GROWTH_MIB_AT_MOST = 8;
+const JS_GROWTH_MIB_AT_MOST = 1;
 const APPLE = "/System/Library/Desktop Pictures";
 const PICTURES = ["iMac Yellow.heic", "Sonoma.heic"];
 
 app.setPath("userData", mkdtempSync(join(tmpdir(), "clock-frames-check-")));
 app.commandLine.appendSwitch("force-device-scale-factor", "1");
+// So memory is read after a full collection, not whenever V8 last ran one.
+app.commandLine.appendSwitch("js-flags", "--expose-gc");
+app.commandLine.appendSwitch("enable-precise-memory-info");
 app.dock?.hide();
+// Each build's memory is read in a window of its own; closing one mustn't end the run.
+app.on("window-all-closed", () => {});
 
 const args = process.argv.slice(2).filter((a) => !a.startsWith("--inspect"));
 const baselineAt = args.indexOf("--baseline");
@@ -62,7 +89,11 @@ const preload = join(scratch, "preload.cjs");
 // The Screen's bridge, as look-snap-preload.cjs stands it in, but with the page's real animations and transitions.
 writeFileSync(
   preload,
-  `window.couch = { send() {}, reportGrid() {}, reportGlass() {}, onScreen: (l) => (window.__screen = l), onTint() {}, onSound() {}, onMpv() {} };`,
+  `window.couch = { send() {}, reportGrid() {}, reportGlass() {}, onScreen: (l) => (window.__screen = l), onTint() {}, onSound() {}, onMpv() {} };` +
+    // Counts the page's live workers, so a worker left running shows.
+    `window.__workers = 0; const W = window.Worker; window.Worker = class extends W { constructor(...a) { super(...a); window.__workers++; } terminate() { window.__workers--; super.terminate(); } };` +
+    // Collects the clock's own timings (clock-glass.ts measures each step of a drawing).
+    `window.__clockTimes = []; new PerformanceObserver((l) => window.__clockTimes.push(...l.getEntries().map((e) => ({ name: e.name, ms: e.duration })))).observe({ type: "measure" });`,
 );
 
 let failed = false;
@@ -208,16 +239,39 @@ async function time(win: BrowserWindow, renderer: string, scene: Scene) {
   return { page: page!, gpu: gpu!, seen };
 }
 
-/** How long a render takes when the minute changes (the time's text and the glass's masks), and when it doesn't. */
+/**
+ * The minute's change on the page's main thread: the render that changes the time (with its layout, as the next frame
+ * would do it), then, once the worker's maps arrive, showing them (the clock's own measure) and the style that causes.
+ * Also how long the maps take from the render until they're shown, and a render within the same minute.
+ */
 async function redraw(win: BrowserWindow, renderer: string, home: Record<string, unknown>) {
   await win.loadFile(join(renderer, "index.html"));
   return (await win.webContents.executeJavaScript(`(async () => {
     const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const at = (minute) => ({ ...${JSON.stringify(home)}, now: ${Number(home.now)} + minute * 60000 });
+    const lens = () => document.querySelector(".h-clock .cg-lens");
+    // The style that showing the maps causes, forced and timed where the clock sets the new filter (its last step).
+    let restyle = 0;
+    const set = CSSStyleDeclaration.prototype.setProperty;
+    CSSStyleDeclaration.prototype.setProperty = function (name, ...rest) {
+      set.call(this, name, ...rest);
+      if (name !== "--cg-refraction") return;
+      const t = performance.now();
+      void getComputedStyle(lens()).backdropFilter;
+      void document.body.offsetHeight;
+      restyle = performance.now() - t;
+    };
+    const shown = async (count) => {
+      for (const t = performance.now(); performance.now() - t < 3000; await frame())
+        if (window.__clockTimes.filter((e) => e.name === "clock-glass:map").length >= count) return true;
+      return false;
+    };
     window.__screen(at(0));
     await frame();
-    const same = [], next = [];
-    for (let m = 1; m <= 20; m++) {
+    const liquid = !!lens();
+    if (liquid) await shown(1);
+    const same = [], next = [], minute = [], map = [];
+    for (let m = 1; m <= ${MINUTES_TIMED}; m++) {
       let t = performance.now();
       window.__screen({ ...at(m - 1), focusedId: "x" + m });
       void document.body.offsetHeight;
@@ -226,12 +280,91 @@ async function redraw(win: BrowserWindow, renderer: string, home: Record<string,
       t = performance.now();
       window.__screen(at(m));
       void document.body.offsetHeight;
-      next.push(performance.now() - t);
+      const render = performance.now() - t;
+      next.push(render);
+      if (liquid && !(await shown(m + 1))) return { error: "the maps for minute " + m + " never arrived" };
+      const times = (name) => window.__clockTimes.filter((e) => e.name === name);
+      minute.push(render + (liquid ? times("clock-glass:show").at(-1).ms + restyle : 0));
+      if (liquid) map.push(times("clock-glass:map").at(-1).ms);
       await frame();
     }
-    const median = (a) => [...a].sort((x, y) => x - y)[a.length >> 1];
-    return { same: median(same), next: median(next), worst: Math.max(...next) };
-  })()`)) as { same: number; next: number; worst: number };
+    CSSStyleDeclaration.prototype.setProperty = set;
+    const median = (a) => (a.length ? [...a].sort((x, y) => x - y)[a.length >> 1] : NaN);
+    return {
+      same: median(same),
+      next: median(next),
+      worst: Math.max(...next),
+      minute: median(minute),
+      minuteWorst: Math.max(...minute),
+      map: median(map),
+      mapWorst: map.length ? Math.max(...map) : NaN,
+    };
+  })()`)) as { error?: string } & Record<
+    "same" | "next" | "worst" | "minute" | "minuteWorst" | "map" | "mapWorst",
+    number
+  >;
+}
+
+/** A process's physical footprint in MiB, as macOS counts it (its GPU allocations included). */
+function footprint(pid: number): number {
+  const file = join(mkdtempSync(join(tmpdir(), "clock-frames-footprint-")), "fp.json");
+  execFileSync("/usr/bin/footprint", ["-j", file, "-p", String(pid)], { stdio: "ignore" });
+  const json = JSON.parse(readFileSync(file, "utf8")) as { processes: { footprint: number }[] };
+  return json.processes[0]!.footprint / 2 ** 20;
+}
+
+/**
+ * The Screen's renderer memory over a photo with the clock hidden, then shown, then after two runs of MINUTES_GROWTH minute changes
+ * (each waiting for its maps), in a window of its own so each build starts from a fresh process. Also how many
+ * displacement filters and live workers are left at the end.
+ */
+async function memory(renderer: string, home: Record<string, unknown>) {
+  const win = newWindow();
+  await win.loadFile(join(renderer, "index.html"));
+  const settle = async () => {
+    await win.webContents.executeJavaScript("new Promise((r) => setTimeout(r, 3000))");
+    const heap = (await win.webContents.executeJavaScript(
+      "gc(); new Promise((r) => setTimeout(r, 1000)).then(() => performance.memory.usedJSHeapSize / 2 ** 20)",
+    )) as number;
+    return { footprint: footprint(win.webContents.getOSProcessId()), heap };
+  };
+  await win.webContents.executeJavaScript(
+    `document.head.insertAdjacentHTML("beforeend", '<style id="hide-clock">.h-clock{display:none}</style>'); window.__screen(${JSON.stringify(home)}); 0`,
+  );
+  const hidden = (await settle()).footprint;
+  await win.webContents.executeJavaScript(`document.getElementById("hide-clock").remove(); 0`);
+  const shown = (await settle()).footprint;
+  const minutes = async (from: number) =>
+    (await win.webContents.executeJavaScript(`(async () => {
+    const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const maps = () => window.__clockTimes.filter((e) => e.name === "clock-glass:map").length;
+    const liquid = !!document.querySelector(".h-clock .cg-lens");
+    for (let m = ${from} + 1; m <= ${from} + ${MINUTES_GROWTH}; m++) {
+      const before = maps();
+      window.__screen({ ...${JSON.stringify(home)}, now: ${Number(home.now)} + m * 60000 });
+      for (const t = performance.now(); liquid && maps() === before && performance.now() - t < 3000; ) await frame();
+      await frame();
+    }
+    await frame();
+    window.__clockTimes.length = 0;
+    return { filters: document.querySelectorAll(".h-clock .cg-filters filter").length, workers: window.__workers };
+  })()`)) as { filters: number; workers: number };
+  await minutes(0);
+  const once = await settle();
+  const left = await minutes(MINUTES_GROWTH);
+  const twice = await settle();
+  await new Promise<void>((r) => {
+    win.once("closed", () => r());
+    win.destroy();
+  });
+  return {
+    hidden,
+    shown,
+    once: once.footprint,
+    twice: twice.footprint,
+    heapGrowth: twice.heap - once.heap,
+    ...left,
+  };
 }
 
 /** In page: the clock's tint and shadow colours and the photo's dim, as drawn now. */
@@ -239,7 +372,7 @@ const LOOK = `(() => {
   const rgba = (c) => (c.match(/[\\d.]+/g) ?? []).map(Number);
   const at = (s) => getComputedStyle(document.querySelector(s));
   return {
-    tint: rgba(at(".h-clock .cg-frost").backgroundColor),
+    tint: rgba(at(".h-clock .cg-lens").backgroundColor),
     shadow: rgba(at(".h-clock .cg-shadow").backgroundColor),
     dim: [Number(at(".h-photo-dim").opacity)],
   };
@@ -351,6 +484,27 @@ void app.whenReady().then(async () => {
         during: drifting,
       },
     ];
+    // Memory first, each build in a window (and renderer) of its own.
+    for (const [label, renderer] of builds) {
+      const m = await memory(renderer, { ...home, home: picture(0) });
+      console.log(
+        `${label.padEnd(10)} renderer memory: clock hidden ${m.hidden.toFixed(1)} MiB, shown ${m.shown.toFixed(1)} MiB (${(m.shown - m.hidden).toFixed(1)}); after ${MINUTES_GROWTH} minute changes ${m.once.toFixed(1)} MiB, after ${MINUTES_GROWTH} more ${m.twice.toFixed(1)} MiB (${(m.twice - m.once).toFixed(1)}), JS heap ${m.heapGrowth >= 0 ? "+" : ""}${m.heapGrowth.toFixed(2)} MiB; filters left ${m.filters}, workers left ${m.workers}`,
+      );
+      if (label !== "this build") continue;
+      check(
+        `the clock shown costs the renderer at most ${SHOWN_MIB_AT_MOST} MiB`,
+        m.shown - m.hidden <= SHOWN_MIB_AT_MOST,
+        `${(m.shown - m.hidden).toFixed(1)} MiB`,
+      );
+      check(
+        `${MINUTES_GROWTH} more minute changes grow the renderer at most ${GROWTH_MIB_AT_MOST} MiB and its JavaScript heap at most ${JS_GROWTH_MIB_AT_MOST} MiB, and leave one filter and no worker`,
+        m.twice - m.once <= GROWTH_MIB_AT_MOST &&
+          m.heapGrowth <= JS_GROWTH_MIB_AT_MOST &&
+          m.filters === 1 &&
+          m.workers === 0,
+        `${(m.twice - m.once).toFixed(1)} MiB, JS heap ${m.heapGrowth.toFixed(2)} MiB, ${m.filters} filters, ${m.workers} workers`,
+      );
+    }
     const win = newWindow();
     await tintFollowsCrossfade(
       win,
@@ -405,15 +559,25 @@ void app.whenReady().then(async () => {
     }
     for (const [label, renderer] of builds) {
       const r = await redraw(win, renderer, home);
+      if (r.error) throw new Error(`${label}: ${r.error}`);
       console.log(
         `${label.padEnd(10)} a render: same minute ${r.same.toFixed(2)} ms; a new minute ${r.next.toFixed(2)} ms (worst ${r.worst.toFixed(2)} ms)`,
       );
-      if (label === "this build")
-        check(
-          `the minute's redraw of the clock takes at most ${REDRAW_MS} ms`,
-          r.worst <= REDRAW_MS,
-          `worst ${r.worst.toFixed(2)} ms`,
-        );
+      console.log(
+        `${label.padEnd(10)} the minute's change on the main thread ${r.minute.toFixed(2)} ms median (worst ${r.minuteWorst.toFixed(2)} ms); the maps shown ${r.map.toFixed(1)} ms after the render, median (worst ${r.mapWorst.toFixed(1)} ms)`,
+      );
+      if (label !== "this build") continue;
+      check(
+        `the minute's redraw of the clock takes at most ${REDRAW_MS} ms`,
+        r.worst <= REDRAW_MS,
+        `worst ${r.worst.toFixed(2)} ms`,
+      );
+      check(
+        `the minute's change costs the main thread at most ${MINUTE_MEDIAN_MS} ms, median`,
+        r.minute <= MINUTE_MEDIAN_MS,
+        `median ${r.minute.toFixed(2)} ms`,
+      );
+      check(`the liquid clock's maps are shown each minute`, Number.isFinite(r.map));
     }
     win.destroy();
   } catch (error) {
