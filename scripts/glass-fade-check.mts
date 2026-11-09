@@ -4,8 +4,10 @@
 // opens the question and Setup's panel from the recorded fixtures, freezes their fade-in at 99 % and measures how
 // sharp the stripes are inside the glass box: about 7 is frosted, 20 and more is see-through. Chromium blurs only what is
 // inside a see-through parent layer (the plain scrim), so a layer that fades makes the box see-through until the end.
-// Home's glass clock (#35) is checked the same way over stripes laid under Home's layers, inside its digits: on Home, as
-// the idle clock, and as it comes in after Setup's last step.
+// Home's liquid glass clock (#35, #37) is checked over stripes laid under Home's layers, inside its digits: on Home, as
+// the idle clock, and as it comes in after Setup's last step. Its digits are nearly clear, so instead of frost it must
+// bend the stripes behind it (its displacement filter live) at 99 % of the fade; the control is the same clock faded
+// as a whole, which must stop bending them.
 // It also checks the stronger tint the Screen's glass gets over a WebKit App (`body.native-app-front`), where Chromium
 // cannot blur the native view and the glass is only its tint. No visible window opens; user data is a temp folder.
 import { app, BrowserWindow } from "electron";
@@ -201,8 +203,9 @@ async function measure(label: string, payload: unknown, box: string) {
 
 /**
  * Opens Home on the real Screen with stripes laid under its layers, shows `before` and then `after` (so the clock fades
- * in), and freezes the fade at `progress`. `farewell` marks the page as Setup's last step closing. Returns the frost
- * layer's opacity, the opacities of every layer around it, and a row of pixels inside the digits.
+ * in), waits for the liquid clock's maps (built in a worker), and freezes the fade at `progress`. `farewell` marks the
+ * page as Setup's last step closing. Returns the lens's opacity, the opacities of every layer around it, its box, and
+ * its mask (the digits) drawn at that box's size.
  */
 async function openClock(
   win: BrowserWindow,
@@ -220,47 +223,86 @@ async function openClock(
     window.__screen(${JSON.stringify(steps.after)});
     lay();
     await frame();
-    const frost = document.querySelector(".h-clock .cg-frost");
-    if (!frost) return { error: "no glass clock (.h-clock .cg-frost)" };
+    const lens = document.querySelector(".h-clock .cg-lens");
+    if (!lens) return { error: "no liquid glass clock (.h-clock .cg-lens)" };
     if (!document.querySelector(".h-clock .t.cg-drawn")) return { error: "the clock's glass was not drawn" };
+    for (const t = performance.now(); !lens.style.getPropertyValue("--cg-refraction"); await frame())
+      if (performance.now() - t > 5000) return { error: "the liquid clock's maps never arrived" };
     const fades = (${FREEZE})(${progress});
+    // Hold everything else still too (the clock rising after Setup, the idle drift), so readings of the bend agree.
+    for (const a of document.getAnimations()) a.pause();
     const layers = [];
-    for (let e = frost.parentElement; e; e = e.parentElement) layers.push(getComputedStyle(e).opacity);
-    // The longest stretch of a mask row that is inside the digits, with solid mask a few pixels above and below.
+    for (let e = lens.parentElement; e; e = e.parentElement) layers.push(getComputedStyle(e).opacity);
+    const r = lens.getBoundingClientRect();
+    const rect = { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) };
     const mask = new Image();
-    mask.src = /url\\("?([^")]+)"?\\)/.exec(getComputedStyle(frost).maskImage)[1];
+    mask.src = /url\\("?([^")]+)"?\\)/.exec(getComputedStyle(lens).maskImage)[1];
     await mask.decode();
     const c = document.createElement("canvas");
-    c.width = mask.naturalWidth;
-    c.height = mask.naturalHeight;
-    const ctx = c.getContext("2d");
-    ctx.drawImage(mask, 0, 0);
-    const alpha = ctx.getImageData(0, 0, c.width, c.height).data;
-    const solid = (x, y) => alpha[(y * c.width + x) * 4 + 3] > 250;
-    const margin = 4;
-    let best = { x: 0, y: 0, width: 0 };
-    for (let y = margin; y < c.height - margin; y++) {
-      let start = -1;
-      for (let x = 0; x <= c.width; x++) {
-        let inside = x < c.width;
-        for (let d = -margin; inside && d <= margin; d++) inside = solid(x, y + d);
-        if (inside && start < 0) start = x;
-        if (!inside && start >= 0) {
-          if (x - start > best.width) best = { x: start, y, width: x - start };
-          start = -1;
-        }
-      }
-    }
-    const r = frost.getBoundingClientRect();
-    const scale = r.width / c.width;
-    const width = Math.min(40, best.width * scale - 2 * margin);
-    const row = { x: r.x + (best.x + best.width / 2) * scale - width / 2, y: r.y + best.y * scale, width };
-    return { fades, layers, own: getComputedStyle(frost).opacity, row };
+    c.width = rect.w;
+    c.height = rect.h;
+    c.getContext("2d").drawImage(mask, 0, 0, rect.w, rect.h);
+    return { fades, layers, own: getComputedStyle(lens).opacity, rect, mask: c.toDataURL("image/png") };
   })()`);
   if (info.error) throw new Error(info.error);
   await frame(win);
-  return info as { fades: number; layers: string[]; own: string; row: Row };
+  return info as { fades: number; layers: string[]; own: string; rect: Rect; mask: string };
 }
+
+/** The grey values of a box, as painted now. */
+async function grab(win: BrowserWindow, rect: Rect): Promise<number[]> {
+  const painted = new Promise<void>((r) => win.webContents.once("paint", () => r()));
+  win.webContents.invalidate();
+  await painted;
+  const image = await win.webContents.capturePage({ x: rect.x, y: rect.y, width: rect.w, height: rect.h });
+  const { data, width, height } = decodePng(image.toPNG());
+  const grey: number[] = [];
+  for (let i = 0; i < width * height; i++) grey.push(data[i * 4]);
+  return grey;
+}
+
+/**
+ * How much the lens bends the stripes behind it, inside the digits: the mean grey difference between the lens as drawn
+ * and the same lens with its displacement filter taken away (only the lift left). A see-through parent turns a
+ * backdrop-filter off (#33), and then the two are the same.
+ */
+async function bend(win: BrowserWindow, rect: Rect, inside: boolean[]): Promise<number> {
+  const live = await grab(win, rect);
+  await win.webContents.executeJavaScript(
+    `document.querySelector(".h-clock .cg-lens").style.backdropFilter = "var(--blur-clock-glass-lift)"`,
+  );
+  await frame(win);
+  const flat = await grab(win, rect);
+  await win.webContents.executeJavaScript(
+    `document.querySelector(".h-clock .cg-lens").style.backdropFilter = ""`,
+  );
+  await frame(win);
+  let sum = 0;
+  let n = 0;
+  for (let i = 0; i < inside.length; i++)
+    if (inside[i]) {
+      sum += Math.abs(live[i]! - flat[i]!);
+      n++;
+    }
+  return n ? sum / n : 0;
+}
+
+/** Three readings of the bend; fails the run if they disagree. */
+async function steadyBend(label: string, win: BrowserWindow, rect: Rect, inside: boolean[]) {
+  const reads: number[] = [];
+  for (let i = 0; i < READINGS; i++) reads.push(await bend(win, rect, inside));
+  const spread = Math.max(...reads) - Math.min(...reads);
+  check(
+    `${label}: ${READINGS} readings agree`,
+    spread <= TOLERANCE,
+    `readings=${reads.map((r) => r.toFixed(1)).join(",")}`,
+  );
+  return Math.min(...reads);
+}
+
+/** The liquid clock bends the picture behind it this much at least (mean grey levels inside the digits), and the
+ * same clock under a see-through parent (the old whole-clock fade) at most a third of that. */
+const BENDS_ABOVE = 6;
 
 async function measureClock(
   label: string,
@@ -280,36 +322,32 @@ async function measureClock(
     `ancestor opacities=${half.layers.join(",")}`,
   );
   const late = await openClock(win, steps, 0.99);
+  const mask = decodePng(Buffer.from(late.mask.split(",")[1]!, "base64"));
+  const inside = Array.from({ length: mask.width * mask.height }, (_, i) => mask.data[i * 4 + 3]! > 128);
   check(
-    `${label}: a row inside the digits to read`,
-    late.row.width >= 16,
-    `width=${late.row.width}`,
+    `${label}: the digits to read inside`,
+    inside.filter(Boolean).length > 1000,
+    `pixels=${inside.filter(Boolean).length}`,
   );
-  const c = await steady(label, win, late.row);
-  // The positive control: the same glass digits with their blur taken away.
-  await win.webContents.executeJavaScript(
-    `document.querySelector(".h-clock .cg-frost").style.backdropFilter = "none"`,
-  );
-  await frame(win);
-  const control = await steady(`${label} (positive control, unblurred)`, win, late.row);
-  check(
-    `${label}: unblurred digits read clearly see-through`,
-    control >= CONTROL_ABOVE,
-    `control contrast=${control}`,
-  );
-  await win.webContents.executeJavaScript(
-    `document.querySelector(".h-clock .cg-frost").style.backdropFilter = ""`,
-  );
-  await frame(win);
+  const live = await steadyBend(label, win, late.rect, inside);
   if (process.env.OUT) {
     const shot = await win.webContents.capturePage();
     writeFileSync(join(process.env.OUT, `${label.replace(/\W+/g, "-")}.png`), shot.toPNG());
   }
-  const limit = Math.min(FROSTED_BELOW, control / 3);
+  // The negative control: the same clock faded as a whole, as before #35. Its lens must stop bending the stripes.
+  await win.webContents.executeJavaScript(`document.querySelector(".h-clock").style.opacity = "0.99"`);
+  await frame(win);
+  const faded = await steadyBend(`${label} (control: the whole clock fading)`, win, late.rect, inside);
+  await win.webContents.executeJavaScript(`document.querySelector(".h-clock").style.opacity = ""`);
   check(
-    `${label} is frosted at 99 % of its fade`,
-    c < limit,
-    `stripe contrast=${c}, limit=${limit.toFixed(1)}`,
+    `${label}: a clock fading as a whole stops bending the picture, so the reading can tell`,
+    faded < BENDS_ABOVE / 3,
+    `bend=${faded.toFixed(1)}`,
+  );
+  check(
+    `${label} bends the picture behind it at 99 % of its fade`,
+    live >= BENDS_ABOVE && live >= faded * 3,
+    `bend=${live.toFixed(1)}, limit=${BENDS_ABOVE} and 3 × ${faded.toFixed(1)}`,
   );
 }
 
