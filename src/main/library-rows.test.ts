@@ -50,6 +50,8 @@ async function start(history?: Record<string, unknown>) {
   await phone.press("home");
   await focusOn("library");
   await phone.press("ok");
+  // press() returns on the next snapshot, which may already have been on its way: wait for the page itself.
+  await phone.waitFor(() => h.screen.last.state.view === "library" && !!h.screen.last.library);
 }
 
 const page = () => h.screen.last.library!;
@@ -63,6 +65,7 @@ async function focusOn(id: string) {
     const cur = grid.find((x) => x.id === focusedId())!;
     const t = grid.find((x) => x.id === id)!;
     await phone.press(t.r > cur.r ? "down" : t.r < cur.r ? "up" : t.c > cur.c ? "right" : "left");
+    await phone.waitFor(() => focusedId() !== cur.id);
   }
   expect(focusedId()).toBe(id);
 }
