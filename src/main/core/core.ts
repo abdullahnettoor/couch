@@ -69,7 +69,8 @@ import {
 import { SoundOutputPage } from "./pages/sound-output-page.ts";
 import { SettingsHomePage } from "./pages/settings-home-page.ts";
 import { SettingsAppsPage } from "./pages/settings-apps-page.ts";
-import { AboutPage } from "./pages/about-page.ts";
+import { AboutPage, SUPPORT_LABEL } from "./pages/about-page.ts";
+import { SUPPORT_URL } from "../../shared/links.ts";
 import type { Updates } from "../ports/updates.ts";
 import { HomePage } from "./home-page.ts";
 import type { WallpaperPorts } from "../ports/pictures.ts";
@@ -1074,6 +1075,7 @@ export class Core {
           }
         : {}),
       ...(this.#about.ready ? { updateReady: true as const } : {}),
+      ...(s.view === "about" ? { link: { label: SUPPORT_LABEL, url: SUPPORT_URL } } : {}),
       ...(s.confirm ? { confirm: s.confirm } : {}),
       ...(s.toast ? { toast: { text: s.toast, id: this.#toastId } } : {}),
       ...(s.view === "settingsApps" && this.#homeApps.menuId && this.#settingsApps.remoteNote()

@@ -96,7 +96,7 @@ The one page for setup chores, opened from the gear on Home: adding phones, Libr
 _Avoid_: preferences, options, admin
 
 **About**:
-The Settings page, just above Quit Couch, with Couch's version (and build number), **Check for updates**, **Restart to update** (only once an update has downloaded; it asks first, then Couch closes and opens again on the new version) and **Beta updates**. A downloaded update otherwise installs when Couch quits; nothing restarts Couch by itself.
+The Settings page, just above Quit Couch, with Couch's version (and build number), **Check for updates**, **Restart to update** (only once an update has downloaded; it asks first, then Couch closes and opens again on the new version) **Beta updates**, **Run setup again** and **Support Couch** (OK opens a glass panel with a QR code for the Buy Me a Coffee page; Back closes it; the phone shows it as a link). Nothing else in Couch asks for support. A downloaded update otherwise installs when Couch quits; nothing restarts Couch by itself.
 _Avoid_: info, version page
 
 **Beta updates**:

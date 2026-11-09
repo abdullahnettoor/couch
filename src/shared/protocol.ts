@@ -398,6 +398,8 @@ export interface AboutPayload {
   beta: boolean;
   /** A calm line under the rows (a Beta updates switch that waits for the next start). */
   hint?: string;
+  /** The Support Couch row: its line, the address, and whether its QR panel is open over the page. */
+  support: { line: string; url: string; short: string; open: boolean };
 }
 
 /** One row (or button) of the Quick settings drawer. */
@@ -555,6 +557,8 @@ export interface RemoteSnapshot {
   /** Home only, when a video is in progress. */
   continueCard?: RemoteContinueCard;
   typeAvailable: boolean;
+  /** Settings → About: the Support Couch link the phone opens in its own browser. */
+  link?: { label: string; url: string };
   /** An update has downloaded: on Home the phone shows the update icon beside the gear (command `openUpdate`). */
   updateReady?: true;
   /** Settings → Apps: why the App's other playback engine isn't offered. */

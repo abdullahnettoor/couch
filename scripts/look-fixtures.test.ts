@@ -28,6 +28,7 @@ describe("the committed screenshot fixtures", () => {
         "settings",
         "settings-addons",
         "settings-about",
+        "settings-about-support",
         "settings-add-phone",
         "settings-apps",
         "settings-credits",
