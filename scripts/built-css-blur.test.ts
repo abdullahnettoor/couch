@@ -1,7 +1,7 @@
-import { existsSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
-import { builtCssBlurOffenders, rulesBlurringOnlyWithPrefix } from "./built-css-blur.ts";
+import { rulesBlurringOnlyWithPrefix } from "./built-css-blur.ts";
 
 describe("built CSS keeps the unprefixed backdrop-filter", () => {
   it("flags a rule with only the -webkit- blur", () => {
@@ -16,10 +16,13 @@ describe("built CSS keeps the unprefixed backdrop-filter", () => {
       ),
     ).toEqual([]);
   });
-  it.skipIf(!existsSync(join(import.meta.dirname, "../dist/renderer")))(
-    "holds for every rule in the built Screen (needs `vp build`)",
-    () => {
-      expect(builtCssBlurOffenders(join(import.meta.dirname, "../dist/renderer"))).toEqual([]);
-    },
-  );
+  // The built Screen itself is checked by `pnpm glass:fade` after `vp build` (CI runs both); a stale local
+  // `dist/` must not fail the unit tests, so here the source is held to the rule that keeps the build right.
+  it("the Screen's CSS never writes -webkit-backdrop-filter itself (the build adds it)", () => {
+    const dir = join(import.meta.dirname, "../src/renderer");
+    const offenders = readdirSync(dir)
+      .filter((f) => f.endsWith(".css"))
+      .filter((f) => /-webkit-backdrop-filter/.test(readFileSync(join(dir, f), "utf8")));
+    expect(offenders).toEqual([]);
+  });
 });
