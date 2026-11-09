@@ -1,13 +1,13 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
-import { GUMROAD_URL, GITHUB_URL, RELEASES_URL, DOWNLOAD_URL, WINDOWS_ISSUE_URL, SITE_URL, ADD_APP_URL, INTRO_MODE, SOCIAL, LAUNCH_VIDEO, YOUTUBE_CHANNEL, type IntroMode, type SocialLink } from "./src/config.ts";
+import { GUMROAD_URL, GITHUB_URL, RELEASES_URL, DOWNLOAD_URL, WINDOWS_ISSUE_URL, SITE_URL, ADD_APP_URL, COFFEE_URL, INTRO_MODE, SOCIAL, LAUNCH_VIDEO, YOUTUBE_CHANNEL, type IntroMode, type SocialLink } from "./src/config.ts";
 import { home, install, remote, shelf, sprite } from "./src/mocks.ts";
 import { launchScreen, launchUnder, type LaunchOptions } from "./src/launch-markup.ts";
 import { introHead, introSvg, wordmarkSvg } from "./src/brand/wordmark.ts";
 import { slots, type Slot, type SlotName } from "./src/slots.ts";
 
-const values: Record<string, string> = { GUMROAD_URL, GITHUB_URL, RELEASES_URL, DOWNLOAD_URL, WINDOWS_ISSUE_URL, SITE_URL, ADD_APP_URL };
+const values: Record<string, string> = { GUMROAD_URL, GITHUB_URL, RELEASES_URL, DOWNLOAD_URL, WINDOWS_ISSUE_URL, SITE_URL, ADD_APP_URL, COFFEE_URL };
 const introMode = (process.env.COUCH_INTRO_MODE || INTRO_MODE) as IntroMode;
 if (introMode !== "sequence" && introMode !== "logo-only") throw new Error(`Unknown intro mode "${introMode}" (sequence or logo-only)`);
 const shots = resolve(import.meta.dirname, "src/shots");

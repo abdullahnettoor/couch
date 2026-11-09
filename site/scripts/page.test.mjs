@@ -571,3 +571,44 @@ describe("Couch for Windows and the download link", { skip }, () => {
     await page.close();
   });
 });
+
+describe("the Buy Me a Coffee link in the maker letter", { skip }, () => {
+  const COFFEE = "https://buymeacoffee.com/abdullahnettoor";
+
+  test("one plain link under the signature, new tab, safe rel, and loading it is not the page's business", async () => {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1440, height: 900 });
+    await page.emulateMediaFeatures([{ name: "prefers-reduced-motion", value: "reduce" }]);
+    const away = [];
+    await page.setRequestInterception(true);
+    page.on("request", (r) => {
+      if (r.url().startsWith(url) || r.url().startsWith("data:")) { r.continue().catch(() => {}); return; }
+      away.push(r.url());
+      r.abort().catch(() => {});
+    });
+    await page.goto(url, { waitUntil: "load" });
+    await wait(500);
+    const s = await page.evaluate((href) => {
+      const all = [...document.querySelectorAll("a")].filter((a) => a.href.includes("buymeacoffee"));
+      const a = all[0];
+      const sign = document.querySelector("#why .why-sign");
+      return {
+        count: all.length,
+        inLetter: !!a?.closest("#why"),
+        href: a?.href, rel: a?.rel, target: a?.target, text: a?.parentElement.textContent.replace(/\s+/g, " ").trim(),
+        below: !!a && !!sign && !!(sign.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING) && a.getBoundingClientRect().top >= sign.getBoundingClientRect().bottom - 1,
+        embeds: document.querySelectorAll("iframe[src*=buymeacoffee], script[src*=buymeacoffee], img[src*=buymeacoffee], img[src*=bmc]").length,
+      };
+    }, COFFEE);
+    assert.equal(s.count, 1, "only one such link on the page");
+    assert.ok(s.inLetter, "it is in the letter");
+    assert.equal(s.href, COFFEE);
+    assert.equal(s.target, "_blank");
+    assert.equal(s.rel, "noopener noreferrer");
+    assert.match(s.text, /^Enjoying Couch\? Buy me a coffee/);
+    assert.ok(s.below, "under the signature");
+    assert.equal(s.embeds, 0);
+    assert.deepEqual(away, [], "the link loads nothing");
+    await page.close();
+  });
+});
