@@ -119,13 +119,14 @@ describe("Home's glass clock", () => {
   const plain = (over: Partial<ScreenPayload> = {}) =>
     payload({ homeVideos: [], now: at(0), timeFormat: "24", ...over });
 
-  test("the time, then its shadow, frost and edge layers, then the date line on top", () => {
+  test("the time, then its shadow, lens and rim layers, then the date line on top", () => {
     home.render(plain());
-    expect(Array.from(clock().children).map((c) => c.className)).toEqual([
+    expect(Array.from(clock().children).map((c) => c.getAttribute("class"))).toEqual([
       "t num",
       "cg cg-shadow",
-      "cg cg-frost",
-      "cg cg-edge",
+      "cg cg-lens",
+      "cg cg-rim",
+      "cg-filters",
       "d",
     ]);
     expect(clock().querySelector(".t")!.textContent).toBe("20:00");

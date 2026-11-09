@@ -73,15 +73,29 @@ export interface Look {
         /** Between the time and the date line; the clock's box is the time, this gap and the date line (`homeClockHeight`). */
         dateGap: number;
       };
-      /** The glass clock's masks (`--home-clock-glass-<name>`), drawn around the time's box. */
+      /** The glass clock's masks and maps (`--home-clock-glass-<name>`), drawn around the time's box. */
       clockGlass: {
-        /** Room around the time's box for the shadow, on every side. */
+        /** Room around the time's box for the shadow and the bent picture, on every side. */
         pad: number;
         /** How soft the shadow outside the digits is, and how far below them it falls. */
         shadowBlur: number;
         shadowDrop: number;
-        /** How deep the light edge along the top of each stroke is. */
-        edge: number;
+        /** How far in from each edge the glass curves: the blur that turns the digits into a height map. */
+        lensSlope: number;
+        /** How far the picture behind bends at the steepest edge. */
+        refraction: number;
+        /** How wide the lit rim along each edge is. */
+        rimWidth: number;
+      };
+      /** The liquid clock's maps that aren't lengths (#37), read by clock-glass.ts only. */
+      clockGlassMap: {
+        /** The height map's resolution, as a share of the clock's pixels. */
+        scale: number;
+        /** How bright the rim is, and the soft bevel the lens's slope casts (0 to 1). */
+        rimStrength: number;
+        bevelStrength: number;
+        /** Where the light comes from, as a direction on the Screen (y points down). */
+        light: { x: number; y: number };
       };
       /** Each layout's tile row: its distance from the bottom and its tile height. */
       rows: Record<"film" | "empty", { bottom: number; tileHeight: number }>;
@@ -193,9 +207,7 @@ export type GradientName =
   | "setupVeil"
   | "setupLight"
   | "setupGlow"
-  | "splitArtFace"
-  | "clockGlassSheen"
-  | "clockGlassEdge";
+  | "splitArtFace";
 
 export type TypeSizeName =
   // The Screen and Quick settings
@@ -406,8 +418,7 @@ export type BlurName =
   | "badge"
   | "wallpaperPanel"
   | "photo"
-  | "clockGlass"
-  | "clockGlassBuiltin";
+  | "clockGlassLift";
 
 export type EaseName =
   | "glass"
@@ -511,16 +522,16 @@ export const GLASS: Look = {
     scrimSheet: "rgba(0, 0, 0, 0.6)",
     scrimUpNext: "rgba(0, 0, 0, 0.55)",
     photoDim: "#000",
-    /** The glass clock's tint over the darkest photo; it runs to the bright one with the picture's brightness. */
-    clockGlassTintDark: "rgba(255, 255, 255, 0.14)",
-    /** Over the brightest photo: whiter, so the digits read as glass rather than the picture's colour. */
-    clockGlassTintBright: "rgba(255, 255, 255, 0.52)",
-    /** Over the dark built-in Wallpapers, where plain glass would vanish. */
-    clockGlassTintBuiltin: "rgba(255, 255, 255, 0.5)",
-    /** The soft shadow outside the glass digits, over the darkest and the brightest photo, and over the built-ins. */
-    clockGlassShadowDark: "rgba(0, 0, 0, 0.2)",
-    clockGlassShadowBright: "rgba(0, 0, 0, 0.5)",
-    clockGlassShadowBuiltin: "rgba(0, 0, 0, 0.35)",
+    /** The glass clock's faint tint over the darkest photo; it runs to the bright one with the picture's brightness. */
+    clockGlassTintDark: "rgba(255, 255, 255, 0.05)",
+    /** Over the brightest photo: whiter, so the clear digits still read against a light picture. */
+    clockGlassTintBright: "rgba(255, 255, 255, 0.21)",
+    /** Over the dark built-in Wallpapers. */
+    clockGlassTintBuiltin: "rgba(255, 255, 255, 0.1)",
+    /** The light shadow outside the glass digits, over the darkest and the brightest photo, and over the built-ins. */
+    clockGlassShadowDark: "rgba(0, 0, 0, 0.14)",
+    clockGlassShadowBright: "rgba(0, 0, 0, 0.35)",
+    clockGlassShadowBuiltin: "rgba(0, 0, 0, 0.245)",
     maskOpaque: "#000",
     buttonFill: "rgba(255, 255, 255, 0.16)",
     buttonFillSoft: "rgba(255, 255, 255, 0.14)",
@@ -599,11 +610,6 @@ export const GLASS: Look = {
     setupLight: "radial-gradient(closest-side, rgba(255, 150, 70, 0.3), rgba(255, 150, 70, 0))",
     setupGlow: "radial-gradient(closest-side, rgba(255, 150, 70, 0.34), rgba(255, 150, 70, 0))",
     splitArtFace: "linear-gradient(160deg, #8e8e93, #3a3a3c)",
-    /** The glass digits are a touch lighter at the top, like light falling on glass. */
-    clockGlassSheen:
-      "linear-gradient(180deg, rgba(255, 255, 255, 0.14) 25%, rgba(255, 255, 255, 0) 75%)",
-    /** The faint light edge along the top of each glass stroke. */
-    clockGlassEdge: "linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.25))",
   },
   type: {
     family: '-apple-system, "SF Pro Text", system-ui, sans-serif',
@@ -820,10 +826,8 @@ export const GLASS: Look = {
     badge: "blur(20px) saturate(1.6)",
     wallpaperPanel: "blur(calc(40 * {u})) saturate(1.2)",
     photo: "blur(14px)",
-    /** The glass clock over a photo: the dimmed picture behind it, blurred and brightened. */
-    clockGlass: "blur(calc(24 * {u})) saturate(1.25) brightness(1.6)",
-    /** Over the dark built-ins, where the tint does more of the work. */
-    clockGlassBuiltin: "blur(calc(24 * {u})) saturate(1.25) brightness(1.3)",
+    /** Inside the glass clock's digits, after the picture is bent: a small lift, so they read from a sofa. */
+    clockGlassLift: "brightness(1.12) saturate(1.2)",
   },
   motion: {
     ease: {
@@ -925,7 +929,20 @@ export const GLASS: Look = {
     },
     home: {
       clock: { top: 210, dateGap: 18 },
-      clockGlass: { pad: 60, shadowBlur: 16, shadowDrop: 5, edge: 2.5 },
+      clockGlass: {
+        pad: 60,
+        shadowBlur: 16,
+        shadowDrop: 5,
+        lensSlope: 10,
+        refraction: 46,
+        rimWidth: 1.6,
+      },
+      clockGlassMap: {
+        scale: 0.5,
+        rimStrength: 0.95,
+        bevelStrength: 0.16,
+        light: { x: -0.42, y: -0.91 },
+      },
       rows: {
         film: { bottom: 84, tileHeight: 170 },
         empty: { bottom: 120, tileHeight: 236 },

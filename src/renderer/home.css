@@ -353,14 +353,15 @@
   font-weight: var(--weight-medium);
 }
 /*
- * The glass clock (#35): the digits are cut out of a frosted layer over the Wallpaper, with a soft shadow outside them
- * and a light edge along their tops. clock-glass.ts draws the three masks from the laid-out time. The clock itself never
- * fades: a see-through parent turns its children's blur off (#33), so each part fades on its own.
+ * The liquid glass clock (#35, #37): nearly clear digits that bend the Wallpaper near their edges (the lens), a thin rim
+ * lit from the top left, and a light shadow outside them. clock-glass.ts draws the masks and, in a worker, the lens's
+ * displacement map and the rim. A faint tint and a small lift inside the digits, and the shadow, follow the picture's
+ * brightness. The clock itself never fades: a see-through parent turns its children's backdrop-filter off (#33), so
+ * each part fades on its own.
  */
 .h-clock {
   --cg-tint: var(--clock-glass-tint-builtin);
   --cg-shadow: var(--clock-glass-shadow-builtin);
-  --cg-blur: var(--blur-clock-glass-builtin);
 }
 .home.photo .h-clock {
   --cg-tint: color-mix(
@@ -373,7 +374,6 @@
     var(--clock-glass-shadow-bright) calc(var(--wp-light, 0.5) * 100%),
     var(--clock-glass-shadow-dark)
   );
-  --cg-blur: var(--blur-clock-glass);
 }
 .h-clock .t,
 .h-clock .d,
@@ -402,12 +402,17 @@
 .h-clock .cg-shadow {
   background: var(--cg-shadow);
 }
-.h-clock .cg-frost {
-  background: var(--clock-glass-sheen), var(--cg-tint);
-  backdrop-filter: var(--cg-blur);
+/* `--cg-refraction` is the drawn displacement filter (a new one each minute); until it arrives, only the lift. */
+.h-clock .cg-lens {
+  background-color: var(--cg-tint);
+  backdrop-filter: var(--cg-refraction,) var(--blur-clock-glass-lift);
 }
-.h-clock .cg-edge {
-  background: var(--clock-glass-edge);
+.h-clock .cg-rim {
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+.h-clock .cg-filters {
+  position: absolute;
 }
 .home.empty .h-row {
   bottom: var(--home-empty-row-bottom);

@@ -84,6 +84,7 @@ describe("Home's numbers", () => {
         home: {
           clock: { ...GLASS.metrics.home.clock, top: 180 },
           clockGlass: GLASS.metrics.home.clockGlass,
+          clockGlassMap: GLASS.metrics.home.clockGlassMap,
           rows: { ...GLASS.metrics.home.rows, empty: { bottom: 100, tileHeight: 200 } },
           panScale: 1.1,
         },

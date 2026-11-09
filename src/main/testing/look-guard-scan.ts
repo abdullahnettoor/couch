@@ -157,6 +157,7 @@ const SCREEN_OWN = [
   "--wp-dim",
   "--wp-light",
   "--wp-drift",
+  "--cg-refraction",
   "--dock-tint",
   "--sx",
   "--sy",

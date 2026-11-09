@@ -7,27 +7,45 @@ const home = readCss("home.css");
 const all = readCss("home.css", "glass.css");
 const alpha = (c: string) => Number(/,\s*([\d.]+)\)$/.exec(c)![1]);
 
-/** Home's clock is glass (#35): the digits are cut out of a frosted layer over the Wallpaper. */
+/**
+ * Home's clock is liquid glass (#37, version C of #35's prototype): nearly clear digits that bend the Wallpaper near
+ * their edges, a thin rim lit from the top left, and a faint tint, lift and shadow so they read from a sofa.
+ */
 describe("the glass clock's Look", () => {
   const { color, blur } = GLASS;
+  const map = GLASS.metrics.home.clockGlassMap;
 
-  test("over a photo the tint runs from the dark-picture tint to a whiter one for bright pictures", () => {
-    expect(alpha(color.clockGlassTintBright)).toBeGreaterThan(alpha(color.clockGlassTintDark));
-    expect(color.clockGlassTintDark).toMatch(/^rgba\(255, 255, 255, /);
-    expect(color.clockGlassTintBright).toMatch(/^rgba\(255, 255, 255, /);
+  test("over a photo the tint is faint: about 5 % on the darkest picture to 21 % on the brightest", () => {
+    expect(color.clockGlassTintDark).toBe("rgba(255, 255, 255, 0.05)");
+    expect(color.clockGlassTintBright).toBe("rgba(255, 255, 255, 0.21)");
   });
 
-  test("over the dark built-ins the tint is brighter than over a dark photo, so the glass doesn't vanish", () => {
-    expect(alpha(color.clockGlassTintBuiltin)).toBeGreaterThan(alpha(color.clockGlassTintDark));
-    expect(blur.clockGlassBuiltin).toMatch(/^blur\(/);
-    expect(blur.clockGlass).toMatch(/^blur\(/);
+  test("over the built-ins the tint is 10 %", () => {
+    expect(color.clockGlassTintBuiltin).toBe("rgba(255, 255, 255, 0.1)");
   });
 
-  test("the shadow deepens with the picture's brightness", () => {
+  test("the shadow outside the digits is light, and deepens with the picture's brightness", () => {
     expect(alpha(color.clockGlassShadowBright)).toBeGreaterThan(alpha(color.clockGlassShadowDark));
+    for (const shadow of [
+      color.clockGlassShadowDark,
+      color.clockGlassShadowBright,
+      color.clockGlassShadowBuiltin,
+    ])
+      expect(alpha(shadow)).toBeLessThanOrEqual(0.35);
   });
 
-  test("its tokens are written as variables", () => {
+  test("inside the digits the picture is lifted a little: brighter and more saturated, not blurred", () => {
+    expect(blur.clockGlassLift).toBe("brightness(1.12) saturate(1.2)");
+  });
+
+  test("the height map is built at half resolution, lit from the top left", () => {
+    expect(map.scale).toBe(0.5);
+    expect(map.light.x).toBeLessThan(0);
+    expect(map.light.y).toBeLessThan(0);
+    expect(Math.hypot(map.light.x, map.light.y)).toBeCloseTo(1, 1);
+  });
+
+  test("its colours, its lift and its lengths are written as variables", () => {
     const css = lookCss(GLASS, { unit: "var(--u)" });
     for (const name of [
       "--clock-glass-tint-dark",
@@ -36,23 +54,41 @@ describe("the glass clock's Look", () => {
       "--clock-glass-shadow-dark",
       "--clock-glass-shadow-bright",
       "--clock-glass-shadow-builtin",
-      "--clock-glass-sheen",
-      "--clock-glass-edge",
-      "--blur-clock-glass",
-      "--blur-clock-glass-builtin",
+      "--blur-clock-glass-lift",
       "--home-clock-glass-pad",
     ])
       expect(css).toContain(`${name}: `);
   });
+
+  test("the frosted clock's tokens are gone", () => {
+    const css = lookCss(GLASS, { unit: "var(--u)" });
+    for (const name of [
+      "--clock-glass-sheen",
+      "--clock-glass-edge",
+      "--blur-clock-glass:",
+      "--blur-clock-glass-builtin",
+    ])
+      expect(css).not.toContain(name);
+  });
 });
 
 describe("the glass clock's styles", () => {
-  test("the frosted layer blurs with the photo's filter, or the built-ins' brighter one", () => {
-    expect(home.prop(".h-clock .cg-frost", "backdrop-filter")).toBe("var(--cg-blur)");
-    expect(home.prop(".h-clock", "--cg-blur")).toBe("var(--blur-clock-glass-builtin)");
-    expect(home.prop(".home.photo .h-clock", "--cg-blur")).toBe("var(--blur-clock-glass)");
+  test("the lens bends the picture with the drawn filter, then lifts it, under the tint", () => {
+    expect(home.prop(".h-clock .cg-lens", "backdrop-filter").replace(/,\s+\)/, ",)")).toBe(
+      "var(--cg-refraction,) var(--blur-clock-glass-lift)",
+    );
+    expect(home.prop(".h-clock .cg-lens", "background-color")).toBe("var(--cg-tint)");
     expect(home.prop(".h-clock", "--cg-tint")).toBe("var(--clock-glass-tint-builtin)");
     expect(home.prop(".h-clock", "--cg-shadow")).toBe("var(--clock-glass-shadow-builtin)");
+  });
+
+  test("the rim is a still picture stretched over the glass's box", () => {
+    expect(home.prop(".h-clock .cg-rim", "background-size")).toBe("100% 100%");
+  });
+
+  test("no frosted layer or top edge is left", () => {
+    expect(() => home.rulesFor(".h-clock .cg-frost")).toThrow();
+    expect(() => home.rulesFor(".h-clock .cg-edge")).toThrow();
   });
 
   test("over a photo the tint and the shadow follow its brightness", () => {
