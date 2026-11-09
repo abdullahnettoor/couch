@@ -156,7 +156,8 @@ async function contrast(win: BrowserWindow, row: Row) {
     await painted;
     const { data, width: imageWidth } = decodePng((await win.webContents.capturePage()).toPNG());
     const at = (px: number, py: number) => data[(py * imageWidth + px) * 4];
-    const marked = (py: number) => [x, x + width - 1].every((px) => Math.abs(at(px, py) - mark) <= 1);
+    const marked = (py: number) =>
+      [x, x + width - 1].every((px) => Math.abs(at(px, py) - mark) <= 1);
     if (!marked(y - 2) || !marked(y + 2)) continue;
     const grey: number[] = [];
     for (let i = 0; i < width; i++) grey.push(at(x + i, y));
