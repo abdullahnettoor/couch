@@ -355,6 +355,7 @@ describe("Screen and phone take over from each other", () => {
     text("hijack");
     expect(screen().search!.query).toBe("pan");
     await phone.press({ command: "typeText", args: { text: "amelie" } });
+    await phone.waitFor(() => screen().search!.query === "amelie");
     h.clock.advance(150);
     expect(films$()).toEqual(["Amélie"]);
   });
