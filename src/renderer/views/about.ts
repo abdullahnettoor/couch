@@ -53,7 +53,7 @@ function supportPanel(
     el("h2", "support-title", "Support Couch"),
     el("p", "support-text", support.line),
     el("p", "support-url", support.short),
-    glassPill("support-close", "Close", payload.focusedId === "support-close", "check"),
+    glassPill("support-close", "Close", payload.focusedId === "support-close"),
   );
   const panel = el("div", "support-panel");
   panel.append(box);

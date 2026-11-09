@@ -72,10 +72,16 @@ const FREEZE = `(progress) => {
 }`;
 
 /** Opens `payload` on the real Screen over stripes, freezes every running transition and animation at `progress`, and returns the box's rectangle. */
-async function open(win: BrowserWindow, payload: unknown, box: string, progress: number) {
+async function open(
+  win: BrowserWindow,
+  payload: unknown,
+  box: string,
+  progress: number,
+  inScreen = false,
+) {
   await win.loadFile(join(import.meta.dirname, "../dist/renderer/index.html"));
   const info = await win.webContents.executeJavaScript(`(async () => {
-    document.getElementById("screen").style.display = "none";
+    ${inScreen ? "" : 'document.getElementById("screen").style.display = "none";'}
     const stripes = document.createElement("div");
     stripes.style.cssText = "position:fixed;inset:0;z-index:1;background:" + ${JSON.stringify(STRIPES)};
     document.body.prepend(stripes);
@@ -145,9 +151,16 @@ function newWindow() {
   return win;
 }
 
-async function measure(label: string, payload: unknown, box: string) {
+/** `inScreen`: the box lives inside #screen (the Support panel), so the Screen stays shown with the stripes under it. */
+async function measure(
+  label: string,
+  payload: unknown,
+  box: string,
+  inScreen = false,
+  controlAbove = CONTROL_ABOVE,
+) {
   const win = newWindow();
-  const half = await open(win, payload, box, 0.5);
+  const half = await open(win, payload, box, 0.5, inScreen);
   check(
     `${label} fades in (something is mid-fade at 50 %)`,
     half.fades > 0,
@@ -164,7 +177,7 @@ async function measure(label: string, payload: unknown, box: string) {
     half.layers.every((o) => o === "1"),
     `ancestor opacities=${half.layers.join(",")}`,
   );
-  const late = await open(win, payload, box, 0.99);
+  const late = await open(win, payload, box, 0.99, inScreen);
   const c = await steady(label, win, topRow(late.rect));
   await win.webContents.executeJavaScript(`(() => {
     const control = document.createElement("div");
@@ -184,7 +197,7 @@ async function measure(label: string, payload: unknown, box: string) {
   );
   check(
     `${label}: an unblurred box reads clearly see-through`,
-    control >= CONTROL_ABOVE,
+    control >= controlAbove,
     `control contrast=${control}`,
   );
   const limit = Math.min(FROSTED_BELOW, control / 3);
@@ -356,6 +369,14 @@ void app.whenReady().then(async () => {
       "Setup's panel",
       { ...screen["overlay-setup"], setup: { ...screen["overlay-setup"].setup, intro: false } },
       "#setup .box",
+    );
+    await measure(
+      "the Support Couch panel",
+      screen["settings-about-support"],
+      ".support-box",
+      true,
+      // The page's scrim dims the stripes under the box, so the unblurred control reads a little lower.
+      20,
     );
     const home = screen.home;
     const hero = screen["home-hero"];

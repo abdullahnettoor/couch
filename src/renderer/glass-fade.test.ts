@@ -24,6 +24,12 @@ describe("a glass panel fades without turning its blur off", () => {
     expect(glass.prop(".setup .box", "transition")).toContain("opacity");
   });
 
+  test("the Support Couch panel's layer stays opaque; its scrim and box fade on their own", () => {
+    expect(glass.prop(".support-panel", "opacity")).toBe("");
+    expect(glass.prop(".support-panel::before", "animation")).toContain("s-fade-in");
+    expect(glass.prop(".support-box", "animation")).toContain("s-fade-in");
+  });
+
   test("no full-screen layer holding a glass box fades", () => {
     const layers = glass.rules.filter(
       (r) => r.style.getPropertyValue("inset") === "0" && r.style.getPropertyValue("opacity"),
