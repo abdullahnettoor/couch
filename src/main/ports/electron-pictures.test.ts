@@ -113,9 +113,9 @@ const pngOf = (grid: Grid) => {
     chunk("IEND", Buffer.alloc(0)),
   ]);
 };
-/** A big flat picture without a grid of 18 million pixels in memory: one row of bytes, repeated. */
 /** What converting a 4000 × 2000 picture may cost this process: reading, checking and copying it, never decoding it. */
 const MAX_OWN_CPU_MS = 200;
+/** A big flat picture without a grid of 18 million pixels in memory: one row of bytes, repeated. */
 const solidPng = (w: number, h: number, rgb: Rgb = [200, 80, 40]) => {
   const row = Buffer.alloc(1 + w * 3);
   for (let x = 0; x < w; x++) row.set(rgb, 1 + x * 3);
