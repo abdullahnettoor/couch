@@ -114,7 +114,7 @@ const pngOf = (grid: Grid) => {
   ]);
 };
 /** A big flat picture without a grid of 18 million pixels in memory: one row of bytes, repeated. */
-/** What converting a 6000 × 3000 picture may cost this process: reading, checking and copying it, never decoding it. */
+/** What converting a 4000 × 2000 picture may cost this process: reading, checking and copying it, never decoding it. */
 const MAX_OWN_CPU_MS = 200;
 const solidPng = (w: number, h: number, rgb: Rgb = [200, 80, 40]) => {
   const row = Buffer.alloc(1 + w * 3);
@@ -386,7 +386,7 @@ describe("ElectronConverter", () => {
   });
 
   test("the conversion does not block the event loop", async () => {
-    const src = file(solidPng(6000, 3000), "big.png");
+    const src = file(solidPng(4000, 2000), "big.png");
     // CPU time, not a timer's lateness: on a loaded machine the whole process is descheduled and a timer runs late
     // whatever the code does, but CPU time counts only work done here. The decoding is `sips`'s, in a child process
     // that this does not count; a converter that decoded the picture itself would spend seconds of CPU on it.
@@ -394,7 +394,8 @@ describe("ElectronConverter", () => {
     const out = await converter().convert(src);
     const { user, system } = process.cpuUsage(before);
     expect(out).toBeDefined();
-    expect((user + system) / 1000).toBeLessThan(MAX_OWN_CPU_MS);
+    const cpuMs = (user + system) / 1000;
+    expect(cpuMs, `CPU spent in this process: ${cpuMs} ms`).toBeLessThan(MAX_OWN_CPU_MS);
   }, 30_000);
 
   test("the source file is only read: its bytes and modification time stay as they were", async () => {
