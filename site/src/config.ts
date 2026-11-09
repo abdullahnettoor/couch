@@ -1,6 +1,8 @@
 /** Placeholder: replace with the real Gumroad product URL once it exists. */
 export const GUMROAD_URL = "https://abdullahnettoor.gumroad.com/l/couch";
 export const GITHUB_URL = "https://github.com/abdullahnettoor/couch";
+/** The maker letter's one quiet "Buy me a coffee" link: a plain link, no widget or script. */
+export const COFFEE_URL = "https://buymeacoffee.com/abdullahnettoor";
 export const RELEASES_URL = "https://github.com/abdullahnettoor/couch/releases";
 /** "or download free from GitHub": the newest stable release's .dmg. Keep it exactly this (site README, "Publishing"). */
 export const DOWNLOAD_URL = `${RELEASES_URL}/latest/download/Couch-arm64.dmg`;
