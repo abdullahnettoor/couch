@@ -45,6 +45,14 @@ describe("the glass clock's Look", () => {
     expect(Math.hypot(map.light.x, map.light.y)).toBeCloseTo(1, 1);
   });
 
+  test("the rim is lit as feSpecularLighting does it, by a low light, so flat glass stays dark", () => {
+    expect(map.light.elevation).toBeGreaterThan(0);
+    expect(map.light.elevation).toBeLessThanOrEqual(15);
+    expect(map.rimShine).toBeGreaterThanOrEqual(1);
+    expect(map.rimShine).toBeLessThanOrEqual(128);
+    expect(map.rimFill).toBeLessThan(map.rimStrength);
+  });
+
   test("its colours, its lift and its lengths are written as variables", () => {
     const css = lookCss(GLASS, { unit: "var(--u)" });
     for (const name of [
@@ -60,14 +68,27 @@ describe("the glass clock's Look", () => {
       expect(css).toContain(`${name}: `);
   });
 
-  test("the frosted clock's tokens are gone", () => {
+  test("#35's frosted digits stay, as the fallback without maps, under their own names", () => {
+    expect(color.clockFrostTintDark).toBe("rgba(255, 255, 255, 0.14)");
+    expect(color.clockFrostTintBright).toBe("rgba(255, 255, 255, 0.52)");
+    expect(color.clockFrostTintBuiltin).toBe("rgba(255, 255, 255, 0.5)");
+    expect(alpha(color.clockFrostShadowBright)).toBeGreaterThan(alpha(color.clockFrostShadowDark));
+    expect(blur.clockFrost).toMatch(/^blur\(/);
+    expect(blur.clockFrostBuiltin).toMatch(/^blur\(/);
     const css = lookCss(GLASS, { unit: "var(--u)" });
     for (const name of [
-      "--clock-glass-sheen",
-      "--clock-glass-edge",
-      "--blur-clock-glass:",
-      "--blur-clock-glass-builtin",
+      "--clock-frost-tint-dark",
+      "--clock-frost-tint-bright",
+      "--clock-frost-tint-builtin",
+      "--clock-frost-shadow-dark",
+      "--clock-frost-shadow-bright",
+      "--clock-frost-shadow-builtin",
+      "--clock-frost-sheen",
+      "--blur-clock-frost",
+      "--blur-clock-frost-builtin",
     ])
+      expect(css).toContain(`${name}: `);
+    for (const name of ["--clock-glass-sheen", "--clock-glass-edge", "--blur-clock-glass:"])
       expect(css).not.toContain(name);
   });
 });
@@ -98,6 +119,33 @@ describe("the glass clock's styles", () => {
     );
     expect(flat(home.prop(".home.photo .h-clock", "--cg-shadow"))).toBe(
       "color-mix(in srgb, var(--clock-glass-shadow-bright) calc(var(--wp-light, 0.5) * 100%), var(--clock-glass-shadow-dark))",
+    );
+  });
+
+  test("without maps the digits are frosted, as #35 drew them, and no rim is shown", () => {
+    const flat = (s: string) => s.replace(/\s+/g, " ").replace(/\( /g, "(").replace(/ \)/g, ")");
+    expect(home.prop(".h-clock.cg-frosted .cg-lens", "backdrop-filter")).toBe(
+      "var(--cg-frost-blur)",
+    );
+    expect(home.prop(".h-clock.cg-frosted .cg-lens", "background-image")).toBe(
+      "var(--clock-frost-sheen)",
+    );
+    expect(home.prop(".h-clock.cg-frosted .cg-rim", "display")).toBe("none");
+    expect(home.prop(".h-clock.cg-frosted", "--cg-tint")).toBe("var(--clock-frost-tint-builtin)");
+    expect(home.prop(".h-clock.cg-frosted", "--cg-shadow")).toBe(
+      "var(--clock-frost-shadow-builtin)",
+    );
+    expect(home.prop(".h-clock.cg-frosted", "--cg-frost-blur")).toBe(
+      "var(--blur-clock-frost-builtin)",
+    );
+    expect(home.prop(".home.photo .h-clock.cg-frosted", "--cg-frost-blur")).toBe(
+      "var(--blur-clock-frost)",
+    );
+    expect(flat(home.prop(".home.photo .h-clock.cg-frosted", "--cg-tint"))).toBe(
+      "color-mix(in srgb, var(--clock-frost-tint-bright) calc(var(--wp-light, 0.5) * 100%), var(--clock-frost-tint-dark))",
+    );
+    expect(flat(home.prop(".home.photo .h-clock.cg-frosted", "--cg-shadow"))).toBe(
+      "color-mix(in srgb, var(--clock-frost-shadow-bright) calc(var(--wp-light, 0.5) * 100%), var(--clock-frost-shadow-dark))",
     );
   });
 

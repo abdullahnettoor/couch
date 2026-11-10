@@ -91,11 +91,19 @@ export interface Look {
       clockGlassMap: {
         /** The height map's resolution, as a share of the clock's pixels. */
         scale: number;
-        /** How bright the rim is, and the soft bevel the lens's slope casts (0 to 1). */
+        /**
+         * The rim, lit as SVG's feSpecularLighting does (Phong): its specular constant (how bright, 0 to 1), its
+         * specular exponent (how tight the highlight is), and its relief (how far the steepest edge tilts, a tangent).
+         */
         rimStrength: number;
+        rimShine: number;
+        rimRelief: number;
+        /** The specular constant of a fill light from the opposite side: a faint back rim on the far edges. */
+        rimFill: number;
+        /** How strong the soft bevel the lens's slope casts is (0 to 1). */
         bevelStrength: number;
-        /** Where the light comes from, as a direction on the Screen (y points down). */
-        light: { x: number; y: number };
+        /** Where the light comes from: a direction on the Screen (y points down), and its height above it in degrees. */
+        light: { x: number; y: number; elevation: number };
       };
       /** Each layout's tile row: its distance from the bottom and its tile height. */
       rows: Record<"film" | "empty", { bottom: number; tileHeight: number }>;
@@ -135,6 +143,12 @@ export type ColorName =
   | "clockGlassShadowDark"
   | "clockGlassShadowBright"
   | "clockGlassShadowBuiltin"
+  | "clockFrostTintDark"
+  | "clockFrostTintBright"
+  | "clockFrostTintBuiltin"
+  | "clockFrostShadowDark"
+  | "clockFrostShadowBright"
+  | "clockFrostShadowBuiltin"
   | "maskOpaque"
   | "buttonFill"
   | "buttonFillSoft"
@@ -207,7 +221,8 @@ export type GradientName =
   | "setupVeil"
   | "setupLight"
   | "setupGlow"
-  | "splitArtFace";
+  | "splitArtFace"
+  | "clockFrostSheen";
 
 export type TypeSizeName =
   // The Screen and Quick settings
@@ -418,7 +433,9 @@ export type BlurName =
   | "badge"
   | "wallpaperPanel"
   | "photo"
-  | "clockGlassLift";
+  | "clockGlassLift"
+  | "clockFrost"
+  | "clockFrostBuiltin";
 
 export type EaseName =
   | "glass"
@@ -532,6 +549,17 @@ export const GLASS: Look = {
     clockGlassShadowDark: "rgba(0, 0, 0, 0.14)",
     clockGlassShadowBright: "rgba(0, 0, 0, 0.35)",
     clockGlassShadowBuiltin: "rgba(0, 0, 0, 0.245)",
+    /**
+     * The frosted clock (#35), shown while the liquid one has no maps (no worker, or one that failed): its tint over the
+     * darkest photo, the brightest (whiter, so the digits read as glass rather than the picture's colour) and the dark
+     * built-ins, and its soft shadow over the same.
+     */
+    clockFrostTintDark: "rgba(255, 255, 255, 0.14)",
+    clockFrostTintBright: "rgba(255, 255, 255, 0.52)",
+    clockFrostTintBuiltin: "rgba(255, 255, 255, 0.5)",
+    clockFrostShadowDark: "rgba(0, 0, 0, 0.2)",
+    clockFrostShadowBright: "rgba(0, 0, 0, 0.5)",
+    clockFrostShadowBuiltin: "rgba(0, 0, 0, 0.35)",
     maskOpaque: "#000",
     buttonFill: "rgba(255, 255, 255, 0.16)",
     buttonFillSoft: "rgba(255, 255, 255, 0.14)",
@@ -610,6 +638,9 @@ export const GLASS: Look = {
     setupLight: "radial-gradient(closest-side, rgba(255, 150, 70, 0.3), rgba(255, 150, 70, 0))",
     setupGlow: "radial-gradient(closest-side, rgba(255, 150, 70, 0.34), rgba(255, 150, 70, 0))",
     splitArtFace: "linear-gradient(160deg, #8e8e93, #3a3a3c)",
+    /** The frosted clock's digits are a touch lighter at the top, like light falling on glass. */
+    clockFrostSheen:
+      "linear-gradient(180deg, rgba(255, 255, 255, 0.14) 25%, rgba(255, 255, 255, 0) 75%)",
   },
   type: {
     family: '-apple-system, "SF Pro Text", system-ui, sans-serif',
@@ -828,6 +859,10 @@ export const GLASS: Look = {
     photo: "blur(14px)",
     /** Inside the glass clock's digits, after the picture is bent: a small lift, so they read from a sofa. */
     clockGlassLift: "brightness(1.12) saturate(1.2)",
+    /** The frosted clock over a photo: the dimmed picture behind it, blurred and brightened. */
+    clockFrost: "blur(calc(24 * {u})) saturate(1.25) brightness(1.6)",
+    /** Over the dark built-ins, where the tint does more of the work. */
+    clockFrostBuiltin: "blur(calc(24 * {u})) saturate(1.25) brightness(1.3)",
   },
   motion: {
     ease: {
@@ -940,8 +975,11 @@ export const GLASS: Look = {
       clockGlassMap: {
         scale: 0.5,
         rimStrength: 0.95,
+        rimShine: 14,
+        rimRelief: 1.1,
+        rimFill: 0.7,
         bevelStrength: 0.16,
-        light: { x: -0.42, y: -0.91 },
+        light: { x: -0.42, y: -0.91, elevation: 5 },
       },
       rows: {
         film: { bottom: 84, tileHeight: 170 },

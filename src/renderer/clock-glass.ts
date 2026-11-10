@@ -24,7 +24,7 @@ export type MapWorker = Pick<Worker, "postMessage" | "terminate"> & {
 };
 
 export interface ClockGlassOptions {
-  /** Starts a worker that builds one minute's maps; none (no Worker here) leaves the glass with its tint and lift. */
+  /** Starts a worker that builds one minute's maps; none (no Worker here), or one that throws, leaves the digits frosted. */
   worker?: () => MapWorker | undefined;
 }
 
@@ -40,6 +40,12 @@ const startWorker = (): MapWorker | undefined =>
 
 let filterCount = 0;
 
+/** Whether `backdrop-filter` can run an SVG filter here; where it can't, the bend would silently do nothing. */
+const refracts = () =>
+  typeof CSS !== "undefined" &&
+  typeof CSS.supports === "function" &&
+  CSS.supports("backdrop-filter", "url(#cg)");
+
 /**
  * Home's liquid glass clock (#35, #37). The time's own text is see-through; over it sit a light shadow outside the
  * digits, the lens (the digits' shape, which bends the Wallpaper behind it near its edges) and the rim (a thin edge lit
@@ -48,6 +54,9 @@ let filterCount = 0;
  * at half resolution, and arrive as pictures: the displacement map behind a new SVG filter each time (Chromium ignores
  * changes to a filter an element already uses), the rim as a still image; the new masks go up with them, in one frame.
  * Everything is redrawn only when the time's text or its box changes: once a minute, or when the Screen changes size.
+ * Without the maps (no worker, a worker that fails, or a `backdrop-filter` that can't run an SVG filter) the clear
+ * glass would all but vanish, so the digits are frosted instead, as #35 drew them (`.cg-frosted`, styled in home.css),
+ * until a later minute's maps arrive.
  */
 export class ClockGlass {
   readonly #time: HTMLElement;
@@ -55,14 +64,18 @@ export class ClockGlass {
   readonly #filters: SVGSVGElement;
   readonly #resize: ResizeObserver | undefined;
   readonly #startWorker: () => MapWorker | undefined;
+  readonly #refracts: boolean;
   /** The worker building the latest drawing's maps, until it answers. */
   #worker: MapWorker | undefined;
+  /** Watches for the clock leaving the page while a worker is busy, to let the worker go at once. */
+  #leaving: MutationObserver | undefined;
   #drawn = "";
 
   /** Puts the glass layers right after `time` (the clock's `.t`), inside its clock. */
   constructor(time: HTMLElement, { worker = startWorker }: ClockGlassOptions = {}) {
     this.#time = time;
     this.#startWorker = worker;
+    this.#refracts = refracts();
     const layers = LAYERS.map((name) => {
       const layer = document.createElement("i");
       layer.className = `cg cg-${name}`;
@@ -111,13 +124,19 @@ export class ClockGlass {
 
   dispose(): void {
     this.#resize?.disconnect();
+    this.#letWorkerGo();
+  }
+
+  #letWorkerGo(): void {
     this.#worker?.terminate();
     this.#worker = undefined;
+    this.#leaving?.disconnect();
+    this.#leaving = undefined;
   }
 
   /**
    * Asks a fresh worker for this drawing's maps, and shows them with `apply` (the new masks) once they arrive; a worker
-   * still busy with an older drawing is let go. Without a worker, or if it fails, the masks go up alone.
+   * still busy with an older drawing is let go. Without a worker, or if it fails, the masks go up frosted.
    */
   #buildMaps(
     glyphs: Glyph[],
@@ -127,18 +146,25 @@ export class ClockGlass {
     start: number,
     apply: () => void,
   ): void {
-    this.#worker?.terminate();
-    const worker = this.#startWorker();
-    this.#worker = worker;
-    if (!worker) return apply();
-    const { clockGlass: g, clockGlassMap: map } = GLASS.metrics.home;
-    const done = () => {
-      worker.terminate();
-      if (this.#worker === worker) this.#worker = undefined;
+    this.#letWorkerGo();
+    const frosted = () => {
+      apply();
+      this.#frost();
     };
+    if (!this.#refracts) return frosted();
+    let worker: MapWorker | undefined;
+    try {
+      worker = this.#startWorker();
+    } catch (error) {
+      console.error("clock glass: the maps' worker couldn't start", error);
+    }
+    if (!worker) return frosted();
+    this.#worker = worker;
+    this.#watchLeaving();
+    const { clockGlass: g, clockGlassMap: map } = GLASS.metrics.home;
     worker.onmessage = (e) => {
       if (this.#worker !== worker) return;
-      done();
+      this.#letWorkerGo();
       const shown = performance.now();
       apply();
       this.#show(e.data, width, height, g.refraction * u);
@@ -147,8 +173,8 @@ export class ClockGlass {
     };
     worker.onerror = (e) => {
       if (this.#worker !== worker) return;
-      done();
-      apply();
+      this.#letWorkerGo();
+      frosted();
       console.error("clock glass: the maps' worker failed", e.message);
     };
     const job: MapJob = {
@@ -165,10 +191,37 @@ export class ClockGlass {
       lensBlur: g.lensSlope * u,
       rimBlur: g.rimWidth * u,
       rimStrength: map.rimStrength,
+      rimShine: map.rimShine,
+      rimRelief: map.rimRelief,
+      rimFill: map.rimFill,
       bevelStrength: map.bevelStrength,
       light: map.light,
     };
     worker.postMessage(job);
+  }
+
+  /**
+   * Home went away (another view replaced it) while a worker was busy: let it go now, not when it answers. Watched only
+   * while a worker is busy, about half a second a minute.
+   */
+  #watchLeaving(): void {
+    if (typeof MutationObserver !== "function" || !this.#time.isConnected) return;
+    this.#leaving = new MutationObserver(() => {
+      if (this.#time.isConnected) return;
+      this.#letWorkerGo();
+      // Drawn again if it comes back.
+      this.#drawn = "";
+    });
+    this.#leaving.observe(this.#time.ownerDocument, { childList: true, subtree: true });
+  }
+
+  /** No maps this minute: the old rim and filter go, the digits are frosted, and the next minute tries again. */
+  #frost(): void {
+    this.#layers.rim.style.backgroundImage = "";
+    this.#layers.lens.style.removeProperty("--cg-refraction");
+    this.#filters.replaceChildren();
+    this.#time.parentElement?.classList.add("cg-frosted");
+    if (this.#refracts) this.#drawn = "";
   }
 
   /** Points the rim at its picture and the lens at a new filter over the displacement map; the old filter goes later. */
@@ -212,6 +265,7 @@ export class ClockGlass {
     for (const f of old.slice(0, -1)) f.remove();
     this.#filters.append(filter);
     this.#layers.rim.style.backgroundImage = `url("${maps.rim}")`;
+    this.#time.parentElement?.classList.remove("cg-frosted");
     this.#layers.lens.style.setProperty("--cg-refraction", `url(#${id})`);
     // The one before stays until the lens has moved on to the new one, then goes.
     requestAnimationFrame(() => requestAnimationFrame(() => old.at(-1)?.remove()));

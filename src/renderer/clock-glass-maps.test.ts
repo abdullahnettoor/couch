@@ -27,8 +27,12 @@ const lighting = {
   rimBlur: 1,
   step: 1,
   rimStrength: 0.95,
+  rimShine: 40,
+  // The test digit's thin ramp is steeper than a blur's; a lower relief tilts it about as far as the halfway vector.
+  rimRelief: 0.5,
+  rimFill: 0,
   bevelStrength: 0,
-  light: { x: -0.42, y: -0.91 },
+  light: { x: -0.42, y: -0.91, elevation: 25 },
 };
 const displacement = displacementPixels(digit, lighting);
 const rim = rimPixels(digit, lighting);
@@ -71,5 +75,42 @@ describe("the liquid clock's maps", () => {
     expect(alpha(20, 5)).toBeGreaterThan(alpha(20, 34) * 2);
     expect(alpha(10, 20)).toBeGreaterThan(alpha(29, 20));
     expect(px(rim, 20, 5).slice(0, 3)).toEqual([255, 255, 255]);
+  });
+
+  test("the rim is Phong's highlight, as feSpecularLighting draws it: full where the glass faces the halfway vector, none on flat glass", () => {
+    // A slope rising to the right at a steady 26 levels a pixel, lit from the left at 30°: the halfway vector between
+    // the light and the viewer leans 30° (45° less half the elevation) towards the light. With a relief that tilts
+    // this slope by exactly that much, its normal is the halfway vector, and Phong gives the full strength.
+    const w = 12;
+    const ramp = new Uint8ClampedArray(w * 4 * 4);
+    const solid = new Uint8ClampedArray(w * 4 * 4);
+    for (let y = 0; y < 4; y++)
+      for (let x = 0; x < w; x++) {
+        ramp[(y * w + x) * 4 + 3] = 26 * (x - 1);
+        solid[(y * w + x) * 4 + 3] = 255;
+      }
+    const tilt = Math.tan(Math.PI / 6);
+    const relief = (tilt * 255) / 26 / ((1 / 0.4) * 1);
+    const facing = rimPixels(
+      { width: w, height: 4, shape: solid, lens: ramp, thin: ramp },
+      { ...lighting, rimBlur: 1, rimRelief: relief, light: { x: -1, y: 0, elevation: 30 } },
+    );
+    expect(facing[(1 * w + 5) * 4 + 3]).toBeGreaterThanOrEqual(Math.floor(255 * 0.95) - 2);
+    // Lit from the right instead, the same slope faces away: no highlight.
+    const away = rimPixels(
+      { width: w, height: 4, shape: solid, lens: ramp, thin: ramp },
+      { ...lighting, rimBlur: 1, rimRelief: relief, light: { x: 1, y: 0, elevation: 30 } },
+    );
+    expect(away[(1 * w + 5) * 4 + 3]).toBeLessThan(3);
+    // Flat glass, in the middle of a stroke, gets almost nothing from a light this low.
+    expect(px(rim, 20, 20)[3]).toBeLessThan(3);
+  });
+
+  test("a fill light from the opposite side leaves a faint back rim, so the far edges show too", () => {
+    const filled = rimPixels(digit, { ...lighting, rimFill: 0.4 });
+    const alpha = (x: number, y: number) => px(filled, x, y)[3]!;
+    expect(alpha(20, 34)).toBeGreaterThan(px(rim, 20, 34)[3]! + 20);
+    expect(alpha(20, 34)).toBeLessThan(alpha(20, 5));
+    expect(alpha(20, 20)).toBe(0);
   });
 });

@@ -414,6 +414,32 @@
 .h-clock .cg-filters {
   position: absolute;
 }
+/* No maps this minute (no worker, one that failed, or no SVG filters in backdrop-filter): #35's frosted digits. */
+.h-clock.cg-frosted {
+  --cg-tint: var(--clock-frost-tint-builtin);
+  --cg-shadow: var(--clock-frost-shadow-builtin);
+  --cg-frost-blur: var(--blur-clock-frost-builtin);
+}
+.home.photo .h-clock.cg-frosted {
+  --cg-tint: color-mix(
+    in srgb,
+    var(--clock-frost-tint-bright) calc(var(--wp-light, 0.5) * 100%),
+    var(--clock-frost-tint-dark)
+  );
+  --cg-shadow: color-mix(
+    in srgb,
+    var(--clock-frost-shadow-bright) calc(var(--wp-light, 0.5) * 100%),
+    var(--clock-frost-shadow-dark)
+  );
+  --cg-frost-blur: var(--blur-clock-frost);
+}
+.h-clock.cg-frosted .cg-lens {
+  background-image: var(--clock-frost-sheen);
+  backdrop-filter: var(--cg-frost-blur);
+}
+.h-clock.cg-frosted .cg-rim {
+  display: none;
+}
 .home.empty .h-row {
   bottom: var(--home-empty-row-bottom);
   gap: calc(56 * var(--u));

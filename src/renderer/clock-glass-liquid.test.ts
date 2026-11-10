@@ -148,20 +148,100 @@ describe("the liquid clock's maps are built off the page", () => {
     expect(rim().style.backgroundImage).toContain(maps(2).rim);
   });
 
-  test("a worker that fails is let go, and the glass keeps its tint and lift", () => {
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  test("disposing of the clock lets its pending worker go", () => {
+    glass.draw();
+    glass.dispose();
+    expect(FakeWorker.all[0]!.terminated).toBe(true);
+  });
+
+  test("Home going away lets the pending worker go at once, without waiting for its answer", async () => {
+    glass.draw();
+    clock.remove();
+    await Promise.resolve();
+    expect(FakeWorker.all[0]!.terminated).toBe(true);
+  });
+});
+
+/** Without its maps the clear glass would all but vanish, so the clock falls back to #35's frosted digits. */
+describe("the liquid clock falls back to frosted digits", () => {
+  const frosted = () => clock.classList.contains("cg-frosted");
+  let error: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    error = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => error.mockRestore());
+
+  test("a worker that fails is let go, and the new digits go up frosted", () => {
     glass.draw();
     FakeWorker.all[0]!.fail();
     expect(FakeWorker.all[0]!.terminated).toBe(true);
     expect(refraction()).toBe("");
     expect(lens().style.maskImage).toContain("svg");
+    expect(frosted()).toBe(true);
     expect(error).toHaveBeenCalled();
-    error.mockRestore();
   });
 
-  test("disposing of the clock lets its pending worker go", () => {
+  test("a worker that fails after a good minute takes the old rim and filter away", () => {
     glass.draw();
+    FakeWorker.all[0]!.answer(1);
+    frames();
+    const mask = lens().style.maskImage;
+    minute("20:01");
+    FakeWorker.all[1]!.fail();
+    expect(rim().style.backgroundImage).toBe("");
+    expect(refraction()).toBe("");
+    expect(filters()).toHaveLength(0);
+    expect(lens().style.maskImage).not.toBe(mask);
+    expect(frosted()).toBe(true);
+  });
+
+  test("the next minute's maps lift the frost", () => {
+    glass.draw();
+    FakeWorker.all[0]!.fail();
+    minute("20:01");
+    FakeWorker.all[1]!.answer(2);
+    expect(frosted()).toBe(false);
+    expect(rim().style.backgroundImage).toContain(maps(2).rim);
+  });
+
+  test("a worker that can't be started shows the frosted digits, and is tried again the next minute", () => {
     glass.dispose();
-    expect(FakeWorker.all[0]!.terminated).toBe(true);
+    let starts = 0;
+    glass = new ClockGlass(time, {
+      worker: () => {
+        if (++starts === 1) throw new Error("no workers here");
+        return new FakeWorker();
+      },
+    });
+    glass.draw();
+    expect(lens().style.maskImage).toContain("svg");
+    expect(frosted()).toBe(true);
+    minute("20:01");
+    expect(FakeWorker.all).toHaveLength(1);
+    FakeWorker.all[0]!.answer(1);
+    expect(frosted()).toBe(false);
+    expect(refraction()).not.toBe("");
+  });
+
+  test("with no Worker at all the digits are frosted", () => {
+    glass.dispose();
+    glass = new ClockGlass(time, { worker: () => undefined });
+    glass.draw();
+    expect(lens().style.maskImage).toContain("svg");
+    expect(frosted()).toBe(true);
+  });
+
+  test("where backdrop-filter can't take an SVG filter, the digits are frosted and no maps are built", () => {
+    glass.dispose();
+    vi.stubGlobal("CSS", {
+      supports: (property: string, value?: string) =>
+        !(property === "backdrop-filter" && value?.startsWith("url(")),
+    });
+    glass = new ClockGlass(time, { worker: () => new FakeWorker() });
+    glass.draw();
+    vi.unstubAllGlobals();
+    expect(FakeWorker.all).toHaveLength(0);
+    expect(lens().style.maskImage).toContain("svg");
+    expect(frosted()).toBe(true);
   });
 });

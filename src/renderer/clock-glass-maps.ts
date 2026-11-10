@@ -2,8 +2,9 @@
  * The liquid clock's maps (#37), built from the time's characters once a minute, in a worker (clock-glass-worker.ts):
  *   - a displacement map (R = x, G = y, 128 = none) for the SVG `feDisplacementMap` that runs as the lens's
  *     backdrop-filter, so the Wallpaper behind each digit bends near its edges and stays almost clear in the middle;
- *   - the rim: a thin highlight lit from the light's side, with a faint back rim and a soft bevel from the lens's
- *     slope. It doesn't depend on the picture behind, so it's a still image.
+ *   - the rim: a thin highlight on the edges that face the light, worked out as SVG's `feSpecularLighting` does it
+ *     (Phong's specular term, a distant light, the narrow height map as the surface), over a soft bevel from the lens's
+ *     slope. It doesn't depend on the picture behind, so it's computed here once a minute as a still image.
  * Both come from height maps: the digits drawn solid, and blurred wide (the lens's slope) and narrow (the rim's).
  */
 
@@ -26,8 +27,18 @@ export interface MapJob {
   lensBlur: number;
   rimBlur: number;
   rimStrength: number;
+  rimShine: number;
+  rimRelief: number;
+  rimFill: number;
   bevelStrength: number;
-  light: { x: number; y: number };
+  light: Light;
+}
+
+/** Where the light comes from: a direction on the Screen (y points down), and its height above it in degrees. */
+export interface Light {
+  x: number;
+  y: number;
+  elevation: number;
 }
 
 /** The two maps as PNG data URLs (blob URLs don't load under the Screen's file://). */
@@ -54,9 +65,14 @@ export interface Lighting {
   rimBlur: number;
   /** How far apart (map pixels) the lens's slope is sampled: a few pixels, for a smooth bend. */
   step: number;
+  /** The rim's specular constant, exponent and relief (how far its steepest edge tilts: a tangent). */
   rimStrength: number;
+  rimShine: number;
+  rimRelief: number;
+  /** The specular constant of a fill light opposite the main one (the faint back rim on the far edges). */
+  rimFill: number;
   bevelStrength: number;
-  light: { x: number; y: number };
+  light: Light;
 }
 
 /** The alpha (0 to 1) of `d` at (x, y), clamped to its edges. */
@@ -104,14 +120,21 @@ export function displacementPixels(heights: Heights, lighting: Lighting): Uint8C
 }
 
 /**
- * The rim (RGBA, white with a soft shade): a thin highlight where the narrow height map slopes, brightest on edges
- * that face the light, with a faint back rim on the far side, over a soft bevel from the lens's slope.
+ * The rim (RGBA, white with a soft shade), inside the digits only, over a soft bevel from the lens's slope. It is
+ * two `feSpecularLighting` passes with an `feDistantLight` each, white, added: the narrow height map is the surface,
+ * raised `rimRelief` at its steepest, and each pixel gets `strength × (N · H) ^ rimShine`, where N is the surface's
+ * normal and H the halfway vector between the light and the viewer. The main light (`rimStrength`) lights the edges
+ * facing it; a fill from the opposite side (`rimFill`) leaves a faint back rim on the far edges, so every edge of a digit
+ * shows. Low lights leave flat glass dark.
  */
 export function rimPixels(heights: Heights, lighting: Lighting): Uint8ClampedArray {
   const { width: w, height: h, shape, thin } = heights;
-  const { rimBlur, rimStrength, bevelStrength, light } = lighting;
+  const { rimBlur, rimStrength, rimShine, rimRelief, rimFill, bevelStrength, light } = lighting;
   const r = new Uint8ClampedArray(w * h * 4);
-  const rimNorm = (rimBlur || 1) / 0.4;
+  // feSpecularLighting's surfaceScale: the steepest edge a blur this wide makes, tilted by `rimRelief`.
+  const surfaceScale = ((rimBlur || 1) / 0.4) * rimRelief;
+  const key = halfway(light, 1);
+  const fill = halfway(light, -1);
   const bevelShade = bevelStrength * 0.8;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
@@ -130,17 +153,16 @@ export function rimPixels(heights: Heights, lighting: Lighting): Uint8ClampedArr
           bevel = facing > 0 ? facing * bevelStrength : -facing * bevelShade;
         }
       }
-      const tx = (heightAt(thin, w, h, x + 1, y) - heightAt(thin, w, h, x - 1, y)) / 2;
-      const ty = (heightAt(thin, w, h, x, y + 1) - heightAt(thin, w, h, x, y - 1)) / 2;
-      const mag = Math.hypot(tx, ty);
-      let rim = 0;
-      if (mag > 1e-4) {
-        const edge = Math.min(1, mag * rimNorm);
-        // The outward normal points down the slope.
-        const facing = (-tx / mag) * light.x + (-ty / mag) * light.y;
-        const lit = 0.14 + 0.86 * Math.max(0, facing) ** 1.4 + 0.28 * Math.max(0, -facing);
-        rim = Math.min(1, edge * lit * rimStrength);
-      }
+      const nx =
+        (-surfaceScale * (heightAt(thin, w, h, x + 1, y) - heightAt(thin, w, h, x - 1, y))) / 2;
+      const ny =
+        (-surfaceScale * (heightAt(thin, w, h, x, y + 1) - heightAt(thin, w, h, x, y - 1))) / 2;
+      const n = Math.hypot(nx, ny, 1);
+      const phong = (h: Vector, strength: number) => {
+        const nh = (nx * h.x + ny * h.y + h.z) / n;
+        return nh > 0 && strength > 0 ? strength * nh ** rimShine : 0;
+      };
+      const rim = Math.min(1, phong(key, rimStrength) + phong(fill, rimFill));
       const alpha = rim + bevel * (1 - rim);
       if (alpha <= 0) continue;
       r[i] = r[i + 1] = r[i + 2] = (255 * rim + bevelColour * bevel * (1 - rim)) / alpha;
@@ -148,6 +170,23 @@ export function rimPixels(heights: Heights, lighting: Lighting): Uint8ClampedArr
     }
   }
   return r;
+}
+
+interface Vector {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/** The halfway vector between a distant light (`side` −1: the same light from the opposite side) and the viewer. */
+function halfway(light: Light, side: 1 | -1): Vector {
+  const elevation = (light.elevation * Math.PI) / 180;
+  const along = (Math.hypot(light.x, light.y) || 1) / side;
+  const x = (light.x / along) * Math.cos(elevation);
+  const y = (light.y / along) * Math.cos(elevation);
+  const z = Math.sin(elevation) + 1;
+  const length = Math.hypot(x, y, z);
+  return { x: x / length, y: y / length, z: z / length };
 }
 
 /**
@@ -182,6 +221,9 @@ export async function buildMaps(job: MapJob): Promise<Maps> {
     // Sampled about a seventh of the slope apart (1.5 px at 1920 × 1080), for a smooth bend.
     step: Math.max(1, Math.round(job.lensBlur * scale * 0.15)),
     rimStrength: job.rimStrength,
+    rimShine: job.rimShine,
+    rimRelief: job.rimRelief,
+    rimFill: job.rimFill,
     bevelStrength: job.bevelStrength,
     light: job.light,
   });

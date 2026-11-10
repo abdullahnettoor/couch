@@ -241,7 +241,9 @@ async function time(win: BrowserWindow, renderer: string, scene: Scene) {
 
 /**
  * The minute's change on the page's main thread: the render that changes the time (with its layout, as the next frame
- * would do it), then, once the worker's maps arrive, showing them (the clock's own measure) and the style that causes.
+ * would do it), then, once the worker's maps arrive, showing them (the clock's own measure). The style that showing
+ * them causes is forced where the clock sets the new filter, its last step, so it falls inside that measure: the two
+ * intervals don't overlap, and the style is counted once (and reported on its own as a part of showing them).
  * Also how long the maps take from the render until they're shown, and a render within the same minute.
  */
 async function redraw(win: BrowserWindow, renderer: string, home: Record<string, unknown>) {
@@ -250,7 +252,8 @@ async function redraw(win: BrowserWindow, renderer: string, home: Record<string,
     const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const at = (minute) => ({ ...${JSON.stringify(home)}, now: ${Number(home.now)} + minute * 60000 });
     const lens = () => document.querySelector(".h-clock .cg-lens");
-    // The style that showing the maps causes, forced and timed where the clock sets the new filter (its last step).
+    // The style that showing the maps causes, forced and timed where the clock sets the new filter (its last step,
+    // inside its "clock-glass:show" measure).
     let restyle = 0;
     const set = CSSStyleDeclaration.prototype.setProperty;
     CSSStyleDeclaration.prototype.setProperty = function (name, ...rest) {
@@ -270,7 +273,7 @@ async function redraw(win: BrowserWindow, renderer: string, home: Record<string,
     await frame();
     const liquid = !!lens();
     if (liquid) await shown(1);
-    const same = [], next = [], minute = [], map = [];
+    const same = [], next = [], minute = [], styles = [], map = [];
     for (let m = 1; m <= ${MINUTES_TIMED}; m++) {
       let t = performance.now();
       window.__screen({ ...at(m - 1), focusedId: "x" + m });
@@ -282,9 +285,13 @@ async function redraw(win: BrowserWindow, renderer: string, home: Record<string,
       void document.body.offsetHeight;
       const render = performance.now() - t;
       next.push(render);
+      restyle = NaN;
       if (liquid && !(await shown(m + 1))) return { error: "the maps for minute " + m + " never arrived" };
       const times = (name) => window.__clockTimes.filter((e) => e.name === name);
-      minute.push(render + (liquid ? times("clock-glass:show").at(-1).ms + restyle : 0));
+      const show = liquid ? times("clock-glass:show").at(-1).ms : 0;
+      if (liquid && !(restyle <= show)) return { error: "showing minute " + m + "'s maps didn't set the filter" };
+      minute.push(render + show);
+      if (liquid) styles.push(restyle);
       if (liquid) map.push(times("clock-glass:map").at(-1).ms);
       await frame();
     }
@@ -296,11 +303,12 @@ async function redraw(win: BrowserWindow, renderer: string, home: Record<string,
       worst: Math.max(...next),
       minute: median(minute),
       minuteWorst: Math.max(...minute),
+      restyle: median(styles),
       map: median(map),
       mapWorst: map.length ? Math.max(...map) : NaN,
     };
   })()`)) as { error?: string } & Record<
-    "same" | "next" | "worst" | "minute" | "minuteWorst" | "map" | "mapWorst",
+    "same" | "next" | "worst" | "minute" | "minuteWorst" | "restyle" | "map" | "mapWorst",
     number
   >;
 }
@@ -564,7 +572,7 @@ void app.whenReady().then(async () => {
         `${label.padEnd(10)} a render: same minute ${r.same.toFixed(2)} ms; a new minute ${r.next.toFixed(2)} ms (worst ${r.worst.toFixed(2)} ms)`,
       );
       console.log(
-        `${label.padEnd(10)} the minute's change on the main thread ${r.minute.toFixed(2)} ms median (worst ${r.minuteWorst.toFixed(2)} ms); the maps shown ${r.map.toFixed(1)} ms after the render, median (worst ${r.mapWorst.toFixed(1)} ms)`,
+        `${label.padEnd(10)} the minute's change on the main thread ${r.minute.toFixed(2)} ms median (worst ${r.minuteWorst.toFixed(2)} ms)${Number.isFinite(r.restyle) ? `, of which the style showing the maps causes ${r.restyle.toFixed(2)} ms median` : ""}; the maps shown ${r.map.toFixed(1)} ms after the render, median (worst ${r.mapWorst.toFixed(1)} ms)`,
       );
       if (label !== "this build") continue;
       check(
