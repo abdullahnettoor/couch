@@ -244,33 +244,44 @@ html.intro.intro-now .lamp, html.intro.intro-now .hero-copy > :not(.mark) { anim
 /* first look: Couch's real Home, settling into place as it scrolls in (the Remote has its own section) */
 .first-look { position: relative; padding: 8px 0 clamp(40px, 6vw, 80px); perspective: 1600px; }
 /* The TV is as big as the window holds (ticket 145 review): out of the column, the page's gutter wide at most, never
-   wider than 1600px, and short enough that the whole device (the Screen at --tv-ar, its 9px bezel and the 14px stand)
-   fits the window's height below the fixed nav with 12px of room above it and 48px below (where Skip sits while it is
-   pinned). --tv-w is that width (its % is the column's, wherever it is used). */
-.first-look { --tv-gutter: 24px; --tv-ar: 1.6; --fl-pin: 160vh; --tv-w: min(100% - 2 * var(--tv-gutter), (100vh - var(--nav-h) - 60px - 32px) * var(--tv-ar) + 18px, 1600px); }
+   wider than 1600px, and short enough that the whole pinned group (the device: the Screen at --tv-ar, its 9px bezel
+   and the 14px stand; then --fl-below: Skip, and on phones the Remote, its caption and Skip) fits between the nav and
+   the window's bottom with --fl-gap above and below (32px or more, 20px or more on phones, growing a little with the
+   window's height; svh, so a collapsing address bar never pushes it off). --tv-w is that width (its % is the
+   column's, wherever it is used). */
+.first-look { --tv-gutter: 24px; --tv-ar: 1.6; --fl-pin: 160vh; --fl-gap: clamp(32px, 3.5vh, 56px); --fl-below: 46px; /* 16px + Skip's 30px */
+  --tv-w: min(100% - 2 * var(--tv-gutter), (100vh - var(--nav-h) - 2 * var(--fl-gap) - var(--fl-below) - 32px) * var(--tv-ar) + 18px, 1600px); }
 .first-look .tv { width: var(--tv-w); }
 @supports (height: 100svh) {
-  .first-look { --fl-pin: 160svh; --tv-w: min(100% - 2 * var(--tv-gutter), (100svh - var(--nav-h) - 60px - 32px) * var(--tv-ar) + 18px, 1600px); }
+  .first-look { --fl-pin: 160svh; --fl-gap: clamp(32px, 3.5svh, 56px);
+    --tv-w: min(100% - 2 * var(--tv-gutter), (100svh - var(--nav-h) - 2 * var(--fl-gap) - var(--fl-below) - 32px) * var(--tv-ar) + 18px, 1600px); }
+}
+/* phones: the group is the TV, then (12px apart) the Remote at its smallest (72px), its caption and Skip */
+@media (max-width: 700px) and (orientation: portrait), (max-aspect-ratio: 4/5) {
+  .first-look { --fl-gap: clamp(20px, 2.5vh, 40px); --fl-below: 156px; }
+  @supports (height: 100svh) { .first-look { --fl-gap: clamp(20px, 2.5svh, 40px); } }
 }
 /* The pin (with script and motion; html.js is set in <head>, so the page never changes height after the first paint):
-   .fl-pin is a box the height of the window below the nav, the TV 12px under the nav in it, sticky below the nav while
+   .fl-pin is a box the height of the window below the nav with the pinned group centred in it (at least --fl-gap
+   above and below, the same above as below), sticky below the nav while
    .fl-track (that box plus --fl-pin) scrolls past, then let go. Native scroll only. src/launch.ts reads the track's
    progress to move the highlight until the visitor uses the TV. */
 @media (prefers-reduced-motion: no-preference) {
   html.js .fl-track { height: calc(100vh - var(--nav-h) + var(--fl-pin)); }
-  html.js .fl-pin { position: sticky; top: var(--nav-h); height: calc(100vh - var(--nav-h)); display: grid; align-content: start; padding-top: 12px; }
+  html.js .fl-pin { position: sticky; top: var(--nav-h); height: calc(100vh - var(--nav-h)); display: grid; align-content: center; padding-block: var(--fl-gap); }
   html.js .fl-pin .stage { padding-bottom: 0; }
   @supports (height: 100svh) {
     html.js .fl-track { height: calc(100svh - var(--nav-h) + var(--fl-pin)); }
     html.js .fl-pin { height: calc(100svh - var(--nav-h)); }
   }
 }
-/* Skip (src/launch.ts): while the TV is pinned ([data-pinned] on the track), a quiet pill under the TV's bottom-right
-   corner, in the room left below it, scrolls on to the next section. Phones: centred under the Remote's caption. Not
-   without script, and not under reduced motion (nothing pins). */
+/* Skip (src/launch.ts): while the TV is pinned ([data-pinned] on the track), a quiet pill 16px under the TV, at its
+   right edge (part of the centred group; its room is kept while it is hidden, so nothing moves), scrolls on to the next
+   section. Phones: centred, 12px under the Remote's caption. Not without script, and not under reduced motion
+   (nothing pins). */
 .fl-skip { display: none; }
 @media (prefers-reduced-motion: no-preference) {
-  html.js .fl-skip { display: inline-flex; align-items: center; gap: 6px; position: absolute; bottom: 9px; right: calc((100% - var(--tv-w)) / 2); height: 30px; padding: 0 12px 0 14px;
+  html.js .fl-skip { display: inline-flex; align-items: center; gap: 6px; justify-self: end; margin: 16px calc((100% - var(--tv-w)) / 2) 0 0; height: 30px; padding: 0 12px 0 14px;
     border: 0; border-radius: 999px; font: 500 13px/1 var(--sans); color: var(--t2); background: rgba(255, 255, 255, .06); box-shadow: var(--edge), inset 0 0 0 1px rgba(255, 255, 255, .08); cursor: pointer;
     opacity: 0; visibility: hidden; transition: opacity .3s var(--ease), visibility 0s .3s, color .2s, background .2s, transform .12s; }
   html.js [data-pinned] .fl-skip { opacity: 1; visibility: visible; transition: opacity .3s var(--ease), visibility 0s, color .2s, background .2s, transform .12s; }
@@ -278,7 +289,7 @@ html.intro.intro-now .lamp, html.intro.intro-now .hero-copy > :not(.mark) { anim
   .fl-skip:active { transform: scale(.95); }
   .fl-skip svg { width: 14px; height: 14px; fill: currentColor; }
   @media (max-width: 700px) and (orientation: portrait), (max-aspect-ratio: 4/5) {
-    html.js .fl-skip { position: static; justify-self: center; margin-top: 10px; }
+    html.js .fl-skip { justify-self: center; margin: 12px 0 0; }
   }
 }
 /* It grows as it comes in: .85 as the track's top enters the window, full size as it reaches the nav, where the TV
@@ -639,16 +650,18 @@ details p a { color: var(--amber-3); }
 @media (hover: none), (pointer: coarse) { .lv-veil-key { display: none; } .lv-veil-touch { display: grid; } }
 .lv-veil-remote { display: none; }
 
-/* Phones (the layout where the TV pins just below the nav): a small Couch Remote under the TV drives it (src/launch-markup.ts
+/* Phones (max-width 700px in portrait, or max-aspect-ratio 4/5): a small Couch Remote under the TV drives it (src/launch-markup.ts
    launchRemote, src/launch.ts). Couch's own D-pad CSS (.cr .pad, .dir, .ok), reset from its full-page frame, sized to the
-   room left under the TV (never more than 176px, never overflowing), Back is the Home pill on the Screen. It pins with the
+   room the centred group leaves (72px to 210px, never overflowing), Back is the Home pill on the Screen. It pins with the
    TV, and replaces the hint pill (its caption says what OK does). Hidden without script and on wider windows. */
 .fl-remote-wrap, .fl-live { display: none; }
 .fl-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (max-width: 700px) and (orientation: portrait), (max-aspect-ratio: 4/5) {
-  html.js .fl-remote-wrap { display: grid; justify-items: center; gap: 10px; margin-top: 14px;
-    --pad: clamp(72px, calc(100vh - var(--nav-h) - 12px - ((100vw - 50px) * .625 + 32px) - 104px), 176px); }
-  @supports (height: 100svh) { html.js .fl-remote-wrap { --pad: clamp(72px, calc(100svh - var(--nav-h) - 12px - ((100vw - 50px) * .625 + 32px) - 104px), 176px); } }
+  /* the D-pad takes what the group leaves (the TV, the gaps, 12px each between TV, Remote, caption and Skip, the
+     caption's line and Skip's 30px), from 72px to 210px */
+  html.js .fl-remote-wrap { display: grid; justify-items: center; gap: 12px; margin-top: 12px;
+    --pad: clamp(72px, calc(100vh - var(--nav-h) - 2 * var(--fl-gap) - ((100vw - 50px) * .625 + 32px) - 85px), 210px); }
+  @supports (height: 100svh) { html.js .fl-remote-wrap { --pad: clamp(72px, calc(100svh - var(--nav-h) - 2 * var(--fl-gap) - ((100vw - 50px) * .625 + 32px) - 85px), 210px); } }
   html.js .fl-live { display: block; }
   html.js .lv-hint { display: none; }
   html.js .lv-veil-tap { display: none; }

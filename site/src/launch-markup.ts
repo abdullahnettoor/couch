@@ -109,7 +109,7 @@ export const REMOTE_CAPTIONS: Record<string, string> = {
 };
 
 /**
- * Phones (the layout where the TV pins just below the nav): a small Couch Remote under the TV that drives it. Couch's
+ * Phones (max-width 700px in portrait, or max-aspect-ratio 4/5): a small Couch Remote under the TV that drives it. Couch's
  * own D-pad (src/couch-ui/remote.css: .pad, .dir, .ok; only Left, Right and OK, the keys that do something here),
  * nothing else; going back is the Home pill on the Screen. The caption says what OK will do. Hidden without script and off the phone layout (style.css), inert until
  * the TV comes to life (src/launch.ts).
