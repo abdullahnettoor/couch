@@ -87,18 +87,21 @@ export function home(o: HomeOptions): string {
 }
 
 /**
- * The first look's live Home (ticket 145), laid exactly over the hero-screen screenshot (src/shots/home.webp): the
- * same Home at the moment the highlight leaves Big Buck Bunny, as Couch draws it then (home.ts: no .film, so the
- * hero picture gives way to the wallpaper, the clock and the greeting). The row (the three App tiles, the divider
- * and the Continue tile, the shoot's own picture of it) starts on the Continue tile, where the screenshot's
- * highlight is; src/launch.ts moves it to YouTube. The clock and greeting are the shoot's (3:36 PM, Monday 2 November).
+ * The first look's live Home (ticket 145), laid exactly over the hero-screen screenshot (src/shots/home.webp): Home
+ * as Couch draws it (home.ts): the three App tiles, the divider and the Continue tile (the shoot's own picture of it),
+ * the highlight on the Continue tile, where the screenshot's is. Off it, the TV is .lit (no .film: the hero picture
+ * gives way to the wallpaper, the clock and the greeting). The clock and greeting are the shoot's (3:36 PM, Monday 2
+ * November). Each tile gets a real button over it (`labels`, its accessible name), and the row is a toolbar: one tab
+ * stop, ← → move the highlight (src/launch.ts). Hidden and inert until the script brings it to life.
  */
-export function launchHome(): string {
-  const film = `<div class="h-app h-film focused" data-id="continue"><div class="g-tile h-film-art"><img src="/src/shots/launch-continue.webp" width="420" height="238" alt="" loading="lazy" decoding="async" /></div><div class="g-cap">Big Buck Bunny (2008)<small class="num">7 min left</small></div></div>`;
-  const row = apps.map((a) => appTile(a, false)).join("") + `<div class="h-divider"></div>${film}`;
-  const topbar = `<div class="topbar"><div class="phones"><i></i>1 phone connected</div><div class="tb-gear">${icon("gear")}</div></div>`;
-  const clock = `<div class="h-clock on"><div class="t num">3:36<small>PM</small></div><div class="d">Good afternoon · Monday 2 November</div></div>`;
-  return `<div class="cu lv-home" aria-hidden="true" inert><div class="screen-glass home still" style="${vars}"><div class="lv-hush"></div><div class="lv-wall"><div class="h-drift"></div><div class="h-scrim"></div></div>${clock}<div class="h-chrome">${topbar}<div class="h-row">${row}</div></div></div></div>`;
+export function launchHome(labels: Record<string, string>): string {
+  const btn = (id: string) => `<button class="lv-tile" type="button" tabindex="-1" aria-label="${esc(labels[id] ?? id)}"></button>`;
+  const film = `<div class="h-app h-film focused" data-id="continue"><div class="g-tile h-film-art"><img src="/src/shots/launch-continue.webp" width="420" height="238" alt="" loading="lazy" decoding="async" /></div><div class="g-cap" aria-hidden="true">Big Buck Bunny (2008)<small class="num">7 min left</small></div>${btn("continue")}</div>`;
+  const tile = (a: App) => `<div class="h-app" data-id="${a.id}"><div class="g-tile ${a.id}-face">${mark(a)}</div><div class="g-cap" aria-hidden="true">${esc(a.label)}</div>${btn(a.id)}</div>`;
+  const row = apps.map(tile).join("") + `<div class="h-divider"></div>${film}`;
+  const topbar = `<div class="topbar" aria-hidden="true"><div class="phones"><i></i>1 phone connected</div><div class="tb-gear">${icon("gear")}</div></div>`;
+  const clock = `<div class="h-clock on" aria-hidden="true"><div class="t num">3:36<small>PM</small></div><div class="d">Good afternoon · Monday 2 November</div></div>`;
+  return `<div class="cu lv-home" aria-hidden="true" inert><div class="screen-glass home still" style="${vars}"><div class="lv-hush"></div><div class="lv-wall"><div class="h-drift"></div><div class="h-scrim"></div></div>${clock}<div class="h-chrome">${topbar}<div class="h-row" role="toolbar" aria-label="Couch Home" aria-describedby="lv-hint">${row}</div></div></div></div>`;
 }
 
 /** The Library shelf as Couch's own cards draw it: a folder card, then the videos. */

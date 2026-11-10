@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
-import { GUMROAD_URL, GITHUB_URL, RELEASES_URL, DOWNLOAD_URL, WINDOWS_ISSUE_URL, SITE_URL, ADD_APP_URL, COFFEE_URL, INTRO_MODE, SOCIAL, LAUNCH_VIDEO, YOUTUBE_CHANNEL, type IntroMode, type SocialLink } from "./src/config.ts";
+import { GUMROAD_URL, GITHUB_URL, RELEASES_URL, DOWNLOAD_URL, WINDOWS_ISSUE_URL, SITE_URL, ADD_APP_URL, COFFEE_URL, INTRO_MODE, SOCIAL, LAUNCH_VIDEO, type IntroMode, type SocialLink } from "./src/config.ts";
 import { home, install, remote, shelf, sprite } from "./src/mocks.ts";
-import { launchScreen, launchUnder, type LaunchOptions } from "./src/launch-markup.ts";
+import { launchRemote, launchScreen, type LaunchOptions } from "./src/launch-markup.ts";
 import { introHead, introSvg, wordmarkSvg } from "./src/brand/wordmark.ts";
 import { slots, type Slot, type SlotName } from "./src/slots.ts";
 
@@ -93,10 +93,10 @@ const sitePlugin = (): Plugin => ({
     order: "pre",
     handler(html) {
       const used = new Set<string>();
-      const launch: LaunchOptions = { id: launchId, title: LAUNCH_VIDEO.title, channel: YOUTUBE_CHANNEL, thumb: launchThumb(), youtubeMark: SOCIAL_ICONS.youtube };
-      // the site's own privacy lines: with a video, they say what is Couch's and what YouTube may do once played
+      const launch: LaunchOptions = { id: launchId, title: LAUNCH_VIDEO.title, thumb: launchThumb() };
+      // the site's own privacy lines: with a video, they say what is Couch's and what YouTube may do once opened
       const privacy = launchId
-        ? "Couch adds no analytics or cookies. YouTube loads only when you press play and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies."
+        ? "Couch adds no analytics or cookies. YouTube loads only when you open YouTube on the TV above, and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies."
         : "This site uses no cookies or analytics. Services opened in Couch have their own sign-ins, cookies and privacy policies.";
       const legal = launchId ? "No cookies or analytics from Couch." : "No cookies. No analytics.";
       const out = html
@@ -118,7 +118,7 @@ const sitePlugin = (): Plugin => ({
         .replace("{{intro:head}}", `<script>${introHead(introMode)}</script>`)
         .replace("{{mock:shelf}}", shelf())
         .replace("{{launch:screen}}", launchScreen(launch))
-        .replace("{{launch:under}}", launchUnder(launch))
+        .replace("{{launch:remote}}", launchRemote(launch))
         .replace("{{launch:privacy}}", privacy)
         .replace("{{launch:legal}}", legal)
         .replace(/\{\{slot:([\w-]+)\}\}/g, (_m, name: string) => {
