@@ -333,11 +333,11 @@ describe("Screen and phone take over from each other", () => {
     await phone.press("home");
     toLibrary();
     await phone.press("typeOpen");
-    expect(phone.last!.typing).toBe("you");
+    // press() returns on the next snapshot, which may be one already in flight from toLibrary(): wait for the state.
+    await phone.waitFor(() => phone.last!.typing === "you");
     key("find");
-    await phone.settle();
     expect(screen().state.typingBy).toBe("screen");
-    expect(phone.last!.typing).toBe("screen");
+    await phone.waitFor(() => phone.last!.typing === "screen");
     await phone.press({ command: "typeText", args: { text: "intruder" } });
     expect(screen().search!.query).toBe("");
     text("amelie");
@@ -349,12 +349,13 @@ describe("Screen and phone take over from each other", () => {
     key("find");
     text("pan");
     await phone.press("typeOpen");
-    expect(phone.last!.typing).toBe("you");
+    await phone.waitFor(() => phone.last!.typing === "you");
     expect(screen().state.typingBy).not.toBe("screen");
     expect(screen().screenTyping).toBeUndefined();
     text("hijack");
     expect(screen().search!.query).toBe("pan");
     await phone.press({ command: "typeText", args: { text: "amelie" } });
+    await phone.waitFor(() => screen().search!.query === "amelie");
     h.clock.advance(150);
     expect(films$()).toEqual(["Amélie"]);
   });
@@ -363,16 +364,15 @@ describe("Screen and phone take over from each other", () => {
     key("home");
     await phone.press("ok");
     await phone.press("typeOpen");
-    expect(phone.last!.typing).toBe("you");
+    await phone.waitFor(() => phone.last!.typing === "you");
     h.youtube.emit({ type: "find" });
-    await phone.settle();
-    expect(phone.last!.typing).toBe("screen");
+    await phone.waitFor(() => phone.last!.typing === "screen");
     await phone.press({ command: "typeText", args: { text: "nope" } });
     expect(screen().state.query).toBe("");
     h.youtube.emit({ type: "edit", edit: { insert: "yes" } });
     expect(screen().state.query).toBe("yes");
     await phone.press("typeOpen");
-    expect(phone.last!.typing).toBe("you");
+    await phone.waitFor(() => phone.last!.typing === "you");
     expect(calls("captureText").at(-1)!.args).toEqual([false]);
     h.youtube.emit({ type: "edit", edit: { insert: "late" } });
     expect(screen().state.query).toBe("");
@@ -383,8 +383,8 @@ describe("Screen and phone take over from each other", () => {
     const b = await h.connectPhone();
     await phone.press("typeOpen");
     await b.press("typeOpen");
-    expect(b.last!.typing).toBe("other");
-    expect(phone.last!.typing).toBe("you");
+    await b.waitFor(() => b.last!.typing === "other");
+    await phone.waitFor(() => phone.last!.typing === "you");
   });
 });
 
