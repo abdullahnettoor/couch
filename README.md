@@ -4,15 +4,25 @@ Couch turns a Mac connected to a TV or monitor into a calm, couch-friendly home 
 
 > **Early personal project.** Use your own accounts on each service. Couch shows each service's own website; it does not give access to anything you could not open in a browser.
 
+![Home, with the Apps and Continue watching](docs/screenshots/home.jpg)
+
+<p align="center">
+  <img src="docs/screenshots/remote-home.jpg" alt="The Remote on a phone: Home, with the D-pad" width="280" />
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/remote-now-playing.jpg" alt="The Remote on a phone: Now Playing" width="280" />
+</p>
+
 ![The Library](docs/screenshots/library.jpg)
+
+![Playing a Library video](docs/screenshots/player.jpg)
+
+![Quick settings over a playing video](docs/screenshots/quick-settings.jpg)
 
 ![Settings](docs/screenshots/settings.jpg)
 
 ![Remotes and Devices in Settings](docs/screenshots/remotes.jpg)
 
-![Playing a Library video](docs/screenshots/player.jpg)
-
-The pictures use test videos, not real films.
+The films in the pictures are Blender open movies: Big Buck Bunny, Sintel and Tears of Steel, © Blender Foundation, CC BY 3.0.
 
 Words like Screen, Remote, App and Library have fixed meanings: see [GLOSSARY.md](GLOSSARY.md). What Couch is for is in [PRODUCT.md](PRODUCT.md).
 
