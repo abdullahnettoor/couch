@@ -195,6 +195,33 @@ describe("Settings → Apps → Playback", () => {
   test("with both engines available there is no reason shown", async () => {
     await start(app());
   });
+
+  test("the drawer's note over the App is there on WebKit only, with a chosen device", async () => {
+    const a = app();
+    const phone = await start(a);
+    const drawerNotes = async () => {
+      await phone.press("home");
+      for (let i = 0; i < 20 && h.screen.last.focusedId !== "cinema"; i++)
+        await phone.press("right");
+      await phone.press("ok");
+      expect(h.screen.last.state.view).toBe("app");
+      await phone.press("quickSettings");
+      await h.settle();
+      const notes = h.screen.last.quick?.notes;
+      await phone.press("quickSettings");
+      return notes;
+    };
+    await phone.press("quickSettings");
+    h.app.screenCommand({
+      command: "quickPick",
+      args: { item: "out:30AEC067-0000-0000-1A24-0104B53C2278" },
+    });
+    await h.settle();
+    await phone.press("quickSettings");
+    expect(await drawerNotes()).toEqual(["Cinema plays through the Mac's output"]);
+    a.engine = "chromium";
+    expect(await drawerNotes()).toBeUndefined();
+  });
 });
 
 describe("NetflixApp over a switchable host", () => {

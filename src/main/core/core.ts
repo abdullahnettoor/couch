@@ -386,6 +386,7 @@ export class Core {
       overMedia: () =>
         (this.#state.view === "player" && !!this.#state.player) ||
         (this.#state.view === "app" && !!this.#state.app),
+      front: () => this.#front()?.id,
       stepVolume: (delta) => this.#setVolume(this.#state.volume + delta),
       toggleMute: () => this.#toggleMute(),
       pictureIsOff: () => this.#state.pictureOff,
