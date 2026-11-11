@@ -16,6 +16,8 @@ export interface QuickSettingsHost {
   sound: {
     grid(): GridItem[];
     payload(): SoundPayload;
+    /** The note rows over the App in front (`SoundOutput` words them). */
+    drawerNotes(front: string | undefined): string[];
     action(action: string): boolean;
     readonly volume: number;
     readonly muted: boolean;
@@ -24,6 +26,8 @@ export interface QuickSettingsHost {
   playing(): boolean;
   /** The Screen shows the Library's player or a web App, not one of Couch's own views. */
   overMedia(): boolean;
+  /** The id of the App on the Screen, if one is. */
+  front(): string | undefined;
   stepVolume(delta: number): void;
   toggleMute(): void;
   /** Whether Picture off is on right now. */
@@ -118,14 +122,14 @@ export class QuickSettings {
     if (!this.#open) return undefined;
     const items = this.#items();
     const focusedId = items.some((i) => i.id === this.#focus) ? this.#focus : items[0]!.id;
-    const notes = this.#h.sound.payload().notes;
+    const notes = this.#h.sound.drawerNotes(this.#h.front());
     return {
       items,
       focusedId,
       volume: this.#h.sound.volume,
       muted: this.#h.sound.muted,
       overMedia: this.#h.overMedia(),
-      ...(notes ? { notes } : {}),
+      ...(notes.length ? { notes } : {}),
     };
   }
 

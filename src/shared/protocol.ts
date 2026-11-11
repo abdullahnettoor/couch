@@ -422,7 +422,7 @@ export interface QuickPayload {
   muted: boolean;
   /** The drawer is over video or an App (not one of Couch's own views), so its panel is more solid. */
   overMedia: boolean;
-  /** The Sound output rows for Apps that follow the Mac (see `SoundPayload.notes`). */
+  /** While the App in front follows the Mac's output and a chosen device is in effect: "Netflix plays through the Mac's output". */
   notes?: string[];
 }
 
