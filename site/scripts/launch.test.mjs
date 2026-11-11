@@ -420,13 +420,13 @@ describe("phones: a small Couch Remote under the pinned TV drives it", { skip },
   });
 
   for (const [w, h] of [[390, 844], [360, 740], [375, 667]]) {
-    test(`at ${w} × ${h} it pins with the TV, just below it, and fits the window`, async () => {
+    test(`at ${w} × ${h} it pins with the TV, 12px under it, and fits the window`, async () => {
       const page = await phone({ width: w, height: h });
       for (const p of [0.02, 0.5, 0.95]) {
         await at(page, p);
         const s = await rm(page);
-        assert.ok(Math.abs(s.tvTop - 78) < 1.5, `the TV 12px under the nav (${s.tvTop})`);
-        assert.ok(s.top >= s.tvBottom && s.top - s.tvBottom < 30, `the Remote right under the TV (${s.tvBottom} → ${s.top})`);
+        assert.ok(s.tvTop >= 66 + 19, `the TV at least 20px under the nav (${s.tvTop})`);
+        assert.ok(Math.abs(s.top - s.tvBottom - 12) < 1.5, `the Remote 12px under the TV (${s.tvBottom} → ${s.top})`);
         assert.ok(s.bottom <= h, `inside the window (${s.bottom} of ${h})`);
       }
       assert.equal((await lv(page)).cls, 0);

@@ -311,15 +311,16 @@ async function tvAt(page, y) {
 
 describe("the first-look TV: as big as the window holds, growing as it comes in, pinned", { skip }, () => {
   // [width, height, the TV's expected width (± 2 px)]: the gutter (24 px, 16 px on phones), or the width at which the
-  // whole TV (the 16:10 Screen, its 9 px bezel and the 14 px stand) fits below the nav with 12 px above and below
-  for (const [w, h, tvW] of [[1440, 900, 1205.2], [1024, 768, 976], [390, 844, 358]]) {
+  // pinned group (the TV: the 16:10 Screen, its 9 px bezel and the 14 px stand; then 16 px and Skip's 30 px) fits
+  // between the nav and the window's bottom with at least 32 px (3.5vh) above and below
+  for (const [w, h, tvW] of [[1440, 900, 1125.2], [1024, 768, 914], [390, 844, 358]]) {
     test(`at ${w} × ${h}: ${tvW} px wide, .85 as it enters, 1 as it pins, scale only, whole below the nav while pinned`, async () => {
       const page = await open({ width: w, height: h });
       const box = () => page.evaluate(() => { const tv = document.querySelector(".first-look .tv"); return [tv.offsetLeft, tv.offsetWidth, tv.offsetHeight].join(); });
       const before = await box();
       const size = await page.evaluate(() => { const tv = document.querySelector(".first-look .tv"); return { w: tv.offsetWidth, h: tv.offsetHeight }; });
       assert.ok(near(size.w, tvW, 2), `width ${size.w}`);
-      assert.ok(size.h <= h - 66 - 60 + 1, `the whole TV fits below the nav, with 12px above and 48px below (${size.h} of ${h - 66})`);
+      assert.ok(size.h <= h - 66 - 64 - 46 + 1, `the TV fits below the nav, with the gaps and Skip (${size.h} of ${h - 66})`);
       const enter = await tvAt(page, h), half = await tvAt(page, (h + 66) / 2), pinned = await tvAt(page, 66);
       const rects = [];
       for (const y of [66, 66 - h * 0.5, 66 - h * 1.2]) {
@@ -334,8 +335,6 @@ describe("the first-look TV: as big as the window holds, growing as it comes in,
         assert.ok(near(r.top, rects[0].top, 1), "and it stays put");
       }
       if (w <= 700) assert.ok(near(rects[0].left, 16, 1) && near(w - rects[0].right, 16, 1), `edge to edge but the gutter: ${rects[0].left}, ${w - rects[0].right}`);
-      // pinned just below the nav (66 + 12), the room left over below the TV (Skip's, and on phones the Remote's)
-      assert.ok(near(rects[0].top, 78, 1.5), `just below the nav: ${rects[0].top}`);
       assert.equal(await box(), before, "the layout box never changes");
       assert.equal(await page.evaluate(() => window.__cls), 0, "no layout shift");
       // the Remote section starts below the first look, clear of it
@@ -346,12 +345,40 @@ describe("the first-look TV: as big as the window holds, growing as it comes in,
   }
 
   // (on windows this tall the TV already shows at load, so the growth is checked on the sizes above)
-  for (const [w, h, tvW] of [[1920, 1080, 1493.2], [2560, 1440, 1600]]) {
+  for (const [w, h, tvW] of [[1920, 1080, 1394.6], [2560, 1440, 1600]]) {
     test(`at ${w} × ${h}: ${tvW} px wide (1600 at most), fitting below the nav`, async () => {
       const page = await open({ width: w, height: h });
       const size = await page.$eval(".first-look .tv", (tv) => ({ w: tv.offsetWidth, h: tv.offsetHeight }));
       assert.ok(near(size.w, tvW, 2), `width ${size.w}`);
-      assert.ok(size.h <= h - 66 - 60 + 1, `height ${size.h}`);
+      assert.ok(size.h <= h - 66 - 2 * Math.max(32, Math.min(56, 0.035 * h)) - 46 + 1, `height ${size.h}`);
+      await page.close();
+    });
+  }
+
+  // the pinned group (the TV and Skip; on phones the TV, the Remote, its caption and Skip) centred between the nav and
+  // the window's bottom: the same gap above and below, at least 32 px (20 px on phones), nothing out of the window
+  for (const [w, h, phone] of [[1440, 900, false], [1920, 1080, false], [1024, 768, false], [390, 844, true], [360, 740, true], [375, 667, true]]) {
+    test(`at ${w} × ${h} the pinned group is centred below the nav, with even gaps`, async () => {
+      const page = await open({ width: w, height: h });
+      const min = phone ? 20 : 32;
+      for (const y of [66, 66 - h * 0.6]) {
+        await tvAt(page, y);
+        const g = await page.evaluate(() => {
+          const r = (s) => document.querySelector(s).getBoundingClientRect();
+          const tv = r(".first-look .tv"), skip = r("[data-skip]"), remote = r("[data-remote]");
+          return { top: tv.top, bottom: skip.bottom, skip: [skip.top, skip.bottom], remote: [remote.top, remote.bottom, remote.height], tv: [tv.top, tv.bottom, tv.left, tv.right],
+            skipShown: getComputedStyle(document.querySelector("[data-skip]")).visibility === "visible", remoteShown: getComputedStyle(document.querySelector("[data-remote]")).display !== "none" };
+        });
+        const above = g.top - 66, below = h - g.bottom;
+        assert.ok(Math.abs(above - below) <= 3, `centred: ${above} above, ${below} below`);
+        assert.ok(above >= min - 1 && below >= min - 1, `at least ${min}px each: ${above}, ${below}`);
+        assert.ok(g.tv[2] >= 0 && g.tv[3] <= w, "nothing out of the window");
+        assert.ok(g.skipShown, "Skip shows while pinned");
+        assert.ok(g.skip[0] >= g.tv[1] + 15, "Skip under the TV");
+        assert.equal(g.remoteShown, phone, phone ? "the Remote on a phone" : "no Remote");
+        if (phone) assert.ok(g.remote[0] >= g.tv[1] + 11 && g.remote[1] <= g.skip[0] - 11 && g.remote[2] > 150, `the Remote between the TV and Skip, 12px apart: ${JSON.stringify(g)}`);
+      }
+      assert.equal(await page.evaluate(() => window.__cls), 0, "no layout shift");
       await page.close();
     });
   }
