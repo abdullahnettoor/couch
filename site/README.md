@@ -117,8 +117,8 @@ Every drawn (non-screenshot) mock is Couch's own UI, not a re-drawing. `scripts/
 
 | File | Copied from (Couch repo) | What it is |
 | --- | --- | --- |
-| `src/couch-ui/screen.css` | `src/renderer/glass.css`, `src/renderer/home.css`, `src/shared/glass-tokens.ts` | The Screen's CSS verbatim (tiles, focus lift and sheen, pills, top strip, Home layout, Library cards), every selector scoped under `.cu`; the glass tokens (colours, radii, `--ease`) injected as Couch's `main.ts` does |
-| `src/couch-ui/remote.css` | `src/main/remote/page.ts` (its `<style>`, with the glass tokens at `1px`) | The Remote page's CSS verbatim, scoped under `.cr`; `:active` also matches `.is-active` so the sequence can press a key |
+| `src/couch-ui/screen.css` | `src/renderer/glass.css`, `src/renderer/home.css`, `src/shared/look.ts` | The Screen's CSS verbatim (tiles, focus lift and sheen, pills, top strip, Home layout, Library cards), every selector scoped under `.cu`; the Look (`lookCss(GLASS, …)`, every token under its purpose name) injected as Couch's `main.ts` does |
+| `src/couch-ui/remote.css` | `src/main/remote/page.ts` (its `<style>`, with the Look's tokens at `1px`) | The Remote page's CSS verbatim, scoped under `.cr`; `:active` also matches `.is-active` so the sequence can press a key |
 | `src/couch-ui/remote.html` | `src/main/remote/page.ts` (its markup, `src/shared/icons.ts`) | The Remote's idle (Home) view as the page builds it, with Phosphor icons filled in |
 | `src/couch-ui/data.json` | `src/shared/icons.ts`, `src/main/apps/index.ts` (the YouTube, Netflix and Library App tiles' art), `src/shared/wallpapers.ts`, `glass.css` and `page.ts` (motion) | Icons, App marks, the Couch wallpaper, the motion values with their sources, and a hash of every source file |
 
@@ -130,7 +130,7 @@ The mocks move with Couch's own CSS, so these are Couch's values, not look-alike
 
 | What | Value | Source in Couch |
 | --- | --- | --- |
-| Easing, everywhere | `cubic-bezier(0.16, 1, 0.3, 1)` (`--ease`) | `src/shared/glass-tokens.ts` |
+| Easing, everywhere | `cubic-bezier(0.16, 1, 0.3, 1)` (`--ease-glass`) | `src/shared/look.ts` (`GLASS.motion.ease.glass`) |
 | Focus move on a tile (lift, scale 1.09, shadow) | `transform` and `box-shadow` 0.38s `--ease` | `glass.css` `.g-tile`, `.focused > .g-tile` |
 | Caption under the focused tile | `transform` 0.38s `--ease`, `color` 0.3s | `glass.css` `.g-cap` |
 | Pills (Resume, From start) | `transform` 0.3s `--ease`, `background` and `color` 0.25s | `glass.css` `.g-pill` |

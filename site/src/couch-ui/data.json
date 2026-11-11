@@ -1,18 +1,18 @@
 {
   "source": {
     "repo": "couch",
-    "commit": "adad37c",
+    "commit": "69fffe3",
     "files": {
-      "src/renderer/glass.css": "2a18ee6ccb33",
-      "src/renderer/home.css": "d08181343db4",
-      "src/renderer/views/home.ts": "1a2e958de8ff",
-      "src/renderer/views/glass.ts": "3927a8f45a81",
-      "src/renderer/views/library.ts": "eea21934a5f1",
-      "src/main/remote/page.ts": "f15e37304960",
-      "src/shared/glass-tokens.ts": "a0cd89cec2a5",
-      "src/shared/icons.ts": "b1f3bd165a2e",
-      "src/main/apps/index.ts": "7b4c135c152d",
-      "src/shared/wallpapers.ts": "4bbd09ca83b1",
+      "src/renderer/glass.css": "f9a8e8d7a69b",
+      "src/renderer/home.css": "bf255ef3c68f",
+      "src/renderer/views/home.ts": "f7bd14cd68c7",
+      "src/renderer/views/glass.ts": "3985bd7113b7",
+      "src/renderer/views/library.ts": "aca4234dec27",
+      "src/main/remote/page.ts": "f515467f22c7",
+      "src/shared/look.ts": "edd9d5635e34",
+      "src/shared/icons.ts": "d76164ee4286",
+      "src/main/apps/index.ts": "38fe4de56b68",
+      "src/shared/wallpapers.ts": "65c7d152ba4c",
       "src/shared/track-code.ts": "fcc247b6b34f",
       "src/main/apps/youtube/icon.ts": "717c2510aea5",
       "src/main/apps/netflix/icon.ts": "16fb686da561"
@@ -58,28 +58,28 @@
   "motion": {
     "ease": {
       "value": "cubic-bezier(0.16, 1, 0.3, 1)",
-      "source": "src/shared/glass-tokens.ts COLORS.ease (--ease)"
+      "source": "src/shared/look.ts GLASS.motion.ease.glass (--ease-glass)"
     },
     "tileFocus": {
-      "transition": "transform 0.38s var(--ease), box-shadow 0.38s var(--ease)",
-      "focused": "scale(1.09) translateY(calc(-6 * var(--u)))",
+      "transition": "transform 0.38s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.38s cubic-bezier(0.16, 1, 0.3, 1)",
+      "focused": "scale(1.09) translateY(calc(-1 * calc(6 * var(--u))))",
       "source": "src/renderer/glass.css .g-tile, .focused > .g-tile"
     },
     "caption": {
-      "transition": "transform 0.38s var(--ease), color 0.3s",
+      "transition": "transform 0.38s cubic-bezier(0.16, 1, 0.3, 1), color 0.3s",
       "source": "src/renderer/glass.css .g-cap"
     },
     "pill": {
-      "transition": "transform 0.3s var(--ease), background 0.25s, color 0.25s, box-shadow 0.3s var(--ease)",
+      "transition": "transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.25s, color 0.25s, box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
       "focused": "scale(1.06)",
       "source": "src/renderer/glass.css .g-pill"
     },
     "heroFade": {
-      "transition": "opacity 0.7s var(--ease)",
-      "source": "src/renderer/home.css .h-hero, .h-clock"
+      "transition": "opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1)",
+      "source": "src/renderer/home.css .h-hero"
     },
     "shelfTrack": {
-      "value": "transform 0.45s var(--ease)",
+      "value": "transform 0.45s cubic-bezier(0.16, 1, 0.3, 1)",
       "source": "src/renderer/views/library.ts (shelf track, chips)"
     },
     "pageScroll": {
@@ -87,9 +87,9 @@
       "source": "src/renderer/views/library.ts (Library body scroll)"
     },
     "remotePress": {
-      "key": "transform .12s; :active transform scale(.95)",
-      "bar": "transform .12s; :active transform scale(.95)",
-      "dir": ".dir:active { background:rgba(255,255,255,.12); }",
+      "key": "transform 0.12s; :active transform scale(.95)",
+      "bar": "transform 0.12s; :active transform scale(.95)",
+      "dir": ".dir:active { background:rgba(255, 255, 255, 0.12); }",
       "ok": ".ok:active { background:#5a5a5c; }",
       "source": "src/main/remote/page.ts <style> (.k, .bar button, .dir, .ok)"
     }
