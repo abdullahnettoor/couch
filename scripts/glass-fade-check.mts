@@ -213,6 +213,48 @@ function newWindow() {
   return win;
 }
 
+async function addStyle(win: BrowserWindow, id: string, css: string) {
+  await win.webContents.executeJavaScript(`(() => {
+    document.getElementById(${JSON.stringify(id)})?.remove();
+    const style = document.createElement("style");
+    style.id = ${JSON.stringify(id)};
+    style.textContent = ${JSON.stringify(css)};
+    document.head.append(style);
+  })()`);
+  await frame(win);
+}
+
+/**
+ * A scrim that frosts the page behind it (#43): its row of stripes, clear of the box, must be blurred at 99 % of its fade
+ * (the blur fades with the scrim, never snapping on at the end), and the same scrim without its backdrop-filter is the
+ * positive control. Its layer must stay opaque, as the box's must.
+ */
+async function measureScrim(label: string, payload: unknown, scrim: string) {
+  const win = newWindow();
+  const half = await open(win, payload, ".support-box", 0.5, true);
+  check(
+    `${label}: its scrim fades in with the box (two animations at 50 %)`,
+    half.fades >= 2,
+    `animations=${half.fades}`,
+  );
+  const late = await open(win, payload, ".support-box", 0.99, true);
+  const row = { x: 60, y: 8, width: 40 };
+  const c = await steady(`${label}'s scrim`, win, row);
+  await addStyle(win, "scrim-off", `${scrim} { backdrop-filter: none !important; }`);
+  const control = await steady(`${label}'s scrim (positive control, unblurred)`, win, row);
+  await win.webContents.executeJavaScript(`document.getElementById("scrim-off").remove()`);
+  check(
+    `${label}'s scrim: an unblurred scrim reads clearly striped`,
+    control >= 20,
+    `control contrast=${control}`,
+  );
+  check(
+    `${label}'s scrim frosts the page at 99 % of its fade`,
+    c < Math.min(FROSTED_BELOW, control / 3),
+    `stripe contrast=${c}, control=${control}, box at ${Math.round(late.rect.x)}`,
+  );
+}
+
 /** `inScreen`: the box lives inside #screen (the Support panel), so the Screen stays shown with the stripes under it. */
 async function measure(
   label: string,
@@ -220,6 +262,7 @@ async function measure(
   box: string,
   inScreen = false,
   controlAbove = CONTROL_ABOVE,
+  scrimOff = "",
 ) {
   const win = newWindow();
   const half = await open(win, payload, box, 0.5, inScreen);
@@ -240,6 +283,8 @@ async function measure(
     `ancestor opacities=${half.layers.join(",")}`,
   );
   const late = await open(win, payload, box, 0.99, inScreen);
+  // A frosted scrim blurs the stripes under the box too, so the box is read with the scrim's own blur taken away.
+  if (scrimOff) await addStyle(win, "scrim-off", scrimOff);
   const c = await steady(label, win, topRow(late.rect));
   await win.webContents.executeJavaScript(`(() => {
     const control = document.createElement("div");
@@ -492,6 +537,12 @@ void app.whenReady().then(async () => {
       true,
       // The page's scrim dims the stripes under the box, so the unblurred control reads a little lower.
       20,
+      ".support-panel::before { backdrop-filter: none !important; }",
+    );
+    await measureScrim(
+      "the Support Couch panel",
+      screen["settings-about-support"],
+      ".support-panel::before",
     );
     const home = screen.home;
     const hero = screen["home-hero"];

@@ -435,7 +435,8 @@ export type BlurName =
   | "photo"
   | "clockGlassLift"
   | "clockFrost"
-  | "clockFrostBuiltin";
+  | "clockFrostBuiltin"
+  | "scrimSheet";
 
 export type EaseName =
   | "glass"
@@ -863,6 +864,8 @@ export const GLASS: Look = {
     clockFrost: "blur(calc(24 * {u})) saturate(1.25) brightness(1.6)",
     /** Over the dark built-ins, where the tint does more of the work. */
     clockFrostBuiltin: "blur(calc(24 * {u})) saturate(1.25) brightness(1.3)",
+    /** The page behind a full-page panel (Support Couch): soft enough that a half-covered tile reads as background. */
+    scrimSheet: "blur(calc(24 * {u}))",
   },
   motion: {
     ease: {

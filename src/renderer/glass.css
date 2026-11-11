@@ -1865,6 +1865,7 @@ body:has(.ls-page) .toast:not(.notice) {
   position: absolute;
   inset: 0;
   background: var(--scrim-sheet);
+  backdrop-filter: var(--blur-scrim-sheet);
   animation: s-fade-in var(--duration-dialog-fade) var(--ease-glass) both;
 }
 .support-box {

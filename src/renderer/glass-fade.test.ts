@@ -30,6 +30,12 @@ describe("a glass panel fades without turning its blur off", () => {
     expect(glass.prop(".support-box", "animation")).toContain("s-fade-in");
   });
 
+  test("the Support Couch scrim frosts the page behind it, fading with the scrim (unprefixed only)", () => {
+    expect(glass.prop(".support-panel::before", "backdrop-filter")).toBe("var(--blur-scrim-sheet)");
+    expect(glass.prop(".support-panel::before", "-webkit-backdrop-filter")).toBe("");
+    expect(lookCss(GLASS, { unit: "1px" })).toContain("--blur-scrim-sheet:");
+  });
+
   test("no full-screen layer holding a glass box fades", () => {
     const layers = glass.rules.filter(
       (r) => r.style.getPropertyValue("inset") === "0" && r.style.getPropertyValue("opacity"),
