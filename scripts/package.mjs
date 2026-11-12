@@ -85,7 +85,13 @@ execFileSync(
 );
 copyFileSync("dist/remote/page.html", join(remote, "page.html"));
 copyFileSync("dist/remote/manifest.webmanifest", join(remote, "manifest.webmanifest"));
-for (const icon of ["icon-192.png", "icon-512.png", "touch-icon.png"])
+for (const icon of [
+  "icon-192.png",
+  "icon-512.png",
+  "touch-icon.png",
+  "mark-256.png",
+  "mark-32.png",
+])
   copyFileSync(join("src/renderer/public", icon), join(remote, icon));
 // libmpv and the libraries it needs go in Contents/Frameworks/mpv, so Couch plays without Homebrew. They are added
 // after VMP signing (like the listener above) and signed here with the app's identity; the deep signing below seals them in.

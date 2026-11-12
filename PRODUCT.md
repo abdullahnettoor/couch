@@ -39,7 +39,7 @@ Name: Couch. Users explicitly asked for controls that feel like Apple TV's (tvOS
 
 ## Evidence on Hand
 
-Real Library content exists on the household's Mac (e.g. "Elemental (2023)"); thumbnails are frames from the files. No logos or brand assets beyond the logo: a glowing TV set into the backrest of an amber sofa on a dark navy tile (`build/icon.png`, full-bleed `build/icon-touch.png`). It is the app icon, the Remote's tab and home-screen icon, and the art on Credits.
+Real Library content exists on the household's Mac (e.g. "Elemental (2023)"); thumbnails are frames from the files. No logos or brand assets beyond the logo: a glowing TV set into the backrest of an amber sofa on a dark navy tile (`build/icon.png`, full-bleed `build/icon-touch.png`). It is the app icon, the Remote's home-screen icon, and the art on Credits. The Couch mark, the sofa and its Screen without the tile (cut out of `build/icon.png` by the outline in `build/couch-mark.svg`), is the Remote's tab icon, the picture on its "Couch is off" screen, and the README's header.
 
 ## Product Principles
 
