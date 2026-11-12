@@ -245,7 +245,7 @@ Two ways to deploy, both from `site/`:
 
   `pnpm build` also runs `tsc` and `scripts/launch-thumb.mjs` (which fetches nothing while `LAUNCH_VIDEO.id` is empty, and uses the committed thumbnail once it isn't). 
 
-**Live since 6 November 2026** at https://couch.abdullahnettoor.com, first deployed from the maintainer's Mac with `pnpm deploy` (Worker `couch-site`). The Worker's workers.dev address is off (`workers_dev` is not set, so `wrangler deploy` disables it); `preview_urls` is on, so once the repo is connected in Workers Builds, branches other than `main` get preview links. Until it's connected, deploy from the Mac after merging a site change into `main`.
+**Live since 6 November 2026** at https://couch.abdullahnettoor.com, first deployed from the maintainer's Mac with `pnpm deploy` (Worker `couch-site`). The Worker's workers.dev address is off (`workers_dev` is not set, so `wrangler deploy` disables it); `preview_urls` is **off** (12 Nov 2026), which takes every old version's preview URL offline, since Cloudflare can't delete single versions. Turning it on brings them all back, and Workers Builds' branch previews need it on. Until it's connected, deploy from the Mac after merging a site change into `main`.
 
 ## Publishing
 
