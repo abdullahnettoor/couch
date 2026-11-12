@@ -114,11 +114,12 @@ describe("the roadmap", () => {
     assert.ok(maybe[2].includes("Look"));
   });
 
-  test("its links: the NAS, Windows and Intel issues, and one 'See or suggest on GitHub' link to Issues", () => {
+  test("its links: only the Windows 👍 issue, and one 'See or suggest on GitHub' link to Issues", () => {
     const s = roadmap();
     const hrefs = [...s.matchAll(/<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)].map((m) => [m[1], text(m[2])]);
     const repo = "https://github.com/abdullahnettoor/couch";
-    for (const n of [47, 34, 5]) assert.ok(hrefs.some(([h]) => h === `${repo}/issues/${n}`), `#${n}`);
+    const numbered = hrefs.filter(([h]) => /\/issues\/\d+$/.test(h)).map(([h]) => h);
+    assert.deepEqual(numbered, [`${repo}/issues/34`]);
     const issues = hrefs.filter(([h]) => h === `${repo}/issues`);
     assert.equal(issues.length, 1);
     assert.equal(issues[0][1], "See or suggest on GitHub");
