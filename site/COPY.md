@@ -299,12 +299,12 @@ Between Download and the FAQ. Small and honest: no dates, no promises beyond the
 **Coming next**
 
 - More Apps (kept general: no service names)
-- Network folders (NAS) (#47) (link text **#47**, to GitHub issue #47)
+- Network folders (NAS)
 
 **Being considered**
 
 - Windows (add a 👍) (link text **add a 👍**, to GitHub issue #34, `WINDOWS_ISSUE_URL`)
-- Intel Macs (#5) (link text **#5**, to GitHub issue #5)
+- Intel Macs
 - Choosing a Look
 
 - One link under the columns: **See or suggest on GitHub** → the repo's Issues.
@@ -351,7 +351,7 @@ Windows is being considered, not promised. If you'd use it, add a 👍 to the Co
 
 Yes, if the share is mounted in Finder. Better support is coming: see the roadmap.
 
-- Inline link text: **roadmap**, to the Roadmap section (`#roadmap`). The work is GitHub issue #47; the roadmap links it.
+- Inline link text: **roadmap**, to the Roadmap section (`#roadmap`). The work is GitHub issue #47 (not linked from the site).
 
 ## 10. Footer
 
