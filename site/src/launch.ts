@@ -4,7 +4,8 @@
  * to fill the Screen (a .9s clip, the mark riding along), then its view comes up: YouTube is the launch video in
  * YouTube's own player (cued: the visitor's press on YouTube's play starts it, so it counts as a view; the placeholder
  * poster while there is no video), the Library a glimpse of Couch's Library, Continue Couch's player on Big Buck
- * Bunny, Netflix a card. "Home" (or Esc) goes back. Nothing is requested from YouTube until YouTube is opened.
+ * Bunny, Netflix a card. "Home" (or Esc) goes back. Nothing is requested from YouTube until the YouTube tile is
+ * highlighted: then its player loads over the tile, so one click on the tile plays it (see placePlayer).
  *
  * Use: the mouse (pointing at a tile moves the highlight to it, a click opens it), the keys (the row is a toolbar, one
  * tab stop: ← → Home End move the highlight while the focus is in the TV, Enter or Space opens; a click into the TV
@@ -60,6 +61,8 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
   let used = false;
   let focus = "continue";
   let opened: string | null = null;
+  /** YouTube's cued player, once the YouTube tile has been highlighted (see mountPlayer). */
+  let frame: HTMLIFrameElement | null = null;
   let anims: Animation[] = [];
   let timers: number[] = [];
   const later = (ms: number, fn: () => void) => timers.push(window.setTimeout(fn, ms));
@@ -125,6 +128,7 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
     // off the Continue tile, Home shows its wallpaper, the clock and the greeting, as Couch does
     lv.classList.toggle("lit", id !== "continue");
     if (move) button(id).focus({ preventScroll: true });
+    if (id === "youtube") mountPlayer();
     updateHint();
     updateCaption();
   };
@@ -141,11 +145,47 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
     const r = (parseFloat(getComputedStyle(face).borderTopLeftRadius) || 0) * 1.09;
     return { top: cy - h / 2, right: W - (cx + w / 2), bottom: H - (cy + h / 2), left: cx - w / 2, r, cx, cy, w, h, W, H };
   };
+  const px = (n: number) => `${n.toFixed(1)}px`;
+
+  /**
+   * YouTube's player waits on its tile (#46): created (cued, as ever) the first time the YouTube tile is highlighted,
+   * Screen-sized (YouTube's play button and thumbnail at their full size) and moved so its middle is the lifted tile's
+   * face, clipped to it. So the visitor's click or tap on the tile is a press on YouTube's own player, which starts
+   * the video with sound and counts as a view, and the TV then opens around it. It shows (and takes the pointer) only
+   * once loaded and while YouTube is highlighted (style.css); off YouTube it stays, hidden, so passing over the tile
+   * again reloads nothing. Until it has loaded, a click is the tile's (YouTube opens, and its play is a second press).
+   */
+  const placePlayer = () => {
+    if (!frame || opened) return;
+    const b = tileBox("youtube");
+    frame.style.transform = `translate(${px(b.cx - b.W / 2)}, ${px(b.cy - b.H / 2)})`;
+    frame.style.clipPath = `inset(${px((b.H - b.h) / 2)} ${px((b.W - b.w) / 2)} round ${px(b.r)})`;
+  };
+  const mountPlayer = () => {
+    if (frame || !live || !lv.dataset.embed) return;
+    const f = frame = document.createElement("iframe");
+    f.className = "lv-frame";
+    f.src = lv.dataset.embed;
+    f.title = `${lv.dataset.title} (YouTube video)`;
+    f.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+    f.referrerPolicy = "strict-origin-when-cross-origin";
+    f.allowFullscreen = true;
+    // on the tile it is the tile's face: the tile's button stays the one tab stop and the name
+    f.tabIndex = -1;
+    f.setAttribute("aria-hidden", "true");
+    f.addEventListener("load", () => { f.dataset.ready = ""; }, { once: true });
+    f.addEventListener("focus", played);
+    placePlayer();
+    back.before(f);
+  };
+  /** A press inside the player over the tile moves the focus into it: the video is playing, so YouTube opens around it. */
+  const played = () => { if (frame && !opened && document.activeElement === frame) openApp("youtube", true, true); };
+  addEventListener("blur", () => setTimeout(played, 0));
+  addEventListener("resize", () => placePlayer(), { passive: true });
 
   /** Grows the tile's face to the Screen: a clip from the tile's box, and its mark (or picture) riding along. */
   const grow = (id: string) => {
     const b = tileBox(id);
-    const px = (n: number) => `${n.toFixed(1)}px`;
     anims.push(openEl.animate(
       [{ clipPath: `inset(${px(b.top)} ${px(b.right)} ${px(b.bottom)} ${px(b.left)} round ${px(b.r)})` }, { clipPath: "inset(0px 0px 0px 0px round 0px)" }],
       { duration: OPEN_MS, easing: EASE },
@@ -160,38 +200,37 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
     ));
   };
 
-  /** Opens a tile: YouTube's player is created only now. */
-  const openApp = (id: string, keepFocus = false) => {
+  /** Opens a tile. `played`: the visitor's press on YouTube's player over the tile has started it; it grows as it plays. */
+  const openApp = (id: string, keepFocus = false, played = false) => {
     if (!live || opened || !tiles.has(id)) return;
     interact();
     setFocus(id);
     opened = id;
     const view = views.get(id)!;
+    const player = id === "youtube" ? frame : null;
     const show = () => {
       view.classList.add("on");
-      // YouTube's player goes in once its view shows (a player loaded while hidden may not draw its thumbnail)
-      if (id === "youtube" && lv.dataset.embed) {
-        const frame = document.createElement("iframe");
-        frame.className = "lv-frame";
-        frame.src = lv.dataset.embed;
-        frame.title = `${lv.dataset.title} (YouTube video)`;
-        frame.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
-        frame.referrerPolicy = "strict-origin-when-cross-origin";
-        frame.allowFullscreen = true;
-        view.append(frame);
-        if (!keepFocus) frame.focus();
-      } else if (!keepFocus) homeButton(id).focus({ preventScroll: true });
+      if (player && !keepFocus) player.focus();
+      else if (!player && !keepFocus) homeButton(id).focus({ preventScroll: true });
     };
     const start = () => {
       tiles.get(id)!.classList.remove("lv-pressed");
       lv.dataset.open = id;
       updateCaption();
       if (!keepFocus) homeButton(id).focus({ preventScroll: true });
+      if (player) {
+        // the player leaves the tile for the whole Screen (the same element: moving it would reload it)
+        const from = { transform: player.style.transform, clipPath: player.style.clipPath };
+        player.style.transform = player.style.clipPath = "";
+        player.removeAttribute("aria-hidden");
+        player.removeAttribute("tabindex");
+        if (!reduced() && from.transform) anims.push(player.animate([from, { transform: "none", clipPath: "inset(0px 0px 0px 0px round 0px)" }], { duration: OPEN_MS, easing: EASE }));
+      }
       if (reduced()) { show(); return; }
       grow(id);
       later(OPEN_MS * 0.7, show);
     };
-    if (reduced()) { start(); return; }
+    if (reduced() || played) { start(); return; }
     tiles.get(id)!.classList.add("lv-pressed");
     later(PRESS_MS, start);
   };
@@ -203,7 +242,7 @@ export function launch(reduced: () => boolean, onChange: (fn: () => void) => () 
     clearLater();
     tiles.get(id)!.classList.remove("lv-pressed");
     const view = views.get(id)!;
-    view.querySelector("iframe")?.remove();
+    if (id === "youtube") { frame?.remove(); frame = null; }
     view.classList.remove("on");
     delete lv.dataset.open;
     opened = null;
