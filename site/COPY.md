@@ -281,6 +281,35 @@ The user's own words, approved as written (ticket 143, Addendum 4). Do not edit 
 
 No email waitlist, no promise of a Windows release.
 
+## 8b. Roadmap (`#roadmap`, #48)
+
+Between Download and the FAQ. Small and honest: no dates, no promises beyond the three headings. Not in the navigation (six links crowd the bar; the FAQ's NAS answer links here).
+
+- Eyebrow: **Roadmap**
+- Headline: **Now showing, and coming up.** (the evening/TV thread, like "Before you settle in.")
+
+**Available now (0.2.0)**
+
+- Home with Continue watching
+- YouTube and Netflix
+- Your own Library
+- The phone Remote
+- Quick settings
+
+**Coming next**
+
+- More Apps (kept general: no service names)
+- Network folders (NAS) (#47) (link text **#47**, to GitHub issue #47)
+
+**Being considered**
+
+- Windows (add a 👍) (link text **add a 👍**, to GitHub issue #34, `WINDOWS_ISSUE_URL`)
+- Intel Macs (#5) (link text **#5**, to GitHub issue #5)
+- Choosing a Look
+
+- One link under the columns: **See or suggest on GitHub** → the repo's Issues.
+- When a release ships, update the version in "Available now" and move what shipped.
+
 ## 9. FAQ (`#faq`)
 
 ### Headline options
@@ -317,6 +346,12 @@ Yes. Couch is licensed under GPL-3.0-or-later. Read the code on GitHub, change i
 **Will Couch come to Windows?**
 
 Windows is being considered, not promised. If you'd use it, add a 👍 to the Couch for Windows issue on GitHub (you need a GitHub account). Linux is not supported. Today, Couch needs Apple silicon and macOS 14 or later. The Remote runs in a phone browser; Android with Chrome is what we test.
+
+**Can Couch play from my NAS?** (#48)
+
+Yes, if the share is mounted in Finder. Better support is coming: see the roadmap.
+
+- Inline link text: **roadmap**, to the Roadmap section (`#roadmap`). The work is GitHub issue #47; the roadmap links it.
 
 ## 10. Footer
 
