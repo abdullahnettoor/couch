@@ -145,6 +145,10 @@ final class Server {
       s.respond(file: cfg.icons + "/manifest.webmanifest", type: "application/manifest+json; charset=utf-8", cache: "no-store")
     case "/touch-icon.png":
       s.respond(file: cfg.icons + "/touch-icon.png", type: "image/png", cache: "public, max-age=86400")
+    case "/mark.png":
+      s.respond(file: cfg.icons + "/mark-256.png", type: "image/png", cache: "public, max-age=86400")
+    case "/mark-32.png":
+      s.respond(file: cfg.icons + "/mark-32.png", type: "image/png", cache: "public, max-age=86400")
     default:
       s.respond(status: "404 Not Found")
     }

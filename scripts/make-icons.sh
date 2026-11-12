@@ -1,7 +1,8 @@
 #!/bin/sh
-# Derives every icon size from the masters in build/ (macOS sips and iconutil only).
+# Derives every icon size from the masters in build/ (macOS sips and iconutil; the Couch mark also needs ffmpeg).
 #   build/icon.png        1024 px, tile on Apple's grid with transparent corners
 #   build/icon-touch.png  1024 px, full bleed (phones round the corners themselves)
+#   build/couch-mark.svg  the Couch mark's outline, cut out of build/icon.png
 set -e
 cd "$(dirname "$0")/.."
 
@@ -20,3 +21,6 @@ sips -z 512 512 build/icon.png --out "$out/icon-512.png" >/dev/null
 sips -z 192 192 build/icon.png --out "$out/icon-192.png" >/dev/null
 sips -z 192 192 build/icon-touch.png --out "$out/touch-icon.png" >/dev/null
 echo "Icons written to build/icon.icns and $out/"
+
+# The Couch mark (the sofa without the square): the Remote's tab icon and off screen, and the README's header.
+node scripts/make-mark.mts
