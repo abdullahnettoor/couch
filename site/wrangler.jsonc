@@ -7,8 +7,10 @@
     "directory": "./dist",
     "not_found_handling": "404-page"
   },
-  // Preview links for non-production branches (Workers Builds), on the account's workers.dev subdomain; the Worker's own
-  // workers.dev address stays off.
-  "preview_urls": true,
+  // Version URLs (previews on the account's workers.dev subdomain) are off: Cloudflare can't delete single versions, so
+  // turning them off is what takes old previews offline. Turning them back on brings every old version's URL back; for a
+  // throwaway preview, prefer `npx wrangler preview --name <name>` and `npx wrangler preview delete --name <name>` (which
+  // also needs this on). The Worker's own workers.dev address stays off.
+  "preview_urls": false,
   "routes": [{ "pattern": "couch.abdullahnettoor.com", "custom_domain": true }]
 }
