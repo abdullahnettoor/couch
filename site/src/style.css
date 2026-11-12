@@ -604,7 +604,10 @@ details p a { color: var(--amber-3); }
   -webkit-mask: radial-gradient(farthest-side at 50% 56%, #000 78%, transparent 99%); mask: radial-gradient(farthest-side at 50% 56%, #000 78%, transparent 99%); }
 .lv-light img { width: 100%; height: auto; }
 .lv-thumb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.lv-frame { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; border: 0; background: transparent; }
+/* YouTube's player (src/launch.ts): first over the highlighted YouTube tile as its face (placed there by an inline
+   transform and clip), shown and taking the pointer only once loaded and while YouTube is highlighted; then the Screen */
+.lv-frame { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; border: 0; background: transparent; opacity: 0; transition: opacity .3s var(--ease); }
+.lv[data-focus="youtube"]:not([data-open]) .lv-frame[data-ready], .lv[data-open="youtube"] .lv-frame { opacity: 1; pointer-events: auto; }
 /* Netflix: a card on its face, nothing from Netflix */
 /* a caption on the Screen (Netflix: what it opens), a quiet pill at the bottom */
 .lv-caption { position: absolute; left: 50%; bottom: max(8px, calc(40 * var(--u))); translate: -50% 0; z-index: 1; margin: 0; padding: .55em 1.1em; border-radius: 999px; max-width: calc(100% - 24px); text-align: center;

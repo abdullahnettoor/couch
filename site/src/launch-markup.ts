@@ -4,7 +4,7 @@
  * over it), the face an App grows from when it opens, each App's view, the Home (Back) button and the hint.
  *  - YouTube opens the launch video (LAUNCH_VIDEO, src/config.ts): with an id, YouTube's own player, cued, over the
  *    video's thumbnail (a local file, saved by scripts/launch-thumb.mjs); the player's URL is only in a data
- *    attribute until the visitor opens YouTube. Without an id (the placeholder), a Couch-made poster, "Launch video",
+ *    attribute until the YouTube tile is highlighted (src/launch.ts). Without an id (the placeholder), a Couch-made poster, "Launch video",
  *    "Coming soon to YouTube", and nothing on the page refers to YouTube's servers.
  *  - Library: a glimpse of Couch's Library (the Library section's screenshot). Continue: Couch's player on Big Buck
  *    Bunny (src/shots/player.webp). Netflix: a card saying what it opens; nothing from Netflix.
