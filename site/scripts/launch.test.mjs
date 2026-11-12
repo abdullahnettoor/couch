@@ -2,7 +2,7 @@
 // (LAUNCH_VIDEO.id empty: YouTube opens to the poster) and a video (a fake id, COUCH_LAUNCH_ID, with a local fixture
 // thumbnail, COUCH_LAUNCH_THUMB: YouTube opens to YouTube's player, cued). YouTube's and Google's hosts are
 // unreachable in the browser (--host-resolver-rules), and every request to a host other than the local server is
-// recorded: there must be none before YouTube is opened. The build never fetches either.
+// recorded: there must be none before the YouTube tile is highlighted. The build never fetches either.
 // Checks the pin (the TV stays whole below the nav across the track), the scroll-driven highlight (Continue →
 // Library → Netflix → YouTube in even steps, and back; never opening anything) until the visitor uses the TV, the
 // mouse (pointing moves the highlight, a click opens), the keys (the toolbar's one tab stop, ← → only with the focus
@@ -27,6 +27,7 @@ const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/cs
 const FAKE_ID = "TESTvideo01";
 const EMBED = `https://www.youtube-nocookie.com/embed/${FAKE_ID}?rel=0&playsinline=1`;
 const BLOCKED = ["youtube.com", "youtube-nocookie.com", "ytimg.com", "googlevideo.com", "ggpht.com", "google.com", "gstatic.com", "googleapis.com", "doubleclick.net", "netflix.com", "nflxext.com", "nflximg.net"];
+const rules = BLOCKED.flatMap((d) => [`MAP ${d} ~NOTFOUND`, `MAP *.${d} ~NOTFOUND`]).join(", ");
 const isYouTube = (host) => BLOCKED.slice(0, 9).some((d) => host === d || host.endsWith(`.${d}`));
 const KEY_HINT = "Use ← → or your mouse. Press Enter to open.";
 const NETFLIX = "Netflix opens Netflix's own website, signed in with your account.";
@@ -44,6 +45,9 @@ function serve(dir) {
 
 const tmp = skip ? "" : mkdtempSync(join(tmpdir(), "couch-launch-"));
 let browser;
+/** A second browser that keeps cross-site frames in the page's process: the test's synthetic taps (CDP) are not routed
+ *  into an out-of-process frame, as a real finger's are, so the phone's one-tap test runs here. */
+let inProcess;
 const builds = {};
 before(async () => {
   if (skip) return;
@@ -53,22 +57,31 @@ before(async () => {
     const server = await serve(out);
     builds[name] = { out, server, url: `http://127.0.0.1:${server.address().port}/` };
   }
-  const rules = BLOCKED.flatMap((d) => [`MAP ${d} ~NOTFOUND`, `MAP *.${d} ~NOTFOUND`]).join(", ");
   browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: [`--host-resolver-rules=${rules}`] });
 });
 after(async () => {
   await browser?.close();
+  await inProcess?.close();
   Object.values(builds).forEach((b) => b.server.close());
   if (tmp) rmSync(tmp, { recursive: true, force: true });
 });
 
-/** A fresh tab on a build, recording every request that leaves the local server, and the layout shifts. */
-async function open(build, { width = 1440, height = 900, reduce = false, touch = false } = {}) {
-  const page = await browser.newPage();
+/** A stand-in for YouTube's cued player: like YouTube's, a press anywhere on it plays; it counts the presses. */
+const PLAYER = `<!doctype html><body style="margin:0;background:#200"><script>window.played = 0; addEventListener("pointerdown", () => { window.played++; });</script></body>`;
+
+/** A fresh tab on a build, recording every request that leaves the local server, and the layout shifts. With `player`,
+ *  the embed's address answers with the stand-in player (still recorded as a request to YouTube). */
+async function open(build, { width = 1440, height = 900, reduce = false, touch = false, player = false, frames = "isolated" } = {}) {
+  if (frames === "in-process" && !inProcess) inProcess = await puppeteer.launch({ executablePath: chrome, headless: true, args: [`--host-resolver-rules=${rules}`, "--disable-site-isolation-trials"] });
+  const page = await (frames === "in-process" ? inProcess : browser).newPage();
   if (touch) await page.emulate({ viewport: { width, height, isMobile: true, hasTouch: true }, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" });
   else await page.setViewport({ width, height });
   if (reduce) await page.emulateMediaFeatures([{ name: "prefers-reduced-motion", value: "reduce" }]);
   page.away = [];
+  if (player) {
+    await page.setRequestInterception(true);
+    page.on("request", (r) => (r.url().startsWith(EMBED) ? r.respond({ status: 200, contentType: "text/html", body: PLAYER }) : r.continue()));
+  }
   page.on("request", (r) => {
     const u = new URL(r.url());
     if (u.protocol.startsWith("http") && u.hostname !== "127.0.0.1") page.away.push(r.url());
@@ -118,6 +131,16 @@ const lv = (page) => page.evaluate(() => {
   };
 });
 const tileCentre = (page, id) => page.$eval(`.h-app[data-id="${id}"] .lv-tile`, (b) => { const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+/** What a click at the YouTube tile's centre would land on. */
+const underYouTube = (page) => page.$eval(`.h-app[data-id="youtube"] .lv-tile`, (b) => { const r = b.getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.tagName ?? ""; });
+/** YouTube's player has loaded over the tile and faded in (.3s). */
+const playerReady = (page) => page.waitForFunction(() => {
+  const r = document.querySelector('.h-app[data-id="youtube"] .lv-tile').getBoundingClientRect(), hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+  return hit?.tagName === "IFRAME" && getComputedStyle(hit).opacity === "1";
+}, { timeout: 4000 });
+/** The stand-in player's presses, read inside its frame. */
+const plays = (page) => page.frames().find((f) => f.url().startsWith(EMBED))?.evaluate(() => window.played) ?? null;
+const embeds = (page) => page.away.filter((u) => u.startsWith(EMBED)).length;
 
 describe("the pinned TV and the scroll", { skip }, () => {
   test("it pins below the nav, whole, across the track, and is let go after it", async () => {
@@ -154,6 +177,7 @@ describe("the pinned TV and the scroll", { skip }, () => {
     for (const p of [0.1, 0.2, 0.3, 0.45, 0.55, 0.7, 0.8, 0.95, 0.7, 0.45, 0.2, 0.05]) {
       await at(page, p);
       seen.push((await lv(page)).focus);
+      if (seen.length === 6) assert.deepEqual(page.away, [], "nothing from YouTube before the YouTube tile is highlighted");
     }
     assert.deepEqual(seen, ["continue", "continue", "library", "library", "netflix", "netflix", "youtube", "youtube", "netflix", "library", "continue", "continue"]);
     await at(page, 0.9);
@@ -163,8 +187,9 @@ describe("the pinned TV and the scroll", { skip }, () => {
     assert.ok(s.lit, "off the Continue tile: the wallpaper and the clock");
     assert.equal(s.hint, "Press Enter or click to watch the launch video.");
     assert.equal(s.open, "", "the scroll never opens anything");
-    assert.equal(s.frame, null);
-    assert.deepEqual(page.away, []);
+    assert.equal(s.frame, EMBED, "on YouTube, YouTube's cued player is loaded, ready for the visitor's click");
+    assert.equal(embeds(page), 1, "loaded once, kept over the passes");
+    assert.ok(page.away.every((u) => isYouTube(new URL(u).hostname)), page.away.join(" "));
     assert.equal(s.cls, 0);
     await page.close();
   });
@@ -468,11 +493,12 @@ describe("phones: a small Couch Remote under the pinned TV drives it", { skip },
     await at(page, 0.9);
     await live(page);
     assert.equal((await lv(page)).focus, "youtube");
-    assert.deepEqual(page.away, []);
+    assert.equal((await lv(page)).frame, EMBED, "YouTube's cued player is loaded on the highlight");
     await press(page, "ok");
-    await page.waitForSelector("[data-launch] iframe", { timeout: 3000 });
+    await page.waitForFunction(() => document.querySelector("[data-launch]").dataset.open === "youtube", { timeout: 3000 });
     let s = await lv(page);
     assert.equal(s.frame, EMBED);
+    assert.equal(embeds(page), 1, "the same player, not reloaded");
     assert.equal((await rm(page)).cap, "Tap ‹ Home on the TV to go back");
     assert.equal((await rm(page)).active, "ok", "the focus stays on the Remote");
     await press(page, "left");
@@ -483,7 +509,7 @@ describe("phones: a small Couch Remote under the pinned TV drives it", { skip },
     await wait(120);
     s = await lv(page);
     assert.equal(s.open, "");
-    assert.equal(s.frame, null);
+    assert.equal(s.on, "");
     assert.equal((await rm(page)).cap, "YouTube · Tap OK to watch the launch video");
     for (const [moves, id] of [[1, "netflix"], [2, "library"], [3, "continue"]]) {
       for (let k = 0; k < moves; k++) await press(page, "right");
@@ -539,9 +565,12 @@ describe("using the TV", { skip }, () => {
     assert.equal(s.focus, "library");
     assert.equal(s.active, "library", "the focus goes with the highlight");
     await page.keyboard.press("ArrowLeft");
+    await wait(200);
+    assert.deepEqual(page.away, [], "highlighting the other tiles loads nothing from YouTube");
     await page.keyboard.press("ArrowLeft");
     await page.keyboard.press("ArrowLeft");
     assert.equal((await lv(page)).focus, "youtube", "it stops at the end of the row");
+    assert.equal((await lv(page)).active, "youtube", "the keys stay on the tile while YouTube's player loads over it");
     await page.keyboard.press("End");
     assert.equal((await lv(page)).focus, "continue");
     await page.keyboard.press("Home");
@@ -557,53 +586,61 @@ describe("using the TV", { skip }, () => {
     assert.equal((await lv(page)).focus, "netflix");
     assert.equal(await page.$eval(".lv-home .h-row", (e) => `${e.getAttribute("role")}|${e.getAttribute("aria-label")}`), "toolbar|Couch Home");
     assert.equal(await page.$eval("[data-launch]", (e) => `${e.getAttribute("role")}|${e.getAttribute("aria-roledescription")}|${e.getAttribute("aria-label")}`), "group|TV|Couch on the Screen");
-    assert.deepEqual(page.away, []);
+    assert.equal(embeds(page), 1, "YouTube's player loaded once, when YouTube was highlighted");
+    assert.ok(page.away.every((u) => isYouTube(new URL(u).hostname)), page.away.join(" "));
     await page.close();
   });
 
   for (const key of ["Enter", "Space"]) {
-    test(`YouTube opens the launch video's player, cued (no autoplay), by ${key}; nothing from YouTube before; Home and Esc go back`, async () => {
-      const page = await open("video");
-      await at(page, 0.9);
+    test(`YouTube opens the launch video's player, cued (no autoplay), by ${key}, with the focus on it; nothing from YouTube before the tile is highlighted; Home and Esc go back`, async () => {
+      const page = await open("video", { player: true });
+      await at(page, 0.6);
       await live(page);
+      await wait(300);
+      assert.deepEqual(page.away, [], "nothing from YouTube before the YouTube tile is highlighted");
+      assert.equal(await page.evaluate(() => document.body.innerHTML.includes("youtube-nocookie.com/embed/") && !document.querySelector("iframe")), true, "the player's address is only data until then");
+      await at(page, 0.9);
       await page.waitForFunction(() => document.querySelector("[data-launch]").dataset.focus === "youtube");
       await page.evaluate(() => document.querySelector(".h-app[data-id=youtube] .lv-tile").focus({ preventScroll: true }));
-      await wait(300);
-      assert.deepEqual(page.away, [], "nothing from YouTube before it is opened");
-      assert.equal(await page.evaluate(() => document.body.innerHTML.includes("youtube-nocookie.com/embed/") && !document.querySelector("iframe")), true, "the player's address is only data until then");
+      await playerReady(page);
+      assert.equal((await lv(page)).active, "youtube", "the keys are on the tile, not in the player");
       await page.keyboard.press(key);
-      await page.waitForSelector("[data-launch] iframe");
       await page.waitForFunction(() => document.activeElement?.tagName === "IFRAME", { timeout: 3000 });
-      const fr = await page.$eval("[data-launch] iframe", (e) => ({ src: e.src, title: e.title, allow: e.allow, fs: e.allowFullscreen, referrer: e.getAttribute("referrerpolicy"), w: e.offsetWidth, sw: e.closest(".lv").offsetWidth }));
+      await wait(1000);
+      const fr = await page.$eval("[data-launch] iframe", (e) => { const r = e.getBoundingClientRect(), sc = e.closest(".lv").getBoundingClientRect();
+        return { src: e.src, title: e.title, allow: e.allow, fs: e.allowFullscreen, referrer: e.getAttribute("referrerpolicy"), fills: ["left", "top", "right", "bottom"].every((k) => Math.abs(r[k] - sc[k]) < 1), hidden: e.getAttribute("aria-hidden"), tab: e.tabIndex }; });
       assert.equal(fr.src, EMBED, "YouTube's privacy-enhanced player, cued: the visitor's own press on its play counts as a view");
       assert.ok(!/autoplay|enablejsapi/.test(new URL(fr.src).search));
       assert.equal(fr.title, `${await page.$eval("[data-launch]", (e) => e.dataset.title)} (YouTube video)`);
       for (const a of ["encrypted-media", "picture-in-picture"]) assert.ok(fr.allow.includes(a), `allow ${a}`);
       assert.ok(fr.fs);
       assert.equal(fr.referrer, "strict-origin-when-cross-origin");
-      assert.equal(fr.w, fr.sw, "it fills the Screen");
+      assert.ok(fr.fills, "it fills the Screen");
+      assert.equal(fr.hidden, null, "and is there for screen readers");
+      assert.equal(fr.tab, 0, "and the keys");
       let s = await lv(page);
       assert.equal(s.open, "youtube");
       assert.equal(s.on, "youtube");
-      await wait(300);
-      assert.ok(page.away.some((u) => u.startsWith(EMBED)), "only now YouTube is asked (and refused here)");
+      assert.equal(embeds(page), 1, "the player loaded on the highlight is the one that opens, not reloaded");
+      assert.equal(await plays(page), 0, "cued: nothing plays until the visitor presses play");
       assert.ok(page.away.every((u) => isYouTube(new URL(u).hostname)), page.away.join(" "));
-      // Home goes back, the player with it, and the highlight and the focus are on YouTube again
+      // Home goes back, the player with it (a fresh cued one waits on the still highlighted tile), and the focus is on YouTube again
       await page.click(".lv-back");
       await wait(100);
       s = await lv(page);
       assert.equal(s.open, "");
-      assert.equal(s.frame, null, "the player is gone");
+      assert.equal(s.on, "");
       assert.equal(s.active, "youtube");
+      await playerReady(page);
+      assert.equal(embeds(page), 2, "the watched player is gone, a fresh one is cued");
       // and Esc (from the TV; inside YouTube's player the keys are YouTube's)
       await page.keyboard.press("Enter");
-      await page.waitForSelector("[data-launch] iframe");
+      await page.waitForFunction(() => document.querySelector("[data-launch]").dataset.open === "youtube");
       await page.focus(".lv-back");
       await page.keyboard.press("Escape");
       await wait(100);
       s = await lv(page);
       assert.equal(s.open, "");
-      assert.equal(s.frame, null);
       assert.equal(s.active, "youtube");
       assert.equal(s.cls, 0);
       await page.close();
@@ -681,7 +718,7 @@ describe("using the TV", { skip }, () => {
   test("the privacy lines with a video, and no links or note under the TV", async () => {
     const page = await open("video");
     assert.equal(await page.$eval("#privacy .facts li:nth-child(3) span", (e) => e.textContent),
-      "Couch adds no analytics or cookies. YouTube loads only when you open YouTube on the TV above, and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies.");
+      "Couch adds no analytics or cookies. YouTube loads only when you reach YouTube on the TV above, and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies.");
     assert.match(await page.$eval("#year", (e) => e.parentElement.textContent), /Abdullah Nettoor\. No cookies or analytics from Couch\.$/);
     assert.equal(await page.$(".lv-under, .lv-links, .lv-note, video"), null);
     await page.close();
@@ -735,5 +772,107 @@ describe("using the TV", { skip }, () => {
     const html = readFileSync(join(builds.video.out, "index.html"), "utf8");
     assert.match(html, /<div class="cu lv-home" aria-hidden="true" inert>/);
     assert.match(html, /<script>document\.documentElement\.classList\.add\("js"\)<\/script>/);
+  });
+});
+
+describe("one click plays the launch video: YouTube's cued player waits on the highlighted YouTube tile (#46)", { skip }, () => {
+  /** Whether the player fills the Screen. */
+  const fills = (page) => page.$eval("[data-launch] iframe", (e) => { const r = e.getBoundingClientRect(), sc = e.closest(".lv").getBoundingClientRect(); return ["left", "top", "right", "bottom"].every((k) => Math.abs(r[k] - sc[k]) < 1); });
+  /** One click (or tap) on the tile: it lands on YouTube's own player, which plays, and the TV opens YouTube around it. */
+  const oneClick = async (page, tap = false) => {
+    const c = await tileCentre(page, "youtube");
+    if (tap) await page.touchscreen.tap(c.x, c.y); else await page.mouse.click(c.x, c.y);
+    await page.waitForFunction(() => document.querySelector("[data-launch]").dataset.open === "youtube", { timeout: 2000 });
+    assert.equal(await plays(page), 1, "the press was YouTube's own (so it plays, with sound, and counts as a view)");
+    await wait(1200);
+    assert.ok(await fills(page), "the playing player grows to the Screen");
+    const s = await lv(page);
+    assert.equal(s.on, "youtube");
+    assert.equal(s.frame, EMBED);
+    assert.equal(embeds(page), 1, "loaded once");
+    assert.equal(await plays(page), 1, "the same player, never reloaded under the visitor");
+    return s;
+  };
+
+  test("the scroll's highlight on YouTube loads the player over the tile (only there); one click plays it and opens YouTube", async () => {
+    const page = await open("video", { player: true });
+    await at(page, 0.6);
+    await live(page);
+    await wait(300);
+    assert.deepEqual(page.away, []);
+    assert.equal(await underYouTube(page), "BUTTON");
+    await at(page, 0.9);
+    await playerReady(page);
+    let s = await lv(page);
+    assert.equal(s.open, "", "loading the player opens nothing");
+    assert.equal(s.used, false, "and is not a use of the TV");
+    for (const id of ["netflix", "library", "continue"]) {
+      const c = await tileCentre(page, id);
+      assert.equal(await page.evaluate((c) => document.elementFromPoint(c.x, c.y)?.tagName, c), "BUTTON", `the player covers only the YouTube tile (${id})`);
+    }
+    assert.equal(await page.$eval("[data-launch] iframe", (e) => `${e.getAttribute("aria-hidden")}|${e.tabIndex}`), "true|-1", "on the tile it is the tile's face: the tile's button is the one tab stop and name");
+    s = await oneClick(page);
+    assert.equal(s.active, "iframe", "the keys are YouTube's now");
+    assert.equal(s.used, true);
+    assert.equal(s.cls, 0);
+    await page.close();
+  });
+
+  test("the highlight moving off YouTube hides the player (no reload); back on YouTube it is the same one", async () => {
+    const page = await open("video", { player: true });
+    await at(page, 0.9);
+    await live(page);
+    await playerReady(page);
+    await at(page, 0.6);
+    assert.equal((await lv(page)).focus, "netflix");
+    assert.equal(await underYouTube(page), "BUTTON", "off YouTube, a click on the tile is the tile's again");
+    await wait(400);
+    assert.equal(await page.$eval("[data-launch] iframe", (e) => getComputedStyle(e).opacity), "0", "hidden, still loaded");
+    await at(page, 0.9);
+    await playerReady(page);
+    await oneClick(page);
+    await page.close();
+  });
+
+  test("pointing at YouTube loads the player under the pointer; the click plays it", async () => {
+    const page = await open("video", { player: true });
+    await at(page, 0.05);
+    await live(page);
+    const n = await tileCentre(page, "netflix"), y = await tileCentre(page, "youtube");
+    await page.mouse.move(n.x, n.y);
+    await page.mouse.move(n.x + 10, n.y, { steps: 2 });
+    assert.deepEqual(page.away, []);
+    await page.mouse.move(y.x, y.y, { steps: 4 });
+    assert.equal((await lv(page)).focus, "youtube");
+    await playerReady(page);
+    await oneClick(page);
+    await page.close();
+  });
+
+  test("phones: one tap on the YouTube tile plays it", async () => {
+    const page = await open("video", { width: 390, height: 844, touch: true, player: true, frames: "in-process" });
+    await at(page, 0.9);
+    await live(page);
+    await playerReady(page);
+    await oneClick(page, true);
+    assert.equal(await page.$eval("[data-remote] .fl-cap", (e) => e.textContent), "Tap ‹ Home on the TV to go back");
+    await page.close();
+  });
+
+  test("reduced motion: the same, at once, nothing moving", async () => {
+    const page = await open("video", { reduce: true, player: true });
+    await centre(page);
+    await live(page);
+    const y = await tileCentre(page, "youtube");
+    await page.mouse.move(y.x - 20, y.y);
+    await page.mouse.move(y.x, y.y, { steps: 3 });
+    await playerReady(page);
+    await page.mouse.click(y.x, y.y);
+    await page.waitForFunction(() => document.querySelector("[data-launch]").dataset.open === "youtube", { timeout: 2000 });
+    assert.equal(await plays(page), 1);
+    assert.ok(await fills(page), "full Screen at once");
+    assert.equal((await lv(page)).on, "youtube");
+    assert.equal(await page.evaluate(() => document.querySelector("[data-launch]").getAnimations({ subtree: true }).filter((a) => a.playState === "running").length), 0);
+    await page.close();
   });
 });

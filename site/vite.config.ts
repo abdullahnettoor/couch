@@ -96,7 +96,7 @@ const sitePlugin = (): Plugin => ({
       const launch: LaunchOptions = { id: launchId, title: LAUNCH_VIDEO.title, thumb: launchThumb() };
       // the site's own privacy lines: with a video, they say what is Couch's and what YouTube may do once opened
       const privacy = launchId
-        ? "Couch adds no analytics or cookies. YouTube loads only when you open YouTube on the TV above, and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies."
+        ? "Couch adds no analytics or cookies. YouTube loads only when you reach YouTube on the TV above, and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies."
         : "This site uses no cookies or analytics. Services opened in Couch have their own sign-ins, cookies and privacy policies.";
       const legal = launchId ? "No cookies or analytics from Couch." : "No cookies. No analytics.";
       const out = html
