@@ -1,19 +1,15 @@
 /* Home: Cinema layout (hero frame, Resume / From start, Apps and in-progress videos) and the empty clock layout. */
 .home {
-  background: var(--wp-base, #000);
+  background: var(--wp-base, var(--backdrop));
   overflow: hidden;
-  /* The clock's box (time, gap, date line), shared by the clock and the blur behind it so the blur follows the clock. */
-  --clock-top: calc(210 * var(--u));
-  --clock-h: calc((200 + 18 + 45) * var(--u));
-  --clock-pad: calc(40 * var(--u));
-  --clock-fade: calc(140 * var(--u));
-  --clock-clear: calc(var(--clock-top) + var(--clock-h) + var(--clock-pad));
+  --clock-top: var(--home-clock-top);
 }
 .h-drift {
   position: absolute;
   inset: -20%;
   background: var(--wp-glow, none);
-  animation: h-drift var(--wp-drift, 90s) ease-in-out infinite alternate;
+  animation: h-drift var(--wp-drift, var(--duration-wallpaper-drift)) var(--ease-ambient) infinite
+    alternate;
 }
 .home.still .h-drift,
 .home.still .h-photo-img,
@@ -21,7 +17,18 @@
   animation-play-state: paused;
 }
 /* Always on, over any wallpaper: keeps the edges dark and the clock and tile row readable. */
-/* A photo wallpaper: the photo, a dim over it (its level is set per photo), and a soft blur behind the clock and the tiles. */
+/* A photo wallpaper: the photo, a dim over it (its level is set per photo), and a soft blur behind the tiles. */
+/* The photo's dim and brightness are numbers so they can ease with the slideshow's crossfade (`.crossfading`). */
+@property --wp-dim {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0.5;
+}
+@property --wp-light {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0.5;
+}
 .h-photo {
   position: absolute;
   inset: 0;
@@ -42,51 +49,47 @@
 }
 .h-photo-img {
   background: var(--wp-photo, none) center / cover no-repeat;
-  animation: h-kenburns 120s ease-in-out infinite alternate;
+  animation: h-kenburns var(--duration-photo-pan) var(--ease-ambient) infinite alternate;
 }
 .h-photo-prev {
   animation: none;
   opacity: 1;
-  transition: opacity 2.5s ease-in-out;
+  transition: opacity var(--duration-photo-crossfade) var(--ease-ambient);
 }
 .h-photo-dim {
-  background: #000;
+  background: var(--photo-dim);
   opacity: var(--wp-dim, 0.5);
+}
+/* Eased on the layers that read them, not on .home, so only those restyle each frame. */
+.home.crossfading .h-photo-dim {
+  transition: --wp-dim var(--duration-photo-crossfade) var(--ease-ambient);
+}
+.home.crossfading .h-clock {
+  transition: --wp-light var(--duration-photo-crossfade) var(--ease-ambient);
 }
 .h-photo-blur {
   inset: auto 0;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
-/* Fully blurred from the top edge past the date, then fading out below it. */
-.h-photo-blur.top {
-  top: 0;
-  height: calc(var(--clock-clear) + var(--clock-fade));
-  -webkit-mask-image: linear-gradient(180deg, #000 0, #000 var(--clock-clear), transparent);
-  mask-image: linear-gradient(180deg, #000 0, #000 var(--clock-clear), transparent);
+  backdrop-filter: var(--blur-photo);
 }
 .h-photo-blur.bottom {
   bottom: 0;
   height: 48%;
-  -webkit-mask-image: linear-gradient(0deg, #000 50%, transparent);
-  mask-image: linear-gradient(0deg, #000 50%, transparent);
+  -webkit-mask-image: linear-gradient(0deg, var(--mask-opaque) 50%, transparent);
+  mask-image: linear-gradient(0deg, var(--mask-opaque) 50%, transparent);
 }
 @keyframes h-kenburns {
   from {
     transform: scale(1);
   }
   to {
-    transform: scale(1.06);
+    transform: scale(var(--home-pan-scale));
   }
 }
 .h-scrim {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background:
-    linear-gradient(0deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.2) 35%, rgba(0, 0, 0, 0) 55%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0) 22%),
-    radial-gradient(110% 100% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.45) 100%);
+  background: var(--scrim-home);
 }
 @keyframes h-drift {
   to {
@@ -95,10 +98,7 @@
 }
 /* Artwork off: the hero's text sits straight on the wallpaper, so the scrim also darkens its side. */
 .home.no-art.film .h-scrim {
-  background:
-    linear-gradient(90deg, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.3) 40%, rgba(0, 0, 0, 0) 65%),
-    linear-gradient(0deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.3) 40%, rgba(0, 0, 0, 0) 60%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0) 22%);
+  background: var(--scrim-home-no-art);
 }
 .h-bg,
 .h-frame {
@@ -107,7 +107,7 @@
 }
 .h-bg {
   opacity: 0;
-  transition: opacity 0.7s var(--ease);
+  transition: opacity var(--duration-scene) var(--ease-glass);
 }
 .h-bg.on {
   opacity: 1;
@@ -115,21 +115,22 @@
 .h-chrome {
   position: absolute;
   inset: 0;
-  transition: opacity 1.2s var(--ease);
+  transition: opacity var(--duration-chrome-fade) var(--ease-glass);
 }
 .home.ambient .h-chrome {
   opacity: 0;
   pointer-events: none;
 }
-.h-hero,
-.h-clock {
+.h-hero {
   opacity: 0;
-  transition: opacity 0.7s var(--ease);
+  transition: opacity var(--duration-scene) var(--ease-glass);
   pointer-events: none;
 }
-.h-hero.on,
-.h-clock.on {
+.h-hero.on {
   opacity: 1;
+}
+.h-clock {
+  pointer-events: none;
 }
 .h-hero.on {
   pointer-events: auto;
@@ -144,23 +145,23 @@
   pointer-events: none;
 }
 .h-clock .t small {
-  font-size: 0.22em;
-  font-weight: 600;
+  font-size: var(--type-em-clock-period);
+  font-weight: var(--weight-semibold);
   letter-spacing: 0;
   margin-left: 0.2em;
-  color: var(--t2);
+  color: var(--text-secondary);
 }
 .topbar .clock small {
-  font-size: 0.55em;
+  font-size: var(--type-em-small);
   margin-left: 0.2em;
-  color: var(--t2);
+  color: var(--text-secondary);
 }
 /* The big clock is the time here; dropping the small one puts the gear flush with the QR card's edge. */
 .home:not(.film) .topbar .clock {
   display: none;
 }
 .home.film .topbar .clock {
-  animation: h-in 0.7s var(--ease);
+  animation: h-in var(--duration-scene) var(--ease-glass);
 }
 @keyframes h-in {
   from {
@@ -168,7 +169,7 @@
   }
 }
 .home.ambient .h-clock {
-  animation: h-clock-drift 1200s ease-in-out infinite alternate;
+  animation: h-clock-drift var(--duration-clock-wander) var(--ease-ambient) infinite alternate;
 }
 @keyframes h-clock-drift {
   to {
@@ -178,7 +179,7 @@
 .h-frame {
   opacity: 0;
   background: hsl(var(--hue), 18%, 22%) center / cover;
-  transition: opacity 0.7s var(--ease);
+  transition: opacity var(--duration-scene) var(--ease-glass);
 }
 .h-frame.on {
   opacity: 1;
@@ -187,10 +188,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0) 18%),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.86) 0%, rgba(0, 0, 0, 0.55) 32%, rgba(0, 0, 0, 0) 62%),
-    linear-gradient(0deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.4) 30%, rgba(0, 0, 0, 0) 50%);
+  background: var(--scrim-film);
 }
 .h-hero {
   position: absolute;
@@ -199,18 +197,18 @@
   width: calc(920 * var(--u));
 }
 .h-hero .k {
-  font-size: calc(30 * var(--u));
-  font-weight: 600;
-  color: var(--t2);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
   margin-bottom: calc(14 * var(--u));
 }
 .h-hero h1 {
-  font-size: calc(116 * var(--u));
-  line-height: 1.05;
-  letter-spacing: -0.03em;
+  font-size: var(--type-hero-title);
+  line-height: var(--line-height-hero);
+  letter-spacing: var(--letter-spacing-display);
   margin: 0 0 calc(20 * var(--u));
   padding-bottom: calc(4 * var(--u));
-  font-weight: 700;
+  font-weight: var(--weight-bold);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -219,30 +217,30 @@
   overflow-wrap: anywhere;
 }
 .h-hero h1.s1 {
-  font-size: calc(92 * var(--u));
+  font-size: var(--type-hero-title-medium);
 }
 .h-hero h1.s2 {
-  font-size: calc(76 * var(--u));
+  font-size: var(--type-hero-title-small);
 }
 .h-hero .m {
-  font-size: calc(28 * var(--u));
-  color: var(--t2);
+  font-size: var(--type-meta);
+  color: var(--text-secondary);
   display: flex;
   gap: calc(16 * var(--u));
   align-items: center;
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 .h-bar {
   width: calc(200 * var(--u));
   height: calc(6 * var(--u));
-  border-radius: calc(3 * var(--u));
-  background: rgba(255, 255, 255, 0.25);
+  border-radius: var(--radius-progress);
+  background: var(--progress-track);
   overflow: hidden;
 }
 .h-bar i {
   display: block;
   height: 100%;
-  background: #fff;
+  background: var(--fill-bright);
 }
 .h-acts {
   display: flex;
@@ -252,7 +250,7 @@
 .h-row {
   position: absolute;
   left: calc(110 * var(--u));
-  bottom: calc(84 * var(--u));
+  bottom: var(--home-row-bottom);
   display: flex;
   gap: calc(44 * var(--u));
   align-items: flex-start;
@@ -262,7 +260,7 @@
   width: calc(300 * var(--u));
 }
 .h-app .g-tile {
-  height: calc(170 * var(--u));
+  height: var(--home-tile-height);
   display: grid;
   place-items: center;
 }
@@ -272,7 +270,7 @@
 }
 .youtube-face,
 .netflix-face {
-  background: linear-gradient(160deg, #3a3a3e, #17171a);
+  background: var(--app-face);
 }
 .h-app .youtube-face svg {
   width: calc(112 * var(--u));
@@ -282,8 +280,8 @@
   height: calc(112 * var(--u));
 }
 .library-face {
-  background: linear-gradient(160deg, #f5f5f7, #c9c9cf);
-  color: #1c1c1e;
+  background: linear-gradient(160deg, var(--art-library-from), var(--art-library-to));
+  color: var(--on-light);
 }
 .h-film-art {
   background: hsl(var(--hue), 18%, 22%) center / cover;
@@ -294,11 +292,11 @@
   top: calc(14 * var(--u));
   width: calc(44 * var(--u));
   height: calc(44 * var(--u));
-  border-radius: calc(12 * var(--u));
+  border-radius: var(--radius-app-badge);
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: rgba(30, 30, 32, 0.7);
+  background: var(--app-badge-bg);
 }
 /* Beats the App tile's own logo sizes (.h-app .g-tile svg, .h-app .youtube-face svg), which the badge also matches. */
 .h-app .g-tile .h-badge svg {
@@ -311,28 +309,28 @@
   right: calc(18 * var(--u));
   bottom: calc(16 * var(--u));
   height: calc(6 * var(--u));
-  border-radius: calc(3 * var(--u));
-  background: rgba(255, 255, 255, 0.3);
+  border-radius: var(--radius-progress);
+  background: var(--tile-progress-track);
   overflow: hidden;
 }
 .h-prog i {
   display: block;
   height: 100%;
-  background: #fff;
+  background: var(--fill-bright);
 }
 .h-app .g-cap small {
   display: block;
-  font-size: calc(20 * var(--u));
-  font-weight: 500;
-  color: var(--t3);
+  font-size: var(--type-caption-small);
+  font-weight: var(--weight-medium);
+  color: var(--text-tertiary);
   margin-top: calc(4 * var(--u));
 }
 .h-divider {
   width: calc(2 * var(--u));
   height: calc(120 * var(--u));
   margin-top: calc(25 * var(--u));
-  background: rgba(255, 255, 255, 0.14);
-  border-radius: calc(1 * var(--u));
+  background: var(--divider);
+  border-radius: var(--radius-hairline);
 }
 .h-clock {
   position: absolute;
@@ -340,27 +338,117 @@
   top: var(--clock-top);
 }
 .h-clock .t {
-  font-size: calc(200 * var(--u));
-  font-weight: 600;
-  letter-spacing: -0.04em;
-  line-height: 1;
+  font-size: var(--type-clock);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--letter-spacing-clock);
+  line-height: var(--line-height-display);
 }
 .h-clock .d {
-  font-size: calc(36 * var(--u));
-  color: var(--t2);
-  margin-top: calc(18 * var(--u));
-  line-height: calc(45 * var(--u));
-  font-weight: 500;
+  /* Positioned after the glass, so the date draws over the digits' shadow. */
+  position: relative;
+  font-size: var(--type-clock-date);
+  color: var(--text-secondary);
+  margin-top: var(--home-clock-date-gap);
+  line-height: var(--line-height-clock-date);
+  font-weight: var(--weight-medium);
+}
+/*
+ * The liquid glass clock (#35, #37): nearly clear digits that bend the Wallpaper near their edges (the lens), a thin rim
+ * lit from the top left, and a light shadow outside them. clock-glass.ts draws the masks and, in a worker, the lens's
+ * displacement map and the rim. A faint tint and a small lift inside the digits, and the shadow, follow the picture's
+ * brightness. The clock itself never fades: a see-through parent turns its children's backdrop-filter off (#33), so
+ * each part fades on its own.
+ */
+.h-clock {
+  --cg-tint: var(--clock-glass-tint-builtin);
+  --cg-shadow: var(--clock-glass-shadow-builtin);
+}
+.home.photo .h-clock {
+  --cg-tint: color-mix(
+    in srgb,
+    var(--clock-glass-tint-bright) calc(var(--wp-light, 0.5) * 100%),
+    var(--clock-glass-tint-dark)
+  );
+  --cg-shadow: color-mix(
+    in srgb,
+    var(--clock-glass-shadow-bright) calc(var(--wp-light, 0.5) * 100%),
+    var(--clock-glass-shadow-dark)
+  );
+}
+.h-clock .t,
+.h-clock .d,
+.h-clock .cg {
+  opacity: 0;
+  transition: opacity var(--duration-scene) var(--ease-glass);
+}
+.h-clock.on .t,
+.h-clock.on .d,
+.h-clock.on .cg {
+  opacity: 1;
+}
+.h-clock .t.cg-drawn,
+.h-clock .t.cg-drawn small {
+  color: transparent;
+}
+.h-clock .cg {
+  position: absolute;
+  left: calc(-1 * var(--home-clock-glass-pad));
+  top: calc(-1 * var(--home-clock-glass-pad));
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+.h-clock .cg-shadow {
+  background: var(--cg-shadow);
+}
+/* `--cg-refraction` is the drawn displacement filter (a new one each minute); until it arrives, only the lift. */
+.h-clock .cg-lens {
+  background-color: var(--cg-tint);
+  backdrop-filter: var(--cg-refraction,) var(--blur-clock-glass-lift);
+}
+.h-clock .cg-rim {
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+.h-clock .cg-filters {
+  position: absolute;
+}
+/* No maps this minute (no worker, one that failed, or no SVG filters in backdrop-filter): #35's frosted digits. */
+.h-clock.cg-frosted {
+  --cg-tint: var(--clock-frost-tint-builtin);
+  --cg-shadow: var(--clock-frost-shadow-builtin);
+  --cg-frost-blur: var(--blur-clock-frost-builtin);
+}
+.home.photo .h-clock.cg-frosted {
+  --cg-tint: color-mix(
+    in srgb,
+    var(--clock-frost-tint-bright) calc(var(--wp-light, 0.5) * 100%),
+    var(--clock-frost-tint-dark)
+  );
+  --cg-shadow: color-mix(
+    in srgb,
+    var(--clock-frost-shadow-bright) calc(var(--wp-light, 0.5) * 100%),
+    var(--clock-frost-shadow-dark)
+  );
+  --cg-frost-blur: var(--blur-clock-frost);
+}
+.h-clock.cg-frosted .cg-lens {
+  background-image: var(--clock-frost-sheen);
+  backdrop-filter: var(--cg-frost-blur);
+}
+.h-clock.cg-frosted .cg-rim {
+  display: none;
 }
 .home.empty .h-row {
-  bottom: calc(120 * var(--u));
+  bottom: var(--home-empty-row-bottom);
   gap: calc(56 * var(--u));
 }
 .home.empty .h-app {
   width: calc(420 * var(--u));
 }
 .home.empty .h-app .g-tile {
-  height: calc(236 * var(--u));
+  height: var(--home-empty-tile-height);
 }
 .home.empty .h-app .g-tile svg {
   width: calc(100 * var(--u));
@@ -373,27 +461,27 @@
   width: calc(220 * var(--u));
   padding: calc(15 * var(--u));
   box-sizing: border-box;
-  border-radius: calc(28 * var(--u));
+  border-radius: var(--radius-qr);
   background: var(--glass);
-  backdrop-filter: blur(60px) saturate(1.8);
-  box-shadow: var(--glass-edge);
-  font-size: calc(20 * var(--u));
-  color: var(--t2);
+  backdrop-filter: var(--blur-glass-panel);
+  box-shadow: var(--shadow-glass-edge);
+  font-size: var(--type-qr-label);
+  color: var(--text-secondary);
   text-align: center;
 }
 .h-qr .qr svg {
   display: block;
   width: 100%;
-  border-radius: calc(16 * var(--u));
+  border-radius: var(--radius-qr-code);
 }
 .h-qr .c {
   margin-top: calc(12 * var(--u));
 }
 .h-hero .ov {
   margin: 0 0 calc(18 * var(--u));
-  font-size: calc(26 * var(--u));
-  line-height: 1.4;
-  color: var(--t2);
+  font-size: var(--type-overview);
+  line-height: var(--line-height-body);
+  color: var(--text-secondary);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;

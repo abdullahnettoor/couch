@@ -1,6 +1,8 @@
 /** Placeholder: replace with the real Gumroad product URL once it exists. */
 export const GUMROAD_URL = "https://abdullahnettoor.gumroad.com/l/couch";
 export const GITHUB_URL = "https://github.com/abdullahnettoor/couch";
+/** The maker letter's one quiet "Buy me a coffee" link: a plain link, no widget or script. */
+export const COFFEE_URL = "https://buymeacoffee.com/abdullahnettoor";
 export const RELEASES_URL = "https://github.com/abdullahnettoor/couch/releases";
 /** "or download free from GitHub": the newest stable release's .dmg. Keep it exactly this (site README, "Publishing"). */
 export const DOWNLOAD_URL = `${RELEASES_URL}/latest/download/Couch-arm64.dmg`;
@@ -23,17 +25,15 @@ export const SOCIAL: readonly SocialLink[] = [
   { label: "Abdullah Nettoor on YouTube", href: "https://www.youtube.com/@abdullahnettoor", icon: "youtube" },
 ];
 
-/** The channel the launch video lives on: "Subscribe" under the first-look TV links here (ticket 145). */
-export const YOUTUBE_CHANNEL = "https://www.youtube.com/@abdullahnettoor";
-
 /**
- * The launch video in the first-look TV (ticket 145). Empty `id`: placeholder mode (a Couch-made poster, "Launch
- * video, coming soon", and Subscribe; nothing is fetched from YouTube, at build time or ever). With an `id` (the part
- * after watch?v=): the TV ends on the video's thumbnail, saved into the build by scripts/launch-thumb.mjs (pnpm build
- * runs it), and YouTube loads only when the visitor presses play. `title` is the video's title, as on YouTube.
- * COUCH_LAUNCH_ID (and COUCH_LAUNCH_THUMB, a local picture) override both for a build; the tests use them.
+ * The launch video in the first-look TV (ticket 145): opening YouTube on the TV plays it. Empty `id`: placeholder mode
+ * (YouTube opens to a Couch-made poster, "Launch video", "Coming soon to YouTube"; nothing is fetched from YouTube, at
+ * build time or ever). With an `id` (the part after watch?v=): YouTube opens to YouTube's own player for it, cued, over
+ * the video's thumbnail (saved into the build by scripts/launch-thumb.mjs; pnpm build runs it); nothing is requested
+ * from YouTube until the visitor opens YouTube. `title` is the video's title, as on YouTube. COUCH_LAUNCH_ID (and
+ * COUCH_LAUNCH_THUMB, a local picture) override them for a build; the tests use them.
  */
-export const LAUNCH_VIDEO: { id: string; title: string } = { id: "", title: "Couch, a calm home screen for your TV" };
+export const LAUNCH_VIDEO: { id: string; title: string } = { id: "0EyRAw2KQhE", title: "Movie night on your Mac. Your phone's the remote" };
 
 /**
  * The hero intro (ticket 139). "sequence": the logo plays first, then the headline, text and buttons arrive.

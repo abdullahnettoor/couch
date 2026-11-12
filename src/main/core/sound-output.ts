@@ -228,6 +228,17 @@ export class SoundOutput {
       .map((s) => `${s.label} · Follows the Mac's output`);
   }
 
+  /**
+   * The Quick settings drawer's note over the App `front`: what it plays through right now. None
+   * with System default in effect, where everything plays through the Mac's output anyway.
+   */
+  drawerNotes(front: string | undefined): string[] {
+    if (!this.#effective()) return [];
+    return this.#h.sinks
+      .filter((s) => s.followsMacOutput && s.id === front)
+      .map((s) => `${s.label} plays through the Mac's output`);
+  }
+
   payload(): SoundPayload {
     const selected = this.#effective();
     const notes = this.#notes();

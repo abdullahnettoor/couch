@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 import type { Command, ScreenPayload, SetupPayload } from "../shared/protocol.ts";
+import { readCss, selectorsOf } from "./testing/css-rules.ts";
+
+const glass = readCss("glass.css");
 
 const sent: Command[] = [];
 let renderSetup: (p: ScreenPayload) => void;
@@ -212,9 +215,8 @@ describe("the Apps step", () => {
     expect(panel.querySelector<HTMLElement>(".s-tiles")!.style.getPropertyValue("--cols")).toBe(
       "3",
     );
-    const css = readFileSync(join(import.meta.dirname, "glass.css"), "utf8");
-    expect(css).toMatch(/\.s-tile\.off > \.g-tile \{[^}]*filter/);
-    expect(css).toMatch(/\.s-tile\.off \.s-tick \{[^}]*opacity: 0/);
+    expect(glass.prop(".setup .s-tile.off > .g-tile", "filter")).not.toBe("");
+    expect(glass.prop(".setup .s-tile.off .s-tick", "opacity")).toBe("0");
   });
 
   test("a switch flips in place; a click answers a tile, and a button counts after the tiles", () => {
@@ -275,16 +277,28 @@ describe("the intro", () => {
 });
 
 describe("Home under Setup", () => {
-  const read = (f: string) => readFileSync(new URL(f, import.meta.url), "utf8");
-  const css = read("./glass.css");
-
   test("only the panel is hidden when it is closed; Home takes its own modifier, so its wallpaper stays", () => {
-    const home = read("./views/home.ts");
+    // Reads home.ts's source: which class Home toggles is not something a rendered DOM shows without a Setup run.
+    const home = readFileSync(join(import.meta.dirname, "views/home.ts"), "utf8");
     expect(home).toContain('toggle("in-setup"');
     expect(home).not.toContain('toggle("setup"');
-    expect(css).not.toMatch(/\.home\.setup/);
-    const hides = /\.home\.in-setup[^{]*\{[^}]*display: none/.exec(css)?.[0] ?? "";
-    expect(hides).not.toContain(".h-photo");
-    expect(css).not.toMatch(/\n\.setup \{[^}]*opacity: 0/);
+    const selectors = glass.rules.flatMap(selectorsOf);
+    expect(selectors.some((s) => s.includes(".home.setup"))).toBe(false);
+    const hidden = glass.rules
+      .filter((r) => r.style.getPropertyValue("display") === "none")
+      .flatMap(selectorsOf)
+      .filter((s) => s.includes(".home.in-setup"));
+    expect(hidden).toContain(".home.in-setup .h-clock");
+    expect(hidden.some((s) => s.includes(".h-photo"))).toBe(false);
+    // The full-screen layer is never see-through (a faded parent turns off its glass box's blur: #33); the panel's box fades itself.
+    expect(glass.prop("#setup.setup", "opacity")).toBe("");
+    expect(glass.prop(".setup .box", "opacity")).toBe("0");
+    expect(glass.prop(".setup.show .box", "opacity")).toBe("1");
+    const subject = (s: string) => s.split(/\s*[\s>+~]\s*/).at(-1)!;
+    const fadesSetup = glass.rules
+      .filter((r) => r.style.getPropertyValue("opacity") === "0")
+      .flatMap(selectorsOf)
+      .filter((s) => /\.setup(?![\w-])/.test(subject(s)) && !subject(s).includes("#setup"));
+    expect(fadesSetup).toEqual([]);
   });
 });

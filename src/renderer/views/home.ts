@@ -5,6 +5,7 @@ import { glassPill, topbar } from "./glass.ts";
 import { photoVars, wallpaperVars, type PictureTile } from "../../shared/wallpapers.ts";
 import type { WallpaperChoice } from "../../shared/wallpapers.ts";
 import { planPhoto, type Photo } from "../photo-plan.ts";
+import { ClockGlass } from "../clock-glass.ts";
 
 function escapeHtml(text: string): string {
   return text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -108,8 +109,8 @@ function showPhoto(choice: "builtin" | "picture", ready: Photo | undefined): voi
   if (plan === "clear") {
     shownPhoto = undefined;
     loadingUrl = "";
-    for (const name of ["--wp-photo", "--wp-dim"]) v.style.removeProperty(name);
-    v.classList.remove("photo");
+    for (const name of ["--wp-photo", "--wp-dim", "--wp-light"]) v.style.removeProperty(name);
+    v.classList.remove("photo", "crossfading");
   } else if (plan === "load" && ready && loadingUrl !== ready.url) {
     loadingUrl = ready.url;
     const image = new Image();
@@ -132,6 +133,7 @@ function showPhoto(choice: "builtin" | "picture", ready: Photo | undefined): voi
 }
 
 /** A slow crossfade: the picture that was showing stays over the new one and fades out. */
+let crossfadeEnds: ReturnType<typeof setTimeout> | undefined;
 function fadeFrom(previous: string): void {
   const layer = photoEl?.querySelector<HTMLElement>(".h-photo-img");
   if (!layer) return;
@@ -141,6 +143,11 @@ function fadeFrom(previous: string): void {
   layer.after(old);
   requestAnimationFrame(() => (old.style.opacity = "0"));
   setTimeout(() => old.remove(), FADE_MS + 200);
+  // While this is on, the dim and the clock's tint ease to the new picture's levels with the fade.
+  const v = view!;
+  v.classList.add("crossfading");
+  clearTimeout(crossfadeEnds);
+  crossfadeEnds = setTimeout(() => v.classList.remove("crossfading"), FADE_MS + 200);
 }
 
 /** Layers that outlive a render so state changes can cross-fade. */
@@ -148,6 +155,10 @@ let ambientBg: HTMLElement | undefined;
 let photoEl: HTMLElement | undefined;
 let scrim: HTMLElement | undefined;
 let clockEl: HTMLElement | undefined;
+let clockTime: HTMLElement | undefined;
+let clockDate: HTMLElement | undefined;
+let clockGlass: ClockGlass | undefined;
+let shownTime = "";
 let heroEl: HTMLElement | undefined;
 let chrome: HTMLElement | undefined;
 
@@ -183,10 +194,16 @@ export function render(payload: ScreenPayload): void {
     photoEl = el(
       "div",
       "h-photo",
-      '<i class="h-photo-img"></i><i class="h-photo-dim"></i><i class="h-photo-blur top"></i><i class="h-photo-blur bottom"></i>',
+      '<i class="h-photo-img"></i><i class="h-photo-dim"></i><i class="h-photo-blur bottom"></i>',
     );
     scrim = el("div", "h-scrim");
     clockEl = el("div", "h-clock");
+    clockTime = el("div", "t num");
+    clockDate = el("div", "d");
+    clockEl.append(clockTime, clockDate);
+    clockGlass?.dispose();
+    clockGlass = new ClockGlass(clockTime);
+    shownTime = "";
     heroEl = el("div", "h-hero");
     chrome = el("div", "h-chrome");
     bgKey = "";
@@ -219,9 +236,15 @@ export function render(payload: ScreenPayload): void {
   if (hero) heroEl!.replaceChildren(...heroHtml(hero, focused));
   else for (const b of heroEl!.querySelectorAll("[data-id]")) b.classList.remove("focused");
   const { time, suffix } = clockParts(payload.now, payload.timeFormat);
-  clockEl!.innerHTML =
-    `<div class="t num">${time}${suffix ? `<small>${suffix}</small>` : ""}</div>` +
-    `<div class="d">${greeting(date)} · ${date.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" })}</div>`;
+  const timeHtml = `${time}${suffix ? `<small>${suffix}</small>` : ""}`;
+  // Only a new minute (or format) touches the time, and only then are the glass's masks redrawn.
+  if (shownTime !== timeHtml) {
+    shownTime = timeHtml;
+    clockTime!.innerHTML = timeHtml;
+    clockGlass!.draw();
+  }
+  const dateLine = `${greeting(date)} · ${date.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" })}`;
+  if (clockDate!.textContent !== dateLine) clockDate!.textContent = dateLine;
 
   const row = el("div", "h-row");
   for (const app of (payload.homeApps ?? []).filter((a) => a.shown))

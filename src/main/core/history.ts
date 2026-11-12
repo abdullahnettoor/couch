@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import type { LibraryEntry } from "../../shared/protocol.ts";
 import type { Store } from "../ports/store.ts";
 
 export const MIN_RECORD_SECONDS = 60;
@@ -39,6 +40,20 @@ export class History {
 
   isWatched(path: string): boolean {
     return this.#items[path]?.watched === true;
+  }
+
+  /** A video entry with its watched tag or progress. */
+  decorate(entry: LibraryEntry): LibraryEntry {
+    if (entry.kind !== "video") return entry;
+    const progress = this.progress(entry.path);
+    if (progress) {
+      const left = Math.max(1, Math.ceil((progress.duration - progress.position) / 60));
+      return {
+        ...entry,
+        progress: { fraction: progress.position / progress.duration, left: `${left} min left` },
+      };
+    }
+    return this.isWatched(entry.path) ? { ...entry, watched: true } : entry;
   }
 
   /** Epoch ms of the last save for this video, or undefined if it has no record. */

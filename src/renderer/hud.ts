@@ -21,6 +21,8 @@ export function renderHud(payload: ScreenPayload): void {
 }
 
 let confirmKey = "";
+let shape = "";
+let buttonEls: HTMLElement[] = [];
 
 /** The question (Leave YouTube?, Quit Couch?) over every view; YouTube draws its own over the web view. */
 export function renderConfirm(payload: ScreenPayload): void {
@@ -29,13 +31,28 @@ export function renderConfirm(payload: ScreenPayload): void {
   if (key === confirmKey) return;
   confirmKey = key;
   confirm.classList.toggle("show", Boolean(c));
-  if (!c) return;
+  if (!c) {
+    confirm.querySelector(".in")?.classList.remove("in");
+    shape = "";
+    return;
+  }
+  const same = `${c.title}|${c.body ?? ""}|${c.buttons.join("|")}`;
+  if (same === shape && confirm.firstElementChild?.classList.contains("in")) {
+    // Only the focus moved: keep the box, so its fade-in carries on instead of restarting at once.
+    const d = describeConfirm(c, (n) => `calc(${n} * var(--u))`);
+    d.buttons.forEach((button, i) => {
+      for (const [k, v] of Object.entries(button.style)) buttonEls[i]?.style.setProperty(k, v);
+    });
+    return;
+  }
+  shape = same;
+  buttonEls = [];
+  const fresh = !confirm.firstElementChild?.classList.contains("in");
   confirm.replaceChildren();
   const d = describeConfirm(c, (n) => `calc(${n} * var(--u))`);
   const style = (el: HTMLElement, props: Record<string, string>) => {
     for (const [k, v] of Object.entries(props)) el.style.setProperty(k, v);
   };
-  confirm.style.background = d.scrim;
   const box = document.createElement("div");
   box.className = "box glass";
   style(box, d.boxStyle);
@@ -54,6 +71,7 @@ export function renderConfirm(payload: ScreenPayload): void {
       event.stopPropagation();
       window.couch.send(confirmMouseCommand("click", button.index));
     });
+    buttonEls.push(b);
     row.append(b);
   }
   if (d.body) {
@@ -63,4 +81,6 @@ export function renderConfirm(payload: ScreenPayload): void {
     box.append(title, body, row);
   } else box.append(title, row);
   confirm.append(box);
+  if (fresh) void box.offsetWidth;
+  box.classList.add("in");
 }

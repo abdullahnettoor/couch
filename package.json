@@ -1,6 +1,6 @@
 {
   "name": "couch",
-  "version": "0.2.0-beta.2",
+  "version": "0.2.0-beta.6",
   "private": true,
   "license": "GPL-3.0-or-later",
   "type": "module",
@@ -19,6 +19,10 @@
     "webkit-selftest": "node scripts/media-remote-selftest.mjs && node scripts/webkit-selftest.mjs && node scripts/webkit-cookies-check.mjs",
     "webkit-test-page-check": "node scripts/webkit-test-page-check.mjs",
     "webkit-cookies-check": "node scripts/webkit-cookies-check.mjs",
+    "look:snap": "electron scripts/look-snap.mts",
+    "glass:fade": "electron scripts/glass-fade-check.mts",
+    "clock:frames": "electron scripts/clock-frames-check.mts",
+    "look:record": "node scripts/look-record.mts",
     "drm-check": "node scripts/drm-check/run.mjs",
     "sample": "sh scripts/make-sample.sh",
     "icons": "sh scripts/make-icons.sh",

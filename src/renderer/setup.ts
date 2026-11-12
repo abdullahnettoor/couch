@@ -3,15 +3,15 @@ import { iconSvg } from "../shared/icons.ts";
 import { CHECK_SVG } from "../shared/setup-controls.ts";
 import type { ScreenPayload, SetupPayload } from "../shared/protocol.ts";
 import { setupControls } from "../shared/setup-controls.ts";
+import { designUnit } from "../shared/design-unit.ts";
+import { GLASS } from "../shared/look.ts";
 import sofa from "./assets/sofa.png";
 import { qrSvg } from "./views/dom.ts";
 
 const panel = document.getElementById("setup")!;
 
 /** Easings: the Glass ease (expo out), the end card's back.out(1.7) and a quick ease-in for exits. */
-const EASE = "cubic-bezier(0.16, 1, 0.3, 1)";
-const BACK = "cubic-bezier(0.34, 1.56, 0.64, 1)";
-const EXIT = "cubic-bezier(0.4, 0, 1, 1)";
+const { glass: EASE, back: BACK, exit: EXIT } = GLASS.motion.ease;
 /** When the intro hands over to the panel, and how long that move takes (ms). */
 const HANDOFF = 2500;
 const HANDOFF_MS = 850;
@@ -25,7 +25,7 @@ let introPlayed = false;
 let intro: { animations: Animation[]; skip(): void } | null = null;
 let closing: number | undefined;
 
-const unit = () => Math.min(innerWidth / 1920, innerHeight / 1080) || 1;
+const unit = () => designUnit(innerWidth, innerHeight) || 1;
 const calm = () => matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 const animate = (
   node: Element,
@@ -93,8 +93,10 @@ function open(): void {
     shell = null;
     panel.replaceChildren();
   }
-  panel.classList.add("show");
-  if (shell) return;
+  if (shell) {
+    panel.classList.add("show");
+    return;
+  }
   const box = el("div", "box glass");
   const mark = el("div", "s-mark");
   const img = el("img", "");
@@ -108,6 +110,8 @@ function open(): void {
   box.append(halo, mark, stage, dots);
   panel.replaceChildren(el("div", "s-veil"), el("div", "s-light"), box);
   shell = { box, stage, dots, mark };
+  void box.offsetWidth;
+  panel.classList.add("show");
 }
 
 function drawDots(s: SetupPayload): void {
@@ -414,7 +418,7 @@ function playIntro(): void {
       a(
         big,
         [{ filter: "brightness(1.9)" }, { filter: "brightness(1)" }],
-        then(400, 700, "cubic-bezier(0.33, 1, 0.68, 1)"),
+        then(400, 700, GLASS.motion.ease.settle),
       ),
       a(
         name,

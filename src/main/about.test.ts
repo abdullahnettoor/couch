@@ -1,7 +1,13 @@
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vite-plus/test";
+import { FileStore } from "./ports/store.ts";
 import { startHarness, type FakePhone, type Harness } from "./testing/harness.ts";
 import { devUpdates } from "./ports/updates.ts";
-import { NOT_INSTALLED } from "./core/about-page.ts";
+import { NOT_INSTALLED } from "./core/pages/about-page.ts";
+import { SUPPORT_URL } from "../shared/links.ts";
 
 let h: Harness;
 afterEach(() => h.stop());
@@ -34,7 +40,12 @@ describe("Settings → About", () => {
   test("About sits just above Quit Couch; it shows the version and build, Check for updates and Beta updates", async () => {
     const phone = await openAbout();
     expect(last().about?.version).toBe("0.2.0 (12)");
-    expect(labels()).toEqual(["Check for updates", "Beta updates", "Run setup again"]);
+    expect(labels()).toEqual([
+      "Check for updates",
+      "Beta updates",
+      "Run setup again",
+      "Support Couch",
+    ]);
     expect(last().focusedLabel).toBe("Check for updates");
     expect(last().about?.beta).toBe(false);
     expect(last().back?.label).toBe("Settings");
@@ -63,7 +74,12 @@ describe("Settings → About", () => {
     h.updater.available();
     await changed(phone);
     expect(last().about?.check).toBe("Downloading…");
-    expect(labels()).toEqual(["Check for updates", "Beta updates", "Run setup again"]);
+    expect(labels()).toEqual([
+      "Check for updates",
+      "Beta updates",
+      "Run setup again",
+      "Support Couch",
+    ]);
     h.updater.download("Couch 0.2.1");
     await changed(phone);
     expect(last().about?.check).toBe("0.2.1 is ready");
@@ -72,6 +88,7 @@ describe("Settings → About", () => {
       "Restart to update",
       "Beta updates",
       "Run setup again",
+      "Support Couch",
     ]);
   });
 
@@ -173,5 +190,110 @@ describe("Home's update icon", () => {
     await phone.press("openUpdate");
     expect(last().state.view).toBe("about");
     expect(last().focusedLabel).toBe("Restart to update");
+  });
+});
+
+describe("Settings → About → Support Couch", () => {
+  test("lists Support Couch with its line; OK opens a panel with the address and Back closes it", async () => {
+    const phone = await openAbout();
+    expect(labels()).toContain("Support Couch");
+    expect(last().about?.support).toEqual({
+      line: "Couch is free and open source. If it's earned a place on your TV, you can buy me a coffee.",
+      url: SUPPORT_URL,
+      short: "buymeacoffee.com/abdullahnettoor",
+      open: false,
+    });
+    await focus(phone, "Support Couch");
+    await phone.press("ok");
+    expect(last().state.view).toBe("about");
+    expect(last().about?.support.open).toBe(true);
+    expect(labels()).toEqual(["Close"]);
+    await phone.press("back");
+    expect(last().about?.support.open).toBe(false);
+    expect(last().state.view).toBe("about");
+    expect(labels()).toContain("Support Couch");
+    expect(last().focusedLabel).toBe("Support Couch");
+  });
+
+  test("OK on Close closes the panel too, and leaving About forgets it", async () => {
+    const phone = await openAbout();
+    await focus(phone, "Support Couch");
+    await phone.press("ok");
+    await phone.press("ok");
+    expect(last().about?.support.open).toBe(false);
+    await phone.press("ok");
+    expect(last().about?.support.open).toBe(true);
+    await phone.press("home");
+    await phone.press("openSettings");
+    for (let i = 0; i < 12 && last().focusedLabel !== "About"; i++) await phone.press("down");
+    await phone.press("ok");
+    expect(last().about?.support.open).toBe(false);
+  });
+
+  test("the phone's snapshot carries the link on About, and nowhere else", async () => {
+    const phone = await openAbout();
+    expect(phone.last?.link).toEqual({ label: "Support Couch", url: SUPPORT_URL });
+    await phone.press("back");
+    expect(phone.last?.link).toBeUndefined();
+    await phone.press("home");
+    expect(phone.last?.link).toBeUndefined();
+  });
+
+  test("nothing else in the app mentions the address", { timeout: 30_000 }, () => {
+    const hits = execFileSync("git", ["grep", "--untracked", "-l", "buymeacoffee", "--", "src"], {
+      cwd: join(import.meta.dirname, "..", ".."),
+      encoding: "utf8",
+    })
+      .split("\n")
+      .filter((f) => f && !f.endsWith(".test.ts") && !f.endsWith("page-tour.json"));
+    expect(hits).toEqual(["src/shared/links.ts"]);
+  });
+
+  test("no other surface offers support: Home, the player, Setup and every other Settings page", async () => {
+    const root = mkdtempSync(join(tmpdir(), "couch-support-"));
+    mkdirSync(join(root, "Movies"));
+    writeFileSync(join(root, "Movies", "Dune.mkv"), "");
+    const store = new FileStore(mkdtempSync(join(tmpdir(), "couch-support-store-")));
+    store.write("library", { folders: [root] });
+    h = await startHarness(store);
+    const phone = await h.connectPhone();
+    const seen = new Set<string>();
+    const nothing = (where: string) => {
+      const screen = last();
+      seen.add(screen.state.view);
+      expect(screen.about, where).toBeUndefined();
+      expect(screen.grid.map((i) => i.id + i.label).join("|"), where).not.toMatch(/support/i);
+      expect(JSON.stringify(screen), where).not.toMatch(/support couch|buymeacoffee/i);
+      expect(phone.last?.link, where).toBeUndefined();
+      expect(JSON.stringify(phone.last), where).not.toMatch(/support couch|buymeacoffee/i);
+    };
+    nothing("Home");
+    await phone.press("openSettings");
+    nothing("Settings");
+    const rows = labels().filter((l) => l !== "About" && l !== "Quit Couch");
+    expect(rows.length).toBeGreaterThan(3);
+    for (const row of rows) {
+      await phone.press("back");
+      await phone.press("openSettings");
+      await focus(phone, row);
+      await phone.press("ok");
+      nothing(`Settings → ${row}`);
+    }
+    await phone.press("home");
+    await phone.press("right");
+    await phone.press("right");
+    for (let i = 0; i < 4; i++) await phone.press("ok");
+    expect(last().state.view).toBe("player");
+    nothing("the player");
+    await phone.press("home");
+    await phone.press("openSettings");
+    await focus(phone, "About");
+    await phone.press("ok");
+    await focus(phone, "Run setup again");
+    await phone.press("ok");
+    expect(last().setup).toBeDefined();
+    nothing("Setup");
+    expect(seen.size).toBeGreaterThan(3);
+    rmSync(root, { recursive: true, force: true });
   });
 });

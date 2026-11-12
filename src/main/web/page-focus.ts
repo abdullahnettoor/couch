@@ -59,6 +59,8 @@ export interface FocusLayout {
   ignore?: string[];
   /** The site's own modal containers, on top of role=dialog and aria-modal=true: while one is on screen the highlight stays inside the topmost. */
   scopes?: string[];
+  /** Overlays that never count as covering a control (a hover preview): the highlight stays on the control beneath. */
+  passive?: string[];
   /** Where the highlight lands when a pop-up opens: the first usable match of the first selector that has one, inside the pop-up. While none matches yet, the highlight waits (never on a text link); the wait ends when one does or the household moves, and from then on it stays where they put it. */
   modalEntry?: string[];
   /** Rows of cards: Left/Right stay in the row, Up/Down leave it; at the row's end `next`/`prev` (inside the row) page it. */
@@ -261,6 +263,16 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         var x = Math.min(Math.max((Math.max(r.left, 0) + Math.min(r.right, innerWidth)) / 2, 0), innerWidth - 1);
         var y = Math.min(Math.max((Math.max(r.top, 0) + Math.min(r.bottom, innerHeight)) / 2, 0), innerHeight - 1);
         var top = hitAt(x, y);
+        if (top && LAYOUT.passive && LAYOUT.passive.length && typeof document.elementsFromPoint === 'function') {
+          var stack = document.elementsFromPoint(x, y);
+          top = null;
+          for (var q = 0; q < stack.length; q++) {
+            if (stack[q].id === SHIELD_ID) continue;
+            if (stack[q] !== el && !el.contains(stack[q]) && matchesAny(stack[q], LAYOUT.passive)) continue;
+            if (stack[q] !== el && !el.contains(stack[q]) && stack[q].closest && stack[q].closest(LAYOUT.passive.join(','))) continue;
+            top = stack[q]; break;
+          }
+        }
         return !!top && top !== el && !el.contains(top);
       } catch (e) { return false; }
     };
@@ -665,9 +677,22 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       } catch (e) { return ''; }
     };
     var paging = false;
+    // The held control when a scroll of the household's left it wholly off screen.
+    var strayed = null;
+    var offScreen = function (r) { return r.right <= 0 || r.bottom <= 0 || r.left >= innerWidth || r.top >= innerHeight; };
     var move = function (dir, afterPaging) {
       var list = candidates();
       var from = current && usable(current) ? rectOf(current) : (lost && lost.rect ? lost.rect : null);
+      // The household scrolled the held control off screen: start again from what is on screen (nearest the middle), instead of scrolling back to it.
+      if (strayed && strayed === current && current.isConnected && !offScreen(rectOf(current))) strayed = null;
+      if (strayed && strayed === current && current.isConnected) {
+        var seen = list.filter(function (c) { return !offScreen(c.rect); });
+        if (seen.length) {
+          var j = pick(null, seen.map(function (c) { return c.rect; }), dir, view());
+          strayed = null;
+          if (j >= 0) { land(seen[j].el, false); return; }
+        }
+      }
       // After paging, Netflix may have made the old card unfocusable: it still says which row we are in, and where.
       var held = current && current.isConnected ? current : null;
       var row = held ? rowOf(held) : null;
@@ -709,15 +734,20 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         return;
       }
       if (list[i].el === current) return;
+      land(list[i].el, !!row);
+    };
+    // The household's move puts the highlight on el.
+    var land = function (el, inRow) {
       var active = document.activeElement;
       if (editable(active) && active.blur) active.blur();
-      current = list[i].el;
+      current = el;
       heldKey = keyOf(current);
       lost = null;
       displaced = null;
       pending = null;
+      strayed = null;
       if (layers.length) layers[layers.length - 1].entering = false;
-      try { current.scrollIntoView({ block: row || rowOf(current) ? 'center' : 'nearest', inline: 'nearest' }); } catch (e) {}
+      try { current.scrollIntoView({ block: inRow || rowOf(current) ? 'center' : 'nearest', inline: 'nearest' }); } catch (e) {}
       draw();
     };
     var act = function (key, dir) {
@@ -825,8 +855,20 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'open', 'hidden', 'aria-modal', 'aria-hidden'],
       });
     } catch (e) {}
-    addEventListener('scroll', function () {
+    // A click of the household's on a control makes it the held one: the pop-up it opens is then opened from, and closes back to, that control.
+    addEventListener('click', function (e) {
+      try {
+        if (!e.isTrusted || barOn || noRing()) return;
+        var el = e.target && e.target.closest ? e.target.closest(SELECTOR) : null;
+        if (!el || el === current || !usable(el)) return;
+        current = el; heldKey = keyOf(el); lost = null; displaced = null; pending = null; strayed = null;
+        if (layers.length) layers[layers.length - 1].entering = false;
+        draw();
+      } catch (err) {}
+    }, true);
+    addEventListener('scroll', function (e) {
       draw();
+      try { if (e && e.isTrusted && current && current.isConnected && !scopeEl() && offScreen(rectOf(current))) strayed = current; } catch (err) {}
       try { if (current && heldKey && !scopeEl() && !pending) heldKey.view = viewOf(current); } catch (e) {}
     }, true);
     addEventListener('resize', draw, true);

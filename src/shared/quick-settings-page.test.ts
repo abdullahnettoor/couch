@@ -1,10 +1,14 @@
 import { runInNewContext } from "node:vm";
 import { describe, expect, test } from "vite-plus/test";
 import type { QuickPayload } from "./protocol.ts";
-import { readFileSync } from "node:fs";
 import { CONFIRM_LAYOUT } from "./confirm-layout.ts";
-import { COLORS, glassTokensCss } from "./glass-tokens.ts";
-import { QUICK_SLIDE_MS, drawerGlassRect, quickSettingsPage } from "./quick-settings-page.ts";
+import { GLASS, lookCss } from "./look.ts";
+import {
+  DRAWER,
+  QUICK_SLIDE_MS,
+  drawerGlassRect,
+  quickSettingsPage,
+} from "./quick-settings-page.ts";
 import { ICON_PATHS } from "./icons.ts";
 
 /** Custom properties declared on the root element, with var() resolved; undefined where a var() has no value there (CSS makes that invalid). */
@@ -92,12 +96,12 @@ describe("the Quick settings page", () => {
 
   test("shows the note about an App that follows the Mac's output, escaped, and none without", () => {
     const { drawer, onQuick } = load();
-    onQuick({ ...payload, notes: ["Netflix · Follows the Mac's output"] });
-    expect(drawer.innerHTML).toContain("Netflix · Follows the Mac&#39;s output");
+    onQuick({ ...payload, notes: ["Netflix plays through the Mac's output"] });
+    expect(drawer.innerHTML).toContain("Netflix plays through the Mac&#39;s output");
     expect(drawer.innerHTML).not.toContain('data-id="Netflix');
     expect(drawer.innerHTML).toContain('<div class="row note">');
     onQuick(payload);
-    expect(drawer.innerHTML).not.toContain("follows the Mac");
+    expect(drawer.innerHTML).not.toContain("Mac&#39;s output");
   });
 
   test("leaves Picture off out when the core didn't offer it, and slides out on nothing", () => {
@@ -229,8 +233,9 @@ describe("the Quick settings page", () => {
 
   test("the native glass starts where the panel starts: at the window's right edge, the same travel", () => {
     const r = drawerGlassRect(1920, 1080);
-    const panelWidth = Number(/width:calc\(([\d.]+)\*var\(--u\)\)/.exec(pageCss())![1]);
-    expect(r.w).toBeCloseTo(panelWidth);
+    const drawer = /#drawer \{([^}]*)\}/.exec(pageCss())![1]!;
+    expect(drawer).toContain(`width:calc(${DRAWER.width}*var(--u));`);
+    expect(r.w).toBeCloseTo(DRAWER.width);
     expect(r.x + r.w).toBeCloseTo(1920);
   });
 
@@ -240,30 +245,27 @@ describe("the Quick settings page", () => {
     expect(rule).toMatch(/right:0/);
     expect(rule).not.toMatch(/(^|[;\s])left:/);
     expect(rule).toMatch(/translateX\(100%\)/);
-    expect(rule).toMatch(/transition:transform 250ms var\(--ease\)/);
-    expect(rule).toMatch(/border-radius:calc\(36\*var\(--u\)\) 0 0 calc\(36\*var\(--u\)\)/);
+    expect(rule).toMatch(/transition:transform var\(--duration-drawer\) var\(--ease-glass\)/);
+    expect(rule).toMatch(/border-radius:var\(--radius-panel\) 0 0 var\(--radius-panel\)/);
   });
 });
 
 describe("the drawer page's design tokens", () => {
-  const renderer = rootProps(
-    readFileSync(new URL("../renderer/glass.css", import.meta.url), "utf8") +
-      glassTokensCss({ unit: "var(--u)" }),
-  );
+  const renderer = rootProps(lookCss(GLASS, { unit: "var(--u)", defineUnit: true }));
 
-  test("--r-row resolves on the root to the renderer's own value, so rows are rounded", () => {
+  test("--radius-row resolves on the root to the renderer's own value, so rows are rounded", () => {
     const drawer = rootProps(pageCss());
-    expect(renderer.get("--r-row")).toBe("calc(22 * min(100vw / 1920, 100vh / 1080))");
-    expect(drawer.get("--r-row")).toBe(renderer.get("--r-row"));
-    expect(drawer.get("--r-tile")).toBe(renderer.get("--r-tile"));
+    expect(renderer.get("--radius-row")).toBe("calc(22 * min(100vw / 1920, 100vh / 1080))");
+    expect(drawer.get("--radius-row")).toBe(renderer.get("--radius-row"));
+    expect(drawer.get("--radius-tile")).toBe(renderer.get("--radius-tile"));
   });
 
   test("the rows, buttons and panel all take their radius from tokens that resolve", () => {
     const css = pageCss();
-    expect(css).toMatch(/\.row \{[^}]*border-radius:var\(--r-row\)/);
-    expect(rule(css, ".btn")).toContain("border-radius:var(--r-row)");
+    expect(css).toMatch(/\.row \{[^}]*border-radius:var\(--radius-row\)/);
+    expect(rule(css, ".btn")).toContain("border-radius:var(--radius-row)");
     expect(rule(css, "#drawer")).toMatch(
-      /border-radius:calc\(36\*var\(--u\)\) 0 0 calc\(36\*var\(--u\)\)/,
+      /border-radius:var\(--radius-panel\) 0 0 var\(--radius-panel\)/,
     );
   });
 });
@@ -275,8 +277,8 @@ describe("the drawer's material", () => {
       expect(rule(css, "#drawer")).toContain("backdrop-filter");
       expect(rule(css, "#drawer.media")).toContain("background:var(--glass-solid)");
     }
-    expect(Number(/rgba\([^)]*,\s*([\d.]+)\)/.exec(COLORS["glass-solid"])![1])).toBeGreaterThan(
-      Number(/rgba\([^)]*,\s*([\d.]+)\)/.exec(COLORS["glass-strong"])![1]),
+    expect(Number(/rgba\([^)]*,\s*([\d.]+)\)/.exec(GLASS.color.glassSolid)![1])).toBeGreaterThan(
+      Number(/rgba\([^)]*,\s*([\d.]+)\)/.exec(GLASS.color.glassStrong)![1]),
     );
   });
 
@@ -295,9 +297,11 @@ describe("the drawer's material", () => {
   test("the scrim dims the Screen like the confirm question and fades over the slide", () => {
     for (const glass of [false, true]) {
       const css = pageCss(glass);
-      expect(rule(css, "#scrim")).toContain(`background:${CONFIRM_LAYOUT.scrim}`);
+      expect(rule(css, "#scrim")).toContain("background:var(--scrim)");
+      expect(GLASS.color.scrim).toBe(CONFIRM_LAYOUT.scrim);
       expect(rule(css, "#scrim")).toContain("opacity:0");
-      expect(rule(css, "#scrim")).toContain(`transition:opacity ${QUICK_SLIDE_MS}ms`);
+      expect(rule(css, "#scrim")).toContain("transition:opacity var(--duration-drawer)");
+      expect(QUICK_SLIDE_MS).toBe(250);
       expect(rule(css, "#scrim.in")).toContain("opacity:1");
     }
   });
@@ -359,7 +363,7 @@ describe("the drawer's material", () => {
     expect(drawer).not.toContain("--glass-strong");
     expect(drawer).not.toContain("backdrop-filter");
     expect(drawer).toContain("background:transparent");
-    expect(drawer).toContain("border-radius:calc(36*var(--u))");
+    expect(drawer).toContain("border-radius:var(--radius-panel)");
   });
 
   test("the native glass rect is the panel: 633.6 design units wide, full height, on the right", () => {

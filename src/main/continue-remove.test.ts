@@ -234,6 +234,7 @@ describe("the Screen's menu on a Continue tile", () => {
     expect(h!.screen.last.state.view).toBe("fixMatch");
     h!.app.screenCommand({ command: "back" });
     expect(h!.screen.last.state.view).toBe("home");
+    expect(h!.screen.last.focusedId).toBe(s.film);
   });
 
   test("Menu on something that is not a Continue tile does nothing", async () => {

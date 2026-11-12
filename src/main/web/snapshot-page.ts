@@ -224,6 +224,15 @@ export function snapshotPage(snap: Snapshot) {
     createElement: () => ({ style: {}, remove() {}, setAttribute() {} }),
     querySelectorAll: (sel: string) => root.querySelectorAll(sel).filter((e) => e.connected),
     // The topmost element under the point: highest stacking order, then the later in the page.
+    elementsFromPoint: (x: number, y: number) => {
+      const hits: FakeEl[] = [];
+      all.forEach((e) => {
+        const r = e.getBoundingClientRect();
+        if (!e.connected || e.hiddenStyle) return;
+        if (x >= r.left && x < r.right && y >= r.top && y < r.bottom) hits.push(e);
+      });
+      return hits.sort((a, b) => b.effectiveZ - a.effectiveZ || all.indexOf(b) - all.indexOf(a));
+    },
     elementFromPoint: (x: number, y: number) => {
       let top: FakeEl | null = null;
       for (const e of all) {

@@ -127,6 +127,12 @@ export function dimFor(brightness: number): number {
   return Math.round((0.35 + 0.3 * b) * 1000) / 1000;
 }
 
+/** A picture's average brightness (0 to 1) recovered from its dim: `dimFor` backwards. */
+export function lightFor(dim: number): number {
+  const b = Math.min(1, Math.max(0, (dim - 0.35) / 0.3));
+  return Math.round(b * 1000) / 1000;
+}
+
 /** A converted copy's key is 12 hex characters; anything else never reaches a file path. */
 export const CACHE_KEY = /^[0-9a-f]{12}$/;
 
@@ -178,9 +184,13 @@ export function tidyName(file: string): string {
   return out.charAt(0).toUpperCase() + out.slice(1);
 }
 
-/** The CSS variables a picture adds to `.home`: `--wp-photo` and `--wp-dim`. */
+/** The CSS variables a picture adds to `.home`: `--wp-photo`, `--wp-dim` and its brightness `--wp-light` (0 to 1). */
 export function photoVars(tile: { url: string; dim: number }): Record<string, string> {
-  return { "--wp-photo": `url("${tile.url}")`, "--wp-dim": String(tile.dim) };
+  return {
+    "--wp-photo": `url("${tile.url}")`,
+    "--wp-dim": String(tile.dim),
+    "--wp-light": String(lightFor(tile.dim)),
+  };
 }
 
 /** The CSS variables `.home` reads: `--wp-base`, `--wp-glow` and `--wp-drift`. */

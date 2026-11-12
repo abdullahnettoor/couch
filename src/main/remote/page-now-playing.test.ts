@@ -922,3 +922,33 @@ describe("the Apps row", () => {
     expect(el.innerHTML).toBe("marker");
   });
 });
+
+describe("the Support Couch link on About", () => {
+  const about = (extra: Record<string, unknown> = {}) =>
+    page.send({
+      ...page.base,
+      layout: "other",
+      where: "About",
+      typeAvailable: false,
+      link: { label: "Support Couch", url: "https://buymeacoffee.com/abdullahnettoor" },
+      ...extra,
+    });
+
+  test("is a real link that opens in the phone's browser with rel=noopener", () => {
+    const tag = PAGE_HTML.match(/<a[^>]*id="link"[^>]*>/)?.[0] ?? "";
+    expect(tag).toContain('target="_blank"');
+    expect(tag).toContain('rel="noopener"');
+    expect(tag).toContain("hidden");
+    about();
+    const link = page.els.get("link") as unknown as { hidden: boolean; href: string };
+    expect(link.hidden).toBe(false);
+    expect(link.href).toBe("https://buymeacoffee.com/abdullahnettoor");
+    expect(page.els.get("link-label")!.textContent).toBe("Support Couch");
+  });
+
+  test("is hidden when the snapshot carries no link", () => {
+    about();
+    about({ link: undefined, where: "Settings" });
+    expect(hidden("link")).toBe(true);
+  });
+});

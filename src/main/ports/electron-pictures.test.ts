@@ -113,6 +113,23 @@ const pngOf = (grid: Grid) => {
     chunk("IEND", Buffer.alloc(0)),
   ]);
 };
+/** What converting a 4000 × 2000 picture may cost this process: reading, checking and copying it, never decoding it. */
+const MAX_OWN_CPU_MS = 200;
+/** A big flat picture without a grid of 18 million pixels in memory: one row of bytes, repeated. */
+const solidPng = (w: number, h: number, rgb: Rgb = [200, 80, 40]) => {
+  const row = Buffer.alloc(1 + w * 3);
+  for (let x = 0; x < w; x++) row.set(rgb, 1 + x * 3);
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0);
+  ihdr.writeUInt32BE(h, 4);
+  ihdr.set([8, 2, 0, 0, 0], 8);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", deflateSync(Buffer.concat(Array.from({ length: h }, () => row)), { level: 1 })),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+};
 const solid = (w: number, h: number, rgb: Rgb = [200, 80, 40]): Grid =>
   Array.from({ length: h }, () => Array.from({ length: w }, () => rgb));
 
@@ -369,21 +386,17 @@ describe("ElectronConverter", () => {
   });
 
   test("the conversion does not block the event loop", async () => {
-    const src = file(pngOf(solid(6000, 3000)), "big.png");
-    let worst = 0;
-    let last = performance.now();
-    const timer = setInterval(() => {
-      const now = performance.now();
-      worst = Math.max(worst, now - last);
-      last = now;
-    }, 5);
-    const pending = converter().convert(src);
-    await new Promise((r) => setTimeout(r, 20));
-    const out = await pending;
-    clearInterval(timer);
+    const src = file(solidPng(4000, 2000), "big.png");
+    // CPU time, not a timer's lateness: on a loaded machine the whole process is descheduled and a timer runs late
+    // whatever the code does, but CPU time counts only work done here. The decoding is `sips`'s, in a child process
+    // that this does not count; a converter that decoded the picture itself would spend seconds of CPU on it.
+    const before = process.cpuUsage();
+    const out = await converter().convert(src);
+    const { user, system } = process.cpuUsage(before);
     expect(out).toBeDefined();
-    expect(worst).toBeLessThan(150);
-  });
+    const cpuMs = (user + system) / 1000;
+    expect(cpuMs, `CPU spent in this process: ${cpuMs} ms`).toBeLessThan(MAX_OWN_CPU_MS);
+  }, 30_000);
 
   test("the source file is only read: its bytes and modification time stay as they were", async () => {
     const path = file(pngOf(solid(40, 20)), "keep.png");

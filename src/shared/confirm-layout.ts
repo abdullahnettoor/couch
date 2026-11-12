@@ -1,23 +1,34 @@
-import { COLORS } from "./glass-tokens.ts";
+import { GLASS } from "./look.ts";
 import type { Command, Confirmation } from "./protocol.ts";
 
-/** Design pixels (a 1920-wide Screen) and colours of the question box, shared by the Screen and the YouTube page. */
+/** Design pixels (a 1920-wide Screen) and colours of the question box, shared by the Screen and the YouTube page. All taken from the Look. */
 export const CONFIRM_LAYOUT = {
-  scrim: "rgba(0, 0, 0, 0.45)",
-  box: { gap: 40, padY: 56, padX: 72, radius: 48, fontSize: 44, fontWeight: "700" },
-  body: { fontSize: 30, fontWeight: "400", color: COLORS.t2 },
+  scrim: GLASS.color.scrim,
+  box: {
+    gap: 40,
+    padY: 56,
+    padX: 72,
+    radius: GLASS.radius.dialog,
+    fontSize: GLASS.type.size.title,
+    fontWeight: GLASS.type.weight.bold,
+  },
+  body: {
+    fontSize: GLASS.type.size.body,
+    fontWeight: GLASS.type.weight.regular,
+    color: GLASS.color.textSecondary,
+  },
   row: { gap: 24 },
   button: {
     height: 84,
     padX: 40,
-    radius: 42,
-    fontSize: 30,
-    fontWeight: "600",
-    background: "rgba(255, 255, 255, 0.16)",
-    color: COLORS.t2,
-    focusedBackground: "#fff",
-    focusedColor: "#000",
-    focusedScale: 1.06,
+    radius: GLASS.radius.button,
+    fontSize: GLASS.type.size.button,
+    fontWeight: GLASS.type.weight.semibold,
+    background: GLASS.color.buttonFill,
+    color: GLASS.color.textSecondary,
+    focusedBackground: GLASS.focus.bg,
+    focusedColor: GLASS.focus.fg,
+    focusedScale: GLASS.focus.scale,
   },
 } as const;
 

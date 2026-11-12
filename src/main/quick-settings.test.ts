@@ -255,16 +255,92 @@ describe("Quick settings", () => {
 });
 
 describe("Quick settings, an App that follows the Mac's output", () => {
-  test("the drawer carries the note, and has none without such an App", async () => {
+  async function film() {
     const film = new FakeWebApp("film", "Film", { followsMacOutput: true });
-    h = await startHarness(undefined, { apps: [{ entry: entry("film", "Film"), app: film }] });
+    const tube = new FakeWebApp("tube", "Tube");
+    h = await startHarness(undefined, {
+      apps: [
+        { entry: entry("film", "Film"), app: film },
+        { entry: entry("tube", "Tube"), app: tube },
+      ],
+    });
     const phone = await h.connectPhone();
     await settle();
+    return { film, phone };
+  }
+  const openApp = async (phone: FakePhone, id: string) => {
+    await phone.press("home");
+    for (let i = 0; i < 20 && h.screen.last.focusedId !== id; i++) await phone.press("right");
+    await phone.press("ok");
+    expect(h.screen.last.state.view).toBe("app");
+    expect(h.screen.last.state.app).toBe(id);
+  };
+  const choose = async (item: string) => {
+    h.app.screenCommand({ command: "quickPick", args: { item } });
+    await settle();
+  };
+
+  test("over the App with a chosen device in effect, the drawer says it plays through the Mac's output", async () => {
+    const { phone } = await film();
+    await openApp(phone, "film");
     await open(phone);
-    expect(quick()?.notes).toEqual(["Film · Follows the Mac's output"]);
-    await h.stop();
-    const { phone: p2 } = await start();
-    await open(p2);
+    await choose(MONITOR);
+    expect(quick()?.notes).toEqual(["Film plays through the Mac's output"]);
+  });
+
+  test("over the App with System default, or the chosen device missing, there is no note", async () => {
+    const { phone } = await film();
+    await openApp(phone, "film");
+    await open(phone);
+    expect(quick()?.items.find((i) => i.checked)?.id).toBe("out:default");
+    expect(quick()?.notes).toBeUndefined();
+    await choose(MONITOR);
+    h.mac.setOutputDevices([{ uid: "BuiltInSpeakerDevice", name: "MacBook Pro Speakers" }]);
+    await settle();
+    expect(quick()).toBeDefined();
+    expect(quick()?.notes).toBeUndefined();
+  });
+
+  test("over Home, the Library or another App there is no note, even with a chosen device", async () => {
+    const { phone } = await film();
+    await openApp(phone, "film");
+    await open(phone);
+    await choose(MONITOR);
+    await open(phone);
+    const over = async (place: () => Promise<unknown>) => {
+      await place();
+      await open(phone);
+      const notes = quick()?.notes;
+      await open(phone);
+      return notes;
+    };
+    expect(await over(() => phone.press("home"))).toBeUndefined();
+    expect(
+      await over(async () => {
+        await phone.press("home");
+        for (let i = 0; i < 20 && h.screen.last.focusedId !== "library"; i++)
+          await phone.press("right");
+        await phone.press("ok");
+        expect(h.screen.last.state.view).toBe("library");
+      }),
+    ).toBeUndefined();
+    expect(await over(() => openApp(phone, "tube"))).toBeUndefined();
+  });
+
+  test("while it is open, changing the output or leaving the App redraws the note", async () => {
+    const { film: app, phone } = await film();
+    await openApp(phone, "film");
+    await open(phone);
+    await choose(MONITOR);
+    expect(quick()?.notes).toEqual(["Film plays through the Mac's output"]);
+    await choose("out:default");
+    expect(quick()?.notes).toBeUndefined();
+    await choose(SPEAKERS);
+    expect(quick()?.notes).toEqual(["Film plays through the Mac's output"]);
+    app.emit({ type: "failed" });
+    await settle();
+    expect(h.screen.last.state.view).toBe("appError");
+    expect(quick()).toBeDefined();
     expect(quick()?.notes).toBeUndefined();
   });
 });

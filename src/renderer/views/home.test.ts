@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
 import { readFileSync } from "node:fs";
 import { beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/test";
+import { GLASS } from "../../shared/look.ts";
 import type { LibraryEntry, ScreenPayload } from "../../shared/protocol.ts";
 import { WALLPAPERS, wallpaperVars, type PictureTile } from "../../shared/wallpapers.ts";
+import { readCss } from "../testing/css-rules.ts";
 
 /** Images load when a test says so: a picture only replaces the one on screen once it has loaded. */
 class FakeImage {
@@ -21,6 +23,7 @@ const loaded = () => {
 };
 
 type Mod = { render(p: ScreenPayload): void };
+const css = readCss("home.css", "glass.css");
 let home: Mod;
 let settingsHome: Mod;
 let screen: HTMLElement;
@@ -110,6 +113,45 @@ describe("Home renders every wallpaper", () => {
   });
 });
 
+describe("Home's glass clock", () => {
+  const clock = () => homeEl().querySelector(".h-clock")!;
+  const at = (minute: number, second = 0) => new Date(2026, 0, 1, 20, minute, second).getTime();
+  const plain = (over: Partial<ScreenPayload> = {}) =>
+    payload({ homeVideos: [], now: at(0), timeFormat: "24", ...over });
+
+  test("the time, then its shadow, lens and rim layers, then the date line on top", () => {
+    home.render(plain());
+    expect(Array.from(clock().children).map((c) => c.getAttribute("class"))).toEqual([
+      "t num",
+      "cg cg-shadow",
+      "cg cg-lens",
+      "cg cg-rim",
+      "cg-filters",
+      "d",
+    ]);
+    expect(clock().querySelector(".t")!.textContent).toBe("20:00");
+    expect(clock().querySelector(".d")!.textContent).toMatch(
+      /^Good evening · Thursday\b.*\bJanuary\b/,
+    );
+  });
+
+  test("renders within the same minute leave the time alone; the next minute and the 12-hour switch change it", () => {
+    home.render(plain());
+    const shown = clock().querySelector(".t")!.firstChild;
+    home.render(plain({ now: at(0, 40), focusedId: "x" }));
+    expect(clock().querySelector(".t")!.firstChild).toBe(shown);
+    home.render(plain({ now: at(1) }));
+    expect(clock().querySelector(".t")!.textContent).toBe("20:01");
+    home.render(plain({ now: at(1), timeFormat: "12" }));
+    expect(clock().querySelector(".t")!.innerHTML).toBe("8:01<small>PM</small>");
+  });
+
+  test("until the time is laid out (no size to cut the glass to), it stays plain text", () => {
+    home.render(plain());
+    expect(cls(clock().querySelector(".t")!)).not.toContain("cg-drawn");
+  });
+});
+
 describe("Home's scrim", () => {
   test("sits over the wallpaper and under the artwork, clock and tiles", () => {
     home.render(payload());
@@ -122,13 +164,10 @@ describe("Home's scrim", () => {
 
   test("the stylesheet gives it a gradient and keeps it visible", () => {
     home.render(payload());
-    const rule = Array.from(document.styleSheets)
-      .flatMap((s) => Array.from(s.cssRules))
-      .find((r) => (r as CSSStyleRule).selectorText === ".h-scrim") as CSSStyleRule;
-    expect(rule.style.getPropertyValue("position")).toBe("absolute");
-    expect(rule.style.getPropertyValue("inset")).toBe("0");
-    expect(rule.style.getPropertyValue("opacity")).toBe("");
-    expect(rule.style.getPropertyValue("display")).not.toBe("none");
+    expect(css.prop(".h-scrim", "position")).toBe("absolute");
+    expect(css.prop(".h-scrim", "inset")).toBe("0");
+    expect(css.prop(".h-scrim", "opacity")).toBe("");
+    expect(css.prop(".h-scrim", "display")).not.toBe("none");
   });
 });
 
@@ -179,12 +218,9 @@ describe("Settings → Home keeps the real Home mounted", () => {
     settingsHome.render(page("wp:forest"));
     const row = screen.querySelector(".wp-tiles")!;
     expect(row.querySelectorAll(".wp-tile").length).toBe(6);
-    const rule = Array.from(document.styleSheets)
-      .flatMap((s) => Array.from(s.cssRules))
-      .find((r) => (r as CSSStyleRule).selectorText === ".wp-tiles") as CSSStyleRule;
-    expect(rule.style.getPropertyValue("display")).toBe("flex");
-    expect(rule.style.getPropertyValue("flex-wrap")).not.toBe("wrap");
-    expect(rule.style.getPropertyValue("overflow-x")).toBe("auto");
+    expect(css.prop(".wp-tiles", "display")).toBe("flex");
+    expect(css.prop(".wp-tiles", "flex-wrap")).not.toBe("wrap");
+    expect(css.prop(".wp-tiles", "overflow-x")).toBe("auto");
   });
 
   test("leaving the page removes the panel; Home alone has none", () => {
@@ -218,10 +254,6 @@ describe("Home with a picture from the Mac", () => {
     extra: Partial<ScreenPayload> = {},
   ) => payload({ home: { wallpaper: choice, artwork: true, pictures }, ...extra });
   const bPhoto = { kind: "folder", file: "b.jpg" } as const;
-  const rule = (selector: string) =>
-    Array.from(document.styleSheets)
-      .flatMap((s) => Array.from(s.cssRules))
-      .find((r) => (r as CSSStyleRule).selectorText === selector) as CSSStyleRule | undefined;
 
   test("the picture and its dim are set as variables and the photo layer is on", () => {
     home.render(withPhoto(bPhoto));
@@ -292,6 +324,30 @@ describe("Home with a picture from the Mac", () => {
     expect(layer()).toBe(1);
   });
 
+  test("the clock's tint and the dim follow the crossfade: they glide from the old picture's level to the new one's with it", () => {
+    vi.useFakeTimers();
+    try {
+      home.render(withPhoto({ kind: "mac" }));
+      loaded();
+      expect(cls(homeEl()).includes("crossfading")).toBe(false);
+      home.render(withPhoto(bPhoto));
+      loaded();
+      // The new levels are set at once, but while the class is on, the stylesheet eases to them.
+      expect(cls(homeEl()).includes("crossfading")).toBe(true);
+      vi.advanceTimersByTime(2500 + 250);
+      expect(cls(homeEl()).includes("crossfading")).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+    const fade = css.prop(".h-photo-prev", "transition").replace("opacity ", "");
+    expect(css.prop(".home.crossfading .h-clock", "transition")).toBe(`--wp-light ${fade}`);
+    expect(css.prop(".home.crossfading .h-photo-dim", "transition")).toBe(`--wp-dim ${fade}`);
+    // A transition needs the levels registered as numbers (the test DOM drops @property, so read the source).
+    const source = readFileSync(`${import.meta.dirname}/../home.css`, "utf8");
+    for (const name of ["--wp-light", "--wp-dim"])
+      expect(source).toMatch(new RegExp(`@property ${name} \\{[^}]*syntax: "<number>"`));
+  });
+
   test("layers: photo, dim and blur sit over the drift and under the scrim, clock and tiles; ambient keeps them", () => {
     home.render(withPhoto({ kind: "mac" }, { ambient: true }));
     const order = Array.from(homeEl().children).map((c) => c.className.split(" ")[0]);
@@ -300,32 +356,30 @@ describe("Home with a picture from the Mac", () => {
     for (const above of ["h-scrim", "h-clock", "h-hero", "h-chrome"])
       expect(at("h-photo"), above).toBeLessThan(at(above));
     const photoLayer = homeEl().querySelector(".h-photo")!;
-    for (const part of [
-      ".h-photo-img",
-      ".h-photo-dim",
-      ".h-photo-blur.top",
-      ".h-photo-blur.bottom",
-    ])
+    for (const part of [".h-photo-img", ".h-photo-dim", ".h-photo-blur.bottom"])
       expect(photoLayer.querySelector(part), part).not.toBeNull();
+    expect(photoLayer.querySelector(".h-photo-blur.top")).toBeNull();
     expect(homeEl().querySelector(".h-scrim")).not.toBeNull();
   });
 
-  test("the stylesheet: dim comes from --wp-dim, a blur sits behind the clock and the tiles, and the drift is 1.0 to 1.06 over 120 s", () => {
+  test("the stylesheet: dim comes from --wp-dim, a blur sits behind the tiles, and the drift is 1.0 to 1.06 over 120 s", () => {
     home.render(withPhoto({ kind: "mac" }));
-    expect(rule(".h-photo-dim")!.style.getPropertyValue("opacity")).toBe("var(--wp-dim, 0.5)");
-    expect(rule(".h-photo-blur")!.style.getPropertyValue("backdrop-filter")).toContain("blur(");
-    expect(rule(".h-photo-blur.top")!.style.getPropertyValue("top")).toBe("0px");
-    expect(rule(".h-photo-blur.bottom")!.style.getPropertyValue("bottom")).toBe("0px");
-    expect(rule(".h-photo-img")!.style.getPropertyValue("animation")).toContain("120s");
-    const css = document.head.querySelector("style")!.textContent!;
-    expect(css).toMatch(/@keyframes h-kenburns\s*{\s*from\s*{\s*transform: scale\(1\)/);
-    expect(css).toMatch(/to\s*{\s*transform: scale\(1\.06\)/);
+    expect(css.prop(".h-photo-dim", "opacity")).toBe("var(--wp-dim, 0.5)");
+    expect(css.prop(".h-photo-blur", "backdrop-filter")).toContain("--blur-");
+    expect(css.prop(".h-photo-blur.bottom", "bottom")).toBe("0px");
+    expect(css.prop(".h-photo-img", "animation")).toContain("--duration-photo-pan");
+    const frames = Array.from(css.keyframes("h-kenburns").cssRules) as CSSKeyframeRule[];
+    expect(frames.map((f) => [f.keyText, f.style.getPropertyValue("transform")])).toEqual([
+      ["0%", "scale(1)"],
+      ["100%", "scale(var(--home-pan-scale))"],
+    ]);
+    expect(GLASS.metrics.home.panScale).toBe(1.06);
   });
 
   test("the photo layer is hidden for built-ins, and the drift for photos", () => {
-    expect(rule(".h-photo")!.style.getPropertyValue("display")).toBe("none");
-    expect(rule(".home.photo .h-photo")!.style.getPropertyValue("display")).toBe("block");
-    expect(rule(".home.photo .h-drift")!.style.getPropertyValue("display")).toBe("none");
+    expect(css.prop(".h-photo", "display")).toBe("none");
+    expect(css.prop(".home.photo .h-photo", "display")).toBe("block");
+    expect(css.prop(".home.photo .h-drift", "display")).toBe("none");
   });
 });
 

@@ -16,6 +16,10 @@ _Avoid_: controller, phone app, mobile app
 The first page the Screen shows: a simple launcher with a clock and the Apps.
 _Avoid_: launcher, dashboard, main menu
 
+**Page**:
+One of Couch's own full-screen places on the Screen: Home, the Library, a folder, a show, Settings and its pages, About, Now Playing's controls, the App error page, and the view an App sits in (its Back and its leaving, though not the website drawn inside it). It is not a Web App's website, and not an overlay (Quick settings, Setup, a question, Picture off). In code, `View` is the id of a Page.
+_Avoid_: screen (that is the whole app), view (in prose), menu
+
 **Wallpaper**:
 The calm background Home draws behind the clock and tiles; the household picks one in Settings → Home (six built-in ones, Couch by default, or a picture from the Mac: its desktop picture, one from a chosen folder, or one of Apple's wallpapers).
 
@@ -92,7 +96,7 @@ The one page for setup chores, opened from the gear on Home: adding phones, Libr
 _Avoid_: preferences, options, admin
 
 **About**:
-The Settings page, just above Quit Couch, with Couch's version (and build number), **Check for updates**, **Restart to update** (only once an update has downloaded; it asks first, then Couch closes and opens again on the new version) and **Beta updates**. A downloaded update otherwise installs when Couch quits; nothing restarts Couch by itself.
+The Settings page, just above Quit Couch, with Couch's version (and build number), **Check for updates**, **Restart to update** (only once an update has downloaded; it asks first, then Couch closes and opens again on the new version) **Beta updates**, **Run setup again** and **Support Couch** (OK opens a glass panel with a QR code for the Buy Me a Coffee page; Back closes it; the phone shows it as a link). Nothing else in Couch asks for support. A downloaded update otherwise installs when Couch quits; nothing restarts Couch by itself.
 _Avoid_: info, version page
 
 **Beta updates**:
@@ -106,3 +110,7 @@ _Avoid_: badge, notification
 **Household**:
 The people who share one Screen. There are no profiles or logins; any household phone can act as a Remote.
 _Avoid_: user, account, profile
+
+**Look**:
+Couch's visual style (colours, type, corner shapes, glass, motion and how focus is shown), shared by the Screen, the phone, Quick settings and a Web App's on-screen controls. **Glass** is Couch's Look today; later the household may choose another. It lives in `src/shared/look.ts`. A layout change, such as a Google TV style Home, is not a Look; that is the later Skin work.
+_Avoid_: theme, skin

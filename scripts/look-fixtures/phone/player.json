@@ -1,0 +1,69 @@
+{
+ "type": "snapshot",
+ "where": "Now Playing",
+ "view": "player",
+ "layout": "player",
+ "typeAvailable": false,
+ "showVolume": false,
+ "showSkip": false,
+ "typing": "none",
+ "nowPlaying": {
+  "active": true,
+  "title": "Paddington 2 (2017)",
+  "folder": "Films",
+  "position": 2400,
+  "duration": 6000,
+  "paused": false,
+  "subtitlesOn": true,
+  "speed": 1,
+  "speeds": [
+   0.5,
+   0.75,
+   1,
+   1.25,
+   1.5,
+   2
+  ],
+  "artKey": "backdrop346648",
+  "app": {
+   "id": "library",
+   "label": "Library",
+   "icon": "<svg class=\"i\" viewBox=\"0 0 256 256\" aria-hidden=\"true\"><path d=\"M216,72H131.31L104,44.69A15.88,15.88,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.41,15.41,0,0,0,39.39,216h177.5A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40Z\"/></svg>"
+  }
+ },
+ "upNext": [
+  {
+   "title": "Blade Runner 2049 (2017)",
+   "watched": false,
+   "playing": false
+  },
+  {
+   "title": "Elemental (2023)",
+   "watched": false,
+   "playing": false
+  },
+  {
+   "title": "Heat (1995)",
+   "watched": false,
+   "playing": false
+  },
+  {
+   "title": "Paddington 2 (2017)",
+   "thumbKey": "p2",
+   "watched": false,
+   "playing": true,
+   "progress": 0.4
+  },
+  {
+   "title": "The Grand Budapest Hotel (2014)",
+   "watched": false,
+   "playing": false,
+   "progress": 0.2033898305084746
+  }
+ ],
+ "volume": 65,
+ "muted": false,
+ "pictureOff": false,
+ "quickSettings": false,
+ "remotes": 1
+}

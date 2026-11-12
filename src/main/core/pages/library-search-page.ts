@@ -5,18 +5,18 @@ import type {
   LibraryRow,
   RemoteId,
   ScreenPayload,
-  ScreenState,
-  View,
-} from "../../shared/protocol.ts";
-import type { Source } from "./core.ts";
-import { artFor, type DetailsLookup } from "./art.ts";
-import { hueFor, presentation } from "./library.ts";
-import { memoLookup, searchLibrary, type SearchResults } from "./library-search.ts";
-import { showStatus, tileAction } from "./library-rows.ts";
-import type { History } from "./history.ts";
-import type { Clock } from "../ports/clock.ts";
-import type { MediaLibrary } from "./media-library.ts";
-import type { ThumbnailScheduler } from "./thumbnail-scheduler.ts";
+} from "../../../shared/protocol.ts";
+import { VIEW_LABELS } from "../../../shared/protocol.ts";
+import type { Source } from "../core.ts";
+import { artFor, type DetailsLookup } from "../art.ts";
+import { hueFor, presentation } from "../library.ts";
+import { memoLookup, searchLibrary, type SearchResults } from "../library-search.ts";
+import { showStatus, tileAction } from "../library-rows.ts";
+import type { History } from "../history.ts";
+import type { Clock } from "../../ports/clock.ts";
+import type { MediaLibrary } from "../media-library.ts";
+import type { ThumbnailScheduler } from "../thumbnail-scheduler.ts";
+import type { Page, PageBack, PageContext } from "./page.ts";
 
 export const SEARCH_VIEW = "librarySearch";
 
@@ -34,14 +34,10 @@ export interface LibrarySearchHost {
   changed(): void;
   /** Adds progress or the watched tag to a video entry. */
   decorate(entry: LibraryEntry): LibraryEntry;
-  /** A phone (or the Screen) starts typing the query: it owns the typing session. */
-  startTyping(source: Source): void;
   /** Changes whenever the Library index or any saved details change. */
   dataVersion(): number;
   /** The phone that last sent a command, if it is still connected. */
   connectedPhone(): RemoteId | undefined;
-  setView(view: View): void;
-  toast(text: string): void;
 }
 
 const bare = (title: string) => title.replace(/\s*\(\d{4}\)$/, "");
@@ -50,8 +46,8 @@ const bare = (title: string) => title.replace(/\s*\(\d{4}\)$/, "");
  * The Library search view: the live query typed on a phone, result rows (Shows, Films, Episodes),
  * their grid and payload. The query lives here, not in the Screen state, and never reaches an App.
  */
-export class LibrarySearchView {
-  #state: ScreenState;
+export class LibrarySearchPage implements Page {
+  #ctx: PageContext;
   #h: LibrarySearchHost;
   /** What the bar shows. */
   #query = "";
@@ -61,8 +57,8 @@ export class LibrarySearchView {
   #wanted = "";
   #found: { query: string; version: number; results: SearchResults } | undefined;
 
-  constructor(state: ScreenState, host: LibrarySearchHost) {
-    this.#state = state;
+  constructor(ctx: PageContext, host: LibrarySearchHost) {
+    this.#ctx = ctx;
     this.#h = host;
   }
 
@@ -70,10 +66,14 @@ export class LibrarySearchView {
     return this.#query;
   }
 
+  back(): PageBack {
+    return { label: VIEW_LABELS.library, act: () => this.#ctx.go("library") };
+  }
+
   /** OK on the Library's search icon, or a phone's Search button. */
   open(): void {
     this.reset();
-    this.#h.setView(SEARCH_VIEW);
+    this.#ctx.go(SEARCH_VIEW);
   }
 
   #setQuery(query: string): void {
@@ -101,7 +101,7 @@ export class LibrarySearchView {
     this.#applied = "";
     this.#query = "";
     this.#wanted = "";
-    delete this.#state.focus[SEARCH_VIEW];
+    this.#ctx.setFocus(SEARCH_VIEW);
   }
 
   /** Matching is done once per query and data change; the grid and the payload share it. */
@@ -202,47 +202,47 @@ export class LibrarySearchView {
       search: {
         query: this.#query,
         searching: this.#query !== this.#applied && this.#query.trim() !== "",
-        typing: this.#state.typingBy !== undefined,
+        typing: this.#ctx.state.typingBy !== undefined,
         rows: this.#rows(),
       },
     };
   }
 
-  action(action: string, from: Source): boolean {
+  action(action: string, from: Source = "screen"): boolean {
     if (action !== "search:field") return false;
     const phone = this.#h.connectedPhone();
-    if (from === "screen") this.#h.startTyping(from);
-    else if (phone !== undefined) this.#h.startTyping(phone);
-    else this.#h.toast("Open Couch's Remote on your phone to search");
+    if (from === "screen") this.#ctx.startTyping(from, SEARCH_VIEW);
+    else if (phone !== undefined) this.#ctx.startTyping(phone, SEARCH_VIEW);
+    else this.#ctx.toast("Open Couch's Remote on your phone to search");
     return true;
   }
 
   /** The typing sheet commands: live text, Search (focus the first result) and Cancel (keep the query). */
   type(command: Command, from: Source): void {
-    const owner = this.#state.typingBy;
+    const owner = this.#ctx.state.typingBy;
     switch (command.command) {
       case "typeOpen":
         if (owner !== undefined && owner !== from) return;
-        if (this.#state.view !== SEARCH_VIEW) {
+        if (this.#ctx.state.view !== SEARCH_VIEW) {
           this.open();
           // Only the Screen's own keyboard brings the first character along.
           const first = from === "screen" ? command.args?.text : undefined;
           if (first !== undefined && [...first].length === 1) this.#setQuery(first);
         }
-        this.#h.startTyping(from);
+        this.#ctx.startTyping(from, SEARCH_VIEW);
         break;
       case "typeText":
         if (owner === from) this.#setQuery(command.args?.text ?? "");
         break;
       case "typeSubmit":
         if (owner !== from) return;
-        this.#state.typingBy = undefined;
+        this.#ctx.stopTyping();
         this.#flush();
-        if (this.#rows().length) this.#state.focus[SEARCH_VIEW] = { r: 1, c: 0 };
+        if (this.#rows().length) this.#ctx.setFocus(SEARCH_VIEW, { r: 1, c: 0 });
         break;
       case "typeCancel":
         if (owner !== from) return;
-        this.#state.typingBy = undefined;
+        this.#ctx.stopTyping();
         this.#flush();
         break;
     }

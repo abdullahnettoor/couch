@@ -4,7 +4,7 @@
 // (whole frame), Settings loses only empty black above and below, and the setup cards' details of Home cut only
 // through empty background. The slot's width and height in src/slots.ts match each output, and a frame holding a
 // picture takes its aspect.
-//   node scripts/shots.mjs [shootDir]   (default <repo>/.notes/shots/140; needs cwebp)
+//   node scripts/shots.mjs [shootDir] [name…]   (default <repo>/.notes/shots/140, every shot; needs cwebp)
 // The pictures show Blender's open films (Big Buck Bunny, Sintel, Tears of Steel: © Blender Foundation, CC BY 3.0)
 // with posters and backdrops from TMDB; the page credits both. Every source was privacy-checked in ticket 140.
 import { execFileSync } from "node:child_process";
@@ -29,9 +29,13 @@ const SHOTS = {
   // the launch video's sequence (ticket 145): the Big Buck Bunny card's picture, exactly its tile (unfocused, with
   // its progress line), drawn as the Continue tile's art in the live Home row over the hero-screen screenshot
   "launch-continue": { src: "hero-home-youtube-focus.png", x: 2228, w: 562, h: 318, top: 1644, widths: [420] },
+  // the first look's Continue tile opens Couch's player (Big Buck Bunny with its controls), whole at 16:10
+  player: { src: "player-controls.png", h: H16x10, widths: [1280, 640] },
 };
+const only = process.argv.slice(3);
 
 for (const [name, { src, h, top, x = 0, w: cw = SRC_W, widths = [1920, 1280, 640] }] of Object.entries(SHOTS)) {
+  if (only.length && !only.includes(name)) continue;
   const y = top ?? Math.round((SRC_H - h) / 2);
   for (const [k, w] of widths.entries()) {
     const suffix = k === 0 ? "" : `-${w}`;

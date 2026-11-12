@@ -1,7 +1,8 @@
 // Behavioural tests of ticket 143's second part in headless Chrome, on one build: the hero headline's loop and its
 // line (the order, round again, the segments, the pauses, reduced motion, no layout shift) and the Remote stage
 // (#how): pinned and driven by the scroll from 900 px, forward and back; a step's button scrolls to its step;
-// unpinned with Replay on phones and under reduced motion; the TV and phone proportions.
+// unpinned with Replay on phones and under reduced motion; the TV and phone proportions; and the first-look TV's
+// size, growth and pin (its live Home is scripts/launch.test.mjs).
 // Needs Google Chrome (CHROME overrides the path); skipped without it.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -292,14 +293,15 @@ async function scrollTrack(page, p) {
   return stage(page);
 }
 
-/** The first-look TV's scale after scrolling to `g` of its growth (0: its top at the window's bottom, 1: centred). */
-async function tvAt(page, g) {
-  await page.evaluate((g) => {
-    const tv = document.querySelector(".first-look .tv"), stage = tv.parentElement, sec = stage.parentElement;
-    const top = sec.offsetTop + stage.offsetTop + tv.offsetTop;
+/** The first-look TV's scale with the track's top `y` px from the window's top (the TV pins when it reaches the nav, 66). */
+async function tvAt(page, y) {
+  await page.evaluate((y) => {
+    const t = document.querySelector("[data-fl-track]");
+    let top = 0;
+    for (let el = t; el; el = el.offsetParent) top += el.offsetTop;
     document.documentElement.style.scrollBehavior = "auto";
-    scrollTo(0, top - innerHeight + g * (innerHeight + tv.offsetHeight) / 2);
-  }, g);
+    scrollTo(0, top - y);
+  }, y);
   await wait(200);
   return page.evaluate(() => {
     const s = getComputedStyle(document.querySelector(".first-look .tv")).scale;
@@ -307,28 +309,84 @@ async function tvAt(page, g) {
   });
 }
 
-describe("the first-look TV grows as it comes in", { skip }, () => {
-  for (const [w, h, full] of [[1440, 900, 1.06], [1024, 768, 1], [390, 844, 1]]) {
-    test(`at ${w} × ${h}: .86 as it enters, ${full} when centred, scale only`, async () => {
+describe("the first-look TV: as big as the window holds, growing as it comes in, pinned", { skip }, () => {
+  // [width, height, the TV's expected width (± 2 px)]: the gutter (24 px, 16 px on phones), or the width at which the
+  // pinned group (the TV: the 16:10 Screen, its 9 px bezel and the 14 px stand; then 16 px and Skip's 30 px) fits
+  // between the nav and the window's bottom with at least 32 px (3.5vh) above and below
+  for (const [w, h, tvW] of [[1440, 900, 1125.2], [1024, 768, 914], [390, 844, 358]]) {
+    test(`at ${w} × ${h}: ${tvW} px wide, .85 as it enters, 1 as it pins, scale only, whole below the nav while pinned`, async () => {
       const page = await open({ width: w, height: h });
-      const box = () => page.evaluate(() => { const tv = document.querySelector(".first-look .tv"); return [tv.offsetLeft, tv.offsetTop, tv.offsetWidth, tv.offsetHeight].join(); });
+      const box = () => page.evaluate(() => { const tv = document.querySelector(".first-look .tv"); return [tv.offsetLeft, tv.offsetWidth, tv.offsetHeight].join(); });
       const before = await box();
-      const enter = await tvAt(page, 0), half = await tvAt(page, 0.5), mid = await tvAt(page, 1);
-      const r = await page.evaluate(() => document.querySelector(".first-look .tv").getBoundingClientRect().toJSON());
-      const past = await tvAt(page, 1.4);
-      assert.ok(near(enter, 0.86, 0.005), `entering ${enter}`);
-      assert.ok(near(half, (0.86 + full) / 2, 0.01), `half way ${half}`);
-      assert.ok(near(mid, full, 0.002), `centred ${mid}`);
-      assert.ok(near(past, full, 0.002), `and it stays ${past}`);
-      assert.ok(r.left >= 0 && r.right <= w && r.top >= 0 && r.bottom <= h, `it fits the window when centred: ${JSON.stringify(r)}`);
+      const size = await page.evaluate(() => { const tv = document.querySelector(".first-look .tv"); return { w: tv.offsetWidth, h: tv.offsetHeight }; });
+      assert.ok(near(size.w, tvW, 2), `width ${size.w}`);
+      assert.ok(size.h <= h - 66 - 64 - 46 + 1, `the TV fits below the nav, with the gaps and Skip (${size.h} of ${h - 66})`);
+      const enter = await tvAt(page, h), half = await tvAt(page, (h + 66) / 2), pinned = await tvAt(page, 66);
+      const rects = [];
+      for (const y of [66, 66 - h * 0.5, 66 - h * 1.2]) {
+        assert.ok(near(await tvAt(page, y), 1, 0.002), `full size while pinned (${y})`);
+        rects.push(await page.evaluate(() => document.querySelector(".first-look .tv").getBoundingClientRect().toJSON()));
+      }
+      assert.ok(near(enter, 0.85, 0.005), `entering ${enter}`);
+      assert.ok(near(half, 0.925, 0.01), `half way ${half}`);
+      assert.ok(near(pinned, 1, 0.002), `pinned ${pinned}`);
+      for (const r of rects) {
+        assert.ok(r.left >= 0 && r.right <= w && r.top >= 66 && r.bottom <= h, `whole, below the nav, while pinned: ${JSON.stringify(r)}`);
+        assert.ok(near(r.top, rects[0].top, 1), "and it stays put");
+      }
+      if (w <= 700) assert.ok(near(rects[0].left, 16, 1) && near(w - rects[0].right, 16, 1), `edge to edge but the gutter: ${rects[0].left}, ${w - rects[0].right}`);
       assert.equal(await box(), before, "the layout box never changes");
+      assert.equal(await page.evaluate(() => window.__cls), 0, "no layout shift");
+      // the Remote section starts below the first look, clear of it
+      const gap = await page.evaluate(() => document.querySelector("#how").getBoundingClientRect().top - document.querySelector(".first-look").getBoundingClientRect().bottom);
+      assert.ok(gap >= 0, `the Remote section follows the first look (${gap})`);
       await page.close();
     });
   }
 
-  test("with reduced motion it is full size wherever it is", async () => {
+  // (on windows this tall the TV already shows at load, so the growth is checked on the sizes above)
+  for (const [w, h, tvW] of [[1920, 1080, 1394.6], [2560, 1440, 1600]]) {
+    test(`at ${w} × ${h}: ${tvW} px wide (1600 at most), fitting below the nav`, async () => {
+      const page = await open({ width: w, height: h });
+      const size = await page.$eval(".first-look .tv", (tv) => ({ w: tv.offsetWidth, h: tv.offsetHeight }));
+      assert.ok(near(size.w, tvW, 2), `width ${size.w}`);
+      assert.ok(size.h <= h - 66 - 2 * Math.max(32, Math.min(56, 0.035 * h)) - 46 + 1, `height ${size.h}`);
+      await page.close();
+    });
+  }
+
+  // the pinned group (the TV and Skip; on phones the TV, the Remote, its caption and Skip) centred between the nav and
+  // the window's bottom: the same gap above and below, at least 32 px (20 px on phones), nothing out of the window
+  for (const [w, h, phone] of [[1440, 900, false], [1920, 1080, false], [1024, 768, false], [390, 844, true], [360, 740, true], [375, 667, true]]) {
+    test(`at ${w} × ${h} the pinned group is centred below the nav, with even gaps`, async () => {
+      const page = await open({ width: w, height: h });
+      const min = phone ? 20 : 32;
+      for (const y of [66, 66 - h * 0.6]) {
+        await tvAt(page, y);
+        const g = await page.evaluate(() => {
+          const r = (s) => document.querySelector(s).getBoundingClientRect();
+          const tv = r(".first-look .tv"), skip = r("[data-skip]"), remote = r("[data-remote]");
+          return { top: tv.top, bottom: skip.bottom, skip: [skip.top, skip.bottom], remote: [remote.top, remote.bottom, remote.height], tv: [tv.top, tv.bottom, tv.left, tv.right],
+            skipShown: getComputedStyle(document.querySelector("[data-skip]")).visibility === "visible", remoteShown: getComputedStyle(document.querySelector("[data-remote]")).display !== "none" };
+        });
+        const above = g.top - 66, below = h - g.bottom;
+        assert.ok(Math.abs(above - below) <= 3, `centred: ${above} above, ${below} below`);
+        assert.ok(above >= min - 1 && below >= min - 1, `at least ${min}px each: ${above}, ${below}`);
+        assert.ok(g.tv[2] >= 0 && g.tv[3] <= w, "nothing out of the window");
+        assert.ok(g.skipShown, "Skip shows while pinned");
+        assert.ok(g.skip[0] >= g.tv[1] + 15, "Skip under the TV");
+        assert.equal(g.remoteShown, phone, phone ? "the Remote on a phone" : "no Remote");
+        if (phone) assert.ok(g.remote[0] >= g.tv[1] + 11 && g.remote[1] <= g.skip[0] - 11 && g.remote[2] > 150, `the Remote between the TV and Skip, 12px apart: ${JSON.stringify(g)}`);
+      }
+      assert.equal(await page.evaluate(() => window.__cls), 0, "no layout shift");
+      await page.close();
+    });
+  }
+
+  test("with reduced motion it is full size wherever it is, and not pinned", async () => {
     const page = await open({ width: 1440, height: 900, reduce: true });
-    for (const g of [0, 0.5, 1]) assert.equal(await tvAt(page, g), 1);
+    for (const y of [900, 400, 66]) assert.equal(await tvAt(page, y), 1);
+    assert.equal(await page.$eval("[data-fl-track] > .fl-pin", (e) => getComputedStyle(e).position), "static");
     await page.close();
   });
 });
@@ -568,6 +626,47 @@ describe("Couch for Windows and the download link", { skip }, () => {
     }));
     assert.deepEqual(s.local, []);
     assert.deepEqual(s.dl, [DMG, DMG]);
+    await page.close();
+  });
+});
+
+describe("the Buy Me a Coffee link in the maker letter", { skip }, () => {
+  const COFFEE = "https://buymeacoffee.com/abdullahnettoor";
+
+  test("one plain link under the signature, new tab, safe rel, and loading it is not the page's business", async () => {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1440, height: 900 });
+    await page.emulateMediaFeatures([{ name: "prefers-reduced-motion", value: "reduce" }]);
+    const away = [];
+    await page.setRequestInterception(true);
+    page.on("request", (r) => {
+      if (r.url().startsWith(url) || r.url().startsWith("data:")) { r.continue().catch(() => {}); return; }
+      away.push(r.url());
+      r.abort().catch(() => {});
+    });
+    await page.goto(url, { waitUntil: "load" });
+    await wait(500);
+    const s = await page.evaluate((href) => {
+      const all = [...document.querySelectorAll("a")].filter((a) => a.href.includes("buymeacoffee"));
+      const a = all[0];
+      const sign = document.querySelector("#why .why-sign");
+      return {
+        count: all.length,
+        inLetter: !!a?.closest("#why"),
+        href: a?.href, rel: a?.rel, target: a?.target, text: a?.parentElement.textContent.replace(/\s+/g, " ").trim(),
+        below: !!a && !!sign && !!(sign.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING) && a.getBoundingClientRect().top >= sign.getBoundingClientRect().bottom - 1,
+        embeds: document.querySelectorAll("iframe[src*=buymeacoffee], script[src*=buymeacoffee], img[src*=buymeacoffee], img[src*=bmc]").length,
+      };
+    }, COFFEE);
+    assert.equal(s.count, 1, "only one such link on the page");
+    assert.ok(s.inLetter, "it is in the letter");
+    assert.equal(s.href, COFFEE);
+    assert.equal(s.target, "_blank");
+    assert.equal(s.rel, "noopener noreferrer");
+    assert.match(s.text, /^Enjoying Couch\? Buy me a coffee/);
+    assert.ok(s.below, "under the signature");
+    assert.equal(s.embeds, 0);
+    assert.deepEqual(away, [], "the link loads nothing");
     await page.close();
   });
 });
