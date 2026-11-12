@@ -30,11 +30,10 @@ export const SOCIAL: readonly SocialLink[] = [
  * (YouTube opens to a Couch-made poster, "Launch video", "Coming soon to YouTube"; nothing is fetched from YouTube, at
  * build time or ever). With an `id` (the part after watch?v=): YouTube opens to YouTube's own player for it, cued, over
  * the video's thumbnail (saved into the build by scripts/launch-thumb.mjs; pnpm build runs it); nothing is requested
- * from YouTube until the visitor opens YouTube. `title` is the video's title, as on YouTube. Today a stand-in (a PumpOS
- * video) until Couch's own is out. COUCH_LAUNCH_ID (and COUCH_LAUNCH_THUMB, a local picture) override them for a
- * build; the tests use them.
+ * from YouTube until the visitor opens YouTube. `title` is the video's title, as on YouTube. COUCH_LAUNCH_ID (and
+ * COUCH_LAUNCH_THUMB, a local picture) override them for a build; the tests use them.
  */
-export const LAUNCH_VIDEO: { id: string; title: string } = { id: "Hy7ry2TbjIg", title: "PumpOS | The operating system for fuel retail" };
+export const LAUNCH_VIDEO: { id: string; title: string } = { id: "0EyRAw2KQhE", title: "Movie night on your Mac. Your phone's the remote" };
 
 /**
  * The hero intro (ticket 139). "sequence": the logo plays first, then the headline, text and buttons arrive.

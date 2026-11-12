@@ -71,7 +71,7 @@ Placeholder mode (`LAUNCH_VIDEO.id` empty):
 - YouTube opens a Couch-made poster (the icon's sofa-and-Screen light in a dark, warm room): **Launch video** / **Coming soon to YouTube**.
 - The privacy fact keeps its old wording (below).
 
-With a video (`LAUNCH_VIDEO.id` set; today the stand-in **PumpOS | The operating system for fuel retail**, `Hy7ry2TbjIg`):
+With a video (`LAUNCH_VIDEO.id` set; today Couch's launch video, **Movie night on your Mac. Your phone's the remote**, `0EyRAw2KQhE`):
 - YouTube opens YouTube's own player, cued (not autoplaying): the visitor starts it with YouTube's play button, so the play counts as a YouTube view. The player's frame is titled **{title} (YouTube video)**.
 - Nothing under the TV (ticket 145 review: the "Watch on YouTube" and "Subscribe on YouTube" pills and the line "The preview on the Screen comes from this site…" went with the self-hosted teaser; the channel stays in the footer's links).
 - Privacy fact **No Couch analytics** becomes: Couch adds no analytics or cookies. YouTube loads only when you open YouTube on the TV above, and may use cookies or browser storage under Google's privacy policy. Services opened in Couch have their own sign-ins, cookies and privacy policies. (145 review: earlier "…YouTube loads only when you press play…" and, with the teaser, "…The launch video's preview comes from this site; YouTube loads only when you press Watch with sound or play…".)
