@@ -1,4 +1,4 @@
-# Couch
+<h1><img src="docs/brand/couch-mark-128.png" alt="" width="56" height="56" align="middle"> Couch</h1>
 
 Couch turns a Mac connected to a TV or monitor into a calm, couch-friendly home screen, and your phone is the remote. The Screen shows Home, with the Apps you open from the couch: YouTube, Netflix, and the Library of video folders on the Mac. The Remote is a web page on your phone: you scan a QR code once, and it becomes a D-pad, volume and Now Playing controls. There are no profiles and no Couch account; the household shares one Screen.
 
@@ -81,7 +81,7 @@ Tooling is [Vite+](https://viteplus.dev) (`vp`), run through pnpm.
 | `vp run start`   | Build, then start Couch in Electron                                                                         |
 | `vp run package` | Build `out/Couch-darwin-<arch>/Couch.app`, signed ad hoc by default (bundle id `com.abdullahnettoor.couch`) |
 | `vp run sample`  | Generate `.dev/sample.mkv` (needs ffmpeg) for a quick playback check                                        |
-| `vp run icons`   | Rebuild `build/icon.icns` and the Remote/Credits PNGs from `build/icon.png` and `icon-touch.png`            |
+| `vp run icons`   | Rebuild `build/icon.icns`, the Remote/Credits PNGs and the Couch mark from `build/` (mark needs ffmpeg)     |
 
 Run `vp` as `pnpm exec vp …` if it isn't installed globally. If `ELECTRON_RUN_AS_NODE` is set in your shell, unset it before `vp run start`.
 

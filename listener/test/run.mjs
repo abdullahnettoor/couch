@@ -53,6 +53,8 @@ async function setup({
   writeFileSync(join(web, "icon-192.png"), "PNG192");
   writeFileSync(join(web, "touch-icon.png"), "PNGTOUCH");
   writeFileSync(join(web, "icon-512.png"), "PNG512");
+  writeFileSync(join(web, "mark-256.png"), "MARK256");
+  writeFileSync(join(web, "mark-32.png"), "MARK32");
   writeFileSync(
     join(web, "manifest.webmanifest"),
     JSON.stringify({ name: "Couch", start_url: "/" }),
@@ -174,6 +176,8 @@ test("while off it serves the page and icons, and 404s the rest", async () => {
   assert.match(await page.text(), /OFFPAGE/);
   assert.equal(await (await fetch(env.url("/icon.png"))).text(), "PNG192");
   assert.equal(await (await fetch(env.url("/touch-icon.png"))).text(), "PNGTOUCH");
+  assert.equal(await (await fetch(env.url("/mark.png"))).text(), "MARK256");
+  assert.equal(await (await fetch(env.url("/mark-32.png"))).text(), "MARK32");
   assert.equal((await fetch(env.url("/thumb/" + "a".repeat(40) + ".jpg?key=" + KEY))).status, 404);
   assert.equal((await fetch(env.url("/nothing"))).status, 404);
 });

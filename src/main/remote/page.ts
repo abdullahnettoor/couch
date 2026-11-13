@@ -19,7 +19,8 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="__THEME__">
 <title>Couch Remote</title>
-<link rel="icon" type="image/png" sizes="192x192" href="/icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/mark-32.png">
+<link rel="icon" type="image/png" sizes="256x256" href="/mark.png">
 <link rel="apple-touch-icon" href="/touch-icon.png">
 <link rel="manifest" id="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -168,7 +169,9 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .pbtn:active { background:var(--press); }
   .topr { display:flex; align-items:center; }
   .pw { position:fixed; inset:0; z-index:8; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; background:radial-gradient(80% 60% at 50% 0%, var(--card), var(--backdrop) 70%); padding:24px; }
-  .pw img { width:84px; height:84px; border-radius:var(--radius-app-icon); box-shadow:var(--shadow-icon); }
+  .pw .mark { position:relative; width:112px; height:112px; }
+  .pw .mark::before { content:""; position:absolute; inset:-104px; border-radius:50%; background:var(--setup-glow); pointer-events:none; }
+  .pw .mark img { position:relative; display:block; width:100%; height:100%; }
   .pw h1 { margin:8px 0 0; font-size:var(--type-phone-title-large); font-weight:var(--weight-semibold); }
   .pw p { margin:0; font-size:var(--type-phone-subhead); color:var(--text-tertiary); }
   .pw .big { margin-top:22px; width:120px; height:120px; border-radius:var(--radius-power-button); display:grid; place-items:center; font-size:var(--type-phone-icon-power); background:var(--glass-strong); backdrop-filter:var(--blur-glass-heavy); -webkit-backdrop-filter:var(--blur-glass-heavy); box-shadow:var(--shadow-glass-edge); transition:transform var(--duration-press); }
@@ -200,7 +203,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
 <div class="top"><div>On the Screen<b id="where"></b></div><div class="topr"><div class="live"><i></i><span id="status">Connecting…</span><span id="count"></span></div><button class="pbtn" id="pbtn" aria-label="Power" data-i="power"></button></div></div>
 <div class="conn" id="conn" role="status" aria-label="Connecting" hidden></div>
 <div class="pw" id="pw" hidden>
-  <img src="/touch-icon.png" alt="">
+  <div class="mark"><img src="/mark.png" alt=""></div>
   <h1 id="pw-title">Couch is off</h1>
   <p id="pw-sub">Press Power to turn it on.</p>
   <button class="big" id="pw-btn" data-cmd="power" aria-label="Power" data-i="power"></button>

@@ -29,14 +29,25 @@ describe("Remote on Home", () => {
   });
 
   test("the Remote page's tab and home-screen icons are served", async () => {
-    for (const path of ["/icon.png", "/touch-icon.png"]) {
+    for (const path of ["/mark.png", "/mark-32.png", "/icon.png", "/touch-icon.png"]) {
       const res = await fetch(`http://127.0.0.1:${h.app.remote.port}${path}`);
       expect(res.status).toBe(200);
       expect(res.headers.get("content-type")).toBe("image/png");
     }
+  });
+
+  test("the browser tab shows the Couch mark; Add to Home screen keeps the square icon", async () => {
     const page = await (await fetch(`http://127.0.0.1:${h.app.remote.port}/`)).text();
-    expect(page).toContain('href="/icon.png"');
-    expect(page).toContain('href="/touch-icon.png"');
+    const icons = [...page.matchAll(/<link rel="icon"[^>]*href="([^"]+)"/g)].map((m) => m[1]);
+    expect(icons).toEqual(["/mark-32.png", "/mark.png"]);
+    expect(page).toContain('<link rel="apple-touch-icon" href="/touch-icon.png">');
+  });
+
+  test("“Couch is off” shows the Couch mark, not the square icon", async () => {
+    const page = await (await fetch(`http://127.0.0.1:${h.app.remote.port}/`)).text();
+    const off = page.slice(page.indexOf('<div class="pw"'), page.indexOf('id="pw-title"'));
+    expect(off).toContain('src="/mark.png"');
+    expect(off).not.toContain("touch-icon");
   });
 
   test("the manifest is served as application/manifest+json and never carries the pairing key", async () => {

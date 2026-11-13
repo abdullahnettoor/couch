@@ -1,14 +1,14 @@
 {
   "source": {
     "repo": "couch",
-    "commit": "5eb192f",
+    "commit": "34973ff",
     "files": {
       "src/renderer/glass.css": "ada7fc9913c0",
       "src/renderer/home.css": "bf255ef3c68f",
       "src/renderer/views/home.ts": "f7bd14cd68c7",
       "src/renderer/views/glass.ts": "3985bd7113b7",
       "src/renderer/views/library.ts": "aca4234dec27",
-      "src/main/remote/page.ts": "f515467f22c7",
+      "src/main/remote/page.ts": "733bb0dfd8af",
       "src/shared/look.ts": "6253643e0d9e",
       "src/shared/icons.ts": "d76164ee4286",
       "src/main/apps/index.ts": "38fe4de56b68",

@@ -14,8 +14,10 @@ export interface RemoteServer {
   close(): Promise<void>;
 }
 
-/** The Remote page's tab and home-screen icons, by URL path, as files in `iconDir`. */
+/** The Remote page's icons, by URL path, as files in `iconDir`: the Couch mark (tab icon, off screen) and the square app icon (home screen). */
 const ICON_FILES: Record<string, string> = {
+  "/mark.png": "mark-256.png",
+  "/mark-32.png": "mark-32.png",
   "/icon.png": "icon-192.png",
   "/touch-icon.png": "touch-icon.png",
   "/icon-512.png": "icon-512.png",
