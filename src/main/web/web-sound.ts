@@ -1,7 +1,10 @@
 /**
  * Couch's volume and output for the YouTube view's media elements. The page keeps asking for its
- * own volume, so a capture-phase listener puts Couch's back whenever media loads, plays or changes.
+ * own volume, so a capture-phase listener puts Couch's back whenever media loads, plays or changes. A player outside
+ * the document never reaches that listener, so each element is also listened to once the script has seen it.
  */
+
+import { PAGE_MEDIA_LOOKUP } from "./page-media.ts";
 
 export { pickOutputId, type PageOutput, type PickResult } from "../../shared/output-id.ts";
 
@@ -34,10 +37,13 @@ export const SOUND_RECHECK = "couch:sound-recheck";
 export function soundScript(percent: number, sinkId: string, pending = false): string {
   const p = Math.max(0, Math.min(100, Math.round(percent)));
   return `(function(){
+${PAGE_MEDIA_LOOKUP}
 var s=window.__couchSound||(window.__couchSound={});
 s.vol=${p}/100;s.sink=${JSON.stringify(sinkId)};s.pending=${pending};
 function fix(m,ask){
 if(!m||(m.tagName!=='VIDEO'&&m.tagName!=='AUDIO'))return Promise.resolve(true);
+var w=s.w||(s.w=new WeakSet());
+if(!w.has(m)&&m.addEventListener){w.add(m);m.addEventListener('volumechange',function(){fix(m,'volumechange')})}
 if(Math.abs(m.volume-s.vol)>0.001)m.volume=s.vol;
 if(ask&&ask!=='volumechange'&&s.pending)console.debug(${JSON.stringify(SOUND_RECHECK)});
 if(m.setSinkId&&m.sinkId!==s.sink)return m.setSinkId(s.sink).then(function(){return true},function(){return false});
@@ -46,6 +52,7 @@ return Promise.resolve(true);
 if(!s.on){s.on=true;['loadstart','loadedmetadata','play','playing','volumechange'].forEach(function(t){
 document.addEventListener(t,function(e){fix(e.target,e.type)},true)});
 if(navigator.mediaDevices&&navigator.mediaDevices.addEventListener)navigator.mediaDevices.addEventListener('devicechange',function(){console.debug(${JSON.stringify(SOUND_RECHECK)})})}
-return Promise.all(Array.prototype.map.call(document.querySelectorAll('video,audio'),fix)).then(function(r){return r.every(Boolean)});
+couchOnMediaPlay('sound',function(m){fix(m,'play')});
+return Promise.all(couchPageMedia().map(function(m){return fix(m)})).then(function(r){return r.every(Boolean)});
 })()`;
 }

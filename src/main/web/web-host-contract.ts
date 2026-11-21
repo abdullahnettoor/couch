@@ -6,6 +6,7 @@ import type { YouTube, YouTubeEvent } from "../ports/youtube.ts";
 import type { PlaybackAdapter, WebAppDescription } from "./web-app.ts";
 import { urlRoute } from "./url-route.ts";
 import { soundScript } from "./web-sound.ts";
+import { pageWithPlayerOutsideDocument } from "./fake-media-page.ts";
 
 /** What the shared host contract needs of an engine's test rig (fake `WebContents`, or the fake WebKit bridge). */
 export interface HostRig {
@@ -71,6 +72,8 @@ const playing = { position: 12, duration: 3000, paused: false, title: "Test Patt
 export function describeWebHostContract(
   name: string,
   make: (description: WebAppDescription) => HostRig,
+  /** False for a host that installs no page-media hook: Couch doesn't serve a player outside the document there (BitChord is Chromium-only; WebKit's isolated world can't see the page's records). */
+  options: { playerOutsideDocument: boolean } = { playerOutsideDocument: true },
 ): void {
   describe(`web host contract: ${name}`, () => {
     // Every rig is disposed after its test, and before fake timers are restored (a timer the host armed must not outlive its clock).
@@ -397,6 +400,55 @@ export function describeWebHostContract(
         rig.events.length = 0;
         rig.pageMouseDown();
         expect(rig.events).toEqual([]);
+      });
+    });
+
+    describe.skipIf(!options.playerOutsideDocument)("a player outside the page's document", () => {
+      const ran = (rig: HostRig, part: string) => rig.scripts().filter((s) => s.includes(part));
+
+      test("the sound script the host runs reaches it", async () => {
+        const rig = makeRig();
+        await rig.show();
+        rig.host.setVolume(30);
+        await vi.waitFor(() => expect(ran(rig, "__couchSound").length).toBeGreaterThan(0));
+        const page = pageWithPlayerOutsideDocument(rig.installed());
+        await page.run(ran(rig, "__couchSound").at(-1)!);
+        page.start();
+        expect(page.player.volume).toBeCloseTo(0.3);
+      });
+
+      test("the page changing the volume later doesn't override Couch's", async () => {
+        const rig = makeRig();
+        await rig.show();
+        rig.host.setVolume(30);
+        await vi.waitFor(() => expect(ran(rig, "__couchSound").length).toBeGreaterThan(0));
+        const page = pageWithPlayerOutsideDocument(rig.installed());
+        await page.run(ran(rig, "__couchSound").at(-1)!);
+        page.start();
+        page.player.pageSetsVolume(1);
+        expect(page.player.volume).toBeCloseTo(0.3);
+      });
+
+      test("hiding the App pauses it", async () => {
+        const rig = makeRig();
+        await rig.show();
+        rig.host.hide();
+        const page = pageWithPlayerOutsideDocument(rig.installed());
+        page.start();
+        await vi.waitFor(() => expect(ran(rig, "__couchHideGuard").length).toBeGreaterThan(0));
+        page.run(ran(rig, "__couchHideGuard").at(-1)!);
+        expect(page.player.paused).toBe(true);
+      });
+
+      test("the playback probe reports it (an audio element counts)", async () => {
+        vi.useFakeTimers();
+        const rig = makeRig(demoflixDescription);
+        await rig.show();
+        await vi.advanceTimersByTimeAsync(500);
+        const probe = ran(rig, 'querySelectorAll("video")').at(-1)!;
+        const page = pageWithPlayerOutsideDocument(rig.installed());
+        page.start();
+        expect(await page.run(probe)).toMatchObject({ position: 31, duration: 200, paused: false });
       });
     });
 

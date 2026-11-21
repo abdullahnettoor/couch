@@ -16,8 +16,9 @@ import { HiddenAudio } from "./hidden-audio.ts";
 import { decideKey, type KeyGate } from "./keyboard-policy.ts";
 import { FIELD_BLURRED, FIELD_FOCUSED, pageFocusFunction } from "./page-focus.ts";
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
+import { PAGE_MEDIA_FUNCTION } from "./page-media.ts";
 import { COUCH_HOST_CONSOLE, HOST_CONSOLE_PREFIX } from "./couch-host.ts";
-import { parsePageMessage } from "./webkit-messages.ts";
+import { parsePageMessage, type BridgeRequest } from "./webkit-messages.ts";
 import { releaseRequestHooks, requestHooksFor, type RequestHooks } from "./request-hooks.ts";
 import { blockLocalFiles } from "./local-files.ts";
 import { HIDE_SCROLLBARS_CSS } from "./hide-scrollbars.ts";
@@ -114,6 +115,11 @@ export class ElectronWebApp implements YouTube {
       ),
       hooks.onBeforeRequest(blockLocalFiles),
     );
+    const requests = desc.requests;
+    if (requests?.onBeforeSendHeaders)
+      this.#ownHooks.push(hooks.onBeforeSendHeaders(requests.onBeforeSendHeaders));
+    if (requests?.onHeadersReceived)
+      this.#ownHooks.push(hooks.onHeadersReceived(requests.onHeadersReceived));
     // The view may ask the Mac for nothing (no microphone, no camera). Its media permission *check*
     // is answered yes only for the App's own origin, and only for what choosing an output needs.
     this.#ses = ses;
@@ -156,7 +162,21 @@ export class ElectronWebApp implements YouTube {
       this.#core.navigated(message.url);
     } else if (message?.type === "console") {
       this.#onConsole(message.message);
+    } else if (message?.type === "bridge") {
+      void this.#answerBridge(message.request, frame.origin);
     }
+  }
+
+  /** Posts the description's answer back into the page, to the origin that asked. */
+  async #answerBridge(request: BridgeRequest, origin: string): Promise<void> {
+    if (!this.#desc.bridge) return;
+    try {
+      const response = await this.#desc.bridge(request);
+      if (this.#disposed) return;
+      await this.#view.webContents.executeJavaScript(
+        `window.postMessage(${JSON.stringify(response)}, ${JSON.stringify(origin)})`,
+      );
+    } catch {}
   }
 
   /** A fresh view (and renderer) over the Screen window; its listeners are Couch's for the host. */
@@ -543,6 +563,7 @@ export class ElectronWebApp implements YouTube {
     const on = this.#desc.addons.filter((a) => ids.includes(a.id));
     this.#preloads.set([
       { name: "Page hooks", func: PAGE_HOOKS_FUNCTION },
+      { name: "Page media", func: PAGE_MEDIA_FUNCTION },
       { name: "Couch host", func: COUCH_HOST_CONSOLE },
       ...this.#desc.preloads,
       ...(this.#desc.focus

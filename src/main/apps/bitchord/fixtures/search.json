@@ -1,0 +1,1582 @@
+{
+  "url": "https://bitchord-8bw.pages.dev/search?q=daft%20punk",
+  "view": { "width": 1920, "height": 1080 },
+  "tree": {
+    "t": "html",
+    "r": [0, 0, 1920, 1080],
+    "c": [
+      {
+        "t": "body",
+        "r": [0, 0, 1920, 1080],
+        "c": [
+          {
+            "t": "div",
+            "r": [0, 0, 1920, 1080],
+            "c": [
+              {
+                "t": "div",
+                "r": [0, 0, 1920, 1080],
+                "c": [
+                  {
+                    "t": "div",
+                    "r": [0, 0, 1920, 1080],
+                    "c": [
+                      {
+                        "t": "nav",
+                        "r": [0, 0, 260, 1080],
+                        "a": { "aria-label": "Main" },
+                        "z": 9901,
+                        "fixed": true,
+                        "c": [
+                          {
+                            "t": "div",
+                            "r": [8, 8, 252, 72],
+                            "c": [
+                              {
+                                "t": "a",
+                                "r": [28, 32, 111, 24],
+                                "a": { "href": "/home", "aria-label": "BitChord, Home" },
+                                "c": [
+                                  {
+                                    "t": "span",
+                                    "r": [28, 37, 22, 15],
+                                    "a": { "aria-hidden": "true" }
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "div",
+                            "r": [0, 80, 260, 894],
+                            "c": [
+                              {
+                                "t": "ul",
+                                "r": [20, 80, 228, 114],
+                                "c": [
+                                  {
+                                    "t": "li",
+                                    "r": [20, 80, 228, 38],
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "r": [20, 80, 228, 36],
+                                        "a": { "href": "/search" }
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "li",
+                                    "r": [20, 118, 228, 38],
+                                    "c": [
+                                      {
+                                        "t": "a",
+                                        "r": [20, 118, 228, 36],
+                                        "a": { "href": "/home" }
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "li",
+                                    "r": [20, 156, 228, 38],
+                                    "c": [
+                                      { "t": "a", "r": [20, 156, 228, 36], "a": { "href": "/new" } }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "t": "div",
+                            "r": [0, 974, 260, 106],
+                            "c": [
+                              { "t": "a", "r": [20, 986, 228, 36], "a": { "href": "/extension" } },
+                              {
+                                "t": "div",
+                                "r": [20, 1032, 228, 28],
+                                "c": [
+                                  {
+                                    "t": "a",
+                                    "r": [20, 1039, 136, 15],
+                                    "a": {
+                                      "href": "https://github.com/kushagrasinghx/BitChord/releases/latest"
+                                    }
+                                  },
+                                  {
+                                    "t": "a",
+                                    "r": [220, 1032, 28, 28],
+                                    "a": { "href": "/settings", "aria-label": "Settings" }
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "main",
+                        "r": [0, 0, 1920, 1080],
+                        "c": [
+                          {
+                            "t": "div",
+                            "r": [260, 0, 1660, 2037],
+                            "c": [
+                              {
+                                "t": "div",
+                                "r": [260, 0, 1660, 62],
+                                "z": 6,
+                                "fixed": true,
+                                "c": [
+                                  {
+                                    "t": "div",
+                                    "r": [844, 12, 492, 38],
+                                    "c": [
+                                      {
+                                        "t": "form",
+                                        "r": [844, 12, 492, 38],
+                                        "a": { "role": "search" },
+                                        "c": [
+                                          {
+                                            "t": "input",
+                                            "r": [844, 12, 492, 38],
+                                            "a": {
+                                              "role": "combobox",
+                                              "aria-label": "Search",
+                                              "type": "search",
+                                              "placeholder": "Artists, Songs, Lyrics, and More"
+                                            }
+                                          },
+                                          {
+                                            "t": "button",
+                                            "r": [1311, 23, 16, 16],
+                                            "a": { "aria-label": "Clear", "type": "button" }
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "t": "section",
+                                "r": [260, 74, 1660, 290],
+                                "a": { "aria-label": "Top Results" },
+                                "c": [
+                                  {
+                                    "t": "div",
+                                    "r": [300, 108, 1580, 256],
+                                    "c": [
+                                      {
+                                        "t": "div",
+                                        "r": [300, 108, 513, 118],
+                                        "c": [
+                                          {
+                                            "t": "a",
+                                            "r": [300, 108, 513, 118],
+                                            "a": { "href": "/artist/UCRr1xG_2WIDs18a6cIiCxeA" }
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "t": "div",
+                                        "r": [833, 108, 513, 118],
+                                        "c": [
+                                          {
+                                            "t": "button",
+                                            "r": [1311, 190, 28, 28],
+                                            "a": {
+                                              "aria-label": "More options for The Son of Flynn (From \"TRON: Legacy\"/Score)"
+                                            },
+                                            "z": 3
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "t": "div",
+                                        "r": [1367, 108, 513, 118],
+                                        "c": [
+                                          {
+                                            "t": "a",
+                                            "r": [1367, 108, 513, 118],
+                                            "a": { "href": "/album/MPREb_K8qWMWVqXGi" }
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "t": "div",
+                                        "r": [300, 246, 513, 118],
+                                        "c": [
+                                          {
+                                            "t": "a",
+                                            "r": [300, 246, 513, 118],
+                                            "a": { "href": "/artist/UClYV6hHlupm_S_ObS1W-DYw" }
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "t": "div",
+                                        "r": [833, 246, 513, 118],
+                                        "c": [
+                                          {
+                                            "t": "a",
+                                            "r": [833, 246, 513, 118],
+                                            "a": { "href": "/playlist/VLPLRTT1eLEoNHc" }
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "t": "section",
+                                "r": [260, 396, 1660, 253],
+                                "a": { "aria-label": "Artists" },
+                                "c": [
+                                  {
+                                    "t": "div",
+                                    "r": [260, 453, 1660, 196],
+                                    "c": [
+                                      {
+                                        "t": "button",
+                                        "r": [266, 525, 28, 52],
+                                        "a": { "aria-label": "Previous Page", "disabled": "" },
+                                        "z": 3,
+                                        "through": true
+                                      },
+                                      {
+                                        "t": "ul",
+                                        "r": [260, 453, 1660, 196],
+                                        "c": [
+                                          {
+                                            "t": "li",
+                                            "r": [300, 468, 140, 166],
+                                            "c": [
+                                              {
+                                                "t": "a",
+                                                "r": [300, 468, 140, 166],
+                                                "a": { "href": "/artist/UCRr1xG_2WIDs18a6cIiCxeA" }
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [460, 468, 140, 166],
+                                            "c": [
+                                              {
+                                                "t": "a",
+                                                "r": [460, 468, 140, 166],
+                                                "a": { "href": "/artist/UClYV6hHlupm_S_ObS1W-DYw" }
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [620, 468, 140, 166],
+                                            "c": [
+                                              {
+                                                "t": "a",
+                                                "r": [620, 468, 140, 166],
+                                                "a": { "href": "/artist/UC3V5kzHK2r4rbbXlf4OpFmw" }
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [780, 468, 140, 166],
+                                            "c": [
+                                              {
+                                                "t": "a",
+                                                "r": [780, 468, 140, 166],
+                                                "a": { "href": "/artist/UC9ouIc5bVUPVzZ0X_JETPEA" }
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [940, 468, 140, 166],
+                                            "c": [
+                                              {
+                                                "t": "a",
+                                                "r": [940, 468, 140, 166],
+                                                "a": { "href": "/artist/UCKWLw8VE-LKujKMd0zpu5rQ" }
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [1100, 468, 140, 166],
+                                            "c": [
+                                              {
+                                                "t": "a",
+                                                "r": [1100, 468, 140, 166],
+                                                "a": { "href": "/artist/UCoSyAozBXV40uR9xtW4678Q" }
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [1260, 468, 140, 166],
+                                            "c": [
+                                              {
+                                                "t": "a",
+                                                "r": [1260, 468, 140, 166],
+                                                "a": { "href": "/artist/UCmKULRThKkBeLvHVcyIvQgg" }
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "t": "button",
+                                        "r": [1886, 525, 28, 52],
+                                        "a": { "aria-label": "Next Page", "disabled": "" },
+                                        "z": 3,
+                                        "through": true
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "t": "section",
+                                "r": [260, 634, 1660, 373],
+                                "a": { "aria-label": "Albums" },
+                                "c": [
+                                  {
+                                    "t": "div",
+                                    "r": [260, 691, 1660, 316],
+                                    "c": [
+                                      {
+                                        "t": "button",
+                                        "r": [266, 823, 28, 52],
+                                        "a": { "aria-label": "Previous Page", "disabled": "" },
+                                        "z": 3,
+                                        "through": true
+                                      },
+                                      {
+                                        "t": "ul",
+                                        "r": [260, 691, 1660, 316],
+                                        "c": [
+                                          {
+                                            "t": "li",
+                                            "r": [300, 706, 247, 286],
+                                            "c": [
+                                              {
+                                                "t": "div",
+                                                "r": [300, 706, 247, 286],
+                                                "c": [
+                                                  {
+                                                    "t": "div",
+                                                    "r": [300, 706, 247, 247],
+                                                    "c": [
+                                                      {
+                                                        "t": "a",
+                                                        "r": [300, 706, 247, 247],
+                                                        "a": {
+                                                          "href": "/album/MPREb_K8qWMWVqXGi",
+                                                          "aria-label": "Random Access Memories"
+                                                        },
+                                                        "z": 1
+                                                      },
+                                                      {
+                                                        "t": "div",
+                                                        "r": [300, 706, 247, 247],
+                                                        "z": 2,
+                                                        "through": true
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "div",
+                                                    "r": [300, 961, 247, 31],
+                                                    "c": [
+                                                      {
+                                                        "t": "div",
+                                                        "r": [300, 961, 247, 15],
+                                                        "c": [
+                                                          {
+                                                            "t": "a",
+                                                            "r": [300, 961, 147, 15],
+                                                            "a": {
+                                                              "href": "/album/MPREb_K8qWMWVqXGi"
+                                                            }
+                                                          }
+                                                        ]
+                                                      }
+                                                    ]
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [567, 706, 247, 286],
+                                            "c": [
+                                              {
+                                                "t": "div",
+                                                "r": [567, 706, 247, 286],
+                                                "c": [
+                                                  {
+                                                    "t": "div",
+                                                    "r": [567, 706, 247, 247],
+                                                    "c": [
+                                                      {
+                                                        "t": "a",
+                                                        "r": [567, 706, 247, 247],
+                                                        "a": {
+                                                          "href": "/album/MPREb_CtOaObihCXA",
+                                                          "aria-label": "Alive 2007"
+                                                        },
+                                                        "z": 1
+                                                      },
+                                                      {
+                                                        "t": "div",
+                                                        "r": [567, 706, 247, 247],
+                                                        "z": 2,
+                                                        "through": true
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "div",
+                                                    "r": [567, 961, 247, 31],
+                                                    "c": [
+                                                      {
+                                                        "t": "div",
+                                                        "r": [567, 961, 247, 15],
+                                                        "c": [
+                                                          {
+                                                            "t": "a",
+                                                            "r": [567, 961, 59, 15],
+                                                            "a": {
+                                                              "href": "/album/MPREb_CtOaObihCXA"
+                                                            }
+                                                          }
+                                                        ]
+                                                      }
+                                                    ]
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [833, 706, 247, 286],
+                                            "c": [
+                                              {
+                                                "t": "div",
+                                                "r": [833, 706, 247, 286],
+                                                "c": [
+                                                  {
+                                                    "t": "div",
+                                                    "r": [833, 706, 247, 247],
+                                                    "c": [
+                                                      {
+                                                        "t": "a",
+                                                        "r": [833, 706, 247, 247],
+                                                        "a": {
+                                                          "href": "/album/MPREb_7ltM34kr0mH",
+                                                          "aria-label": "Discovery"
+                                                        },
+                                                        "z": 1
+                                                      },
+                                                      {
+                                                        "t": "div",
+                                                        "r": [833, 706, 247, 247],
+                                                        "z": 2,
+                                                        "through": true
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "div",
+                                                    "r": [833, 961, 247, 31],
+                                                    "c": [
+                                                      {
+                                                        "t": "div",
+                                                        "r": [833, 961, 247, 15],
+                                                        "c": [
+                                                          {
+                                                            "t": "a",
+                                                            "r": [833, 961, 55, 15],
+                                                            "a": {
+                                                              "href": "/album/MPREb_7ltM34kr0mH"
+                                                            }
+                                                          }
+                                                        ]
+                                                      }
+                                                    ]
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "t": "button",
+                                        "r": [1886, 823, 28, 52],
+                                        "a": { "aria-label": "Next Page", "disabled": "" },
+                                        "z": 3,
+                                        "through": true
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "t": "section",
+                                "r": [260, 992, 1660, 307],
+                                "a": { "aria-label": "Songs" },
+                                "c": [
+                                  {
+                                    "t": "div",
+                                    "r": [260, 1049, 1660, 250],
+                                    "c": [
+                                      {
+                                        "t": "button",
+                                        "r": [266, 1148, 28, 52],
+                                        "a": { "aria-label": "Previous Page", "disabled": "" },
+                                        "z": 3,
+                                        "through": true
+                                      },
+                                      {
+                                        "t": "ul",
+                                        "r": [260, 1049, 1660, 250],
+                                        "c": [
+                                          {
+                                            "t": "li",
+                                            "r": [300, 1064, 380, 55],
+                                            "c": [
+                                              {
+                                                "t": "div",
+                                                "r": [300, 1064, 380, 55],
+                                                "a": {
+                                                  "class": "group/track grid h-[55px] grid-col"
+                                                },
+                                                "c": [
+                                                  {
+                                                    "t": "button",
+                                                    "r": [300, 1071, 40, 40],
+                                                    "a": {
+                                                      "aria-label": "Play The Son of Flynn (From \"TRON: Legacy\"/Score)"
+                                                    },
+                                                    "c": [
+                                                      {
+                                                        "t": "span",
+                                                        "r": [300, 1071, 40, 40],
+                                                        "a": { "aria-hidden": "true" }
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "button",
+                                                    "r": [638, 1077, 28, 28],
+                                                    "a": {
+                                                      "aria-label": "More options for The Son of Flynn (From \"TRON: Legacy\"/Score)"
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [300, 1119, 380, 55],
+                                            "c": [
+                                              {
+                                                "t": "div",
+                                                "r": [300, 1119, 380, 55],
+                                                "a": {
+                                                  "class": "group/track grid h-[55px] grid-col"
+                                                },
+                                                "c": [
+                                                  {
+                                                    "t": "button",
+                                                    "r": [300, 1126, 40, 40],
+                                                    "a": {
+                                                      "aria-label": "Play Instant Crush (feat. Julian Casablancas)"
+                                                    },
+                                                    "c": [
+                                                      {
+                                                        "t": "span",
+                                                        "r": [300, 1126, 40, 40],
+                                                        "a": { "aria-hidden": "true" }
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "button",
+                                                    "r": [638, 1132, 28, 28],
+                                                    "a": {
+                                                      "aria-label": "More options for Instant Crush (feat. Julian Casablancas)"
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [300, 1174, 380, 55],
+                                            "c": [
+                                              {
+                                                "t": "div",
+                                                "r": [300, 1174, 380, 55],
+                                                "a": {
+                                                  "class": "group/track grid h-[55px] grid-col"
+                                                },
+                                                "c": [
+                                                  {
+                                                    "t": "button",
+                                                    "r": [300, 1181, 40, 40],
+                                                    "a": { "aria-label": "Play One More Time" },
+                                                    "c": [
+                                                      {
+                                                        "t": "span",
+                                                        "r": [300, 1181, 40, 40],
+                                                        "a": { "aria-hidden": "true" }
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "button",
+                                                    "r": [638, 1187, 28, 28],
+                                                    "a": {
+                                                      "aria-label": "More options for One More Time"
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [300, 1229, 380, 55],
+                                            "c": [
+                                              {
+                                                "t": "div",
+                                                "r": [300, 1229, 380, 55],
+                                                "a": {
+                                                  "class": "group/track grid h-[55px] grid-col"
+                                                },
+                                                "c": [
+                                                  {
+                                                    "t": "button",
+                                                    "r": [300, 1236, 40, 40],
+                                                    "a": {
+                                                      "aria-label": "Play End of Line (From \"TRON: Legacy\"/Score)"
+                                                    },
+                                                    "c": [
+                                                      {
+                                                        "t": "span",
+                                                        "r": [300, 1236, 40, 40],
+                                                        "a": { "aria-hidden": "true" }
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "div",
+                                                    "r": [352, 1240, 274, 32],
+                                                    "c": [
+                                                      {
+                                                        "t": "div",
+                                                        "r": [356, 1257, 266, 15],
+                                                        "c": [
+                                                          {
+                                                            "t": "span",
+                                                            "r": [356, 1257, 54, 16],
+                                                            "c": [
+                                                              {
+                                                                "t": "a",
+                                                                "r": [356, 1257, 54, 16],
+                                                                "a": {
+                                                                  "href": "/artist/UCRr1xG_2WIDs18a6cIiCxeA"
+                                                                }
+                                                              }
+                                                            ]
+                                                          }
+                                                        ]
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "button",
+                                                    "r": [638, 1242, 28, 28],
+                                                    "a": {
+                                                      "aria-label": "More options for End of Line (From \"TRON: Legacy\"/Score)"
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [700, 1064, 380, 55],
+                                            "c": [
+                                              {
+                                                "t": "div",
+                                                "r": [700, 1064, 380, 55],
+                                                "a": {
+                                                  "class": "group/track grid h-[55px] grid-col"
+                                                },
+                                                "c": [
+                                                  {
+                                                    "t": "button",
+                                                    "r": [700, 1071, 40, 40],
+                                                    "a": {
+                                                      "aria-label": "Play Veridis Quo (Edit)"
+                                                    },
+                                                    "c": [
+                                                      {
+                                                        "t": "span",
+                                                        "r": [700, 1071, 40, 40],
+                                                        "a": { "aria-hidden": "true" }
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "div",
+                                                    "r": [752, 1075, 274, 32],
+                                                    "c": [
+                                                      {
+                                                        "t": "div",
+                                                        "r": [756, 1092, 266, 15],
+                                                        "c": [
+                                                          {
+                                                            "t": "span",
+                                                            "r": [756, 1092, 54, 16],
+                                                            "c": [
+                                                              {
+                                                                "t": "a",
+                                                                "r": [756, 1092, 54, 16],
+                                                                "a": {
+                                                                  "href": "/artist/UCRr1xG_2WIDs18a6cIiCxeA"
+                                                                }
+                                                              }
+                                                            ]
+                                                          }
+                                                        ]
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "button",
+                                                    "r": [1038, 1077, 28, 28],
+                                                    "a": {
+                                                      "aria-label": "More options for Veridis Quo (Edit)"
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [700, 1119, 380, 55],
+                                            "c": [
+                                              {
+                                                "t": "div",
+                                                "r": [700, 1119, 380, 55],
+                                                "a": {
+                                                  "class": "group/track grid h-[55px] grid-col"
+                                                },
+                                                "c": [
+                                                  {
+                                                    "t": "button",
+                                                    "r": [700, 1126, 40, 40],
+                                                    "a": { "aria-label": "Play Robot Rock" },
+                                                    "c": [
+                                                      {
+                                                        "t": "span",
+                                                        "r": [700, 1126, 40, 40],
+                                                        "a": { "aria-hidden": "true" }
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "div",
+                                                    "r": [752, 1130, 274, 32],
+                                                    "c": [
+                                                      {
+                                                        "t": "div",
+                                                        "r": [756, 1147, 266, 15],
+                                                        "c": [
+                                                          {
+                                                            "t": "span",
+                                                            "r": [756, 1147, 54, 16],
+                                                            "c": [
+                                                              {
+                                                                "t": "a",
+                                                                "r": [756, 1147, 54, 16],
+                                                                "a": {
+                                                                  "href": "/artist/UCRr1xG_2WIDs18a6cIiCxeA"
+                                                                }
+                                                              }
+                                                            ]
+                                                          }
+                                                        ]
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "button",
+                                                    "r": [1038, 1132, 28, 28],
+                                                    "a": {
+                                                      "aria-label": "More options for Robot Rock"
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [700, 1174, 380, 55],
+                                            "c": [
+                                              {
+                                                "t": "div",
+                                                "r": [700, 1174, 380, 55],
+                                                "a": {
+                                                  "class": "group/track grid h-[55px] grid-col"
+                                                },
+                                                "c": [
+                                                  {
+                                                    "t": "button",
+                                                    "r": [700, 1181, 40, 40],
+                                                    "a": {
+                                                      "aria-label": "Play Fragments of Time (feat. Todd Edwards)"
+                                                    },
+                                                    "c": [
+                                                      {
+                                                        "t": "span",
+                                                        "r": [700, 1181, 40, 40],
+                                                        "a": { "aria-hidden": "true" }
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "div",
+                                                    "r": [752, 1185, 274, 32],
+                                                    "c": [
+                                                      {
+                                                        "t": "div",
+                                                        "r": [756, 1202, 266, 15],
+                                                        "c": [
+                                                          {
+                                                            "t": "span",
+                                                            "r": [756, 1202, 54, 16],
+                                                            "c": [
+                                                              {
+                                                                "t": "a",
+                                                                "r": [756, 1202, 54, 16],
+                                                                "a": {
+                                                                  "href": "/artist/UCRr1xG_2WIDs18a6cIiCxeA"
+                                                                }
+                                                              }
+                                                            ]
+                                                          },
+                                                          {
+                                                            "t": "span",
+                                                            "r": [810, 1202, 84, 16],
+                                                            "c": [
+                                                              {
+                                                                "t": "a",
+                                                                "r": [815, 1202, 79, 16],
+                                                                "a": {
+                                                                  "href": "/artist/UCk_ezssvR9Os0VrMbmA3SWg"
+                                                                }
+                                                              }
+                                                            ]
+                                                          }
+                                                        ]
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "button",
+                                                    "r": [1038, 1187, 28, 28],
+                                                    "a": {
+                                                      "aria-label": "More options for Fragments of Time (feat. Todd Edwards)"
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [700, 1229, 380, 55],
+                                            "c": [
+                                              {
+                                                "t": "div",
+                                                "r": [700, 1229, 380, 55],
+                                                "a": {
+                                                  "class": "group/track grid h-[55px] grid-col"
+                                                },
+                                                "c": [
+                                                  {
+                                                    "t": "button",
+                                                    "r": [700, 1236, 40, 40],
+                                                    "a": {
+                                                      "aria-label": "Play Starboy (feat. Daft Punk)"
+                                                    },
+                                                    "c": [
+                                                      {
+                                                        "t": "span",
+                                                        "r": [700, 1236, 40, 40],
+                                                        "a": { "aria-hidden": "true" }
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "div",
+                                                    "r": [752, 1240, 274, 32],
+                                                    "c": [
+                                                      {
+                                                        "t": "div",
+                                                        "r": [756, 1257, 266, 15],
+                                                        "c": [
+                                                          {
+                                                            "t": "span",
+                                                            "r": [756, 1257, 69, 16],
+                                                            "c": [
+                                                              {
+                                                                "t": "a",
+                                                                "r": [756, 1257, 69, 16],
+                                                                "a": {
+                                                                  "href": "/artist/UClYV6hHlupm_S_ObS1W-DYw"
+                                                                }
+                                                              }
+                                                            ]
+                                                          }
+                                                        ]
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "button",
+                                                    "r": [1038, 1242, 28, 28],
+                                                    "a": {
+                                                      "aria-label": "More options for Starboy (feat. Daft Punk)"
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "t": "button",
+                                        "r": [1886, 1148, 28, 52],
+                                        "a": { "aria-label": "Next Page", "disabled": "" },
+                                        "z": 3,
+                                        "through": true
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "t": "section",
+                                "r": [260, 1284, 1660, 373],
+                                "a": { "aria-label": "Playlists" },
+                                "c": [
+                                  {
+                                    "t": "div",
+                                    "r": [260, 1341, 1660, 316],
+                                    "c": [
+                                      {
+                                        "t": "button",
+                                        "r": [266, 1472, 28, 52],
+                                        "a": { "aria-label": "Previous Page", "disabled": "" },
+                                        "z": 3,
+                                        "through": true
+                                      },
+                                      {
+                                        "t": "ul",
+                                        "r": [260, 1341, 1660, 316],
+                                        "c": [
+                                          {
+                                            "t": "li",
+                                            "r": [300, 1356, 247, 286],
+                                            "c": [
+                                              {
+                                                "t": "div",
+                                                "r": [300, 1356, 247, 286],
+                                                "c": [
+                                                  {
+                                                    "t": "div",
+                                                    "r": [300, 1356, 247, 247],
+                                                    "c": [
+                                                      {
+                                                        "t": "a",
+                                                        "r": [300, 1356, 247, 247],
+                                                        "a": {
+                                                          "href": "/playlist/VLPLRTT1eLEoNHc",
+                                                          "aria-label": "Daft Punk"
+                                                        },
+                                                        "z": 1
+                                                      },
+                                                      {
+                                                        "t": "div",
+                                                        "r": [300, 1356, 247, 247],
+                                                        "z": 2,
+                                                        "through": true
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "div",
+                                                    "r": [300, 1610, 247, 31],
+                                                    "c": [
+                                                      {
+                                                        "t": "div",
+                                                        "r": [300, 1610, 247, 15],
+                                                        "c": [
+                                                          {
+                                                            "t": "a",
+                                                            "r": [300, 1610, 54, 15],
+                                                            "a": {
+                                                              "href": "/playlist/VLPLRTT1eLEoNHc"
+                                                            }
+                                                          }
+                                                        ]
+                                                      }
+                                                    ]
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [567, 1356, 247, 286],
+                                            "c": [
+                                              {
+                                                "t": "div",
+                                                "r": [567, 1356, 247, 271],
+                                                "c": [
+                                                  {
+                                                    "t": "div",
+                                                    "r": [567, 1356, 247, 247],
+                                                    "c": [
+                                                      {
+                                                        "t": "a",
+                                                        "r": [567, 1356, 247, 247],
+                                                        "a": {
+                                                          "href": "/playlist/VLRDCLAK5uy_n20FRYQXNt1p1wS55Nj2r14IouO5weaYU",
+                                                          "aria-label": "Presenting Daft Punk"
+                                                        },
+                                                        "z": 1
+                                                      },
+                                                      {
+                                                        "t": "div",
+                                                        "r": [567, 1356, 247, 247],
+                                                        "z": 2,
+                                                        "through": true
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "div",
+                                                    "r": [567, 1610, 247, 16],
+                                                    "c": [
+                                                      {
+                                                        "t": "div",
+                                                        "r": [567, 1610, 247, 15],
+                                                        "c": [
+                                                          {
+                                                            "t": "a",
+                                                            "r": [567, 1610, 116, 15],
+                                                            "a": {
+                                                              "href": "/playlist/VLRDCLAK5uy_n20FRYQXNt1p1wS55Nj2r14IouO5weaYU"
+                                                            }
+                                                          }
+                                                        ]
+                                                      }
+                                                    ]
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [833, 1356, 247, 286],
+                                            "c": [
+                                              {
+                                                "t": "div",
+                                                "r": [833, 1356, 247, 286],
+                                                "c": [
+                                                  {
+                                                    "t": "div",
+                                                    "r": [833, 1356, 247, 247],
+                                                    "c": [
+                                                      {
+                                                        "t": "a",
+                                                        "r": [833, 1356, 247, 247],
+                                                        "a": {
+                                                          "href": "/playlist/VLPLGfGJFH5ltY8",
+                                                          "aria-label": "daft punk"
+                                                        },
+                                                        "z": 1
+                                                      },
+                                                      {
+                                                        "t": "div",
+                                                        "r": [833, 1356, 247, 247],
+                                                        "z": 2,
+                                                        "through": true
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "div",
+                                                    "r": [833, 1610, 247, 31],
+                                                    "c": [
+                                                      {
+                                                        "t": "div",
+                                                        "r": [833, 1610, 247, 15],
+                                                        "c": [
+                                                          {
+                                                            "t": "a",
+                                                            "r": [833, 1610, 54, 15],
+                                                            "a": {
+                                                              "href": "/playlist/VLPLGfGJFH5ltY8"
+                                                            }
+                                                          }
+                                                        ]
+                                                      }
+                                                    ]
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [1100, 1356, 247, 286],
+                                            "c": [
+                                              {
+                                                "t": "div",
+                                                "r": [1100, 1356, 247, 286],
+                                                "c": [
+                                                  {
+                                                    "t": "div",
+                                                    "r": [1100, 1356, 247, 247],
+                                                    "c": [
+                                                      {
+                                                        "t": "a",
+                                                        "r": [1100, 1356, 247, 247],
+                                                        "a": {
+                                                          "href": "/playlist/VLPLoQ2yyK6btZ8tlpaz4E2owmMT9yOUNM1q",
+                                                          "aria-label": "Daft punk /Moby / Fatboy slim /Chemical Brothers"
+                                                        },
+                                                        "z": 1
+                                                      },
+                                                      {
+                                                        "t": "div",
+                                                        "r": [1100, 1356, 247, 247],
+                                                        "z": 2,
+                                                        "through": true
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "div",
+                                                    "r": [1100, 1610, 247, 31],
+                                                    "c": [
+                                                      {
+                                                        "t": "div",
+                                                        "r": [1100, 1610, 247, 15],
+                                                        "c": [
+                                                          {
+                                                            "t": "a",
+                                                            "r": [1100, 1610, 247, 15],
+                                                            "a": {
+                                                              "href": "/playlist/VLPLoQ2yyK6btZ8tlpaz4E2owmMT9yOUNM1q"
+                                                            }
+                                                          }
+                                                        ]
+                                                      }
+                                                    ]
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [1367, 1356, 247, 286],
+                                            "c": [
+                                              {
+                                                "t": "div",
+                                                "r": [1367, 1356, 247, 271],
+                                                "c": [
+                                                  {
+                                                    "t": "div",
+                                                    "r": [1367, 1356, 247, 247],
+                                                    "c": [
+                                                      {
+                                                        "t": "a",
+                                                        "r": [1367, 1356, 247, 247],
+                                                        "a": {
+                                                          "href": "/playlist/VLRDCLAK5uy_lNSUHrUfeEfPa7fC-Ns9AXpYRYJq5Xf_8",
+                                                          "aria-label": "Indie Sleaze"
+                                                        },
+                                                        "z": 1
+                                                      },
+                                                      {
+                                                        "t": "div",
+                                                        "r": [1367, 1356, 247, 247],
+                                                        "z": 2,
+                                                        "through": true
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "div",
+                                                    "r": [1367, 1610, 247, 16],
+                                                    "c": [
+                                                      {
+                                                        "t": "div",
+                                                        "r": [1367, 1610, 247, 15],
+                                                        "c": [
+                                                          {
+                                                            "t": "a",
+                                                            "r": [1367, 1610, 66, 15],
+                                                            "a": {
+                                                              "href": "/playlist/VLRDCLAK5uy_lNSUHrUfeEfPa7fC-Ns9AXpYRYJq5Xf_8"
+                                                            }
+                                                          }
+                                                        ]
+                                                      }
+                                                    ]
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [1633, 1356, 247, 286],
+                                            "c": [
+                                              {
+                                                "t": "div",
+                                                "r": [1633, 1356, 247, 271],
+                                                "c": [
+                                                  {
+                                                    "t": "div",
+                                                    "r": [1633, 1356, 247, 247],
+                                                    "c": [
+                                                      {
+                                                        "t": "a",
+                                                        "r": [1633, 1356, 247, 247],
+                                                        "a": {
+                                                          "href": "/playlist/VLRDCLAK5uy_kFB7Qmuv3wwQtsLoEJuKUdiLlta3_aOCk",
+                                                          "aria-label": "Summer Party"
+                                                        },
+                                                        "z": 1
+                                                      },
+                                                      {
+                                                        "t": "div",
+                                                        "r": [1633, 1356, 247, 247],
+                                                        "z": 2,
+                                                        "through": true
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "t": "div",
+                                                    "r": [1633, 1610, 247, 16],
+                                                    "c": [
+                                                      {
+                                                        "t": "div",
+                                                        "r": [1633, 1610, 247, 15],
+                                                        "c": [
+                                                          {
+                                                            "t": "a",
+                                                            "r": [1633, 1610, 79, 15],
+                                                            "a": {
+                                                              "href": "/playlist/VLRDCLAK5uy_kFB7Qmuv3wwQtsLoEJuKUdiLlta3_aOCk"
+                                                            }
+                                                          }
+                                                        ]
+                                                      }
+                                                    ]
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "t": "button",
+                                        "r": [1886, 1472, 28, 52],
+                                        "a": { "aria-label": "Next Page", "disabled": "" },
+                                        "z": 3,
+                                        "through": true
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "t": "section",
+                                "r": [260, 1641, 1660, 295],
+                                "a": { "aria-label": "Videos" },
+                                "c": [
+                                  {
+                                    "t": "div",
+                                    "r": [260, 1698, 1660, 238],
+                                    "c": [
+                                      {
+                                        "t": "button",
+                                        "r": [266, 1791, 28, 52],
+                                        "a": { "aria-label": "Previous Page", "disabled": "" },
+                                        "z": 3,
+                                        "through": true
+                                      },
+                                      {
+                                        "t": "ul",
+                                        "r": [260, 1698, 1660, 238],
+                                        "c": [
+                                          {
+                                            "t": "li",
+                                            "r": [300, 1713, 300, 208],
+                                            "c": [
+                                              {
+                                                "t": "div",
+                                                "r": [300, 1713, 300, 208],
+                                                "c": [
+                                                  {
+                                                    "t": "div",
+                                                    "r": [300, 1713, 300, 169],
+                                                    "c": [
+                                                      {
+                                                        "t": "button",
+                                                        "r": [300, 1713, 300, 169],
+                                                        "a": { "aria-label": "Play Veridis Quo" },
+                                                        "z": 1
+                                                      },
+                                                      {
+                                                        "t": "div",
+                                                        "r": [300, 1713, 300, 169],
+                                                        "z": 2,
+                                                        "through": true,
+                                                        "c": [
+                                                          {
+                                                            "t": "button",
+                                                            "r": [310, 1842, 30, 30],
+                                                            "a": {
+                                                              "aria-label": "Play Veridis Quo"
+                                                            }
+                                                          }
+                                                        ]
+                                                      },
+                                                      {
+                                                        "t": "button",
+                                                        "r": [564, 1721, 28, 28],
+                                                        "a": {
+                                                          "aria-label": "More options for Veridis Quo"
+                                                        },
+                                                        "z": 3
+                                                      }
+                                                    ]
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "t": "li",
+                                            "r": [620, 1713, 300, 208],
+                                            "c": [
+                                              {
+                                                "t": "div",
+                                                "r": [620, 1713, 300, 208],
+                                                "c": [
+                                                  {
+                                                    "t": "div",
+                                                    "r": [620, 1713, 300, 169],
+                                                    "c": [
+                                                      {
+                                                        "t": "button",
+                                                        "r": [620, 1713, 300, 169],
+                                                        "a": {
+                                                          "aria-label": "Play Around the World"
+                                                        },
+                                                        "z": 1
+                                                      },
+                                                      {
+                                                        "t": "div",
+                                                        "r": [620, 1713, 300, 169],
+                                                        "z": 2,
+                                                        "through": true,
+                                                        "c": [
+                                                          {
+                                                            "t": "button",
+                                                            "r": [630, 1842, 30, 30],
+                                                            "a": {
+                                                              "aria-label": "Play Around the World"
+                                                            }
+                                                          }
+                                                        ]
+                                                      },
+                                                      {
+                                                        "t": "button",
+                                                        "r": [884, 1721, 28, 28],
+                                                        "a": {
+                                                          "aria-label": "More options for Around the World"
+                                                        },
+                                                        "z": 3
+                                                      }
+                                                    ]
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "t": "button",
+                                        "r": [1886, 1791, 28, 52],
+                                        "a": { "aria-label": "Next Page", "disabled": "" },
+                                        "z": 3,
+                                        "through": true
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "t": "div",
+                        "r": [260, 1004, 1660, 56],
+                        "z": 9900,
+                        "through": true,
+                        "c": [
+                          {
+                            "t": "div",
+                            "r": [756, 1004, 668, 56],
+                            "a": { "role": "region", "aria-label": "Player" },
+                            "fixed": true,
+                            "c": [
+                              {
+                                "t": "div",
+                                "r": [772, 1018, 184, 28],
+                                "c": [
+                                  {
+                                    "t": "button",
+                                    "r": [772, 1018, 28, 28],
+                                    "a": { "aria-label": "Shuffle" }
+                                  },
+                                  {
+                                    "t": "div",
+                                    "r": [812, 1018, 96, 28],
+                                    "c": [
+                                      {
+                                        "t": "button",
+                                        "r": [812, 1018, 28, 28],
+                                        "a": { "aria-label": "Previous", "disabled": "" }
+                                      },
+                                      {
+                                        "t": "button",
+                                        "r": [846, 1018, 28, 28],
+                                        "a": { "aria-label": "Play", "disabled": "" }
+                                      },
+                                      {
+                                        "t": "button",
+                                        "r": [880, 1018, 28, 28],
+                                        "a": { "aria-label": "Next", "disabled": "" }
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "t": "button",
+                                    "r": [920, 1018, 28, 28],
+                                    "a": { "aria-label": "Repeat" }
+                                  }
+                                ]
+                              },
+                              {
+                                "t": "div",
+                                "r": [956, 1004, 362, 56],
+                                "c": [
+                                  {
+                                    "t": "div",
+                                    "r": [972, 1004, 330, 56],
+                                    "c": [
+                                      {
+                                        "t": "span",
+                                        "r": [1124, 1023, 26, 17],
+                                        "a": { "aria-hidden": "true" }
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "t": "div",
+                                "r": [1318, 1018, 90, 28],
+                                "c": [
+                                  {
+                                    "t": "button",
+                                    "r": [1318, 1018, 24, 28],
+                                    "a": { "aria-label": "Lyrics" }
+                                  },
+                                  {
+                                    "t": "button",
+                                    "r": [1351, 1018, 24, 28],
+                                    "a": { "aria-label": "Up Next" }
+                                  },
+                                  {
+                                    "t": "span",
+                                    "r": [1384, 1018, 24, 28],
+                                    "c": [
+                                      {
+                                        "t": "input",
+                                        "r": [1287, 1024, 96, 16],
+                                        "a": {
+                                          "tabindex": "-1",
+                                          "aria-label": "Volume",
+                                          "type": "range"
+                                        },
+                                        "through": true
+                                      },
+                                      {
+                                        "t": "button",
+                                        "r": [1384, 1018, 24, 28],
+                                        "a": { "aria-label": "Mute" }
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          { "t": "div", "r": [22, 26, 123, 36], "z": 2147483647, "fixed": true, "through": true }
+        ]
+      }
+    ]
+  }
+}

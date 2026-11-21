@@ -5,20 +5,24 @@ import { releaseRequestHooks, requestHooksFor, type HookSession } from "./reques
 function fakeSession() {
   const registered = { headers: 0, before: 0 };
   let headersListener: any;
+  let receivedListener: any;
   let beforeListener: any;
   const ses: HookSession = {
     webRequest: {
       onBeforeSendHeaders: (l: any) => ((headersListener = l), registered.headers++),
       onBeforeRequest: (l: any) => ((beforeListener = l), registered.before++),
+      onHeadersReceived: (l: any) => (receivedListener = l),
     },
   };
+  const received = (url: string, responseHeaders: Record<string, string[]>) =>
+    new Promise<any>((res) => receivedListener({ url, responseHeaders }, (r: any) => res(r)));
   const sendHeaders = (url: string, requestHeaders: Record<string, string>) =>
     new Promise<Record<string, string>>((res) =>
       headersListener({ url, requestHeaders }, (r: any) => res(r.requestHeaders)),
     );
   const beforeRequest = (url: string) =>
     new Promise<any>((res) => beforeListener({ url }, (r: any) => res(r)));
-  return { ses, registered, sendHeaders, beforeRequest };
+  return { ses, registered, sendHeaders, beforeRequest, received };
 }
 
 describe("request hooks", () => {
@@ -82,6 +86,41 @@ describe("request hooks", () => {
   });
 });
 
+describe("response headers", () => {
+  test("handlers run in order and the page sees the last one's headers", async () => {
+    const { ses, received } = fakeSession();
+    const hooks = requestHooksFor(ses);
+    hooks.onHeadersReceived((d) => ({ ...d.responseHeaders, "X-A": ["1"] }));
+    hooks.onHeadersReceived((d) => ({
+      ...d.responseHeaders,
+      "X-B": [d.responseHeaders["X-A"]![0]! + "2"],
+    }));
+    expect(await received("https://x.test/", { Server: ["s"] })).toEqual({
+      responseHeaders: { Server: ["s"], "X-A": ["1"], "X-B": ["12"] },
+    });
+  });
+
+  test("with no handler the response is left alone", async () => {
+    const { ses, received } = fakeSession();
+    requestHooksFor(ses);
+    expect(await received("https://x.test/", { Server: ["s"] })).toEqual({});
+  });
+
+  test("a removed or throwing handler does not stop the response", async () => {
+    const { ses, received } = fakeSession();
+    const hooks = requestHooksFor(ses);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    hooks.onHeadersReceived(() => {
+      throw new Error("boom");
+    });
+    const off = hooks.onHeadersReceived((d) => ({ ...d.responseHeaders, "X-B": ["1"] }));
+    expect(await received("https://x.test/", {})).toEqual({ responseHeaders: { "X-B": ["1"] } });
+    off();
+    expect(await received("https://x.test/", {})).toEqual({ responseHeaders: {} });
+    warn.mockRestore();
+  });
+});
+
 describe("releasing a session's hooks", () => {
   function holder() {
     const held: Record<string, unknown> = {};
@@ -89,6 +128,7 @@ describe("releasing a session's hooks", () => {
       webRequest: {
         onBeforeSendHeaders: (l: any) => void (held.headers = l),
         onBeforeRequest: (l: any) => void (held.before = l),
+        onHeadersReceived: (l: any) => void (held.received = l),
       },
     };
     return { ses, held };
@@ -101,7 +141,7 @@ describe("releasing a session's hooks", () => {
     expect(typeof held.before).toBe("function");
     off();
     releaseRequestHooks(ses);
-    expect(held).toEqual({ before: null, headers: null });
+    expect(held).toEqual({ before: null, headers: null, received: null });
   });
 
   test("a session is hooked afresh after a release", () => {

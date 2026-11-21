@@ -38,6 +38,10 @@ _Avoid_: extension (clashes with file extensions in the Library), plugin (in UI 
 **Netflix**:
 The App that shows Netflix's own website inside the Screen, driven from the Remote with a visible focus ring; sign-in and profile choice happen on the Screen.
 
+**BitChord**:
+The App that shows BitChord's own web player (a YouTube Music client) inside the Screen, signed out, driven from the Remote with a visible focus ring; Couch stands in for BitChord's browser extension. "BitChord's browser extension" is theirs; **the BitChord bridge** is Couch's part of it (the answers to the web player's requests and the network rules the extension would apply).
+_Avoid_: extension (in UI copy: the household never sees the word)
+
 **Engine**:
 What a Web App's page runs on: WebKit (FairPlay) or Chromium (Widevine); the household chooses it per App in Settings → Apps → Playback.
 
