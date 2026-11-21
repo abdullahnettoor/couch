@@ -53,6 +53,31 @@ describe("the BitChord description", () => {
     expect(home(`${BITCHORD_PAGES}/album/x`)).toBe(false);
   });
 
+  test("typed search opens BitChord's own search address, on the site it loaded", () => {
+    const search = desc().search!;
+    expect(search.placeholder).toBe("Search BitChord");
+    expect(search.urlFor("daft punk")).toBe(`${BITCHORD_PAGES}/search?q=daft%20punk`);
+    expect(search.urlFor("  AC/DC & co  ")).toBe(`${BITCHORD_PAGES}/search?q=AC%2FDC%20%26%20co`);
+    expect(search.urlFor("   ")).toBe(`${BITCHORD_PAGES}/search`);
+    expect(desc({ BITCHORD_SITE: "https://dev.example" }).search!.urlFor("a")).toBe(
+      "https://dev.example/search?q=a",
+    );
+    expect(search.isSearchUrl(`${BITCHORD_PAGES}/search?q=x`)).toBe(true);
+    expect(search.isSearchUrl(`${BITCHORD_PAGES}/search/`)).toBe(true);
+    expect(search.isSearchUrl(`${BITCHORD_PAGES}/home`)).toBe(false);
+    expect(search.isSearchUrl("nonsense")).toBe(false);
+  });
+
+  test("Back walks BitChord's history and leaves only from its first page", () => {
+    const d = desc();
+    expect(d.backByHistory).toBe(true);
+    const tracker = d.route.tracker();
+    const home = (path: string) => tracker.update(`${BITCHORD_PAGES}${path}`, null)?.home;
+    expect(home("/home")).toBe(true);
+    for (const page of ["/album/MPREb_x", "/artist/UCx", "/playlist/VLx", "/search?q=a", "/new"])
+      expect(home(page)).toBe(false);
+  });
+
   test("the description answers a page's bridge ping through its bridge", async () => {
     expect(
       await desc().bridge!({

@@ -10,6 +10,8 @@ export interface SnapNode {
   z?: number;
   /** position: fixed or sticky: it stays put when the page scrolls. */
   fixed?: boolean;
+  /** pointer-events: none: clicks and hit tests pass through it. */
+  through?: boolean;
   c?: SnapNode[];
 }
 export interface Snapshot {
@@ -71,21 +73,45 @@ function compound(sel: string): (el: FakeEl) => boolean {
   return (el) => tests.every((t) => t(el));
 }
 
-export function matcher(selector: string): (el: FakeEl) => boolean {
-  // Split on commas outside brackets and parentheses.
+/** Splits on a separator outside brackets, parentheses and quotes. */
+function splitOutside(text: string, sep: (ch: string) => boolean): string[] {
   const parts: string[] = [];
   let depth = 0;
+  let quote = "";
   let cur = "";
-  for (const ch of selector) {
-    if (ch === "[" || ch === "(") depth++;
-    if (ch === "]" || ch === ")") depth--;
-    if (ch === "," && depth === 0) {
-      parts.push(cur);
+  for (const ch of text) {
+    if (quote) {
+      if (ch === quote) quote = "";
+    } else if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === "[" || ch === "(") depth++;
+    else if (ch === "]" || ch === ")") depth--;
+    if (!quote && depth === 0 && sep(ch)) {
+      if (cur.trim()) parts.push(cur.trim());
       cur = "";
     } else cur += ch;
   }
-  parts.push(cur);
-  const tests = parts.map(compound);
+  if (cur.trim()) parts.push(cur.trim());
+  return parts;
+}
+
+/** A selector of compounds, joined by descendant combinators (spaces): the last must match the element, the others its ancestors in order. */
+function complex(sel: string): (el: FakeEl) => boolean {
+  const chain = splitOutside(sel, (ch) => /\s/.test(ch)).map(compound);
+  const last = chain.pop()!;
+  return (el) => {
+    if (!last(el)) return false;
+    let at = el.parent;
+    for (let i = chain.length - 1; i >= 0; i--) {
+      while (at && !chain[i]!(at)) at = at.parent;
+      if (!at) return false;
+      at = at.parent;
+    }
+    return true;
+  };
+}
+
+export function matcher(selector: string): (el: FakeEl) => boolean {
+  const tests = splitOutside(selector, (ch) => ch === ",").map(complex);
   return (el) => tests.some((t) => t(el));
 }
 
@@ -102,11 +128,13 @@ export class FakeEl {
   isContentEditable = false;
   z?: number;
   fixed: boolean;
+  through: boolean;
   scroll: { y: number; height: number };
   constructor(n: SnapNode, scroll: { y: number; height: number }) {
     this.scroll = scroll;
     this.z = n.z;
     this.fixed = !!n.fixed;
+    this.through = !!n.through;
     this.tagName = n.t.toUpperCase();
     this.attrs = n.a ?? {};
     this.rect = { left: n.r[0], top: n.r[1], right: n.r[0] + n.r[2], bottom: n.r[1] + n.r[3] };
@@ -228,7 +256,7 @@ export function snapshotPage(snap: Snapshot) {
       const hits: FakeEl[] = [];
       all.forEach((e) => {
         const r = e.getBoundingClientRect();
-        if (!e.connected || e.hiddenStyle) return;
+        if (!e.connected || e.hiddenStyle || e.through) return;
         if (x >= r.left && x < r.right && y >= r.top && y < r.bottom) hits.push(e);
       });
       return hits.sort((a, b) => b.effectiveZ - a.effectiveZ || all.indexOf(b) - all.indexOf(a));
@@ -237,7 +265,7 @@ export function snapshotPage(snap: Snapshot) {
       let top: FakeEl | null = null;
       for (const e of all) {
         const r = e.getBoundingClientRect();
-        if (!e.connected || e.hiddenStyle) continue;
+        if (!e.connected || e.hiddenStyle || e.through) continue;
         if (
           x >= r.left &&
           x < r.right &&

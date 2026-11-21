@@ -23,3 +23,17 @@ export function bitchordOrigins(site: string): string[] {
 export function isBitchordHome(url: URL): boolean {
   return url.pathname === "/" || url.pathname === "/home";
 }
+
+export function isBitchordSearchUrl(url: string): boolean {
+  try {
+    return new URL(url).pathname.replace(/\/+$/, "") === "/search";
+  } catch {
+    return false;
+  }
+}
+
+/** BitChord's own search address for typed text: `/search?q=…` on the site Couch loaded. */
+export function bitchordSearchUrlFor(site: string, text: string): string {
+  const q = text.trim();
+  return q ? `${site}/search?q=${encodeURIComponent(q)}` : `${site}/search`;
+}

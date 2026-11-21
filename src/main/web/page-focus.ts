@@ -65,6 +65,10 @@ export interface FocusLayout {
   modalEntry?: string[];
   /** Rows of cards: Left/Right stay in the row, Up/Down leave it; at the row's end `next`/`prev` (inside the row) page it. */
   rows?: { row: string; next?: string; prev?: string };
+  /** The page binds the arrow keys itself (volume, seeking) but the highlight takes them: the page's handlers never see them. */
+  takeArrows?: boolean;
+  /** Docked regions that stay put while the page scrolls (a sidebar, a player bar): a move stays inside the region it starts in (or in the page, from the page) while that has a control that way; from a dock it then goes to the page, never to another dock. */
+  docks?: string[];
   /** RegExp source whose first group is a title's id in a link's `href`: how a control opened from a card is found again after the page redraws it. */
   titleId?: string;
   /**
@@ -477,6 +481,18 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       } catch (e) {}
       return null;
     };
+    // Put on a dock before the page was there, and not moved by the household: the page takes the highlight when it arrives.
+    var leaveEarlyDock = function () {
+      try {
+        if (!current || landed || !LAYOUT.docks || !LAYOUT.docks.length) return;
+        var sel = LAYOUT.docks.join(',');
+        if (!current.closest(sel)) return;
+        var early = candidates().filter(function (c) { return !c.el.closest(sel); });
+        if (!early.length) return;
+        var ei = pick(null, early.map(function (c) { return c.rect; }), 'down', view());
+        if (ei >= 0) { current = early[ei].el; heldKey = keyOf(current); draw(); }
+      } catch (e) {}
+    };
     var ensure = function () {
       try {
         if (barOn) { barTick(); if (barOn) return; }
@@ -523,6 +539,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
           if (entry) { if (entry !== current) { current = entry; heldKey = keyOf(entry); displaced = null; } }
           else { current = null; displaced = null; draw(); return; }
         }
+        leaveEarlyDock();
         if (current && usable(current)) { draw(); return; }
         if (current && current.isConnected && !displaced) { displaced = current; displacedKey = heldKey; }
         if (current && !current.isConnected && !lost && heldKey && !layersChanged) {
@@ -539,6 +556,11 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
           lost = null;
         }
         var list = candidates();
+        // With docks the highlight starts on the page, not on a sidebar or a bar, when the page has anything.
+        if (LAYOUT.docks && LAYOUT.docks.length) {
+          var inPage = list.filter(function (c) { try { return !c.el.closest(LAYOUT.docks.join(',')); } catch (e) { return true; } });
+          if (inPage.length) list = inPage;
+        }
         if (list.length) {
           var i = pick(null, list.map(function (c) { return c.rect; }), 'down', view());
           if (i >= 0) { current = list[i].el; heldKey = keyOf(current); }
@@ -677,10 +699,56 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       } catch (e) { return ''; }
     };
     var paging = false;
+    // Whether the household has moved the highlight yet.
+    var landed = false;
     // The held control when a scroll of the household's left it wholly off screen.
     var strayed = null;
     var offScreen = function (r) { return r.right <= 0 || r.bottom <= 0 || r.left >= innerWidth || r.top >= innerHeight; };
+    // With docks: the controls in the same region as the held one (the page, or one dock) come first; the rest only when none lies that way.
+    var dockOf = function (el) {
+      try { return LAYOUT.docks && LAYOUT.docks.length && el.closest ? el.closest(LAYOUT.docks.join(',')) : null; } catch (e) { return null; }
+    };
+    var pickIn = function (from, list, dir) {
+      var rects = function (l) { return l.map(function (c) { return c.rect; }); };
+      if (!LAYOUT.docks || !LAYOUT.docks.length) return pick(from, rects(list), dir, view());
+      if (!from || !current) {
+        // Starting from nothing: on the page, when it has anything.
+        var onPage = [];
+        for (var m = 0; m < list.length; m++) if (!dockOf(list[m].el)) onPage.push(m);
+        var first = pick(from, rects(onPage.map(function (n) { return list[n]; })), dir, view());
+        return first >= 0 ? onPage[first] : pick(from, rects(list), dir, view());
+      }
+      var home = dockOf(current), near = [], k, side = dir === 'left' || dir === 'right';
+      for (k = 0; k < list.length; k++) {
+        if (dockOf(list[k].el) !== home) continue;
+        // A sideways move stays on its line (a shelf's cards, a bar's buttons); inside a dock an up or down move does too (a sidebar's links).
+        var r = list[k].rect;
+        if (side ? r.bottom <= from.top || r.top >= from.bottom : home && (r.right <= from.left || r.left >= from.right)) continue;
+        near.push(k);
+      }
+      var through = function (idx) {
+        var j = pick(from, rects(idx.map(function (n) { return list[n]; })), dir, view());
+        return j >= 0 ? idx[j] : -1;
+      };
+      var found = through(near);
+      if (found >= 0) return found;
+      if (!home) {
+        // From the end of its line a sideways move can only go to a side dock (one as tall as the screen's half): a bar along the bottom is for Down.
+        if (!side) return pick(from, rects(list), dir, view());
+        var docked = [];
+        for (k = 0; k < list.length; k++) {
+          var d = dockOf(list[k].el), dr = d && rectOf(d);
+          if (dr && dr.bottom - dr.top > innerHeight / 2) docked.push(k);
+        }
+        return through(docked);
+      }
+      // From a dock, on to the page, never to another dock.
+      var page = [];
+      for (k = 0; k < list.length; k++) if (!dockOf(list[k].el)) page.push(k);
+      return through(page);
+    };
     var move = function (dir, afterPaging) {
+      leaveEarlyDock();
       var list = candidates();
       var from = current && usable(current) ? rectOf(current) : (lost && lost.rect ? lost.rect : null);
       // The household scrolled the held control off screen: start again from what is on screen (nearest the middle), instead of scrolling back to it.
@@ -721,8 +789,8 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         }
         // Only if the row really moved: the card must lie past the old one in the direction asked.
         if (i >= 0 && heldRect && (dir === 'right' ? list[i].rect.left <= heldRect.left : list[i].rect.left >= heldRect.left)) i = -1;
-      } else i = pick(from, list.map(function (c) { return c.rect; }), dir, view());
-      if (i < 0) {
+      } else i = pickIn(from, list, dir);
+            if (i < 0) {
         if (row && sideways && !paging && !afterPaging) {
           var handle = row.querySelector(dir === 'right' ? LAYOUT.rows.next : LAYOUT.rows.prev);
           if (handle && shown(handle)) {
@@ -738,6 +806,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     };
     // The household's move puts the highlight on el.
     var land = function (el, inRow) {
+      landed = true;
       var active = document.activeElement;
       if (editable(active) && active.blur) active.blur();
       current = el;
@@ -776,11 +845,13 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         if (!dir && typing) return;
         // Stop the browser's own arrow/Enter action now, but remember whether the page prevents it too.
         var pagePrevented = false;
+        // A page with its own arrow shortcuts (volume, say): the arrows are the highlight's, and never reach it.
+        if (dir && LAYOUT.takeArrows && e.stopImmediatePropagation) e.stopImmediatePropagation();
         var original = e.preventDefault;
         e.preventDefault = function () { pagePrevented = true; return original.apply(this, arguments); };
         original.call(e);
         setTimeout(function () {
-          try { if (!pagePrevented && !claimed(e)) act(e.key, dir); } catch (err) {}
+          try { if ((!pagePrevented || (dir && LAYOUT.takeArrows)) && !claimed(e)) act(e.key, dir); } catch (err) {}
         }, 0);
       } catch (err) {}
     };

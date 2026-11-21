@@ -1,10 +1,17 @@
 import { chromeIdentity } from "../../web/chrome-identity.ts";
+import { BITCHORD_LAYOUT, BITCHORD_FOCUS_SELECTORS } from "./bitchord-focus.ts";
 import { urlRoute } from "../../web/url-route.ts";
 import type { WebAppDescription } from "../../web/web-app.ts";
 import { BitChordBridge, type BridgeNetwork } from "./bitchord-bridge.ts";
 import { BITCHORD_RELAY } from "./bitchord-relay.ts";
 import { bitchordRequestHeaders, bitchordResponseHeaders } from "./bitchord-rules.ts";
-import { bitchordOrigins, bitchordSite, isBitchordHome } from "./bitchord-route.ts";
+import {
+  bitchordOrigins,
+  bitchordSearchUrlFor,
+  bitchordSite,
+  isBitchordHome,
+  isBitchordSearchUrl,
+} from "./bitchord-route.ts";
 
 export const BITCHORD_PARTITION = "persist:bitchord";
 
@@ -35,7 +42,13 @@ export function bitchordDescription(
     },
     backByHistory: true,
     isOwnOrigin: (origin) => origins.includes(origin),
+    search: {
+      isSearchUrl: isBitchordSearchUrl,
+      urlFor: (text) => bitchordSearchUrlFor(site, text),
+      placeholder: "Search BitChord",
+    },
     route: urlRoute(isBitchordHome),
+    focus: { selectors: BITCHORD_FOCUS_SELECTORS, layout: BITCHORD_LAYOUT },
     preloads: [BITCHORD_RELAY],
     requests: {
       onBeforeSendHeaders: bitchordRequestHeaders,
