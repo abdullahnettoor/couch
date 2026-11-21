@@ -2,6 +2,7 @@ import { chromeIdentity } from "../../web/chrome-identity.ts";
 import { urlRoute } from "../../web/url-route.ts";
 import type { WebAppDescription } from "../../web/web-app.ts";
 import { BitChordBridge, type BridgeNetwork } from "./bitchord-bridge.ts";
+import { BITCHORD_ARTWORK_HOSTS, BITCHORD_PLAYBACK } from "./bitchord-playback.ts";
 import { BITCHORD_RELAY } from "./bitchord-relay.ts";
 import { bitchordRequestHeaders, bitchordResponseHeaders } from "./bitchord-rules.ts";
 import { bitchordOrigins, bitchordSite, isBitchordHome } from "./bitchord-route.ts";
@@ -37,6 +38,8 @@ export function bitchordDescription(
     isOwnOrigin: (origin) => origins.includes(origin),
     route: urlRoute(isBitchordHome),
     preloads: [BITCHORD_RELAY],
+    artworkHosts: BITCHORD_ARTWORK_HOSTS,
+    playback: BITCHORD_PLAYBACK,
     requests: {
       onBeforeSendHeaders: bitchordRequestHeaders,
       onHeadersReceived: bitchordResponseHeaders,

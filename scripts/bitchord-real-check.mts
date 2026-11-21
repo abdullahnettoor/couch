@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bridgeNetwork } from "../src/main/apps/bitchord/bitchord-network.ts";
 import { bitchordSite } from "../src/main/apps/bitchord/bitchord-route.ts";
+import { ownArtwork, playbackProbe } from "../src/main/web/playback.ts";
 import { BITCHORD_PARTITION, bitchordDescription } from "../src/main/apps/bitchord/bitchord-web.ts";
 import { ElectronWebApp } from "../src/main/web/electron-web-app.ts";
 
@@ -142,6 +143,34 @@ void app.whenReady().then(async () => {
         `${id} played to ${short.position}s (wanted ${SHORT_SECONDS} s)`,
       );
     }
+
+    // Now Playing (#54): the adapter's probe, play/pause and a direct seek on the real player.
+    const adapter = description.playback!;
+    const probe = () =>
+      js<{ position: number; paused: boolean; title?: string; artwork?: string } | undefined>(
+        playbackProbe({ speeds: adapter.speeds }),
+      );
+    await play(OTHER_TRACKS[0] ?? LONG_TRACK!, 12);
+    const first = await probe();
+    log("probe:", JSON.stringify(first));
+    expectThat(!!first && !!first.title, "the probe reports the song's title from the media session");
+    if (first?.artwork) log("artwork host:", new URL(first.artwork).hostname);
+    expectThat(
+      !!first?.artwork && ownArtwork(first.artwork, description.artworkHosts ?? []),
+      "its artwork is on one of BitChord's artwork hosts",
+    );
+    await js(adapter.playPause!());
+    await sleep(1500);
+    expectThat((await probe())?.paused === true, "play/pause pauses the song");
+    await js(adapter.playPause!());
+    await sleep(1500);
+    expectThat((await probe())?.paused === false, "play/pause resumes the song");
+    const from = (await probe())!.position;
+    await js(adapter.seek!(from + 60));
+    await sleep(4000);
+    const after = (await probe())!.position;
+    log(`seek +60 s from ${from}s: now at ${after}s`);
+    expectThat(after >= from + 55, `a direct seek sticks (${from}s -> ${after}s)`);
 
     const age = await play(AGE_RESTRICTED, 15);
     log("age-restricted log:", age.lines);
