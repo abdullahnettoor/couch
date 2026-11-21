@@ -166,7 +166,8 @@ export class AppPage implements Page {
   /** Shows the App; with `at`, it goes to that address first, on whichever host it has by now (a welcome can switch engines). */
   #enter(id: string, at?: string): void {
     const app = this.#h.apps.get(id);
-    if (!app) return;
+    // Checked again here: a welcome can end after the App was turned off or its beta channel left.
+    if (!app || !this.#h.isShown(id)) return;
     if (this.failed.has(id)) {
       this.#ctx.setApp(id, this.failed.get(id));
       this.#ctx.go("appError");

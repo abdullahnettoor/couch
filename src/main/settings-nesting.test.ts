@@ -8,7 +8,7 @@ const labels = () => h.screen.last.grid.map((i) => i.label);
 const view = () => h.screen.last.state.view;
 
 async function openSettings(): Promise<FakePhone> {
-  h = await startHarness();
+  h = await startHarness(undefined, { beta: true });
   const phone = await h.connectPhone();
   await phone.press("up");
   await phone.press("ok");

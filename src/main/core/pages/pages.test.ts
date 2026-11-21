@@ -154,6 +154,7 @@ describe("Settings Pages Back", () => {
     const homeApps = new HomeApps({
       store: new MemoryStore(),
       known: () => [{ id: "youtube", label: "YouTube" } as never],
+      betaChannel: () => true,
       toast: () => {},
       hidden: () => {},
       changed: () => {},

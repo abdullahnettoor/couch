@@ -27,6 +27,10 @@ The calm background Home draws behind the clock and tiles; the household picks o
 A full-screen experience launched from Home, such as YouTube or the Library. It should feel like an app on a smart TV.
 _Avoid_: tile, channel, section
 
+**Beta App**:
+An App marked `beta` in its entry (`src/main/apps/index.ts`); BitChord is the first. It is listed, shown on Home, in Settings → Apps (with "Beta" beside its name), in Setup's Apps step and on the Remote, and can be opened, only while **Beta updates** are On. With them Off it is hidden everywhere and can't be opened; its on/off and data are kept. Turning Beta updates Off while one is open takes the Screen Home. Releasing it to everyone is removing the mark.
+_Avoid_: preview App, experimental App
+
 **Web App**:
 An App that is a website shown in Couch's web view (YouTube and Netflix now; later others). Couch's core talks to it only through the App interface.
 _Avoid_: channel, site

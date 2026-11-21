@@ -13,7 +13,7 @@ let h: Harness;
 afterEach(() => h?.stop());
 
 const fresh = async (store = new MemoryStore()) => {
-  h = await startHarness(store, { setup: "fresh" });
+  h = await startHarness(store, { beta: true, setup: "fresh" });
   return store;
 };
 
@@ -315,7 +315,7 @@ describe("the Listener step", () => {
 
   test("with the Listener already on, the step says so and offers Continue", async () => {
     const store = new MemoryStore();
-    h = await startHarness(store, { setup: "fresh", loginItemOn: true });
+    h = await startHarness(store, { beta: true, setup: "fresh", loginItemOn: true });
     await h.app.core.refreshLoginItem();
     h.app.screenCommand({ command: "ok" });
     expect(h.screen.last.setup).toMatchObject({
@@ -337,7 +337,7 @@ describe("New in Couch: steps added by an update", () => {
   };
   const steps = [...SETUP_STEPS.slice(0, -1), fake, SETUP_STEPS.at(-1)!];
   const start = async (store: MemoryStore, options: { setup?: "fresh" } = {}) => {
-    h = await startHarness(store, { ...options, setupSteps: steps });
+    h = await startHarness(store, { beta: true, ...options, setupSteps: steps });
   };
   const finished = () => {
     const store = new MemoryStore();
@@ -373,7 +373,7 @@ describe("New in Couch: steps added by an update", () => {
   });
 
   test("with no new step nothing shows", async () => {
-    h = await startHarness(finished());
+    h = await startHarness(finished(), { beta: true });
     expect(h.screen.last.setup).toBeUndefined();
   });
 
@@ -584,7 +584,7 @@ describe("the Pair your phone step", () => {
 
 describe("the Apps step", () => {
   const toApps = async (store = new MemoryStore(), options = {}) => {
-    h = await startHarness(store, { setup: "fresh", ...options });
+    h = await startHarness(store, { beta: true, setup: "fresh", ...options });
     h.app.screenCommand({ command: "ok" });
     h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
     expect(h.screen.last.setup?.id).toBe("apps");
@@ -748,7 +748,7 @@ describe("Settings → About → Run setup again", () => {
     expect(h.screen.last.state.view).toBe("home");
     expect(store.read("setup", undefined)).toEqual({ finished: true, seen: SEEN });
     await h.stop();
-    h = await startHarness(store);
+    h = await startHarness(store, { beta: true });
     expect(h.screen.last.setup).toBeUndefined();
   });
 

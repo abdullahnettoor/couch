@@ -14,6 +14,8 @@ export interface HomeAppRow {
   label: string;
   icon: string;
   shown: boolean;
+  /** A beta App (only listed on the Beta channel); the App list marks it. */
+  beta?: true;
 }
 
 interface Stored {
@@ -29,7 +31,7 @@ interface Stored {
  */
 export function resolveHomeApps(
   store: Store,
-  catalog: Array<Pick<AppEntry, "id" | "label" | "icon" | "onByDefault">>,
+  catalog: Array<Pick<AppEntry, "id" | "label" | "icon" | "onByDefault" | "beta">>,
 ): HomeAppRow[] {
   const raw = store.read<Partial<Stored> | null>(KEY, {}) ?? {};
   const list = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string") : []);
@@ -49,6 +51,7 @@ export function resolveHomeApps(
       label: k.label,
       icon: k.icon,
       shown: added.has(id) ? k.onByDefault === true : !hidden.has(id),
+      ...(k.beta ? { beta: true as const } : {}),
     };
   });
 }
@@ -77,6 +80,8 @@ export interface HomeAppsHost {
   /** An App was hidden: core leaves it first if it is open. */
   hidden(id: string): void;
   changed(): void;
+  /** Whether Updates are on the Beta channel; beta Apps are hidden everywhere while they are not. */
+  betaChannel(): boolean;
   /** The engine App `id` plays with now, when it offers a choice. */
   /** The engine in use, and why the other can't be used when it can't. */
   playback(id: string): { label: string; unavailable?: string } | undefined;
@@ -95,8 +100,22 @@ export class HomeApps {
     this.#h = host;
   }
 
+  /**
+   * The one list of Apps the household can see: every reader (Home, Settings, setup, the Remote, open by id) goes
+   * through it, so a beta App is hidden from all of them on the Stable channel.
+   */
   rows(): HomeAppRow[] {
+    return this.#all().filter((r) => !r.beta || this.#h.betaChannel());
+  }
+
+  /** Every App, hidden beta ones too: their order and on/off are kept while the channel hides them. */
+  #all(): HomeAppRow[] {
     return resolveHomeApps(this.#h.store, this.#h.known());
+  }
+
+  /** Whether the household can see App `id` at all (a beta App is not visible on the Stable channel). */
+  isVisible(id: string): boolean {
+    return this.rows().some((r) => r.id === id);
   }
 
   isShown(id: string): boolean {
@@ -138,8 +157,8 @@ export class HomeApps {
   }
 
   setShown(id: string, shown: boolean): boolean {
-    const rows = this.rows();
-    const row = rows.find((r) => r.id === id);
+    const rows = this.#all();
+    const row = this.rows().find((r) => r.id === id) && rows.find((r) => r.id === id);
     if (!row || row.shown === shown) return !!row;
     row.shown = shown;
     this.#save(rows);
@@ -149,11 +168,14 @@ export class HomeApps {
   }
 
   move(id: string, by: -1 | 1): void {
-    const rows = this.rows();
-    const at = rows.findIndex((r) => r.id === id);
-    const to = at + by;
-    if (at < 0 || to < 0 || to >= rows.length) return;
-    [rows[at], rows[to]] = [rows[to]!, rows[at]!];
+    const rows = this.#all();
+    const visible = this.rows();
+    const at = visible.findIndex((r) => r.id === id);
+    const next = visible[at + by];
+    if (at < 0 || !next) return;
+    const a = rows.findIndex((r) => r.id === id);
+    const b = rows.findIndex((r) => r.id === next.id);
+    [rows[a], rows[b]] = [rows[b]!, rows[a]!];
     this.#save(rows);
     this.#h.changed();
   }

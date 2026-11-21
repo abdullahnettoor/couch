@@ -123,6 +123,8 @@ export interface Harness {
   clock: FakeClock;
   /** The fake Squirrel behind the real updater (version 0.2.0, build 12), and the beta feed it reads. */
   updater: FakeUpdater;
+  /** The updates the core runs with. */
+  updates: Updates;
   betaFeed: { version: string };
   thumbnails: FakeThumbnails;
   /** The Mac's wallpaper sources, the converter and the converted copies. */
@@ -163,6 +165,8 @@ export async function startHarness(
     apps?: Array<{ entry: AppEntry; app: App }>;
     /** The updater Couch runs with, instead of the real one over a fake Squirrel (e.g. the one for a run from the repo). */
     updates?: (store: Store) => Updates;
+    /** Updates start on the Beta channel (beta Apps, BitChord among them, are listed). */
+    beta?: boolean;
     /** The hidden macOS default Beta updates replaced. */
     legacyBeta?: boolean;
     /** Offer the Mac's pictures as wallpapers: `true` for fresh fakes, or the previous harness's to keep its converted copies across a restart. */
@@ -220,6 +224,7 @@ export async function startHarness(
     ...(options.apps ?? []).map((a) => ({ onByDefault: true, ...a.entry })),
   ];
   const updater = new FakeUpdater();
+  if (options.beta) store.write("updates", { beta: true });
   const betaFeed = { version: "0.2.0" };
   let started: CouchApp | undefined;
   const updates: Updates & { stop?(): void } =
@@ -288,6 +293,7 @@ export async function startHarness(
     mac,
     clock,
     updater,
+    updates,
     betaFeed,
     thumbnails,
     wallpapers,
