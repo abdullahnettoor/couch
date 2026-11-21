@@ -343,7 +343,7 @@ describe("the bridge's allowlists hold", () => {
         const hop = routes[init.url];
         return {
           status: hop?.status ?? 200,
-          headers: hop?.location ? { location: hop.location } : {},
+          headers: (hop?.location ? { location: hop.location } : {}) as Record<string, string>,
           url: init.url,
           contentType: "application/json",
           bytes: new TextEncoder().encode('["ok"]'),

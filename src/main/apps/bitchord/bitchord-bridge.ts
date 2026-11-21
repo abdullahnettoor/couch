@@ -201,20 +201,19 @@ export class BitChordBridge {
     reply: (r: { ok: true; result: unknown }) => BridgeResponse,
     fail: (code: BridgeErrorCode, message: string) => BridgeResponse,
   ): Promise<BridgeResponse> {
-    let target = lyricUrl(params.url);
-    if (!target) return fail("forbidden", "Couch only serves BitChord's listed lyric hosts.");
+    const first = lyricUrl(params.url);
+    if (!first) return fail("forbidden", "Couch only serves BitChord's listed lyric hosts.");
     const given = pageHeaders(params.headers);
+    let target: URL = first;
     let current = params;
     for (let hops = 0; ; hops++) {
-      const response = await this.#hop(
-        target.href,
-        current,
-        lyricHeaders(target.origin, given),
-      );
+      const response = await this.#hop(target.href, current, lyricHeaders(target.origin, given));
       if (!isRedirect(response.status)) return this.#answer(response, LYRIC_TEXTUAL, reply);
       const location = response.headers.location ?? response.headers.Location;
-      const next = hops < MAX_LYRIC_HOPS && location ? lyricUrl(resolve(location, target)) : undefined;
-      if (!next) return fail("forbidden", "Couch only follows redirects to BitChord's lyric hosts.");
+      const next: URL | undefined =
+        hops < MAX_LYRIC_HOPS && location ? lyricUrl(resolve(location, target)) : undefined;
+      if (!next)
+        return fail("forbidden", "Couch only follows redirects to BitChord's lyric hosts.");
       // As fetch does: 307 and 308 keep the method and body, the others become a plain GET.
       if (response.status !== 307 && response.status !== 308)
         current = { ...current, method: "GET", body: undefined };

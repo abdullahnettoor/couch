@@ -28,15 +28,15 @@ const WALK = `(function () {
   // What the focus tests read: the rest of a page's attributes, and all but its song-row classes, only add size.
   var KEEP = ["href","role","tabindex","aria-label","aria-modal","aria-hidden","aria-disabled","type","placeholder","disabled"];
   // A list keeps its first rows or cards; the focus tests walk a few and a snapshot of a whole playlist is a megabyte.
-  var CAP = 20;
-  var SKIP = {SCRIPT:1,STYLE:1,NOSCRIPT:1,LINK:1,META:1,HEAD:1,TITLE:1,PATH:1,CIRCLE:1,RECT:1,LINE:1,POLYLINE:1,POLYGON:1,G:1,DEFS:1};
+  var CAP = 12;
+  var SKIP = {SCRIPT:1,STYLE:1,NOSCRIPT:1,LINK:1,META:1,HEAD:1,TITLE:1,PATH:1,CIRCLE:1,RECT:1,LINE:1,POLYLINE:1,POLYGON:1,G:1,DEFS:1,SVG:1,IMG:1,PICTURE:1,SOURCE:1};
   var n = 0;
   function walk(el) {
     if (SKIP[el.tagName.toUpperCase()] || n > 6000) return null;
     var r = el.getBoundingClientRect(), cs = getComputedStyle(el);
     var a = {};
     KEEP.forEach(function (k) { var v = el.getAttribute(k); if (v !== null) a[k] = v.slice(0, 200); });
-    var rows = String(el.getAttribute("class") || "").split(/\s+/).filter(function (c) { return c.indexOf("group/track") === 0 || c.indexOf("group/row") === 0; });
+    var rows = String(el.getAttribute("class") || "").split(/s+/).filter(function (c) { return c.indexOf("group/track") === 0 || c.indexOf("group/row") === 0; });
     if (rows.length) a["class"] = rows.join(" ");
     // A box with no size can't be pointed at, so it is left out with all that is in it.
     if (!r.width || !r.height) return null;
@@ -52,6 +52,8 @@ const WALK = `(function () {
     var kids = [];
     for (var c = el.firstElementChild; c && kids.length < CAP; c = c.nextElementSibling) { var k = walk(c); if (k) kids.push(k); }
     if (kids.length) node.c = kids;
+    // Plain text boxes with no attribute say nothing the focus script reads.
+    else if (!node.a && !node.hidden && !node.fixed && node.z === undefined && !node.through) return null;
     return node;
   }
   return { url: location.href, view: { width: innerWidth, height: innerHeight }, tree: walk(document.documentElement) };
@@ -130,7 +132,12 @@ void app.whenReady().then(async () => {
         `window.dispatchEvent(new KeyboardEvent("keydown", { key: ${JSON.stringify("Arrow" + k[0]!.toUpperCase() + k.slice(1))}, bubbles: true, cancelable: true }))`,
       );
       await sleep(1200);
-      log(`  ${name} ${k}: ring`, await js<string>(`(() => { const r = [...document.body.children].find(e => e.style && e.style.zIndex === "2147483647"); return r ? r.style.left + " " + r.style.top + " " + r.style.width + " " + r.style.height : "none"; })()`));
+      log(
+        `  ${name} ${k}: ring`,
+        await js<string>(
+          `(() => { const r = [...document.body.children].find(e => e.style && e.style.zIndex === "2147483647"); return r ? r.style.left + " " + r.style.top + " " + r.style.width + " " + r.style.height : "none"; })()`,
+        ),
+      );
       // BITCHORD_STEPS=1 keeps a frame after every key, to see where each press went.
       if (process.env.BITCHORD_STEPS && i < keys.length - 1) await shoot(`${name}-${i + 1}`);
     }

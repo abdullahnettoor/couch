@@ -60,7 +60,9 @@ describe("BitChord's focus layout, on its saved pages", () => {
     });
     const firstOf = (p: ReturnType<typeof open>, skip: FakeEl[] = []) =>
       p.all
-        .filter((e) => isPlay(e) && !skip.includes(e) && !inDock(e) && !e.hiddenStyle && e.rect.top >= 0)
+        .filter(
+          (e) => isPlay(e) && !skip.includes(e) && !inDock(e) && !e.hiddenStyle && e.rect.top >= 0,
+        )
         .sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left)[0]!;
     /** The page lays out again: the element and what is in it go far down. */
     const shiftDown = (el: FakeEl) => {

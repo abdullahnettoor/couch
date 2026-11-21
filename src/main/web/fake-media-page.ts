@@ -82,7 +82,8 @@ export function pageWithPlayerOutsideDocument(
     /** The page changes the volume itself: the element's own listeners hear volumechange (a player outside the document reaches no document's). */
     pageSetsVolume(v: number) {
       this.volume = v;
-      for (const fn of this.#on.get("volumechange") ?? []) fn({ type: "volumechange", target: this });
+      for (const fn of this.#on.get("volumechange") ?? [])
+        fn({ type: "volumechange", target: this });
     }
     setSinkId(id: string) {
       this.sinkId = id;

@@ -15,7 +15,8 @@ describe("the bridge's network", () => {
 
   test("a redirected manifest is a failure", async () => {
     const net = bridgeNetwork(
-      async () => new Response(null, { status: 302, headers: { location: "https://evil.example" } }),
+      async () =>
+        new Response(null, { status: 302, headers: { location: "https://evil.example" } }),
       "https://site.example",
     );
     await expect(net.manifest()).rejects.toThrow();
