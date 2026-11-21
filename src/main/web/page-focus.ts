@@ -69,6 +69,10 @@ export interface FocusLayout {
   takeArrows?: boolean;
   /** Docked regions that stay put while the page scrolls (a sidebar, a player bar): a move stays inside the region it starts in (or in the page, from the page) while that has a control that way; from a dock it then goes to the page, never to another dock. */
   docks?: string[];
+  /** The highlight starts on the first control of the page's first row (the topmost, then the leftmost; on screen first), not the one nearest the middle, and is placed again as the page settles until the household first moves it. */
+  startFirst?: boolean;
+  /** A control inside an element matching this is outlined as that whole element (a song row, not its small Play button); OK still presses the control. */
+  ringAround?: string;
   /** RegExp source whose first group is a title's id in a link's `href`: how a control opened from a card is found again after the page redraws it. */
   titleId?: string;
   /**
@@ -443,6 +447,9 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     var draw = function () {
       try {
         var r = barOn ? barCur && shown(barCur) : !noRing() && current && usable(current);
+        if (r && !barOn && LAYOUT.ringAround) {
+          try { var around = current.closest(LAYOUT.ringAround); var ar = around && shown(around); if (ar) r = ar; } catch (e) {}
+        }
         var el = ensureRing();
         if (!el) return;
         if (!r) { el.style.display = 'none'; return; }
@@ -463,6 +470,47 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       return out;
     };
     var view = function () { return { width: innerWidth, height: innerHeight }; };
+    // Where the highlight starts: the nearest the middle, or (layout.startFirst) the first control of the first row, on screen first.
+    var startIndex = function (list) {
+      if (!LAYOUT.startFirst) return pick(null, list.map(function (c) { return c.rect; }), 'down', view());
+      var vw = view();
+      var seen = [];
+      for (var n = 0; n < list.length; n++) { var q = list[n].rect; if (q.right > 0 && q.bottom > 0 && q.left < vw.width && q.top < vw.height) seen.push(n); }
+      var from = seen.length ? seen : list.map(function (c, n) { return n; });
+      var top = Infinity;
+      for (var a = 0; a < from.length; a++) top = Math.min(top, list[from[a]].rect.top);
+      var best = -1;
+      for (var b = 0; b < from.length; b++) {
+        var rb = list[from[b]].rect;
+        if (rb.top > top + 40) continue;
+        if (best < 0 || rb.left < list[best].rect.left) best = from[b];
+      }
+      return best;
+    };
+    // Until the household first moves, the starting highlight is provisional: the page is still loading and shifting, so it is placed again whenever the page changes, before a key, and on a few ticks after it first appears.
+    var settleTicks = 0;
+    var startSettle = function () {
+      if (!LAYOUT.startFirst || settleTicks > 0) return;
+      settleTicks = 6;
+      var tick = function () {
+        if (landed || settleTicks <= 0) { settleTicks = 0; return; }
+        settleTicks--;
+        try { replaceStart(); } catch (e) {}
+        setTimeout(tick, 1000);
+      };
+      setTimeout(tick, 1000);
+    };
+    var replaceStart = function () {
+      if (!LAYOUT.startFirst || landed || layers.length || pending || lost || barOn || !current) return;
+      var list = candidates();
+      if (LAYOUT.docks && LAYOUT.docks.length) {
+        var inPage = list.filter(function (c) { try { return !c.el.closest(LAYOUT.docks.join(',')); } catch (e) { return true; } });
+        if (inPage.length) list = inPage;
+      }
+      var i = list.length ? startIndex(list) : -1;
+      if (i >= 0 && list[i].el !== current) { current = list[i].el; heldKey = keyOf(current); }
+      draw();
+    };
     // displaced: the control the household held until something (a dialog still sliding in) covered it.
     // layers: one frame per open modal, bottom first, each with the control held when it opened.
     var layers = [], displaced = null, displacedKey = null, heldKey = null;
@@ -540,6 +588,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
           else { current = null; displaced = null; draw(); return; }
         }
         leaveEarlyDock();
+        replaceStart();
         if (current && usable(current)) { draw(); return; }
         if (current && current.isConnected && !displaced) { displaced = current; displacedKey = heldKey; }
         if (current && !current.isConnected && !lost && heldKey && !layersChanged) {
@@ -562,8 +611,8 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
           if (inPage.length) list = inPage;
         }
         if (list.length) {
-          var i = pick(null, list.map(function (c) { return c.rect; }), 'down', view());
-          if (i >= 0) { current = list[i].el; heldKey = keyOf(current); }
+          var i = startIndex(list);
+          if (i >= 0) { current = list[i].el; heldKey = keyOf(current); startSettle(); }
         }
         draw();
       } catch (e) {}
@@ -820,6 +869,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       draw();
     };
     var act = function (key, dir) {
+      replaceStart();
       if (dir) return move(dir);
       if (!current && lost) {
         // The held control was replaced a moment ago: OK looks for it now, and otherwise the wait is over.
@@ -861,7 +911,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
           // A modal opening or closing changes only the query (/browse to /browse?jbv=): the page is the same. Another path is a new page.
           var moved = pathOf(href()) !== pathOf(lastHref);
           lastHref = href();
-          if (moved) { current = null; layers = []; displaced = null; lost = null; }
+          if (moved) { current = null; layers = []; displaced = null; lost = null; if (LAYOUT.startFirst) landed = false; }
         }
         ensure();
       } catch (e) {}
@@ -932,7 +982,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         if (!e.isTrusted || barOn || noRing()) return;
         var el = e.target && e.target.closest ? e.target.closest(SELECTOR) : null;
         if (!el || el === current || !usable(el)) return;
-        current = el; heldKey = keyOf(el); lost = null; displaced = null; pending = null; strayed = null;
+        current = el; heldKey = keyOf(el); lost = null; displaced = null; pending = null; strayed = null; landed = true;
         if (layers.length) layers[layers.length - 1].entering = false;
         draw();
       } catch (err) {}

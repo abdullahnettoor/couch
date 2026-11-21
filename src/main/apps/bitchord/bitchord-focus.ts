@@ -14,6 +14,8 @@ const inTracks = (inner: string) =>
 export const BITCHORD_LAYOUT: FocusLayout = {
   // BitChord's own arrow shortcuts (volume, seeking) are Couch's to set; the arrows move the highlight.
   takeArrows: true,
+  startFirst: true,
+  ringAround: TRACK,
   docks: ['nav[aria-label="Main"]', '[role="region"][aria-label="Player"]'],
   ignore: [
     // The shelves' paging arrows: the highlight scrolls a shelf by itself.

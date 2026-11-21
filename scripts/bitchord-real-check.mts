@@ -6,7 +6,8 @@
 //   3. an age-restricted song shows BitChord's own sign-in message,
 //   4. lyrics load for the long song: the bridge fetched a listed lyric host and BitChord's lyrics view shows lines.
 // BITCHORD_SITE overrides the site; BITCHORD_TRACKS=a,b,c and BITCHORD_AGE_RESTRICTED=id override the songs;
-// BITCHORD_LONG (seconds, default 90) shortens the long play for a quick look.
+// BITCHORD_LONG (seconds, default 95) shortens the long play for a quick look; the long song must reach 90 s (or that shorter
+// wish), the others 20 s, with no tolerance.
 import { app, BrowserWindow, session, webContents } from "electron";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -28,7 +29,8 @@ const [LONG_TRACK, ...OTHER_TRACKS] = (
   process.env.BITCHORD_TRACKS ?? "ZEcqHA7dbwM,J7p4bzqLvCw,NJAv_7lHUIU"
 ).split(",");
 const AGE_RESTRICTED = process.env.BITCHORD_AGE_RESTRICTED ?? "Tq92D6wQ1mg";
-const LONG_SECONDS = Number(process.env.BITCHORD_LONG ?? 90);
+const LONG_SECONDS = Number(process.env.BITCHORD_LONG ?? 95);
+const LONG_MIN = Math.min(90, LONG_SECONDS);
 const SHORT_SECONDS = 20;
 const log = (...a: unknown[]) => console.log("[bitchord-check]", ...a);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -144,8 +146,8 @@ void app.whenReady().then(async () => {
 
     const long = await play(LONG_TRACK!, LONG_SECONDS);
     expectThat(
-      long.position >= LONG_SECONDS - 5 && long.position >= 1,
-      `${LONG_TRACK} played to ${long.position}s (wanted past ${LONG_SECONDS} s)`,
+      long.position >= LONG_MIN,
+      `${LONG_TRACK} played to ${long.position}s (wanted at least ${LONG_MIN} s)`,
     );
     // Back in BitChord's own pages the song keeps playing; open its Lyrics view and wait for lines.
     await js(
@@ -175,8 +177,8 @@ void app.whenReady().then(async () => {
     for (const id of OTHER_TRACKS) {
       const short = await play(id, SHORT_SECONDS);
       expectThat(
-        short.position >= SHORT_SECONDS - 5,
-        `${id} played to ${short.position}s (wanted ${SHORT_SECONDS} s)`,
+        short.position >= SHORT_SECONDS,
+        `${id} played to ${short.position}s (wanted at least ${SHORT_SECONDS} s)`,
       );
     }
 
@@ -222,6 +224,7 @@ void app.whenReady().then(async () => {
     expectThat(false, `check threw: ${String(e)}`);
   }
   log(failures.length ? `FAILED: ${failures.length} check(s)` : "PASSED");
+  for (const f of failures) log("  failed:", f);
   web.dispose();
   rmSync(userData, { recursive: true, force: true });
   app.exit(failures.length ? 1 : 0);

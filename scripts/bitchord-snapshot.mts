@@ -25,14 +25,21 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const log = (...a: unknown[]) => console.log("[bitchord-snapshot]", ...a);
 
 const WALK = `(function () {
-  var KEEP = ["href","role","tabindex","class","aria-label","aria-modal","aria-hidden","type","placeholder","disabled","id","data-testid","data-slot","data-state","title","aria-current","aria-selected","name"];
+  // What the focus tests read: the rest of a page's attributes, and all but its song-row classes, only add size.
+  var KEEP = ["href","role","tabindex","aria-label","aria-modal","aria-hidden","aria-disabled","type","placeholder","disabled"];
+  // A list keeps its first rows or cards; the focus tests walk a few and a snapshot of a whole playlist is a megabyte.
+  var CAP = 20;
   var SKIP = {SCRIPT:1,STYLE:1,NOSCRIPT:1,LINK:1,META:1,HEAD:1,TITLE:1,PATH:1,CIRCLE:1,RECT:1,LINE:1,POLYLINE:1,POLYGON:1,G:1,DEFS:1};
   var n = 0;
   function walk(el) {
     if (SKIP[el.tagName.toUpperCase()] || n > 6000) return null;
     var r = el.getBoundingClientRect(), cs = getComputedStyle(el);
     var a = {};
-    KEEP.forEach(function (k) { var v = el.getAttribute(k); if (v !== null) a[k] = k === "class" ? v.slice(0, 160) : v.slice(0, 200); });
+    KEEP.forEach(function (k) { var v = el.getAttribute(k); if (v !== null) a[k] = v.slice(0, 200); });
+    var rows = String(el.getAttribute("class") || "").split(/\s+/).filter(function (c) { return c.indexOf("group/track") === 0 || c.indexOf("group/row") === 0; });
+    if (rows.length) a["class"] = rows.join(" ");
+    // A box with no size can't be pointed at, so it is left out with all that is in it.
+    if (!r.width || !r.height) return null;
     var node = { t: el.tagName.toLowerCase(), r: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)] };
     if (Object.keys(a).length) node.a = a;
     if (cs.visibility === "hidden" || cs.display === "none") node.hidden = true;
@@ -41,8 +48,9 @@ const WALK = `(function () {
     if (cs.position === "fixed" || cs.position === "sticky" || el.matches('nav[aria-label="Main"], [role="region"][aria-label="Player"]')) node.fixed = true;
     if (cs.pointerEvents === "none") node.through = true;
     n++;
+    if (node.hidden) return node;
     var kids = [];
-    for (var c = el.firstElementChild; c; c = c.nextElementSibling) { var k = walk(c); if (k) kids.push(k); }
+    for (var c = el.firstElementChild; c && kids.length < CAP; c = c.nextElementSibling) { var k = walk(c); if (k) kids.push(k); }
     if (kids.length) node.c = kids;
     return node;
   }
@@ -103,15 +111,26 @@ void app.whenReady().then(async () => {
     mkdirSync(FRAMES, { recursive: true });
     if (!wc.debugger.isAttached()) wc.debugger.attach("1.3");
     const shoot = async (file: string) => {
+      // The window is never shown, so the ring's 120 ms slide can freeze half way; a frame wants it where it is going.
+      await js(
+        `(() => { const r = [...document.body.children].find(e => e.style && e.style.zIndex === "2147483647"); if (r) { r.style.transition = "none"; r.getBoundingClientRect(); } })()`,
+      );
+      wc.invalidate();
+      await sleep(500);
       const shot = (await wc.debugger.sendCommand("Page.captureScreenshot", { format: "png" })) as {
         data: string;
       };
       writeFileSync(join(FRAMES, `${file}.png`), Buffer.from(shot.data, "base64"));
       log("frame", file);
     };
+    wc.focus();
     for (const [i, k] of keys.entries()) {
-      web.sendKey(k);
+      // After a loadURL of its own the host's key presses no longer reach the page, so the key goes to it as an event.
+      await js(
+        `window.dispatchEvent(new KeyboardEvent("keydown", { key: ${JSON.stringify("Arrow" + k[0]!.toUpperCase() + k.slice(1))}, bubbles: true, cancelable: true }))`,
+      );
       await sleep(1200);
+      log(`  ${name} ${k}: ring`, await js<string>(`(() => { const r = [...document.body.children].find(e => e.style && e.style.zIndex === "2147483647"); return r ? r.style.left + " " + r.style.top + " " + r.style.width + " " + r.style.height : "none"; })()`));
       // BITCHORD_STEPS=1 keeps a frame after every key, to see where each press went.
       if (process.env.BITCHORD_STEPS && i < keys.length - 1) await shoot(`${name}-${i + 1}`);
     }
@@ -124,7 +143,7 @@ void app.whenReady().then(async () => {
   try {
     await go("/home");
     await save("home");
-    await frame("home-start", ["down"]);
+    await frame("home-start", []);
     await frame("home-right", ["right", "right"]);
     const albums = await links("^/album");
     const artists = await links("^/artist");
@@ -143,7 +162,7 @@ void app.whenReady().then(async () => {
     if (album) {
       await go(album);
       await save("album");
-      await frame("album", ["down", "down", "down"]);
+      await frame("album", ["down", "down", "down", "down", "down"]);
     }
     if (artist) {
       await go(artist);
@@ -153,7 +172,7 @@ void app.whenReady().then(async () => {
     if (pl) {
       await go(pl);
       await save("playlist");
-      await frame("playlist", ["down", "down", "down"]);
+      await frame("playlist", ["down", "down", "down", "down"]);
     }
   } catch (e) {
     log("threw", String(e));

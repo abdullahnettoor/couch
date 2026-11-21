@@ -17,14 +17,20 @@ function open(name: string) {
   return { ...page, snap };
 }
 
-/** Presses a key until the ring is where `done` says, at most 60 times. */
+/** Presses a key until the ring is where `done` says, at most 200 times. */
 function until(
   p: { key: (k: string) => void; on: () => FakeEl | undefined },
   k: string,
   done: (e?: FakeEl) => boolean,
 ) {
-  for (let i = 0; i < 60 && !done(p.on()); i++) p.key(k);
+  for (let i = 0; i < 200 && !done(p.on()); i++) p.key(k);
   expect(done(p.on())).toBe(true);
+}
+
+/** Walks to a card a few places along its shelf: the page's left column leads Down to the sidebar, the middle to the player bar. */
+function midPage(p: ReturnType<typeof open>) {
+  until(p, "ArrowDown", (e) => e?.tagName === "A" && href(e) !== "" && !inDock(e));
+  for (let i = 0; i < 3; i++) p.key("ArrowRight");
 }
 
 const label = (e?: FakeEl) => e?.getAttribute("aria-label") ?? "";
@@ -44,6 +50,98 @@ describe("BitChord's focus layout, on its saved pages", () => {
       expect(el!.hiddenStyle).toBe(false);
     });
   }
+
+  describe("the starting ring", () => {
+    const TRACK = '[class*="group/track"], [class*="group/row"]';
+    const px = (v: unknown) => Number.parseFloat(String(v));
+    const ringAt = (p: ReturnType<typeof open>) => ({
+      left: px(p.ring.style.left) + 6,
+      top: px(p.ring.style.top) + 6,
+    });
+    const firstOf = (p: ReturnType<typeof open>, skip: FakeEl[] = []) =>
+      p.all
+        .filter((e) => isPlay(e) && !skip.includes(e) && !inDock(e) && !e.hiddenStyle && e.rect.top >= 0)
+        .sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left)[0]!;
+    /** The page lays out again: the element and what is in it go far down. */
+    const shiftDown = (el: FakeEl) => {
+      const walk = (e: FakeEl) => {
+        e.rect = { ...e.rect, top: e.rect.top + 3000, bottom: e.rect.bottom + 3000 };
+        e.children.forEach(walk);
+      };
+      walk(el);
+    };
+
+    test("home: it starts on the first control of the first row, outlined as the whole row", () => {
+      const p = open("home");
+      const first = firstOf(p);
+      expect(p.on()).toBe(first);
+      const row = first.closest(TRACK)!;
+      expect(ringAt(p)).toEqual({ left: row.rect.left, top: row.rect.top });
+    });
+
+    test("it is placed again when the page changes before the household moves", () => {
+      const p = open("home");
+      const first = p.on()!;
+      shiftDown(first.closest(TRACK)!);
+      p.mutate();
+      expect(p.on()).toBe(firstOf(p, [first]));
+      expect(p.on()).not.toBe(first);
+    });
+
+    test("it is placed again as the page settles, with no change the page announces", () => {
+      const p = open("home");
+      const first = p.on()!;
+      shiftDown(first.closest(TRACK)!);
+      p.wait(1000);
+      expect(p.on()).toBe(firstOf(p, [first]));
+    });
+
+    test("it is placed again before the first key, which then moves from there", () => {
+      const p = open("home");
+      const first = p.on()!;
+      shiftDown(first.closest(TRACK)!);
+      const second = firstOf(p, [first]);
+      p.key("ArrowDown");
+      const next = p.on()!;
+      expect(next).not.toBe(first);
+      expect(next.rect.top).toBeGreaterThan(second.rect.top);
+    });
+
+    test("after the household moves it stays where they put it", () => {
+      const p = open("home");
+      p.key("ArrowDown");
+      const held = p.on()!;
+      shiftDown(firstOf(p).closest(TRACK)!);
+      p.mutate();
+      p.wait(7000);
+      expect(p.on()).toBe(held);
+    });
+  });
+
+  describe("the ring on a song row", () => {
+    for (const name of ["album", "playlist"]) {
+      test(`${name}: it outlines the whole song row, and OK presses that row's Play`, () => {
+        const p = open(name);
+        until(p, "ArrowDown", isPlay);
+        for (let i = 0; i < 3; i++) {
+          const play = p.on()!;
+          const row = play.closest('[class*="group/track"], [class*="group/row"]')!;
+          expect(Number.parseFloat(String(p.ring.style.left))).toBe(row.rect.left - 6);
+          expect(Number.parseFloat(String(p.ring.style.width))).toBe(
+            row.rect.right - row.rect.left + 12,
+          );
+          expect(Number.parseFloat(String(p.ring.style.height))).toBe(
+            row.rect.bottom - row.rect.top + 12,
+          );
+          expect(Number.parseFloat(String(p.ring.style.width))).toBeGreaterThan(
+            play.rect.right - play.rect.left + 400,
+          );
+          expect(p.ok()).toBe(play);
+          p.key("ArrowDown");
+        }
+      });
+    }
+  });
 
   test("the layout is on the description, with its own search address", () => {
     expect(desc.focus?.layout?.docks?.length).toBe(2);
@@ -145,7 +243,8 @@ describe("BitChord's focus layout, on its saved pages", () => {
   describe("sidebar and player bar", () => {
     test("Down from the last thing on a page reaches the player bar, and Up comes back to the page", () => {
       const p = open("home");
-      for (let i = 0; i < 40 && !inDock(p.on()); i++) p.key("ArrowDown");
+      midPage(p);
+      for (let i = 0; i < 200 && !inDock(p.on()); i++) p.key("ArrowDown");
       expect(p.on()?.closest('[role="region"]')).toBeTruthy();
       p.key("ArrowDown");
       expect(inDock(p.on())).toBe(true);
@@ -183,6 +282,7 @@ describe("BitChord's focus layout, on its saved pages", () => {
 
     test("in the player bar, Left and Right walk its enabled buttons and Up goes back to the page", () => {
       const p = open("home");
+      midPage(p);
       until(p, "ArrowDown", inDock);
       const names = new Set<string>();
       until(p, "ArrowLeft", (e) => label(e) === "Shuffle");
