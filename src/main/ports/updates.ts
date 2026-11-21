@@ -240,6 +240,8 @@ export function startUpdates(o: {
       if (busy()) return set(state);
       point();
       void check();
+      // The choice itself changed (beta Apps appear or go away), whatever the check does next.
+      for (const listener of listeners) listener();
     },
     checkNow: () => void check(),
     restart() {

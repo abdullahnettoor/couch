@@ -16,6 +16,8 @@ export interface AppEntry {
   addons?: boolean;
   /** Switched on for a fresh install (and when added by an update). An App that doesn't say so starts off. */
   onByDefault?: boolean;
+  /** A beta App: listed, shown and openable only while Updates are on the Beta channel. Remove this to release it to everyone. */
+  beta?: boolean;
 }
 
 /** The Apps on Home, in order. Each ticket adding an App adds its entry here. */
@@ -51,6 +53,7 @@ export const APP_ENTRIES: AppEntry[] = [
     icon: BITCHORD_MARK,
     action: "app:open:bitchord",
     web: true,
+    beta: true,
   },
 ];
 

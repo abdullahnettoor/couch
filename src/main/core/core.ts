@@ -404,6 +404,7 @@ export class Core {
     this.#homeApps = new HomeApps({
       store: ports.store,
       known: () => this.#catalog(),
+      betaChannel: () => ports.updates.beta(),
       toast: (text) => this.#toast(text),
       hidden: (id) => {
         if (leavesOnHide(id, this.#state.view, this.#state.app)) this.#leavePlaybackFor("home");
@@ -436,7 +437,10 @@ export class Core {
         this.#setup.rerun();
       },
     });
-    this.#offUpdates = ports.updates.onChange(() => this.#emit());
+    this.#offUpdates = ports.updates.onChange(() => {
+      this.#leaveHiddenApp();
+      this.#emit();
+    });
     this.#detailsPage = new DetailsPage(pageContext, {
       details: this.details,
       connectedPhone: () =>
@@ -1864,6 +1868,16 @@ export class Core {
         web: true,
       }));
     return [...listed, ...extra];
+  }
+
+  /** The channel went to Stable while a beta App was open: the Screen goes Home. */
+  #leaveHiddenApp(): void {
+    const id = this.#state.app;
+    if ((this.#state.view === "app" || this.#state.view === "appError") && id) {
+      if (!this.#homeApps.isVisible(id)) this.#leavePlaybackFor("home");
+    }
+    const menu = this.#homeApps.menuId;
+    if (menu && !this.#homeApps.isVisible(menu)) this.#homeApps.closeMenu();
   }
 
   /** Home's update icon: Settings → About, with focus on Restart to update. */

@@ -66,7 +66,7 @@ function tempStore(): FileStore {
 
 describe("Home Apps: choose and order", () => {
   test("Settings → Apps lists every App with its Show on Home switch, in Home order", async () => {
-    h = await startHarness();
+    h = await startHarness(undefined, { beta: true });
     const phone = await h.connectPhone();
     await openApps(phone);
     expect(labels()).toEqual(["YouTube", "Netflix", "Library", "BitChord"]);
@@ -83,7 +83,7 @@ describe("Home Apps: choose and order", () => {
   });
 
   test("OK on an App opens a menu over the list: Hide, Move up, Move down, Restart, Add-ons", async () => {
-    h = await startHarness();
+    h = await startHarness(undefined, { beta: true });
     const phone = await h.connectPhone();
     await openMenu(phone, "YouTube");
     expect(labels()).toEqual([
@@ -101,7 +101,7 @@ describe("Home Apps: choose and order", () => {
   });
 
   test("hide, then show: the switch state, the menu label and Home follow; the menu stays open", async () => {
-    h = await startHarness();
+    h = await startHarness(undefined, { beta: true });
     const phone = await h.connectPhone();
     await openMenu(phone, "Netflix");
     await pick(phone, "Hide from Home");
@@ -119,7 +119,7 @@ describe("Home Apps: choose and order", () => {
   });
 
   test("Move up and Move down redraw the list at once, keep the menu open and the row marked", async () => {
-    h = await startHarness();
+    h = await startHarness(undefined, { beta: true });
     const phone = await h.connectPhone();
     await openMenu(phone, "Library");
     await pick(phone, "Move up");
@@ -143,7 +143,7 @@ describe("Home Apps: choose and order", () => {
   });
 
   test("Move up on the first App and Move down on the last change nothing", async () => {
-    h = await startHarness();
+    h = await startHarness(undefined, { beta: true });
     const phone = await h.connectPhone();
     await openMenu(phone, "YouTube");
     await pick(phone, "Move up");
@@ -158,7 +158,7 @@ describe("Home Apps: choose and order", () => {
   });
 
   test("Back closes the menu with focus on that App's row, wherever Moves took it", async () => {
-    h = await startHarness();
+    h = await startHarness(undefined, { beta: true });
     const phone = await h.connectPhone();
     await openMenu(phone, "Library");
     await pick(phone, "Move up");
@@ -173,7 +173,7 @@ describe("Home Apps: choose and order", () => {
   });
 
   test("Restart acts from the menu and leaves it open", async () => {
-    h = await startHarness();
+    h = await startHarness(undefined, { beta: true });
     const phone = await h.connectPhone();
     await openMenu(phone, "Netflix");
     await pick(phone, "Restart Netflix");
@@ -183,7 +183,7 @@ describe("Home Apps: choose and order", () => {
 
   test("order and hidden set survive a restart", async () => {
     const store = tempStore();
-    h = await startHarness(store);
+    h = await startHarness(store, { beta: true });
     let phone = await h.connectPhone();
     await openMenu(phone, "Library");
     await pick(phone, "Move up");
@@ -205,7 +205,7 @@ describe("Home Apps: choose and order", () => {
   test("a new App is added at the end, shown; an unknown stored id is ignored", async () => {
     const store = tempStore();
     store.write("home.apps", { order: ["library", "gone", "youtube"], hidden: ["gone-too"] });
-    h = await startHarness(store);
+    h = await startHarness(store, { beta: true });
     await h.connectPhone();
     expect(homeLabels()).toEqual(["Library", "YouTube", "Netflix"]);
   });
@@ -213,13 +213,13 @@ describe("Home Apps: choose and order", () => {
   test("an App missing from the stored order is shown even if the stored hidden set names it", async () => {
     const store = tempStore();
     store.write("home.apps", { order: ["library", "youtube"], hidden: ["netflix", "youtube"] });
-    h = await startHarness(store);
+    h = await startHarness(store, { beta: true });
     await h.connectPhone();
     expect(homeLabels()).toEqual(["Library", "Netflix"]);
   });
 
   test("every App can be hidden, and Home shows no App tiles", async () => {
-    h = await startHarness();
+    h = await startHarness(undefined, { beta: true });
     const phone = await h.connectPhone();
     await openMenu(phone, "YouTube");
     await pick(phone, "Hide from Home");
@@ -237,7 +237,7 @@ describe("Home Apps: choose and order", () => {
   });
 
   test("a hidden App has no tile to open, and the others still open", async () => {
-    h = await startHarness();
+    h = await startHarness(undefined, { beta: true });
     const phone = await h.connectPhone();
     await openMenu(phone, "Netflix");
     await pick(phone, "Hide from Home");
@@ -258,7 +258,7 @@ describe("Home Apps: choose and order", () => {
     writeFileSync(film, "");
     store.write("library", { folders: [media] });
     store.write("history", { items: { [film]: { position: 600, duration: 6000, at: 1 } } });
-    h = await startHarness(store);
+    h = await startHarness(store, { beta: true });
     const phone = await h.connectPhone();
     expect(h.screen.last.homeVideos?.map((v) => v.path)).toEqual([film]);
     expect(h.screen.last.continueCard?.path).toBe(film);
@@ -279,7 +279,7 @@ describe("Home Apps: choose and order", () => {
       action: "app:open:weather",
       web: true,
     };
-    h = await startHarness(undefined, { apps: [{ entry, app: weather }] });
+    h = await startHarness(undefined, { beta: true, apps: [{ entry, app: weather }] });
     const phone = await h.connectPhone();
     expect(homeLabels()).toEqual(["YouTube", "Netflix", "Library", "Weather"]);
     await openMenu(phone, "Weather");
@@ -312,7 +312,7 @@ describe("resolveHomeApps (startup and Core)", () => {
       order: ["netflix", "youtube", "library"],
       hidden: ["youtube", "netflix", "library"],
     });
-    h = await startHarness(store);
+    h = await startHarness(store, { beta: true });
     await h.connectPhone();
     expect(homeLabels()).toEqual(
       resolveHomeApps(store, catalog)
@@ -353,6 +353,7 @@ describe("HomeApps module boundary", () => {
     const apps = new HomeApps({
       store,
       known: () => APP_ENTRIES,
+      betaChannel: () => true,
       toast: (t) => log.push(`toast:${t}`),
       hidden: (id) => log.push(`hidden:${id}`),
       changed: () => log.push("changed"),

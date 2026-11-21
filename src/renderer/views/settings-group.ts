@@ -19,6 +19,7 @@ export function render(payload: ScreenPayload): void {
             marked: a.id === menu?.id,
             switch: homeAppSwitch(payload.homeApps, a.id),
             logo: a.icon || undefined,
+            ...(a.beta ? { value: "Beta" } : {}),
           }),
         )
       : payload.grid.map((item) =>

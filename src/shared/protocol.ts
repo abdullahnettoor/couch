@@ -472,7 +472,7 @@ export interface ScreenPayload {
   /** Settings and the YouTube add-ons page: each add-on and whether it is on. */
   addons?: Array<{ id: string; label: string; description: string; on: boolean }>;
   /** Every App with whether Home shows it, in Home order (Store key `home.apps`). */
-  homeApps?: Array<{ id: string; label: string; icon: string; shown: boolean }>;
+  homeApps?: Array<{ id: string; label: string; icon: string; shown: boolean; beta?: true }>;
   /** Settings: the listener's login item and whether a listener is running now. */
   listener?: { available: boolean; on: boolean; running: boolean };
   /** Present for library, folder and libraryFolders. */
