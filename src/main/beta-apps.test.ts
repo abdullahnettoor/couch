@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, test } from "vite-plus/test";
+import { APP_ENTRIES } from "./apps/index.ts";
+import type { WelcomeQuestion } from "./apps/app.ts";
+import { HomeApps } from "./core/home-apps.ts";
 import { FakeWebApp } from "./ports/fakes.ts";
 import { MemoryStore } from "./ports/store.ts";
 import { startHarness, type Harness } from "./testing/harness.ts";
@@ -83,5 +86,57 @@ describe("beta Apps", () => {
     await h.settle();
     expect(listed()[0]).toBe("lab");
     expect(h.screen.last.homeApps?.find((a) => a.id === "lab")?.shown).toBe(false);
+  });
+
+  test("a beta App still asking its welcome question doesn't open once the channel goes to Stable", async () => {
+    let answerQuestion: (q: WelcomeQuestion | undefined) => void = () => {};
+    const slow = new FakeWebApp("lab", "Lab", {
+      welcome: {
+        question: () => new Promise((resolve) => (answerQuestion = resolve)),
+        answer: async () => undefined,
+      },
+    });
+    h = await startHarness(new MemoryStore(), { beta: true, apps: [{ entry, app: slow }] });
+    const phone = await h.connectPhone();
+    await phone.press({ command: "openApp", args: { app: "lab" } });
+    h.updates.setBeta(false);
+    await h.settle();
+    answerQuestion(undefined);
+    await h.settle();
+    expect(view()).toBe("home");
+    expect(slow.calls.filter((c) => c.call === "show")).toHaveLength(0);
+  });
+
+  test("turning Apps on or off and moving them on Stable keeps a hidden beta App's place and switch", () => {
+    const store = new MemoryStore();
+    store.write("home.apps", {
+      order: ["youtube", "lab", "netflix", "library", "bitchord"],
+      hidden: ["lab"],
+    });
+    let beta = false;
+    const apps = new HomeApps({
+      store,
+      known: () => [...APP_ENTRIES, entry],
+      betaChannel: () => beta,
+      toast: () => {},
+      hidden: () => {},
+      changed: () => {},
+      hasSignIn: () => false,
+      hasCouchCopy: () => false,
+      playback: () => undefined,
+    });
+    expect(apps.rows().map((r) => r.id)).toEqual(["youtube", "netflix", "library"]);
+    expect(apps.setShown("lab", true)).toBe(false);
+    apps.move("netflix", -1);
+    expect(apps.setShown("library", false)).toBe(true);
+    expect(apps.rows().map((r) => r.id)).toEqual(["netflix", "youtube", "library"]);
+    beta = true;
+    expect(apps.rows().map((r) => [r.id, r.shown])).toEqual([
+      ["netflix", true],
+      ["lab", false],
+      ["youtube", true],
+      ["library", false],
+      ["bitchord", true],
+    ]);
   });
 });
