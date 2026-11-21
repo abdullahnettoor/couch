@@ -1,3 +1,17 @@
+/*
+ * The lyric host list and the Apple and Musixmatch request headers below are copied from BitChord
+ * (https://github.com/kushagrasinghx/BitChord, web/extension/lib/lyricHosts.ts and web/extension/lib/lyricsFetch.ts).
+ *
+ * Copyright (C) kushagrasinghx and the BitChord contributors
+ *
+ * BitChord is free software under the GNU General Public License, version 3 (GPL-3.0): you can redistribute it and/or
+ * modify it under the terms of that licence, as published by the Free Software Foundation. It is distributed in the hope
+ * that it will be useful, but WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+ * A PARTICULAR PURPOSE. The licence text: https://www.gnu.org/licenses/gpl-3.0.html and
+ * https://github.com/kushagrasinghx/BitChord/blob/21356206de5594ca0bdaf4680ca2db68a2287729/LICENSE
+ * Couch ships with the corresponding source, as GPL sources ship with its releases.
+ */
+
 /**
  * The lyric hosts BitChord's browser extension lists as optional host permissions.
  * Source: kushagrasinghx/BitChord, web/extension/lib/lyricHosts.ts (LYRIC_ORIGINS),
