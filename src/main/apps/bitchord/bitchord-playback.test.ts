@@ -62,14 +62,14 @@ describe("BitChord Now Playing", () => {
   });
 
   test("no Speed, subtitles, audio tracks or Prompt", () => {
-    expect(playback.speeds).toBeUndefined();
-    expect(playback.setSpeed).toBeUndefined();
-    expect(playback.tracks).toBeUndefined();
-    expect(playback.setTrack).toBeUndefined();
-    expect(playback.prompt).toBeUndefined();
+    expect(playback).not.toHaveProperty("speeds");
+    expect(playback).not.toHaveProperty("setSpeed");
+    expect(playback).not.toHaveProperty("tracks");
+    expect(playback).not.toHaveProperty("setTrack");
+    expect(playback).not.toHaveProperty("prompt");
   });
 
   test("songs never enter Continue watching: BitChord has no resume", () => {
-    expect(description.resume).toBeUndefined();
+    expect(description).not.toHaveProperty("resume");
   });
 });

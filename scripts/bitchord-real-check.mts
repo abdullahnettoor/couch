@@ -153,7 +153,10 @@ void app.whenReady().then(async () => {
     await play(OTHER_TRACKS[0] ?? LONG_TRACK!, 12);
     const first = await probe();
     log("probe:", JSON.stringify(first));
-    expectThat(!!first && !!first.title, "the probe reports the song's title from the media session");
+    expectThat(
+      !!first && !!first.title,
+      "the probe reports the song's title from the media session",
+    );
     if (first?.artwork) log("artwork host:", new URL(first.artwork).hostname);
     expectThat(
       !!first?.artwork && ownArtwork(first.artwork, description.artworkHosts ?? []),
