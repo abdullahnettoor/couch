@@ -9,5 +9,5 @@ test("right after start, with no renderer reporting anything, Home's grid has th
   h = await startHarness();
   const ids = h.screen.last.grid.map((i) => i.id);
   expect(ids).toContain("settings");
-  for (const app of APP_ENTRIES) expect(ids).toContain(app.id);
+  for (const app of APP_ENTRIES.filter((a) => a.onByDefault)) expect(ids).toContain(app.id);
 });

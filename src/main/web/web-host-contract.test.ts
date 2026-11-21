@@ -85,7 +85,7 @@ vi.mock("electron", () => {
     setUserAgent() {},
     setPermissionRequestHandler() {},
     setPermissionCheckHandler() {},
-    webRequest: { onBeforeRequest() {}, onBeforeSendHeaders() {} },
+    webRequest: { onBeforeRequest() {}, onBeforeSendHeaders() {}, onHeadersReceived() {} },
     registerPreloadScript: (script: { filePath: string }) => {
       fake.preloadFiles.push(script.filePath);
       return "id";

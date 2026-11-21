@@ -2,6 +2,8 @@ import type { AppKey } from "../apps/app.ts";
 import type { PromptId, TrackKind } from "../../shared/protocol.ts";
 import type { Addon } from "./addon.ts";
 import type { FocusLayout } from "./page-focus.ts";
+import type { HeadersHandler, ResponseHeadersHandler } from "./request-hooks.ts";
+import type { BridgeRequest } from "./webkit-messages.ts";
 
 /** The identity a web App presents: one user agent and client hints, on the page, its frames and every request. */
 export interface WebIdentity {
@@ -113,6 +115,13 @@ export interface WebAppDescription {
   playback?: PlaybackAdapter;
   /** Turns on Couch's focus for the page: D-pad moves a ring between controls, OK clicks. */
   focus?: { selectors?: string[]; layout?: FocusLayout };
+  /** Network rules for this App's own session only; the host adds them to the session's shared hooks. */
+  requests?: { onBeforeSendHeaders?: HeadersHandler; onHeadersReceived?: ResponseHeadersHandler };
+  /**
+   * Answers the page's bridge requests (`couchHost.send` messages of type `bridge`); the host believes them only from the App's
+   * own origin and main frame, and posts the returned envelope back to the page as a window message.
+   */
+  bridge?: (request: BridgeRequest) => Promise<unknown>;
   /** The add-ons this host can run, and the ids of those that are on now. */
   addons: Addon[];
   enabledAddons: string[];

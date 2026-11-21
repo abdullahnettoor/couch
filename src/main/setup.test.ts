@@ -140,7 +140,7 @@ describe("moving through Setup", () => {
     expect(h.screen.last.setup).toMatchObject({ id: "listener", step: 1, focus: 0 });
     h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
     expect(h.screen.last.setup).toMatchObject({ id: "apps", step: 2, focus: 0 });
-    h.app.screenCommand({ command: "confirmAt", args: { index: 3 } });
+    h.app.screenCommand({ command: "confirmAt", args: { index: 4 } });
     expect(h.screen.last.setup).toMatchObject({ id: "videos", step: 3, focus: 0 });
     h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
     expect(h.screen.last.setup).toMatchObject({ id: "done", step: 4, focus: 0 });
@@ -156,7 +156,7 @@ describe("moving through Setup", () => {
     expect(h.screen.last.setup?.id).toBe("apps");
     await phone.press({ command: "confirmAnswer", args: { index: 0, text: "pair" } });
     expect(h.screen.last.setup?.id).toBe("apps");
-    await phone.press({ command: "confirmAnswer", args: { index: 3, text: "apps" } });
+    await phone.press({ command: "confirmAnswer", args: { index: 4, text: "apps" } });
     expect(h.screen.last.setup?.id).toBe("videos");
     await phone.press({ command: "confirmAnswer", args: { index: 1, text: "videos" } });
     expect(h.screen.last.setup?.id).toBe("done");
@@ -601,20 +601,22 @@ describe("the Apps step", () => {
         { id: "youtube", label: "YouTube", icon: icons.get("youtube"), on: true },
         { id: "netflix", label: "Netflix", icon: icons.get("netflix"), on: true },
         { id: "library", label: "Library", icon: icons.get("library"), on: true },
+        { id: "bitchord", label: "BitChord", icon: icons.get("bitchord"), on: false },
       ],
-      columns: 3,
+      columns: 4,
       buttons: ["Continue"],
       focus: 0,
     });
     expect(icons.get("youtube")).toContain("<svg");
     h.app.screenCommand({ command: "ok" });
-    expect(h.screen.last.setup?.tiles?.map((s) => s.on)).toEqual([false, true, true]);
+    expect(h.screen.last.setup?.tiles?.map((s) => s.on)).toEqual([false, true, true, false]);
     expect(h.screen.last.homeApps?.map((a) => [a.id, a.shown])).toEqual([
       ["youtube", false],
       ["netflix", true],
       ["library", true],
+      ["bitchord", false],
     ]);
-    h.app.screenCommand({ command: "confirmAt", args: { index: 3 } });
+    h.app.screenCommand({ command: "confirmAt", args: { index: 4 } });
     expect(h.screen.last.setup?.id).toBe("videos");
     expect(homeLabels()).toEqual(["Netflix", "Library"]);
   });
@@ -630,18 +632,18 @@ describe("the Apps step", () => {
     h.app.screenCommand({ command: "up" });
     expect(focus()).toBe(1);
     h.app.screenCommand({ command: "down" });
-    expect(focus()).toBe(3);
+    expect(focus()).toBe(4);
     h.app.screenCommand({ command: "down" });
-    expect(focus()).toBe(3);
+    expect(focus()).toBe(4);
     h.app.screenCommand({ command: "up" });
     expect(focus()).toBe(1);
     h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
     expect(h.screen.last.setup?.tiles?.[1]?.on).toBe(false);
     await phone.press({ command: "confirmAnswer", args: { index: 0, text: "apps" } });
     expect(h.screen.last.setup?.tiles?.[0]?.on).toBe(false);
-    expect(phone.last?.setup?.tiles?.map((s) => s.on)).toEqual([false, false, true]);
+    expect(phone.last?.setup?.tiles?.map((s) => s.on)).toEqual([false, false, true, false]);
     expect(phone.last?.setup?.tiles?.[0]?.icon).toContain("<svg");
-    await phone.press({ command: "confirmAnswer", args: { index: 3, text: "apps" } });
+    await phone.press({ command: "confirmAnswer", args: { index: 4, text: "apps" } });
     expect(h.screen.last.setup?.id).toBe("videos");
   });
 
@@ -650,13 +652,13 @@ describe("the Apps step", () => {
     const phone = await h.connectPhone();
     await phone.press({ command: "confirmAnswer", args: { index: 6, text: "apps" } });
     expect(h.screen.last.setup?.id).toBe("apps");
-    expect(h.screen.last.setup?.tiles?.map((s) => s.on)).toEqual([true, true, true]);
+    expect(h.screen.last.setup?.tiles?.map((s) => s.on)).toEqual([true, true, true, false]);
   });
 
   test("every App off is allowed, and Home shows no App tiles", async () => {
     await toApps();
     for (let i = 0; i < 3; i++) h.app.screenCommand({ command: "confirmAt", args: { index: i } });
-    expect(h.screen.last.setup?.tiles?.map((s) => s.on)).toEqual([false, false, false]);
+    expect(h.screen.last.setup?.tiles?.map((s) => s.on)).toEqual([false, false, false, false]);
     expect(homeLabels()).toEqual([]);
   });
 

@@ -5,6 +5,10 @@ export interface HeadersDetails {
   url: string;
   requestHeaders: Record<string, string>;
 }
+export interface ResponseHeadersDetails {
+  url: string;
+  responseHeaders: Record<string, string[]>;
+}
 /** A handler may block or redirect; returning nothing lets the request go on to the next handler. */
 export type BeforeRequestHandler = (
   details: BeforeRequestDetails,
@@ -12,12 +16,18 @@ export type BeforeRequestHandler = (
 /** Receives the headers so far and returns the headers to send (the next handler sees these). */
 export type HeadersHandler = (details: HeadersDetails) => Record<string, string>;
 
+/** Receives the response headers so far and returns the headers the page sees (the next handler sees these). */
+export type ResponseHeadersHandler = (details: ResponseHeadersDetails) => Record<string, string[]>;
+
 export interface HookSession {
   webRequest: {
     onBeforeRequest(
       listener: ((details: any, callback: (response: any) => void) => void) | null,
     ): void;
     onBeforeSendHeaders(
+      listener: ((details: any, callback: (response: any) => void) => void) | null,
+    ): void;
+    onHeadersReceived(
       listener: ((details: any, callback: (response: any) => void) => void) | null,
     ): void;
   };
@@ -37,6 +47,7 @@ function warnOnce(handler: object, error: unknown): void {
 export class RequestHooks {
   #before: BeforeRequestHandler[] = [];
   #headers: HeadersHandler[] = [];
+  #responses: ResponseHeadersHandler[] = [];
 
   #ses: HookSession;
 
@@ -66,16 +77,29 @@ export class RequestHooks {
       }
       callback({ requestHeaders });
     });
+    ses.webRequest.onHeadersReceived((details, callback) => {
+      if (this.#responses.length === 0) return callback({});
+      let responseHeaders: Record<string, string[]> = details.responseHeaders ?? {};
+      for (const handler of this.#responses) {
+        try {
+          responseHeaders = handler({ url: details.url, responseHeaders });
+        } catch (e) {
+          warnOnce(handler, e);
+        }
+      }
+      callback({ responseHeaders });
+    });
   }
 
   get empty(): boolean {
-    return this.#before.length === 0 && this.#headers.length === 0;
+    return this.#before.length === 0 && this.#headers.length === 0 && this.#responses.length === 0;
   }
 
   /** Takes this object's listeners off the session. */
   detach(): void {
     this.#ses.webRequest.onBeforeRequest(null);
     this.#ses.webRequest.onBeforeSendHeaders(null);
+    this.#ses.webRequest.onHeadersReceived(null);
   }
 
   onBeforeRequest(handler: BeforeRequestHandler): () => void {
@@ -86,6 +110,11 @@ export class RequestHooks {
   onBeforeSendHeaders(handler: HeadersHandler): () => void {
     this.#headers.push(handler);
     return () => void (this.#headers = this.#headers.filter((h) => h !== handler));
+  }
+
+  onHeadersReceived(handler: ResponseHeadersHandler): () => void {
+    this.#responses.push(handler);
+    return () => void (this.#responses = this.#responses.filter((h) => h !== handler));
   }
 }
 

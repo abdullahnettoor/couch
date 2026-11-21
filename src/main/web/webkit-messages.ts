@@ -11,12 +11,26 @@ export type PageMessage =
   /** Couch's own wake of a player's bar: a real mouse-moved event at this point (client coordinates). */
   | { type: "wake-pointer"; x: number; y: number }
   /** A real mouse press on the page: the household used the App's own controls. */
-  | { type: "input" };
+  | { type: "input" }
+  /** An App's bridge request from its page (BitChord's): the envelope the page posted, checked only for shape. */
+  | { type: "bridge"; request: BridgeRequest };
+
+/** The envelope BitChord's page sends its host; the answering module judges the protocol and the method. */
+export interface BridgeRequest {
+  channel: "bitchord-bridge";
+  protocol: number;
+  direction: "to-extension";
+  id: string;
+  method: string;
+  params: Record<string, unknown>;
+}
 
 const MAX_URL = 4096;
 const MAX_CONSOLE = 64;
 const MAX_PAGE_KEYS = 16;
 const MAX_COORD = 16384;
+const MAX_BRIDGE_ID = 128;
+const MAX_BRIDGE_METHOD = 64;
 
 const isPrimitive = (v: unknown): v is string | number | boolean | null =>
   v === null || ["string", "number", "boolean"].includes(typeof v);
@@ -58,6 +72,23 @@ export function parsePageMessage(body: unknown): PageMessage | undefined {
   }
   if (m.type === "input") {
     return hasOnly(m, ["type"]) ? { type: "input" } : undefined;
+  }
+  if (m.type === "bridge") {
+    if (!hasOnly(m, ["type", "request"])) return undefined;
+    const r = m.request as Record<string, unknown> | null;
+    if (typeof r !== "object" || r === null || Array.isArray(r)) return undefined;
+    if (!hasOnly(r, ["channel", "protocol", "direction", "id", "method", "params"]))
+      return undefined;
+    if (r.channel !== "bitchord-bridge" || r.direction !== "to-extension") return undefined;
+    if (typeof r.protocol !== "number") return undefined;
+    if (typeof r.id !== "string" || r.id.length > MAX_BRIDGE_ID) return undefined;
+    if (typeof r.method !== "string" || r.method.length > MAX_BRIDGE_METHOD) return undefined;
+    const params = r.params ?? {};
+    if (typeof params !== "object" || params === null || Array.isArray(params)) return undefined;
+    return {
+      type: "bridge",
+      request: { ...(r as unknown as BridgeRequest), params: params as Record<string, unknown> },
+    };
   }
   if (m.type === "wake-pointer") {
     if (!hasOnly(m, ["type", "x", "y"])) return undefined;

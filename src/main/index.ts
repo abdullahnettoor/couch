@@ -51,6 +51,10 @@ import { createWebKitWelcome } from "./web/webkit-welcome.ts";
 import { youtubeDescription } from "./apps/youtube/youtube-web.ts";
 import { NETFLIX_PARTITION, netflixDescription } from "./apps/netflix/netflix-web.ts";
 import { NetflixApp } from "./apps/netflix/netflix-app.ts";
+import { BITCHORD_PARTITION, bitchordDescription } from "./apps/bitchord/bitchord-web.ts";
+import { bitchordSite } from "./apps/bitchord/bitchord-route.ts";
+import { bridgeNetwork } from "./apps/bitchord/bitchord-network.ts";
+import { BitChordApp } from "./apps/bitchord/bitchord-app.ts";
 import { YouTubeApp } from "./apps/youtube/youtube-app.ts";
 import { APP_ENTRIES } from "./apps/index.ts";
 import { resolveHomeApps } from "./core/home-apps.ts";
@@ -343,6 +347,21 @@ async function createScreen(): Promise<void> {
   });
   // An answer that came while the host was being built is applied now.
   netflixReady = true;
+  // BitChord: Chromium only, its own partition; its bridge's network is that partition's session, signed out.
+  const bitchordSession = session.fromPartition(BITCHORD_PARTITION);
+  const bitchord = new ElectronWebApp(
+    bitchordDescription(
+      undefined,
+      bridgeNetwork(
+        (url, init) => bitchordSession.fetch(url, init as RequestInit),
+        bitchordSite(process.env),
+      ),
+      process.env,
+    ),
+    win,
+    unloader.track("bitchord", () => bitchord.unload()),
+  );
+  const bitchordApp = new BitChordApp(bitchord, systemClock);
   onAnswer(fairplay.current());
   mac.keepAwake(true);
   const labelMigration = await migrateListenerLabel({
@@ -392,7 +411,7 @@ async function createScreen(): Promise<void> {
   couch = await startApp({
     player,
     updates,
-    apps: [youtubeApp, netflixApp],
+    apps: [youtubeApp, netflixApp, bitchordApp],
     mac,
     clock: systemClock,
     store,
@@ -432,7 +451,7 @@ async function createScreen(): Promise<void> {
     (command) => couch?.screenCommand(command),
     (event, input) => drawer.intercept(event, input),
   );
-  const webs: Record<string, { focus(): void }> = { youtube, netflix };
+  const webs: Record<string, { focus(): void }> = { youtube, netflix, bitchord };
   let front: { view: string; app?: string } = { view: "home" };
   const drawer = new QuickDrawer<WebContentsView>(
     win,
@@ -458,7 +477,7 @@ async function createScreen(): Promise<void> {
     cover.fit();
     drawer.fit();
   });
-  for (const web of [youtube, netflix])
+  for (const web of [youtube, netflix, bitchord])
     web.setKeyGate((e, i) => drawer.intercept(e, i) || cover.intercept(e, i));
   // One native mouse-moved subscription (starting a second would replace the first), shared by the cursor and the edge gesture.
   const moves = new MouseMoves(watchMouseMoves);

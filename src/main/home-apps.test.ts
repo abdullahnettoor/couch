@@ -69,15 +69,16 @@ describe("Home Apps: choose and order", () => {
     h = await startHarness();
     const phone = await h.connectPhone();
     await openApps(phone);
-    expect(labels()).toEqual(["YouTube", "Netflix", "Library"]);
+    expect(labels()).toEqual(["YouTube", "Netflix", "Library", "BitChord"]);
     expect(h.screen.last.appMenu).toBeUndefined();
     expect(h.screen.last.homeApps?.map((a) => [a.id, a.shown])).toEqual([
       ["youtube", true],
       ["netflix", true],
       ["library", true],
+      ["bitchord", false],
     ]);
     expect(h.screen.last.homeApps?.map((a) => homeAppSwitch(h.screen.last.homeApps, a.id))).toEqual(
-      ["on", "on", "on"],
+      ["on", "on", "on", "off"],
     );
   });
 
@@ -92,7 +93,7 @@ describe("Home Apps: choose and order", () => {
       "Restart YouTube",
       "Add-ons",
     ]);
-    expect(h.screen.last.homeApps).toHaveLength(3);
+    expect(h.screen.last.homeApps).toHaveLength(4);
     await phone.press("back");
     await toHome(phone);
     await openMenu(phone, "Library");
@@ -122,13 +123,13 @@ describe("Home Apps: choose and order", () => {
     const phone = await h.connectPhone();
     await openMenu(phone, "Library");
     await pick(phone, "Move up");
-    expect(order()).toEqual(["youtube", "library", "netflix"]);
+    expect(order()).toEqual(["youtube", "library", "netflix", "bitchord"]);
     expect(h.screen.last.appMenu?.id).toBe("library");
     expect(labels()[0]).toBe("Hide from Home");
     await pick(phone, "Move up");
-    expect(order()).toEqual(["library", "youtube", "netflix"]);
+    expect(order()).toEqual(["library", "youtube", "netflix", "bitchord"]);
     await pick(phone, "Move down");
-    expect(order()).toEqual(["youtube", "library", "netflix"]);
+    expect(order()).toEqual(["youtube", "library", "netflix", "bitchord"]);
     expect(h.screen.last.appMenu?.id).toBe("library");
     await phone.press("back");
     await toHome(phone);
@@ -146,14 +147,14 @@ describe("Home Apps: choose and order", () => {
     const phone = await h.connectPhone();
     await openMenu(phone, "YouTube");
     await pick(phone, "Move up");
-    expect(order()).toEqual(["youtube", "netflix", "library"]);
+    expect(order()).toEqual(["youtube", "netflix", "library", "bitchord"]);
     expect(h.screen.last.appMenu?.id).toBe("youtube");
     await phone.press("back");
-    await focusLabel(phone, "Library");
+    await focusLabel(phone, "BitChord");
     await phone.press("ok");
     await pick(phone, "Move down");
-    expect(order()).toEqual(["youtube", "netflix", "library"]);
-    expect(h.screen.last.appMenu?.id).toBe("library");
+    expect(order()).toEqual(["youtube", "netflix", "library", "bitchord"]);
+    expect(h.screen.last.appMenu?.id).toBe("bitchord");
   });
 
   test("Back closes the menu with focus on that App's row, wherever Moves took it", async () => {
@@ -165,7 +166,7 @@ describe("Home Apps: choose and order", () => {
     await phone.press("back");
     expect(view()).toBe("settingsApps");
     expect(h.screen.last.appMenu).toBeUndefined();
-    expect(labels()).toEqual(["Library", "YouTube", "Netflix"]);
+    expect(labels()).toEqual(["Library", "YouTube", "Netflix", "BitChord"]);
     expect(h.screen.last.focusedLabel).toBe("Library");
     await phone.press("back");
     expect(view()).toBe("settings");
@@ -192,8 +193,8 @@ describe("Home Apps: choose and order", () => {
     await phone.press("ok");
     await pick(phone, "Hide from Home");
     expect(store.read("home.apps", null)).toEqual({
-      order: ["library", "youtube", "netflix"],
-      hidden: ["netflix"],
+      order: ["library", "youtube", "netflix", "bitchord"],
+      hidden: ["netflix", "bitchord"],
     });
     await h.stop();
     h = await startHarness(new FileStore(dirs[0]!));
@@ -328,6 +329,7 @@ describe("resolveHomeApps (startup and Core)", () => {
       ["library", true],
       ["youtube", true],
       ["netflix", true],
+      ["bitchord", false],
     ]);
   });
 
@@ -338,6 +340,7 @@ describe("resolveHomeApps (startup and Core)", () => {
       ["youtube", true],
       ["netflix", true],
       ["library", true],
+      ["bitchord", false],
     ]);
   });
 });
@@ -388,8 +391,8 @@ describe("HomeApps module boundary", () => {
     apps.openMenu("youtube");
     log.length = 0;
     apps.move("youtube", -1);
-    apps.move("library", 1);
-    expect(apps.rows().map((r) => r.id)).toEqual(["youtube", "netflix", "library"]);
+    apps.move("bitchord", 1);
+    expect(apps.rows().map((r) => r.id)).toEqual(["youtube", "netflix", "library", "bitchord"]);
     expect(log).toEqual([]);
   });
 

@@ -1,4 +1,5 @@
 import { iconSvg } from "../../shared/icons.ts";
+import { BITCHORD_MARK } from "./bitchord/icon.ts";
 import { NETFLIX_MARK } from "./netflix/icon.ts";
 import { YOUTUBE_MARK } from "./youtube/icon.ts";
 
@@ -43,6 +44,13 @@ export const APP_ENTRIES: AppEntry[] = [
     action: "open:library",
     web: false,
     onByDefault: true,
+  },
+  {
+    id: "bitchord",
+    label: "BitChord",
+    icon: BITCHORD_MARK,
+    action: "app:open:bitchord",
+    web: true,
   },
 ];
 

@@ -23,6 +23,7 @@
     "glass:fade": "electron scripts/glass-fade-check.mts",
     "clock:frames": "electron scripts/clock-frames-check.mts",
     "look:record": "node scripts/look-record.mts",
+    "bitchord:real": "node scripts/bitchord-real-check.mjs",
     "drm-check": "node scripts/drm-check/run.mjs",
     "sample": "sh scripts/make-sample.sh",
     "icons": "sh scripts/make-icons.sh",

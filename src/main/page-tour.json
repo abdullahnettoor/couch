@@ -23,6 +23,12 @@
             "label": "Library",
             "icon": "<svg class=\"i\" viewBox=\"0 0 256 256\" aria-hidden=\"true\"><path d=\"M216,72H131.31L104,44.69A15.88,15.88,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.41,15.41,0,0,0,39.39,216h177.5A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40Z\"/></svg>",
             "shown": true
+          },
+          {
+            "id": "bitchord",
+            "label": "BitChord",
+            "icon": "<svg class=\"i\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 18V5l11-2v13\"/><circle cx=\"6\" cy=\"18\" r=\"3\"/><circle cx=\"17\" cy=\"16\" r=\"3\"/></svg>",
+            "shown": false
           }
         ],
         "home": {
@@ -18201,6 +18207,13 @@
             "c": 0,
             "label": "Library",
             "action": "settings:app:library"
+          },
+          {
+            "id": "bitchord",
+            "r": 3,
+            "c": 0,
+            "label": "BitChord",
+            "action": "settings:app:bitchord"
           }
         ],
         "focusedId": "youtube",
@@ -19196,6 +19209,13 @@
             "c": 0,
             "label": "Library",
             "action": "settings:app:library"
+          },
+          {
+            "id": "bitchord",
+            "r": 3,
+            "c": 0,
+            "label": "BitChord",
+            "action": "settings:app:bitchord"
           }
         ],
         "focusedId": "youtube",

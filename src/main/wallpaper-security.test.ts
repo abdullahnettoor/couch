@@ -26,6 +26,7 @@ vi.mock("electron", () => {
     webRequest: {
       onBeforeRequest: (l: any) => sessions.before.push(l),
       onBeforeSendHeaders() {},
+      onHeadersReceived() {},
     },
     registerPreloadScript: () => "id",
     unregisterPreloadScript() {},

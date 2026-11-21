@@ -75,7 +75,7 @@ const fake = vi.hoisted(() => {
   /** What the fake Session holds: every session-level listener a host may leave behind. */
   const held: Record<string, unknown> = {};
   /** The userData folder of the test running now, so no two tests (or runs) share a preload folder. */
-  const state = { userData: "" };
+  const state = { userData: "", session: undefined as unknown };
   return { FakeContents, views, counts, held, state };
 });
 
@@ -88,7 +88,7 @@ vi.mock("electron", () => {
     setVisible() {}
     setBounds() {}
   }
-  const session = {
+  const makeSession = () => ({
     setUserAgent() {},
     setPermissionRequestHandler(h: unknown) {
       fake.held.permissionRequest = h;
@@ -103,6 +103,9 @@ vi.mock("electron", () => {
       onBeforeSendHeaders(h: unknown) {
         fake.held.beforeSendHeaders = h;
       },
+      onHeadersReceived(h: unknown) {
+        fake.held.headersReceived = h;
+      },
     },
     registerPreloadScript: () => {
       fake.counts.preloadsRegistered++;
@@ -111,17 +114,20 @@ vi.mock("electron", () => {
     unregisterPreloadScript() {
       fake.counts.preloadsRemoved++;
     },
-  };
+  });
   return {
     app: { getPath: () => fake.state.userData, focus() {} },
     BrowserWindow: class {},
     WebContentsView,
     clipboard: { readText: () => "" },
     components: { whenReady: async () => {} },
-    session: { fromPartition: () => session },
+    // One session per test, so request hooks a test leaves behind never carry over to the next.
+    session: { fromPartition: () => (fake.state.session ??= makeSession()) },
   };
 });
 
+import { bitchordDescription } from "../apps/bitchord/bitchord-web.ts";
+import { HOST_CONSOLE_PREFIX } from "./couch-host.ts";
 import { netflixDescription } from "../apps/netflix/netflix-web.ts";
 import { youtubeDescription } from "../apps/youtube/youtube-web.ts";
 import { ElectronWebApp } from "./electron-web-app.ts";
@@ -168,6 +174,7 @@ beforeEach(() => {
   winResize.n = 0;
   children.clear();
   for (const k of Object.keys(fake.held)) delete fake.held[k];
+  fake.state.session = undefined;
   fake.state.userData = mkdtempSync(join(tmpdir(), "couch-electron-web-"));
 });
 
@@ -182,12 +189,14 @@ describe("dispose (an engine switch)", () => {
     expect(typeof fake.held.permissionCheck).toBe("function");
     expect(typeof fake.held.beforeRequest).toBe("function");
     expect(typeof fake.held.beforeSendHeaders).toBe("function");
+    expect(typeof fake.held.headersReceived).toBe("function");
     web.dispose();
     expect(fake.held).toEqual({
       permissionRequest: null,
       permissionCheck: null,
       beforeRequest: null,
       beforeSendHeaders: null,
+      headersReceived: null,
     });
   });
 
@@ -534,5 +543,120 @@ describe("the shared keyboard rules, through the Electron adapter", () => {
     wc.emit("before-input-event", event, { ...input });
     expect(out).toEqual(events);
     expect(event.preventDefault.mock.calls.length === 0).toBe(page);
+  });
+});
+
+describe("a web App with a bridge and network rules (BitChord)", () => {
+  const SITE = "https://bitchord-8bw.pages.dev";
+  const request = (id: string) => ({
+    channel: "bitchord-bridge",
+    protocol: 1,
+    direction: "to-extension",
+    id,
+    method: "ping",
+    params: {},
+  });
+  const sendBridge = (frame: { parent: unknown; origin: string }, message: unknown) =>
+    contents.emit("console-message", {
+      message: `${HOST_CONSOLE_PREFIX}${JSON.stringify({ type: "bridge", request: message })}`,
+      frame,
+    });
+  const posted = () => contents.scripts.filter((s) => s.startsWith("window.postMessage("));
+  const bitchord = () =>
+    bitchordDescription(
+      "130.0.0.0",
+      {
+        request: () => Promise.reject(new Error("no")),
+        manifest: () => Promise.resolve('{"version":"0.4.9"}'),
+      },
+      {},
+    );
+
+  test("a bridge request from the App's main frame is answered by posting the envelope into the page, to its origin", async () => {
+    const web = new ElectronWebApp(bitchord(), win);
+    contents = fake.views.at(-1)!;
+    sendBridge({ parent: null, origin: SITE }, request("r1"));
+    await vi.waitFor(() => expect(posted()).toHaveLength(1));
+    const [, body, to] = /^window\.postMessage\((.*), ("[^"]*")\)$/.exec(posted()[0]!)!;
+    expect(JSON.parse(to!)).toBe(SITE);
+    expect(JSON.parse(body!)).toMatchObject({
+      channel: "bitchord-bridge",
+      direction: "to-page",
+      id: "r1",
+      ok: true,
+      result: { version: "0.4.9", browser: "chromium" },
+    });
+    web.dispose();
+  });
+
+  test.each([
+    ["a sub-frame of the App", { parent: {}, origin: SITE }],
+    ["another origin's main frame", { parent: null, origin: "https://evil.example" }],
+  ])("a bridge request from %s is ignored", async (_name, frame) => {
+    const web = new ElectronWebApp(bitchord(), win);
+    contents = fake.views.at(-1)!;
+    sendBridge(frame, request("r2"));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(posted()).toEqual([]);
+    web.dispose();
+  });
+
+  test("a malformed bridge request is ignored", async () => {
+    const web = new ElectronWebApp(bitchord(), win);
+    contents = fake.views.at(-1)!;
+    sendBridge({ parent: null, origin: SITE }, { ...request("r3"), channel: "other" });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(posted()).toEqual([]);
+    web.dispose();
+  });
+
+  test("an App with no bridge ignores a bridge request", async () => {
+    const web = new ElectronWebApp(netflix, win);
+    contents = fake.views.at(-1)!;
+    sendBridge({ parent: null, origin: "https://www.netflix.com" }, request("r4"));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(posted()).toEqual([]);
+    web.dispose();
+  });
+
+  const received = (url: string) =>
+    new Promise<any>((res) =>
+      (fake.held.headersReceived as any)({ url, responseHeaders: { Server: ["s"] } }, res),
+    );
+  const GV = "https://rr1---sn-a.googlevideo.com/videoplayback?c=WEB";
+
+  test("the response-headers hook applies BitChord's rules to its own session", async () => {
+    const web = new ElectronWebApp(bitchord(), win);
+    expect(await received(GV)).toEqual({
+      responseHeaders: {
+        Server: ["s"],
+        "Access-Control-Allow-Origin": ["*"],
+        "Access-Control-Expose-Headers": ["*"],
+      },
+    });
+    web.dispose();
+  });
+
+  test("YouTube's and Netflix's sessions leave the same responses untouched", async () => {
+    for (const description of [netflix, youtubeDescription("130.0.0.0")]) {
+      const web = new ElectronWebApp(description, win);
+      expect(await received(GV)).toEqual({});
+      web.dispose();
+    }
+  });
+
+  test("BitChord's request rules set YouTube's Origin on its own session only", () => {
+    const send = (description: any) => {
+      const web = new ElectronWebApp(description, win);
+      let out: any;
+      (fake.held.beforeSendHeaders as any)(
+        { url: GV, requestHeaders: { Origin: SITE } },
+        (r: any) => (out = r.requestHeaders),
+      );
+      web.dispose();
+      return out;
+    };
+    expect(send(bitchord())).toMatchObject({ Origin: "https://www.youtube.com" });
+    expect(send(netflix)).toEqual({ Origin: SITE });
   });
 });
