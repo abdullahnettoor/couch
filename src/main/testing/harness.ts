@@ -62,6 +62,8 @@ export class FakePhone {
 
   /** Send a command and wait for the next snapshot it causes. */
   async press(command: Command["command"] | Command): Promise<RemoteSnapshot> {
+    // A push still on its way (from something the test did on the Screen) would otherwise pass for this command's answer.
+    await this.settle(10);
     const before = this.snapshots.length;
     this.send(command);
     await this.waitFor(() => this.snapshots.length > before);
@@ -76,12 +78,12 @@ export class FakePhone {
     }
   }
 
-  /** Wait until no new snapshots arrive for a moment. */
-  async settle(): Promise<void> {
+  /** Wait until no new snapshots arrive for `quietMs`. */
+  async settle(quietMs = 25): Promise<void> {
     let seen = -1;
     while (seen !== this.snapshots.length) {
       seen = this.snapshots.length;
-      await new Promise((r) => setTimeout(r, 25));
+      await new Promise((r) => setTimeout(r, quietMs));
     }
   }
 
