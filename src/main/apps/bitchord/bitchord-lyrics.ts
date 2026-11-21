@@ -28,15 +28,21 @@ export const LYRIC_ORIGINS: readonly string[] = [
   "https://amp-api.music.apple.com",
 ];
 
-/** The listed origin of `url`, or undefined when it isn't a listed lyric host. */
-export function lyricOrigin(url: unknown): string | undefined {
+/** The parsed `url` when it is https, has no userinfo and is on a listed lyric origin. */
+export function lyricUrl(url: unknown): URL | undefined {
   if (typeof url !== "string") return undefined;
   try {
-    const origin = new URL(url).origin;
-    return LYRIC_ORIGINS.includes(origin) ? origin : undefined;
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" || parsed.username || parsed.password) return undefined;
+    return LYRIC_ORIGINS.includes(parsed.origin) ? parsed : undefined;
   } catch {
     return undefined;
   }
+}
+
+/** The listed origin of `url`, or undefined when it isn't a listed lyric host. */
+export function lyricOrigin(url: unknown): string | undefined {
+  return lyricUrl(url)?.origin;
 }
 
 /** Headers some lyric hosts need that a page's fetch may not set, as the extension's own rules add them. */
@@ -50,7 +56,6 @@ export function lyricHeaders(
     headers.Origin = "https://music.apple.com";
     headers.Referer = "https://music.apple.com/";
   } else if (origin === "https://apic.musixmatch.com" || origin === "https://www.musixmatch.com") {
-    for (const k of Object.keys(headers)) if (/^cookie$/i.test(k)) delete headers[k];
     headers.Cookie = "mxm_bab=AB";
   }
   return headers;

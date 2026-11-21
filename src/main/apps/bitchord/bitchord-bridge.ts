@@ -1,4 +1,5 @@
-import { lyricHeaders, lyricOrigin, LYRIC_ORIGINS } from "./bitchord-lyrics.ts";
+import { pageHeaders } from "./bitchord-headers.ts";
+import { lyricHeaders, lyricUrl, LYRIC_ORIGINS } from "./bitchord-lyrics.ts";
 import type { BridgeRequest } from "../../web/webkit-messages.ts";
 
 export type { BridgeRequest };
@@ -7,7 +8,21 @@ export const BRIDGE_PROTOCOL = 1;
 /** The version answered when the site's published one can't be read. */
 export const FALLBACK_EXTENSION_VERSION = "0.4.4";
 
-const BOTGUARD = /^https:\/\/www\.youtube\.com\/api\/jnn\//;
+const MAX_LYRIC_HOPS = 3;
+
+/** The normalised BotGuard address, or undefined: https, exactly www.youtube.com, no userinfo or port, a path under /api/jnn/. */
+function botguardUrl(url: unknown): string | undefined {
+  if (typeof url !== "string") return undefined;
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:" || u.hostname !== "www.youtube.com") return undefined;
+    if (u.username || u.password || u.port) return undefined;
+    if (!u.pathname.startsWith("/api/jnn/") || /%2f|%5c/i.test(u.pathname)) return undefined;
+    return u.href;
+  } catch {
+    return undefined;
+  }
+}
 const SIGNED_OUT = {
   browserSignedIn: false,
   connected: false,
@@ -74,6 +89,15 @@ export type BridgeResponse =
 
 const TEXTUAL = /json|text|javascript|xml/i;
 const LYRIC_TEXTUAL = /^$|json|text|javascript|xml|html/i;
+
+const isRedirect = (status: number) => status >= 300 && status < 400;
+const resolve = (location: string, base: URL): string => {
+  try {
+    return new URL(location, base).href;
+  } catch {
+    return "";
+  }
+};
 
 /** The BitChord bridge: Couch's stand-in for BitChord's browser extension, signed out. */
 export class BitChordBridge {
@@ -160,16 +184,16 @@ export class BitChordBridge {
     fail: (code: BridgeErrorCode, message: string) => BridgeResponse,
   ): Promise<BridgeResponse> {
     if (params.auth) return fail("unauthenticated", "Couch's BitChord is signed out.");
-    const url = params.url;
-    if (typeof url !== "string" || !BOTGUARD.test(url))
-      return fail("forbidden", "Couch only serves YouTube's BotGuard endpoint.");
-    const headers: Record<string, string> = {};
-    if (params.headers && typeof params.headers === "object")
-      for (const [k, v] of Object.entries(params.headers))
-        if (typeof v === "string" && !/^(origin|referer)$/i.test(k)) headers[k] = v;
+    const url = botguardUrl(params.url);
+    if (!url) return fail("forbidden", "Couch only serves YouTube's BotGuard endpoint.");
+    const headers = pageHeaders(params.headers);
+    for (const k of Object.keys(headers)) if (/^(origin|referer)$/i.test(k)) delete headers[k];
     headers.Origin = "https://www.youtube.com";
     headers.Referer = "https://www.youtube.com/";
-    return this.#send(url, params, headers, TEXTUAL, reply);
+    const response = await this.#hop(url, params, headers);
+    if (isRedirect(response.status))
+      return fail("forbidden", "Couch doesn't follow redirects from BotGuard.");
+    return this.#answer(response, TEXTUAL, reply);
   }
 
   async #lyricsFetch(
@@ -177,34 +201,47 @@ export class BitChordBridge {
     reply: (r: { ok: true; result: unknown }) => BridgeResponse,
     fail: (code: BridgeErrorCode, message: string) => BridgeResponse,
   ): Promise<BridgeResponse> {
-    const origin = lyricOrigin(params.url);
-    if (!origin || typeof params.url !== "string")
-      return fail("forbidden", "Couch only serves BitChord's listed lyric hosts.");
-    const given: Record<string, string> = {};
-    if (params.headers && typeof params.headers === "object")
-      for (const [k, v] of Object.entries(params.headers)) if (typeof v === "string") given[k] = v;
-    return this.#send(params.url, params, lyricHeaders(origin, given), LYRIC_TEXTUAL, reply);
+    let target = lyricUrl(params.url);
+    if (!target) return fail("forbidden", "Couch only serves BitChord's listed lyric hosts.");
+    const given = pageHeaders(params.headers);
+    let current = params;
+    for (let hops = 0; ; hops++) {
+      const response = await this.#hop(
+        target.href,
+        current,
+        lyricHeaders(target.origin, given),
+      );
+      if (!isRedirect(response.status)) return this.#answer(response, LYRIC_TEXTUAL, reply);
+      const location = response.headers.location ?? response.headers.Location;
+      const next = hops < MAX_LYRIC_HOPS && location ? lyricUrl(resolve(location, target)) : undefined;
+      if (!next) return fail("forbidden", "Couch only follows redirects to BitChord's lyric hosts.");
+      // As fetch does: 307 and 308 keep the method and body, the others become a plain GET.
+      if (response.status !== 307 && response.status !== 308)
+        current = { ...current, method: "GET", body: undefined };
+      target = next;
+    }
   }
 
-  async #send(
-    url: string,
-    params: Record<string, unknown>,
-    headers: Record<string, string>,
-    textualType: RegExp,
-    reply: (r: { ok: true; result: unknown }) => BridgeResponse,
-  ): Promise<BridgeResponse> {
+  #hop(url: string, params: Record<string, unknown>, headers: Record<string, string>) {
     const body =
       typeof params.body !== "string"
         ? undefined
         : params.bodyEncoding === "base64"
           ? Uint8Array.from(Buffer.from(params.body, "base64"))
           : params.body;
-    const response = await this.#net.request({
+    return this.#net.request({
       url,
       method: typeof params.method === "string" ? params.method : "GET",
       headers,
       body,
     });
+  }
+
+  #answer(
+    response: Awaited<ReturnType<BridgeNetwork["request"]>>,
+    textualType: RegExp,
+    reply: (r: { ok: true; result: unknown }) => BridgeResponse,
+  ): BridgeResponse {
     const textual = textualType.test(response.contentType);
     return reply({
       ok: true,

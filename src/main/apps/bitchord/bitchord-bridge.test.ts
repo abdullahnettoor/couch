@@ -332,3 +332,152 @@ describe("the BitChord bridge", () => {
     });
   });
 });
+
+describe("the bridge's allowlists hold", () => {
+  const LRCLIB = "https://lrclib.net/api/search?q=a";
+  function routed(routes: Record<string, { status: number; location?: string }>) {
+    const requests: Array<Parameters<BridgeNetwork["request"]>[0]> = [];
+    const net: BridgeNetwork = {
+      request: async (init) => {
+        requests.push(init);
+        const hop = routes[init.url];
+        return {
+          status: hop?.status ?? 200,
+          headers: hop?.location ? { location: hop.location } : {},
+          url: init.url,
+          contentType: "application/json",
+          bytes: new TextEncoder().encode('["ok"]'),
+        };
+      },
+      manifest: () => Promise.resolve('{"version":"0.5.1"}'),
+    };
+    const bridge = new BitChordBridge(net);
+    const ask = (method: string, params: Record<string, unknown>) =>
+      bridge.answer({
+        channel: "bitchord-bridge",
+        protocol: 1,
+        direction: "to-extension",
+        id: "r1",
+        method,
+        params,
+      } as BridgeRequest);
+    return { ask, requests };
+  }
+
+  test("a BotGuard redirect is a failure, and is not followed", async () => {
+    const { ask, requests } = routed({
+      [BOTGUARD]: { status: 302, location: "https://evil.example/x" },
+    });
+    expect(await ask("yt.fetch", { url: BOTGUARD })).toEqual(error("forbidden"));
+    expect(requests.map((r) => r.url)).toEqual([BOTGUARD]);
+  });
+
+  test("a lyric redirect to a listed host is followed, and the next hop is checked first", async () => {
+    const { ask, requests } = routed({
+      [LRCLIB]: { status: 302, location: "https://genius.com/x" },
+    });
+    expect(await ask("lyrics.fetch", { url: LRCLIB })).toMatchObject({
+      ok: true,
+      result: { status: 200, url: "https://genius.com/x" },
+    });
+    expect(requests.map((r) => r.url)).toEqual([LRCLIB, "https://genius.com/x"]);
+  });
+
+  test.each([
+    "https://evil.example/x",
+    "http://lrclib.net/x",
+    "https://user:pw@lrclib.net/x",
+    "https://www.youtube.com/api/jnn/v1/x",
+  ])("a lyric redirect to %s is forbidden and never fetched", async (location) => {
+    const { ask, requests } = routed({ [LRCLIB]: { status: 301, location } });
+    expect(await ask("lyrics.fetch", { url: LRCLIB })).toEqual(error("forbidden"));
+    expect(requests.map((r) => r.url)).toEqual([LRCLIB]);
+  });
+
+  test("a lyric redirect chain stops after three hops", async () => {
+    const hop = (n: number) => `https://lrclib.net/h${n}`;
+    const { ask, requests } = routed({
+      [LRCLIB]: { status: 302, location: hop(1) },
+      [hop(1)]: { status: 302, location: hop(2) },
+      [hop(2)]: { status: 302, location: hop(3) },
+      [hop(3)]: { status: 302, location: hop(4) },
+    });
+    expect(await ask("lyrics.fetch", { url: LRCLIB })).toEqual(error("forbidden"));
+    expect(requests).toHaveLength(4);
+  });
+
+  test("a lyric redirect with no location is forbidden", async () => {
+    const { ask } = routed({ [LRCLIB]: { status: 302 } });
+    expect(await ask("lyrics.fetch", { url: LRCLIB })).toEqual(error("forbidden"));
+  });
+
+  test.each([
+    "https://www.youtube.com/api/jnn/../../redirect?url=https://evil.example",
+    "https://www.youtube.com/api/jnn/%2e%2e/redirect",
+    "https://www.youtube.com/api/jnn/..%2fredirect",
+    "https://user:pw@www.youtube.com/api/jnn/v1/x",
+    "https://www.youtube.com:444/api/jnn/v1/x",
+    "https://www.youtube.com@evil.example/api/jnn/v1/x",
+  ])("the BotGuard address %s is forbidden", async (url) => {
+    const { ask, requests } = routed({});
+    expect(await ask("yt.fetch", { url })).toEqual(error("forbidden"));
+    expect(requests).toEqual([]);
+  });
+
+  test("the BotGuard address is fetched in its normalised form", async () => {
+    const { ask, requests } = routed({});
+    await ask("yt.fetch", { url: "https://www.youtube.com/api/jnn/a/../v1/x?y=1" });
+    expect(requests.map((r) => r.url)).toEqual(["https://www.youtube.com/api/jnn/v1/x?y=1"]);
+  });
+
+  test("a lyric address with userinfo is forbidden", async () => {
+    const { ask, requests } = routed({});
+    expect(await ask("lyrics.fetch", { url: "https://u:p@lrclib.net/x" })).toEqual(
+      error("forbidden"),
+    );
+    expect(requests).toEqual([]);
+  });
+
+  const SMUGGLED = {
+    Authorization: "Bearer x",
+    "proxy-authorization": "x",
+    COOKIE: "sid=1",
+    Cookie2: "x",
+    Host: "evil.example",
+    Connection: "keep-alive",
+    "Content-Length": "9",
+    "Transfer-Encoding": "chunked",
+    "Proxy-Foo": "x",
+    "Sec-Fetch-Site": "same-origin",
+    "sec-ch-ua": "x",
+    "X-Goog-AuthUser": "0",
+    "Content-Type": "application/json",
+    "X-Keep": "yes",
+  };
+
+  test("a signed-looking yt.fetch goes out without the credential headers", async () => {
+    const { ask, requests } = routed({});
+    await ask("yt.fetch", { url: BOTGUARD, headers: SMUGGLED });
+    expect(requests[0]!.headers).toEqual({
+      "Content-Type": "application/json",
+      "X-Keep": "yes",
+      Origin: "https://www.youtube.com",
+      Referer: "https://www.youtube.com/",
+    });
+  });
+
+  test("a lyric fetch goes out without the credential headers, and the cookie is Couch's", async () => {
+    const { ask, requests } = routed({});
+    await ask("lyrics.fetch", { url: LRCLIB, headers: SMUGGLED });
+    await ask("lyrics.fetch", {
+      url: "https://apic.musixmatch.com/ws/1.1/x",
+      headers: SMUGGLED,
+    });
+    expect(requests[0]!.headers).toEqual({ "Content-Type": "application/json", "X-Keep": "yes" });
+    expect(requests[1]!.headers).toEqual({
+      "Content-Type": "application/json",
+      "X-Keep": "yes",
+      Cookie: "mxm_bab=AB",
+    });
+  });
+});
