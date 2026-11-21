@@ -641,6 +641,8 @@ describe("the Apps step", () => {
     expect(h.screen.last.setup?.tiles?.[1]?.on).toBe(false);
     await phone.press({ command: "confirmAnswer", args: { index: 0, text: "apps" } });
     expect(h.screen.last.setup?.tiles?.[0]?.on).toBe(false);
+    // The phone's copy arrives as a push after the press answers.
+    await phone.settle();
     expect(phone.last?.setup?.tiles?.map((s) => s.on)).toEqual([false, false, true, false]);
     expect(phone.last?.setup?.tiles?.[0]?.icon).toContain("<svg");
     await phone.press({ command: "confirmAnswer", args: { index: 4, text: "apps" } });
