@@ -194,16 +194,132 @@ describe("the BitChord bridge", () => {
     expect(await ask("yt.authState", {}, 0)).toEqual(error("protocol"));
   });
 
-  test.each([
-    "lyrics.fetch",
-    "lyrics.permissions",
-    "spotify.status",
-    "discord.status",
-    "addon.list",
-    "nope",
-  ])("%s is unsupported", async (method) => {
-    const { ask } = setup();
-    expect(await ask(method, { url: "https://lrclib.net/" })).toEqual(error("unsupported"));
+  test.each(["spotify.status", "discord.status", "addon.list", "nope"])(
+    "%s is unsupported",
+    async (method) => {
+      const { ask } = setup();
+      expect(await ask(method, { url: "https://lrclib.net/" })).toEqual(error("unsupported"));
+    },
+  );
+
+  describe("lyrics", () => {
+    const LRCLIB = "https://lrclib.net/api/search?q=a";
+
+    test("lyrics.fetch gets a listed host and returns its text", async () => {
+      const { ask, requests } = setup();
+      expect(await ask("lyrics.fetch", { url: LRCLIB, headers: { "x-a": "b" } })).toMatchObject({
+        ok: true,
+        result: { status: 200, url: LRCLIB, bodyEncoding: "text", body: '["ok"]' },
+      });
+      expect(requests).toEqual([{ url: LRCLIB, method: "GET", headers: { "x-a": "b" } }]);
+    });
+
+    test.each([
+      "https://example.com/lyrics",
+      "https://evil.lrclib.net/x",
+      "https://lrclib.net.evil.com/x",
+      "http://lrclib.net/x",
+      "https://lrclib.net:8443/x",
+      "https://www.youtube.com/api/jnn/v1/GenerateIT",
+      "not a url",
+    ])("lyrics.fetch refuses %s and fetches nothing", async (url) => {
+      const { ask, requests } = setup();
+      expect(await ask("lyrics.fetch", { url })).toEqual(error("forbidden"));
+      expect(requests).toEqual([]);
+    });
+
+    test("lyrics.fetch refuses a missing url", async () => {
+      const { ask, requests } = setup();
+      expect(await ask("lyrics.fetch", {})).toEqual(error("forbidden"));
+      expect(requests).toEqual([]);
+    });
+
+    test("a body that isn't text crosses as base64", async () => {
+      const { ask, setReply } = setup();
+      setReply({ contentType: "application/octet-stream", bytes: new Uint8Array([1, 2, 3]) });
+      expect(await ask("lyrics.fetch", { url: LRCLIB })).toMatchObject({
+        result: { bodyEncoding: "base64", body: "AQID" },
+      });
+    });
+
+    test("html and a missing content type count as text", async () => {
+      const { ask, setReply } = setup();
+      setReply({ contentType: "text/html; charset=utf-8", bytes: new TextEncoder().encode("<p>") });
+      expect(await ask("lyrics.fetch", { url: LRCLIB })).toMatchObject({
+        result: { bodyEncoding: "text", body: "<p>" },
+      });
+      setReply({ contentType: "", bytes: new TextEncoder().encode("la") });
+      expect(await ask("lyrics.fetch", { url: LRCLIB })).toMatchObject({
+        result: { bodyEncoding: "text", body: "la" },
+      });
+    });
+
+    test("a request body is sent as text, or as bytes when base64", async () => {
+      const { ask, requests } = setup();
+      await ask("lyrics.fetch", { url: LRCLIB, method: "POST", body: "q" });
+      await ask("lyrics.fetch", {
+        url: LRCLIB,
+        method: "POST",
+        body: "AQID",
+        bodyEncoding: "base64",
+      });
+      expect(requests[0]!.body).toBe("q");
+      expect(requests[1]!.body).toEqual(new Uint8Array([1, 2, 3]));
+    });
+
+    test("Apple Music requests carry Apple's Origin and Referer, Musixmatch its cookie", async () => {
+      const { ask, requests } = setup();
+      await ask("lyrics.fetch", {
+        url: "https://amp-api.music.apple.com/v1/x",
+        headers: { origin: "https://x" },
+      });
+      await ask("lyrics.fetch", { url: "https://apic.musixmatch.com/ws/1.1/x" });
+      expect(requests[0]!.headers).toEqual({
+        Origin: "https://music.apple.com",
+        Referer: "https://music.apple.com/",
+      });
+      expect(requests[1]!.headers).toEqual({ Cookie: "mxm_bab=AB" });
+    });
+
+    test("a network failure answers network", async () => {
+      const bridge = new BitChordBridge({
+        request: () => Promise.reject(new Error("offline")),
+        manifest: () => Promise.reject(new Error("x")),
+      });
+      const answer = await bridge.answer({
+        channel: "bitchord-bridge",
+        protocol: 1,
+        direction: "to-extension",
+        id: "r1",
+        method: "lyrics.fetch",
+        params: { url: LRCLIB },
+      } as BridgeRequest);
+      expect(answer).toEqual(error("network"));
+    });
+
+    test("lyrics.permissions grants every requested listed host and no other", async () => {
+      const { ask, requests } = setup();
+      expect(
+        await ask("lyrics.permissions", {
+          origins: ["https://lrclib.net", "https://genius.com", "https://example.com", "junk", 4],
+        }),
+      ).toMatchObject({
+        ok: true,
+        result: { granted: ["https://lrclib.net", "https://genius.com"] },
+      });
+      expect(await ask("lyrics.permissions", {})).toMatchObject({ result: { granted: [] } });
+      expect(requests).toEqual([]);
+    });
+
+    test("lyrics.requestPermissions answers empty", async () => {
+      const { ask } = setup();
+      expect(
+        await ask("lyrics.requestPermissions", { origins: ["https://lrclib.net"] }),
+      ).toMatchObject({
+        ok: true,
+        result: {},
+      });
+    });
   });
 
   test("every answer carries the request's id", async () => {

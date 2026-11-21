@@ -3,13 +3,15 @@
 // temp userData (no window is shown, no ports are used, Couch's own data is never touched), then checks that:
 //   1. BitChord's Extension page says the extension is installed (and asks for no update),
 //   2. a known song from BitChord's /debug page plays past 90 s, and two more for 20 s each,
-//   3. an age-restricted song shows BitChord's own sign-in message.
+//   3. an age-restricted song shows BitChord's own sign-in message,
+//   4. lyrics load for the long song: the bridge fetched a listed lyric host and BitChord's lyrics view shows lines.
 // BITCHORD_SITE overrides the site; BITCHORD_TRACKS=a,b,c and BITCHORD_AGE_RESTRICTED=id override the songs;
 // BITCHORD_LONG (seconds, default 90) shortens the long play for a quick look.
 import { app, BrowserWindow, session, webContents } from "electron";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { lyricOrigin } from "../src/main/apps/bitchord/bitchord-lyrics.ts";
 import { bridgeNetwork } from "../src/main/apps/bitchord/bitchord-network.ts";
 import { bitchordSite } from "../src/main/apps/bitchord/bitchord-route.ts";
 import { BITCHORD_PARTITION, bitchordDescription } from "../src/main/apps/bitchord/bitchord-web.ts";
@@ -37,9 +39,18 @@ const expectThat = (ok: boolean, what: string) => {
 
 void app.whenReady().then(async () => {
   const ses = session.fromPartition(BITCHORD_PARTITION);
+  const lyricFetches: string[] = [];
+  const network = bridgeNetwork((url, init) => ses.fetch(url, init as RequestInit), SITE);
   const description = bitchordDescription(
     undefined,
-    bridgeNetwork((url, init) => ses.fetch(url, init as RequestInit), SITE),
+    {
+      ...network,
+      async request(init) {
+        const response = await network.request(init);
+        if (lyricOrigin(init.url) && response.status === 200) lyricFetches.push(init.url);
+        return response;
+      },
+    },
     process.env,
   );
   // A window that is never shown, far off screen. The host asks to reveal it only when it is not "focused and visible", so say it is.
@@ -134,6 +145,31 @@ void app.whenReady().then(async () => {
     expectThat(
       long.position >= LONG_SECONDS - 5 && long.position >= 1,
       `${LONG_TRACK} played to ${long.position}s (wanted past ${LONG_SECONDS} s)`,
+    );
+    // Back in BitChord's own pages the song keeps playing; open its Lyrics view and wait for lines.
+    await js(
+      `(() => { const a=[...document.querySelectorAll("a")].find(a=>/^\\s*Home/.test(a.innerText)); a&&a.click(); })()`,
+    );
+    await sleep(4000);
+    await js(`document.querySelector('[aria-label="Lyrics"]')?.click()`);
+    await sleep(8000);
+    const lyricsText = await js<string>(`document.body.innerText`);
+    log(
+      "lyric fetches:",
+      JSON.stringify(lyricFetches.slice(0, 5)),
+      "page text:",
+      JSON.stringify(lyricsText.replace(/\s+/g, " ").slice(-200)),
+    );
+    expectThat(
+      lyricFetches.length > 0,
+      `lyrics for ${LONG_TRACK} were fetched from a listed lyric host`,
+    );
+    // BitChord's lyrics view ends with the provider that supplied the lines.
+    expectThat(
+      /lrc\.red|binimum|boidu|paxsenix|lyricsplus|lyrics-plus|lrclib|kugou|musixmatch|genius|apple/i.test(
+        lyricsText.slice(-80),
+      ),
+      "BitChord's lyrics view names the provider that supplied the lyrics",
     );
     for (const id of OTHER_TRACKS) {
       const short = await play(id, SHORT_SECONDS);
