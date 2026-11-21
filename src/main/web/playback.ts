@@ -1,4 +1,5 @@
 import type { PlaybackReport } from "../apps/app.ts";
+import { PAGE_MEDIA_LOOKUP } from "./page-media.ts";
 import type { TrackList } from "../../shared/protocol.ts";
 
 export type { PlaybackReport };
@@ -26,6 +27,7 @@ export function playbackProbe(
 ): string {
   const { tracks, active, ad, artwork, title, id, speeds, prompt } = options;
   return `(async () => {
+  ${PAGE_MEDIA_LOOKUP}
   ${active ? `try { if (!(${active})) return undefined; } catch (e) { return undefined; }` : ""}
   var area = window.innerWidth * window.innerHeight;
   var best = null, bestArea = 0;
@@ -36,6 +38,13 @@ export function playbackProbe(
     if (a < area * ${MAIN_VIDEO_SHARE} || a <= bestArea) return;
     best = v; bestArea = a;
   });
+  if (!best) {
+    couchPageMedia().forEach(function (a) {
+      if (a.tagName !== "AUDIO" || a.isConnected) return;
+      if (!(a.readyState > 0) || !isFinite(a.duration) || !(a.duration > 0)) return;
+      if (!best || (best.paused && !a.paused)) best = a;
+    });
+  }
   if (!best) return undefined;
   var report = {
     position: Math.floor(best.currentTime),

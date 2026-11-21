@@ -16,6 +16,7 @@ import { HiddenAudio } from "./hidden-audio.ts";
 import { decideKey, type KeyGate } from "./keyboard-policy.ts";
 import { FIELD_BLURRED, FIELD_FOCUSED, pageFocusFunction } from "./page-focus.ts";
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
+import { PAGE_MEDIA_FUNCTION } from "./page-media.ts";
 import { COUCH_HOST_CONSOLE, HOST_CONSOLE_PREFIX } from "./couch-host.ts";
 import { parsePageMessage, type BridgeRequest } from "./webkit-messages.ts";
 import { releaseRequestHooks, requestHooksFor, type RequestHooks } from "./request-hooks.ts";
@@ -562,6 +563,7 @@ export class ElectronWebApp implements YouTube {
     const on = this.#desc.addons.filter((a) => ids.includes(a.id));
     this.#preloads.set([
       { name: "Page hooks", func: PAGE_HOOKS_FUNCTION },
+      { name: "Page media", func: PAGE_MEDIA_FUNCTION },
       { name: "Couch host", func: COUCH_HOST_CONSOLE },
       ...this.#desc.preloads,
       ...(this.#desc.focus

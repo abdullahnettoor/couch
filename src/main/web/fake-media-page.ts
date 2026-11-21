@@ -1,4 +1,5 @@
 import vm from "node:vm";
+import { PAGE_MEDIA_FUNCTION } from "./page-media.ts";
 
 /** A media element as the sound and hidden scripts see it. */
 export class FakeMedia {
@@ -51,6 +52,63 @@ export function fakeMediaPage() {
     /** Fires a media event (it reaches capture listeners on the document, as in a page). */
     fire(type: string, target: FakeMedia) {
       for (const l of Array.from(listeners.get(type) ?? [])) l.fn({ type, target });
+    },
+  };
+}
+
+/** A page whose player is an element the page made and played but never put in its document. */
+export function pageWithPlayerOutsideDocument(kind: "AUDIO" | "VIDEO" = "AUDIO") {
+  class Player extends FakeMedia {
+    isConnected = false;
+    readyState = 4;
+    duration = 200;
+    currentTime = 31.4;
+    sinkId = "";
+    sinkIds: string[] = [];
+    setSinkId(id: string) {
+      this.sinkId = id;
+      this.sinkIds.push(id);
+      return Promise.resolve();
+    }
+    play(): Promise<void> {
+      this.paused = false;
+      return Promise.resolve();
+    }
+  }
+  const HTMLMediaElement = Player;
+  const listeners = new Map<string, Array<(e: unknown) => void>>();
+  const sandbox: Record<string, unknown> = {
+    HTMLMediaElement,
+    document: {
+      querySelectorAll: () => [],
+      addEventListener: (t: string, f: (e: unknown) => void) =>
+        listeners.set(t, [...(listeners.get(t) ?? []), f]),
+      removeEventListener: () => {},
+    },
+    navigator: {
+      mediaSession: {
+        metadata: {
+          title: "Song",
+          artwork: [{ src: "https://lh3.googleusercontent.com/a", sizes: "512x512" }],
+        },
+      },
+    },
+    console: { debug() {} },
+    innerWidth: 1920,
+    innerHeight: 1080,
+    Function,
+  };
+  sandbox.window = sandbox;
+  const context = vm.createContext(sandbox);
+  vm.runInContext(`(${PAGE_MEDIA_FUNCTION})()`, context);
+  const player = new Player(kind);
+  const run = (script: string) => vm.runInContext(script, context) as unknown;
+  return {
+    player,
+    run,
+    /** The page starts its player (through the prototype the hook wrapped). */
+    start() {
+      void HTMLMediaElement.prototype.play.call(player);
     },
   };
 }

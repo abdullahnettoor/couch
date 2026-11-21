@@ -3,6 +3,8 @@
  * own volume, so a capture-phase listener puts Couch's back whenever media loads, plays or changes.
  */
 
+import { PAGE_MEDIA_LOOKUP } from "./page-media.ts";
+
 export { pickOutputId, type PageOutput, type PickResult } from "../../shared/output-id.ts";
 
 /**
@@ -34,6 +36,7 @@ export const SOUND_RECHECK = "couch:sound-recheck";
 export function soundScript(percent: number, sinkId: string, pending = false): string {
   const p = Math.max(0, Math.min(100, Math.round(percent)));
   return `(function(){
+${PAGE_MEDIA_LOOKUP}
 var s=window.__couchSound||(window.__couchSound={});
 s.vol=${p}/100;s.sink=${JSON.stringify(sinkId)};s.pending=${pending};
 function fix(m,ask){
@@ -46,6 +49,7 @@ return Promise.resolve(true);
 if(!s.on){s.on=true;['loadstart','loadedmetadata','play','playing','volumechange'].forEach(function(t){
 document.addEventListener(t,function(e){fix(e.target,e.type)},true)});
 if(navigator.mediaDevices&&navigator.mediaDevices.addEventListener)navigator.mediaDevices.addEventListener('devicechange',function(){console.debug(${JSON.stringify(SOUND_RECHECK)})})}
-return Promise.all(Array.prototype.map.call(document.querySelectorAll('video,audio'),fix)).then(function(r){return r.every(Boolean)});
+couchOnMediaPlay('sound',function(m){fix(m,'play')});
+return Promise.all(couchPageMedia().map(function(m){return fix(m)})).then(function(r){return r.every(Boolean)});
 })()`;
 }
