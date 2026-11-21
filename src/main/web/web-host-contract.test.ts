@@ -324,4 +324,6 @@ afterEach(() => {
 });
 
 describeWebHostContract("ElectronWebApp on fake WebContents", electronRig);
-describeWebHostContract("WebKitWebApp on the fake bridge", webkitRig);
+describeWebHostContract("WebKitWebApp on the fake bridge", webkitRig, {
+  playerOutsideDocument: false,
+});

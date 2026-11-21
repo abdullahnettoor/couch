@@ -40,7 +40,8 @@ export const PAGE_MEDIA_FUNCTION = `function () {
 /**
  * Script text that declares `couchPageMedia()` (the document's video and audio, then any element
  * the hook recorded) and `couchOnMediaPlay(fn)` (calls `fn(element)` when a recorded element is
- * played, once per registered name). Put it at the top of a page script's function body.
+ * played, once per registered name) and `couchOutsidePlayer()` (the playing audio the page never attached, else any, or null).
+ * Put it at the top of a page script's function body.
  */
 export const PAGE_MEDIA_LOOKUP = `
 function couchPageMedia(){
@@ -48,6 +49,15 @@ var list=Array.prototype.slice.call(document.querySelectorAll('video,audio'));
 var seen=window.__couchPlayed;
 if(seen)for(var i=0;i<seen.length;i++)if(list.indexOf(seen[i])<0)list.push(seen[i]);
 return list;
+}
+function couchOutsidePlayer(){
+var m=null;
+couchPageMedia().forEach(function(a){
+if(a.tagName!=="AUDIO"||a.isConnected)return;
+if(!(a.readyState>0)||!isFinite(a.duration)||!(a.duration>0))return;
+if(!m||(m.paused&&!a.paused))m=a;
+});
+return m;
 }
 function couchOnMediaPlay(name,fn){
 var w=window.__couchPlayWatchers;

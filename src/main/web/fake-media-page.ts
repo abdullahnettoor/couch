@@ -56,8 +56,18 @@ export function fakeMediaPage() {
   };
 }
 
-/** A page whose player is an element the page made and played but never put in its document. */
-export function pageWithPlayerOutsideDocument(kind: "AUDIO" | "VIDEO" = "AUDIO") {
+/** The hook script as Electron's host installs it (for tests of a page script alone, not of a host). */
+export const PAGE_MEDIA_INSTALL = `(${PAGE_MEDIA_FUNCTION})()`;
+
+/**
+ * A page whose player is an element the page made and played but never put in its document. The page has only what the
+ * host installed before its scripts (`installed`: a host rig's `installed()` text, or `PAGE_MEDIA_INSTALL`); a host
+ * that installs no page-media hook leaves the player unseen.
+ */
+export function pageWithPlayerOutsideDocument(
+  installed: string,
+  kind: "AUDIO" | "VIDEO" = "AUDIO",
+) {
   class Player extends FakeMedia {
     isConnected = false;
     readyState = 4;
@@ -65,6 +75,15 @@ export function pageWithPlayerOutsideDocument(kind: "AUDIO" | "VIDEO" = "AUDIO")
     currentTime = 31.4;
     sinkId = "";
     sinkIds: string[] = [];
+    #on = new Map<string, Array<(e: unknown) => void>>();
+    addEventListener(type: string, fn: (e: unknown) => void) {
+      this.#on.set(type, [...(this.#on.get(type) ?? []), fn]);
+    }
+    /** The page changes the volume itself: the element's own listeners hear volumechange (a player outside the document reaches no document's). */
+    pageSetsVolume(v: number) {
+      this.volume = v;
+      for (const fn of this.#on.get("volumechange") ?? []) fn({ type: "volumechange", target: this });
+    }
     setSinkId(id: string) {
       this.sinkId = id;
       this.sinkIds.push(id);
@@ -100,7 +119,12 @@ export function pageWithPlayerOutsideDocument(kind: "AUDIO" | "VIDEO" = "AUDIO")
   };
   sandbox.window = sandbox;
   const context = vm.createContext(sandbox);
-  vm.runInContext(`(${PAGE_MEDIA_FUNCTION})()`, context);
+  sandbox.require = () => ({
+    contextBridge: { executeInMainWorld: ({ func }: { func: () => void }) => func() },
+  });
+  try {
+    vm.runInContext(installed, context);
+  } catch {}
   const player = new Player(kind);
   const run = (script: string) => vm.runInContext(script, context) as unknown;
   return {

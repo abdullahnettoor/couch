@@ -2,11 +2,11 @@ import { describe, expect, test } from "vite-plus/test";
 import { hiddenScript } from "./hidden-audio.ts";
 import { playbackProbe } from "./playback.ts";
 import { soundScript } from "./web-sound.ts";
-import { pageWithPlayerOutsideDocument } from "./fake-media-page.ts";
+import { PAGE_MEDIA_INSTALL, pageWithPlayerOutsideDocument } from "./fake-media-page.ts";
 
 describe("page media outside the document", () => {
   test("Couch's volume and output reach an element that starts playing outside the document", async () => {
-    const page = pageWithPlayerOutsideDocument();
+    const page = pageWithPlayerOutsideDocument(PAGE_MEDIA_INSTALL);
     await page.run(soundScript(40, "speaker-1"));
     page.start();
     expect(page.player.volume).toBeCloseTo(0.4);
@@ -17,7 +17,7 @@ describe("page media outside the document", () => {
   });
 
   test("hiding pauses it, now and when it starts again", () => {
-    const page = pageWithPlayerOutsideDocument();
+    const page = pageWithPlayerOutsideDocument(PAGE_MEDIA_INSTALL);
     page.start();
     page.run(hiddenScript(true));
     expect(page.player.paused).toBe(true);
@@ -29,7 +29,7 @@ describe("page media outside the document", () => {
   });
 
   test("the playback report reads an audio element outside the document, with the media session's title", async () => {
-    const page = pageWithPlayerOutsideDocument();
+    const page = pageWithPlayerOutsideDocument(PAGE_MEDIA_INSTALL);
     page.start();
     expect(await page.run(playbackProbe())).toEqual({
       position: 31,
@@ -41,7 +41,7 @@ describe("page media outside the document", () => {
   });
 
   test("nothing is reported before anything plays", async () => {
-    const page = pageWithPlayerOutsideDocument();
+    const page = pageWithPlayerOutsideDocument(PAGE_MEDIA_INSTALL);
     expect(await page.run(playbackProbe())).toBeUndefined();
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vite-plus/test";
-import { pageWithPlayerOutsideDocument } from "../../web/fake-media-page.ts";
+import { PAGE_MEDIA_INSTALL, pageWithPlayerOutsideDocument } from "../../web/fake-media-page.ts";
 import { composeReport, playbackProbe } from "../../web/playback.ts";
 import { bitchordDescription } from "./bitchord-web.ts";
 
@@ -12,14 +12,14 @@ const playback = description.playback!;
 
 describe("BitChord Now Playing", () => {
   test("seek moves the player that plays outside the document", () => {
-    const page = pageWithPlayerOutsideDocument();
+    const page = pageWithPlayerOutsideDocument(PAGE_MEDIA_INSTALL);
     page.start();
     page.run(playback.seek!(95.6));
     expect(page.player.currentTime).toBe(95.6);
   });
 
   test("play/pause pauses and resumes it", () => {
-    const page = pageWithPlayerOutsideDocument();
+    const page = pageWithPlayerOutsideDocument(PAGE_MEDIA_INSTALL);
     page.start();
     page.run(playback.playPause!());
     expect(page.player.paused).toBe(true);
@@ -28,13 +28,13 @@ describe("BitChord Now Playing", () => {
   });
 
   test("with nothing playing, seek and play/pause do nothing and don't throw", () => {
-    const page = pageWithPlayerOutsideDocument();
+    const page = pageWithPlayerOutsideDocument(PAGE_MEDIA_INSTALL);
     expect(() => page.run(playback.seek!(10))).not.toThrow();
     expect(() => page.run(playback.playPause!())).not.toThrow();
   });
 
   test("the report has title, artwork and position, and the seek bar is live", async () => {
-    const page = pageWithPlayerOutsideDocument();
+    const page = pageWithPlayerOutsideDocument(PAGE_MEDIA_INSTALL);
     page.start();
     const found = (await page.run(playbackProbe({ speeds: playback.speeds }))) as any;
     const report = composeReport(found, undefined, !!playback.seek, description.artworkHosts);

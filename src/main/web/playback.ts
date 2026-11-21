@@ -38,13 +38,7 @@ export function playbackProbe(
     if (a < area * ${MAIN_VIDEO_SHARE} || a <= bestArea) return;
     best = v; bestArea = a;
   });
-  if (!best) {
-    couchPageMedia().forEach(function (a) {
-      if (a.tagName !== "AUDIO" || a.isConnected) return;
-      if (!(a.readyState > 0) || !isFinite(a.duration) || !(a.duration > 0)) return;
-      if (!best || (best.paused && !a.paused)) best = a;
-    });
-  }
+  if (!best) best = couchOutsidePlayer();
   if (!best) return undefined;
   var report = {
     position: Math.floor(best.currentTime),
