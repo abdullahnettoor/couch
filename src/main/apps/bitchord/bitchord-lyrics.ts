@@ -1,0 +1,57 @@
+/**
+ * The lyric hosts BitChord's browser extension lists as optional host permissions.
+ * Source: kushagrasinghx/BitChord, web/extension/lib/lyricHosts.ts (LYRIC_ORIGINS),
+ * commit 4d029801a9ae94a44da46824902f67ecf78e868d,
+ * https://github.com/kushagrasinghx/BitChord/blob/4d029801a9ae94a44da46824902f67ecf78e868d/web/extension/lib/lyricHosts.ts
+ * The Apple and Musixmatch request headers come from web/extension/lib/lyricsFetch.ts (same commit's era).
+ */
+export const LYRIC_ORIGINS: readonly string[] = [
+  "https://lrc.red",
+  "https://lyrics-api.binimum.org",
+  "https://lyrics-api.boidu.dev",
+  "https://unison.boidu.dev",
+  "https://lyrics.paxsenix.org",
+  "https://api.paxsenix.org",
+  "https://lyricsplus.prjktla.my.id",
+  "https://lyricsplus.atomix.one",
+  "https://lyricsplus.binimum.org",
+  "https://lyricsplus.prjktla.workers.dev",
+  "https://lyricsplus-seven.vercel.app",
+  "https://lyrics-plus-backend.vercel.app",
+  "https://lrclib.net",
+  "https://mobileservice.kugou.com",
+  "https://lyrics.kugou.com",
+  "https://apic.musixmatch.com",
+  "https://www.musixmatch.com",
+  "https://genius.com",
+  "https://music.apple.com",
+  "https://amp-api.music.apple.com",
+];
+
+/** The listed origin of `url`, or undefined when it isn't a listed lyric host. */
+export function lyricOrigin(url: unknown): string | undefined {
+  if (typeof url !== "string") return undefined;
+  try {
+    const origin = new URL(url).origin;
+    return LYRIC_ORIGINS.includes(origin) ? origin : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Headers some lyric hosts need that a page's fetch may not set, as the extension's own rules add them. */
+export function lyricHeaders(
+  origin: string,
+  given: Record<string, string>,
+): Record<string, string> {
+  const headers = { ...given };
+  if (origin === "https://amp-api.music.apple.com") {
+    for (const k of Object.keys(headers)) if (/^(origin|referer)$/i.test(k)) delete headers[k];
+    headers.Origin = "https://music.apple.com";
+    headers.Referer = "https://music.apple.com/";
+  } else if (origin === "https://apic.musixmatch.com" || origin === "https://www.musixmatch.com") {
+    for (const k of Object.keys(headers)) if (/^cookie$/i.test(k)) delete headers[k];
+    headers.Cookie = "mxm_bab=AB";
+  }
+  return headers;
+}

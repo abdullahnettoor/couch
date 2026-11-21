@@ -3,6 +3,7 @@ import { BITCHORD_LAYOUT, BITCHORD_FOCUS_SELECTORS } from "./bitchord-focus.ts";
 import { urlRoute } from "../../web/url-route.ts";
 import type { WebAppDescription } from "../../web/web-app.ts";
 import { BitChordBridge, type BridgeNetwork } from "./bitchord-bridge.ts";
+import { BITCHORD_ARTWORK_HOSTS, BITCHORD_PLAYBACK } from "./bitchord-playback.ts";
 import { BITCHORD_RELAY } from "./bitchord-relay.ts";
 import { bitchordRequestHeaders, bitchordResponseHeaders } from "./bitchord-rules.ts";
 import {
@@ -50,6 +51,8 @@ export function bitchordDescription(
     route: urlRoute(isBitchordHome),
     focus: { selectors: BITCHORD_FOCUS_SELECTORS, layout: BITCHORD_LAYOUT },
     preloads: [BITCHORD_RELAY],
+    artworkHosts: BITCHORD_ARTWORK_HOSTS,
+    playback: BITCHORD_PLAYBACK,
     requests: {
       onBeforeSendHeaders: bitchordRequestHeaders,
       onHeadersReceived: bitchordResponseHeaders,

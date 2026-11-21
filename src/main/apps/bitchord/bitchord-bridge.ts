@@ -1,3 +1,4 @@
+import { lyricHeaders, lyricOrigin, LYRIC_ORIGINS } from "./bitchord-lyrics.ts";
 import type { BridgeRequest } from "../../web/webkit-messages.ts";
 
 export type { BridgeRequest };
@@ -72,6 +73,7 @@ export type BridgeResponse =
     };
 
 const TEXTUAL = /json|text|javascript|xml/i;
+const LYRIC_TEXTUAL = /^$|json|text|javascript|xml|html/i;
 
 /** The BitChord bridge: Couch's stand-in for BitChord's browser extension, signed out. */
 export class BitChordBridge {
@@ -133,6 +135,17 @@ export class BitChordBridge {
           return reply({ ok: true, result: SIGNED_OUT });
         case "yt.fetch":
           return await this.#ytFetch(request.params, reply, fail);
+        case "lyrics.fetch":
+          return await this.#lyricsFetch(request.params, reply, fail);
+        case "lyrics.permissions": {
+          const asked = request.params.origins;
+          const granted = Array.isArray(asked)
+            ? asked.filter((o): o is string => typeof o === "string" && LYRIC_ORIGINS.includes(o))
+            : [];
+          return reply({ ok: true, result: { granted } });
+        }
+        case "lyrics.requestPermissions":
+          return reply({ ok: true, result: {} });
         default:
           return fail("unsupported", `${request.method} isn't served by Couch.`);
       }
@@ -156,6 +169,30 @@ export class BitChordBridge {
         if (typeof v === "string" && !/^(origin|referer)$/i.test(k)) headers[k] = v;
     headers.Origin = "https://www.youtube.com";
     headers.Referer = "https://www.youtube.com/";
+    return this.#send(url, params, headers, TEXTUAL, reply);
+  }
+
+  async #lyricsFetch(
+    params: Record<string, unknown>,
+    reply: (r: { ok: true; result: unknown }) => BridgeResponse,
+    fail: (code: BridgeErrorCode, message: string) => BridgeResponse,
+  ): Promise<BridgeResponse> {
+    const origin = lyricOrigin(params.url);
+    if (!origin || typeof params.url !== "string")
+      return fail("forbidden", "Couch only serves BitChord's listed lyric hosts.");
+    const given: Record<string, string> = {};
+    if (params.headers && typeof params.headers === "object")
+      for (const [k, v] of Object.entries(params.headers)) if (typeof v === "string") given[k] = v;
+    return this.#send(params.url, params, lyricHeaders(origin, given), LYRIC_TEXTUAL, reply);
+  }
+
+  async #send(
+    url: string,
+    params: Record<string, unknown>,
+    headers: Record<string, string>,
+    textualType: RegExp,
+    reply: (r: { ok: true; result: unknown }) => BridgeResponse,
+  ): Promise<BridgeResponse> {
     const body =
       typeof params.body !== "string"
         ? undefined
@@ -168,7 +205,7 @@ export class BitChordBridge {
       headers,
       body,
     });
-    const textual = TEXTUAL.test(response.contentType);
+    const textual = textualType.test(response.contentType);
     return reply({
       ok: true,
       result: {
