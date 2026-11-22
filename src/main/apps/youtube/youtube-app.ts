@@ -89,6 +89,10 @@ export class YouTubeApp implements App {
   setSpeed(speed: number) {
     this.#port.setSpeed?.(speed);
   }
+  /** YouTube TV already lays out for a TV: it has no Text size (and no `setTextSize`). */
+  get supportsTextSize(): boolean {
+    return false;
+  }
   drawVolume(percent: number | undefined) {
     this.#port.showVolume(percent);
   }

@@ -19,9 +19,13 @@ const { width: BASE_W, height: BASE_H } = GLASS.metrics.base;
 const { duration, ease } = GLASS.motion;
 
 const HELPERS = `
-var U=Math.min(innerWidth/${BASE_W},innerHeight/${BASE_H}),SVG='http://www.w3.org/2000/svg';
+var SVG='http://www.w3.org/2000/svg';
+var U=Math.min(innerWidth/${BASE_W},innerHeight/${BASE_H});
+// Every size is calc(n * var(--couch-u)), and --couch-u is one design unit in viewport units, so the browser keeps every
+// overlay on screen at its size when the page's zoom changes (the viewport in CSS px changes with it): nothing is redrawn.
+document.documentElement.style.setProperty('--couch-u','min(100vw / ${BASE_W}, 100vh / ${BASE_H})');
 function css(e,o){for(var k in o)e.style.setProperty(k,String(o[k]))}
-function px(n){return (n*U)+'px'}
+function px(n){return 'calc('+n+' * var(--couch-u))'}
 function glass(e){css(e,{position:'fixed','z-index':'2147483647','pointer-events':'none',color:${JSON.stringify(GLASS.color.textPrimary)},
 font:${JSON.stringify(GLASS.type.weight.semibold)}+' '+px(${GLASS.type.size.caption})+'/'+${JSON.stringify(GLASS.type.lineHeight.webControls)}+' '+${JSON.stringify(GLASS.type.family)},background:${JSON.stringify(GLASS.color.glassStrong)},
 'backdrop-filter':${JSON.stringify(BLUR)},'-webkit-backdrop-filter':${JSON.stringify(BLUR)},
@@ -68,11 +72,9 @@ export function searchBarScript(text: string | undefined, placeholder: string): 
   }
   return `(function(){${HELPERS}
 var d=document.getElementById('couch-search');
-// Sized for another zoom (the page's zoom changed while it was open): draw it again at this one.
-if(d&&d.getAttribute('data-u')!==String(U)){d.remove();d=null}
 var fresh=!d;
 if(fresh){
-d=document.createElement('div');d.id='couch-search';d.setAttribute('data-u',String(U));glass(d);
+d=document.createElement('div');d.id='couch-search';glass(d);
 css(d,{left:'50%',top:px(56),transform:'translateX(-50%)',width:px(1000),height:px(92),'box-sizing':'border-box',padding:'0 '+px(36),'border-radius':px(${GLASS.radius.searchField}),display:'flex','align-items':'center',gap:px(22),'font-size':px(${GLASS.type.size.search}),'font-weight':${JSON.stringify(GLASS.type.weight.medium)},'white-space':'nowrap',overflow:'hidden'});
 var s=document.createElementNS(SVG,'svg');s.setAttribute('viewBox',${JSON.stringify(ICON_VIEWBOX)});css(s,{width:px(38),height:px(38),fill:'currentColor',flex:'none',opacity:.6});
 ${JSON.stringify(SEARCH_PATHS)}.forEach(function(v){var q=document.createElementNS(SVG,'path');q.setAttribute('d',v);s.appendChild(q)});
@@ -81,7 +83,7 @@ var c=document.createElement('i');c.setAttribute('data-role','caret');css(c,{wid
 var g=document.createElement('span');g.textContent=${JSON.stringify("Enter to search · Esc to close")};css(g,{'margin-left':'auto','font-size':px(${GLASS.type.size.caption}),'font-weight':${JSON.stringify(GLASS.type.weight.semibold)},color:${JSON.stringify(GLASS.color.textTertiary)}});
 d.appendChild(s);d.appendChild(t);d.appendChild(c);d.appendChild(g);document.body.appendChild(d);
 c.animate([{opacity:1},{opacity:0}],{duration:${durationMs(duration.caretBlink)},iterations:Infinity,easing:${JSON.stringify(ease.blink)}});
-d.animate([{opacity:0,transform:'translateX(-50%) translateY('+px(-40)+')'},{opacity:1,transform:'translateX(-50%) translateY(0)'}],{duration:${durationMs(duration.dropIn)},easing:${JSON.stringify(ease.standard)}});
+d.animate([{opacity:0,transform:'translateX(-50%) translateY('+(-40*U)+'px)'},{opacity:1,transform:'translateX(-50%) translateY(0)'}],{duration:${durationMs(duration.dropIn)},easing:${JSON.stringify(ease.standard)}});
 }
 var tx=d.querySelector('[data-role=text]'),ph=${JSON.stringify(text)}==='';
 tx.textContent=ph?${JSON.stringify(placeholder)}:${JSON.stringify(text)};tx.style.setProperty('color',ph?${JSON.stringify(GLASS.color.textTertiary)}:'inherit');
@@ -98,7 +100,7 @@ export function confirmScript(confirm: Confirmation | undefined): string {
   return `(function(){${HELPERS}
 var o=document.getElementById('couch-confirm');if(o)o.remove();
 var w=document.createElement('div');w.id='couch-confirm';
-css(w,{'--couch-u':U+'px',position:'fixed',inset:'0','z-index':'2147483647','pointer-events':'none',display:'grid','place-items':'center',background:${JSON.stringify(d.scrim)}});
+css(w,{position:'fixed',inset:'0','z-index':'2147483647','pointer-events':'none',display:'grid','place-items':'center',background:${JSON.stringify(d.scrim)}});
 var d=document.createElement('div');glass(d);
 css(d,{position:'static'});css(d,${obj(d.boxStyle)});
 var t=document.createElement('span');t.textContent=${JSON.stringify(d.title)};

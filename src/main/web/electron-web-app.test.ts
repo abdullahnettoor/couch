@@ -70,9 +70,27 @@ const fake = vi.hoisted(() => {
     close() {}
     reload() {}
     zoomCalls: Array<string | number> = [];
-    zoom = 1;
+    /**
+     * Chromium's zoom: in the default mode every contents of a partition shares one zoom per origin (saved to disk, so it
+     * outlives the page); an "isolated" contents keeps its own.
+     */
+    partition = "persist:test";
+    mode = "default";
+    #own = 1;
+    static shared = new Map<string, number>();
+    get #key() {
+      return `${this.partition}|${this.url.startsWith("http") ? new URL(this.url).origin : this.url}`;
+    }
+    get zoom(): number {
+      return this.mode === "isolated" ? this.#own : (FakeContents.shared.get(this.#key) ?? 1);
+    }
+    set zoom(factor: number) {
+      if (this.mode === "isolated") this.#own = factor;
+      else FakeContents.shared.set(this.#key, factor);
+    }
     setZoomMode(mode: string) {
       this.zoomCalls.push(mode);
+      this.mode = mode;
     }
     setZoomFactor(factor: number) {
       this.zoomCalls.push(factor);
@@ -190,6 +208,7 @@ async function startedNetflix() {
 
 beforeEach(() => {
   fake.views.length = 0;
+  fake.FakeContents.shared.clear();
   fake.counts.preloadsRegistered = fake.counts.preloadsRemoved = 0;
   winResize.n = 0;
   winWidth.pt = 1280;
@@ -756,15 +775,34 @@ describe("Text size", () => {
     delete (globalThis as any).devicePixelRatio;
   });
 
-  test("another web contents of the same App stays at 1 while the App's is zoomed", () => {
+  test("another web contents on the same origin and partition stays at 1 while the App's is zoomed", () => {
     winWidth.pt = 1920;
     const web = new ElectronWebApp(sized, win);
     const wc = fake.views.at(-1)!;
     web.show();
+    wc.url = PAGE;
+    wc.emit("did-navigate", {}, PAGE);
     const other = new fake.FakeContents();
+    other.url = PAGE;
     expect(wc.zoom).toBeGreaterThan(1);
     expect(other.zoom).toBe(1);
-    expect(other.zoomCalls).toEqual([]);
+  });
+
+  test("a zoom saved earlier in the default mode for the origin does not reach the App, and the App does not change it", () => {
+    winWidth.pt = 1920;
+    const plain = new fake.FakeContents();
+    plain.url = PAGE;
+    plain.zoom = 2.5;
+    for (const desc of [netflix, sized]) {
+      const web = new ElectronWebApp(desc, win);
+      const wc = fake.views.at(-1)!;
+      web.show();
+      wc.url = PAGE;
+      wc.emit("dom-ready");
+      wc.emit("did-navigate", {}, PAGE);
+      expect(wc.zoom).toBe(desc === sized ? 1.5 : 1);
+      expect(plain.zoom).toBe(2.5);
+    }
   });
 
   test("a disposed host no longer zooms on a resize", () => {
@@ -774,22 +812,5 @@ describe("Text size", () => {
     const before = wc.zoomCalls.length;
     resize(1920);
     expect(wc.zoomCalls.length).toBe(before);
-  });
-
-  test("an open search bar is redrawn at the new zoom when the zoom changes", () => {
-    const web = new ElectronWebApp(sized, win);
-    const wc = fake.views.at(-1)!;
-    web.showSearchBar("abc");
-    wc.scripts.length = 0;
-    web.setTextSize("larger");
-    expect(wc.scripts.some((s) => s.includes("couch-search") && s.includes('"abc"'))).toBe(true);
-  });
-
-  test("no search bar is redrawn when none is open", () => {
-    const web = new ElectronWebApp(sized, win);
-    const wc = fake.views.at(-1)!;
-    wc.scripts.length = 0;
-    web.setTextSize("larger");
-    expect(wc.scripts.some((s) => s.includes("couch-search"))).toBe(false);
   });
 });

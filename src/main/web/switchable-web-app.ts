@@ -1,6 +1,7 @@
 import type { Confirmation, PromptId, TrackKind } from "../../shared/protocol.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
 import type { KeyGate } from "./keyboard-policy.ts";
+import type { TextSize } from "./text-size.ts";
 import type { Engine } from "./native-front.ts";
 
 /** What the switcher needs of a host beyond the App port: both `ElectronWebApp` and `WebKitWebApp` have it. */
@@ -34,6 +35,7 @@ export class SwitchableWebApp implements YouTube {
   #overlay = false;
   #visible = false;
   #pending: Engine | undefined;
+  #textSize: TextSize | undefined;
 
   constructor(create: (engine: Engine) => SwitchableHost, engine: Engine) {
     this.#create = create;
@@ -68,6 +70,7 @@ export class SwitchableWebApp implements YouTube {
       if (this.#output !== undefined) void next.setOutputDevice(this.#output).catch(() => {});
       if (this.#capturing) next.captureText(true);
       if (this.#overlay) next.setOverlay?.(true);
+      if (this.#textSize !== undefined) next.setTextSize?.(this.#textSize);
     } catch (e) {
       try {
         next.dispose();
@@ -181,6 +184,14 @@ export class SwitchableWebApp implements YouTube {
   }
   setSpeed(speed: number): void {
     this.#host.setSpeed?.(speed);
+  }
+  get supportsTextSize(): boolean {
+    return this.#host.supportsTextSize === true;
+  }
+  /** Kept, so a host switched to later gets it too. The WebKit host takes no Text size and ignores it. */
+  setTextSize(size: TextSize): void {
+    this.#textSize = size;
+    this.#host.setTextSize?.(size);
   }
   showVolume(percent: number | undefined): void {
     this.#host.showVolume(percent);

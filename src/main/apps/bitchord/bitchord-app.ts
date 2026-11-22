@@ -2,6 +2,7 @@ import type { Confirmation } from "../../../shared/protocol.ts";
 import type { Clock } from "../../ports/clock.ts";
 import type { YouTube } from "../../ports/youtube.ts";
 import type { App, AppEvent, AppKey } from "../app.ts";
+import type { TextSize } from "../../web/text-size.ts";
 
 /** A Back sent to BitChord that changed no route within this long counts as already at its first page. */
 const BACK_SETTLE_MS = 800;
@@ -63,6 +64,12 @@ export class BitChordApp implements App {
   }
   playPause() {
     this.#port.playPause();
+  }
+  get supportsTextSize(): boolean {
+    return this.#port.supportsTextSize === true;
+  }
+  setTextSize(size: TextSize) {
+    this.#port.setTextSize?.(size);
   }
   drawVolume(percent: number | undefined) {
     this.#port.showVolume(percent);

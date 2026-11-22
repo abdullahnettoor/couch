@@ -409,8 +409,6 @@ export class ElectronWebApp implements YouTube {
         : textZoom(this.#win.getContentBounds().width, target, this.#textSize);
     if (wc.getZoomFactor() === zoom) return;
     wc.setZoomFactor(zoom);
-    // Overlays Couch drew before the change were sized for the old zoom.
-    this.#core.redrawSearchBar();
   }
 
   #fit(): void {

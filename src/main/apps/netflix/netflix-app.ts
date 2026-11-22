@@ -1,6 +1,7 @@
 import type { Confirmation, PromptId, TrackKind } from "../../../shared/protocol.ts";
 import type { Clock } from "../../ports/clock.ts";
 import type { YouTube } from "../../ports/youtube.ts";
+import type { TextSize } from "../../web/text-size.ts";
 import type {
   App,
   AppEvent,
@@ -124,6 +125,12 @@ export class NetflixApp implements App {
   }
   setSpeed(speed: number) {
     this.#port.setSpeed?.(speed);
+  }
+  get supportsTextSize(): boolean {
+    return this.#port.supportsTextSize === true;
+  }
+  setTextSize(size: TextSize) {
+    this.#port.setTextSize?.(size);
   }
   drawVolume(percent: number | undefined) {
     this.#port.showVolume(percent);

@@ -2,6 +2,7 @@ import { describe, expect, test } from "vite-plus/test";
 import type { YouTubeEvent } from "../ports/youtube.ts";
 import { SwitchableWebApp, type SwitchableHost } from "./switchable-web-app.ts";
 import type { Engine } from "./native-front.ts";
+import type { TextSize } from "./text-size.ts";
 import { FakeClock } from "../ports/fakes.ts";
 import { MemoryStore } from "../ports/store.ts";
 import { IdleUnloader, type IdleLifecycle } from "./idle-unload.ts";
@@ -75,6 +76,11 @@ class FakeHost implements SwitchableHost {
   setOverlay(on: boolean) {
     this.#log(`overlay:${on}`);
   }
+  /** The Chromium host can; the WebKit host has neither member. */
+  supportsTextSize = true;
+  setTextSize(size: TextSize) {
+    this.#log(`textSize:${size}`);
+  }
   onEvent(l: (e: YouTubeEvent) => void) {
     this.listeners.add(l);
     return () => void this.listeners.delete(l);
@@ -102,6 +108,27 @@ function rig(initial: Engine = "chromium") {
 }
 
 describe("the Netflix host that can switch engine", () => {
+  test("Text size goes to the current host, and a host switched to later gets the last one", () => {
+    const { app, hosts } = rig("chromium");
+    expect(app.supportsTextSize).toBe(true);
+    app.setTextSize("larger");
+    app.setTextSize("smaller");
+    expect(hosts[0]!.calls.filter((c) => c.startsWith("textSize:"))).toEqual([
+      "textSize:larger",
+      "textSize:smaller",
+    ]);
+    app.switchTo("webkit");
+    expect(hosts[1]!.calls).toContain("textSize:smaller");
+  });
+
+  test("with no size set yet, a new host is not given one; whether it is supported follows the host", () => {
+    const { app, hosts } = rig("chromium");
+    app.switchTo("webkit");
+    expect(hosts[1]!.calls.some((c) => c.startsWith("textSize:"))).toBe(false);
+    hosts[1]!.supportsTextSize = false;
+    expect(app.supportsTextSize).toBe(false);
+  });
+
   test("starts on the engine it is given and passes calls to it", () => {
     const { app, hosts } = rig("webkit");
     app.sendKey("ok");

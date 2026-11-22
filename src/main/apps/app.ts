@@ -7,6 +7,7 @@ import type {
   TrackList,
 } from "../../shared/protocol.ts";
 import type { TextEdit } from "../../shared/keyboard.ts";
+import type { TextSize } from "../web/text-size.ts";
 
 /** The title and art an App already knows for a title id (for example from a Continue entry), lent to Now Playing while that id plays. */
 export interface NowPlayingHint {
@@ -193,6 +194,10 @@ export interface App extends SoundSink {
   setSpeed?(speed: number): void;
   /** Opens the App at this address (a resume URL it built), when it is on the App's own origin; call before `show()` so the first load goes there. Absent when the App can't. */
   openAt?(url: string): void;
+  /** The App can change its Text size (a web App whose page declares a target width). Absent or false: it can't. */
+  readonly supportsTextSize?: boolean;
+  /** Sets the Text size; does nothing for an App that doesn't support it. */
+  setTextSize?(size: TextSize): void;
   /** Draws the volume level above the App, or removes it when undefined. */
   drawVolume(percent: number | undefined): void;
   /** Draws Couch's question over the App, or removes it when undefined. */
