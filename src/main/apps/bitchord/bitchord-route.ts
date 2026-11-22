@@ -37,3 +37,9 @@ export function bitchordSearchUrlFor(site: string, text: string): string {
   const q = text.trim();
   return q ? `${site}/search?q=${encodeURIComponent(q)}` : `${site}/search`;
 }
+
+/** Page script: whether BitChord's search field shows the query of this search address, which it follows once its router has drawn the search. */
+export function bitchordSearchRoutedScript(url: string): string {
+  const q = new URL(url).searchParams.get("q") ?? "";
+  return `(function(q){try{var i=document.querySelector('input[aria-label="Search"]');return !!i&&i.value===q}catch(e){return false}})(${JSON.stringify(q)})`;
+}

@@ -1,3 +1,4 @@
+import vm from "node:vm";
 import { describe, expect, test } from "vite-plus/test";
 import { APP_ENTRIES } from "../index.ts";
 import { parsePageMessage } from "../../web/webkit-messages.ts";
@@ -144,5 +145,27 @@ describe("a bridge page message", () => {
   test("is dropped with extra top-level fields or no request", () => {
     expect(parsePageMessage({ type: "bridge", request, more: 1 })).toBeUndefined();
     expect(parsePageMessage({ type: "bridge" })).toBeUndefined();
+  });
+});
+
+describe("BitChord's word that its search routed", () => {
+  const routed = (shown: string | undefined, url: string) => {
+    const document = {
+      querySelector: (sel: string) =>
+        sel === 'input[aria-label="Search"]' && shown !== undefined ? { value: shown } : null,
+    };
+    return vm.runInNewContext(desc().search!.routed!(url), { document });
+  };
+  const url = `${BITCHORD_PAGES}/search?q=daft%20punk`;
+
+  test("is true once the search field shows the address's query", () => {
+    expect(routed("daft punk", url)).toBe(true);
+  });
+  test("is false while the field shows another query, or isn't there", () => {
+    expect(routed("coldplay", url)).toBe(false);
+    expect(routed(undefined, url)).toBe(false);
+  });
+  test("an empty search is routed when the field is empty", () => {
+    expect(routed("", `${BITCHORD_PAGES}/search`)).toBe(true);
   });
 });

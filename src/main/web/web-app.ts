@@ -92,6 +92,12 @@ export interface WebAppDescription {
     typeIntoField?: boolean;
     /** "history": the address is pushed with a popstate in the same document (a playing song continues), loading it if the page doesn't route in about 1.5 s or isn't on the App's origin. Default: load. */
     navigate?: "history";
+    /**
+     * With `navigate: "history"`: page script (an expression) that is true once the page has drawn the search for this address.
+     * The address changes on a pushState whether or not the App's router follows, so it is the page's own word that counts;
+     * without it the address is all there is to go by.
+     */
+    routed?(url: string): string;
   };
   route: RouteSignals;
   /** App-specific key sequences for a skip, and when to commit it with OK. */

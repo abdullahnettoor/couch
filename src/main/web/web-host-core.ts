@@ -42,6 +42,8 @@ export interface HostEngine {
  */
 /** A same-document search that hasn't changed the address within this long is loaded instead. */
 const SAME_DOCUMENT_ROUTE_MS = 1500;
+/** How often the page is asked whether it has drawn the search, meanwhile. */
+const ROUTE_ASK_MS = 150;
 
 const BLUR_ACTIVE_SCRIPT = `(function(){try{var e=document.activeElement;if(e&&e.blur)e.blur()}catch(x){}})()`;
 
@@ -403,7 +405,9 @@ export class WebHostCore {
   /** Pushes `url` and fires popstate so the App's router follows in the same document; loads it if the page doesn't route. */
   #routeInPage(url: string): void {
     const want = new URL(url);
-    const arrived = () => {
+    const routed = this.#desc.search?.routed;
+    const done = async (): Promise<boolean> => {
+      if (routed) return (await this.#engine.run(routed(url)).catch(() => false)) === true;
       try {
         const now = new URL(this.#engine.url());
         return now.pathname + now.search === want.pathname + want.search;
@@ -412,17 +416,32 @@ export class WebHostCore {
       }
     };
     const fallback = () => {
-      if (!arrived()) this.#engine.load(url);
+      void done().then((ok) => {
+        if (!ok) this.#engine.load(url);
+      });
     };
+    clearTimeout(this.#routeTimer);
     void this.#engine
       .run(
-        `(function(u){try{history.pushState(null,"",u);dispatchEvent(new PopStateEvent("popstate",{state:null}));return true}catch(e){return false}})(${JSON.stringify(want.pathname + want.search)})`,
+        `(function(u){try{history.pushState(null,"",u);dispatchEvent(new PopStateEvent("popstate",{state:null}));if(window.__couchResetFocus)window.__couchResetFocus();return true}catch(e){return false}})(${JSON.stringify(want.pathname + want.search)})`,
       )
       .catch(() => false)
       .then((ok) => {
         if (ok === false) return fallback();
-        clearTimeout(this.#routeTimer);
-        this.#routeTimer = setTimeout(fallback, SAME_DOCUMENT_ROUTE_MS);
+        if (!routed) {
+          this.#routeTimer = setTimeout(fallback, SAME_DOCUMENT_ROUTE_MS);
+          return;
+        }
+        // The page's router draws the search a moment after the address changes: asked until it says so, then loaded.
+        const until = Date.now() + SAME_DOCUMENT_ROUTE_MS;
+        const ask = () => {
+          void done().then((ok) => {
+            if (ok) return;
+            if (Date.now() >= until) return this.#engine.load(url);
+            this.#routeTimer = setTimeout(ask, ROUTE_ASK_MS);
+          });
+        };
+        this.#routeTimer = setTimeout(ask, ROUTE_ASK_MS);
       });
   }
 

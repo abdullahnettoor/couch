@@ -867,6 +867,59 @@ export function describeWebHostContract(
         });
       });
 
+      describe("with the page's own word that it routed (search.routed)", () => {
+        let rendered = false;
+        const acknowledging: WebAppDescription = {
+          ...sameDocument,
+          search: {
+            ...sameDocument.search!,
+            routed: (url) => `(function(){return window.__routedTest===${JSON.stringify(url)}})()`,
+          },
+        };
+        /** pushState moves the address; the page draws the search only when `draws`. */
+        const pushing = (rig: HostRig, draws: boolean) => {
+          rendered = false;
+          rig.answer("popstate", (script: string) => {
+            const path = /\(("\/[^"]*")\)\s*$/.exec(script)?.[1];
+            if (path) rig.navigate(`https://www.netflix.com${JSON.parse(path)}`);
+            rendered = draws;
+            return true;
+          });
+          rig.answer("__routedTest", () => rendered);
+        };
+
+        test("a page whose address changed but whose router didn't draw the search is loaded", async () => {
+          const rig = makeRig(acknowledging);
+          await rig.show();
+          rig.navigate(home);
+          pushing(rig, false);
+          const before = rig.loads().length;
+          rig.host.submitSearch("dark");
+          await vi.waitFor(() =>
+            expect(rig.scripts().some((s) => s.includes("popstate"))).toBe(true),
+          );
+          await new Promise((r) => setTimeout(r, 1000));
+          expect(rig.loads()).toHaveLength(before);
+          await vi.waitFor(() => expect(rig.loads().at(-1)).toBe(netflix.search!.urlFor("dark")), {
+            timeout: 1500,
+          });
+        });
+
+        test("a page that draws the search keeps its document", async () => {
+          const rig = makeRig(acknowledging);
+          await rig.show();
+          rig.navigate(home);
+          pushing(rig, true);
+          const before = rig.loads().length;
+          rig.host.submitSearch("dark");
+          await vi.waitFor(() =>
+            expect(rig.scripts().some((s) => s.includes("__routedTest"))).toBe(true),
+          );
+          await new Promise((r) => setTimeout(r, 1800));
+          expect(rig.loads()).toHaveLength(before);
+        });
+      });
+
       test("with same-document navigation a page outside the App's origin is loaded at once", async () => {
         const rig = makeRig(sameDocument);
         await rig.show();
