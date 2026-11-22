@@ -9,6 +9,7 @@
 //      following BitChord's own focus, and Back closes the menu, then the view, with the page left as it was,
 //   6. Down reaches the player bar on a long playlist, on Play/Pause, from its last row and from its middle via the sidebar (#73);
 //   7. the Up Next panel (#76): Right reaches it, rows are outlined up to its edge, Back closes it before the page goes back;
+//   8. Back through the App (BitChordApp.back) on the home with the full view and the panel open closes them, one per Back, and leaves only after;
 //      BITCHORD_FRAMES=<dir> saves a frame of each.
 // The window is 1920 pt wide with Text size applied (BITCHORD_TEXT_SIZE, default "default").
 // BITCHORD_SITE overrides the site; BITCHORD_TRACKS=a,b,c and BITCHORD_AGE_RESTRICTED=id override the songs;
@@ -21,6 +22,8 @@ import { join } from "node:path";
 import { lyricOrigin } from "../src/main/apps/bitchord/bitchord-lyrics.ts";
 import { bridgeNetwork } from "../src/main/apps/bitchord/bitchord-network.ts";
 import { bitchordSite } from "../src/main/apps/bitchord/bitchord-route.ts";
+import { BitChordApp } from "../src/main/apps/bitchord/bitchord-app.ts";
+import { systemClock } from "../src/main/ports/clock.ts";
 import { ownArtwork, playbackProbe } from "../src/main/web/playback.ts";
 import { BITCHORD_PARTITION, bitchordDescription } from "../src/main/apps/bitchord/bitchord-web.ts";
 import type { TextSize } from "../src/shared/text-size.ts";
@@ -76,6 +79,8 @@ void app.whenReady().then(async () => {
   const hidden = hiddenWindow(win);
   const before = new Set(webContents.getAllWebContents().map((c) => c.id));
   const web = new ElectronWebApp(description, hidden as BrowserWindow);
+  // Back through the App's own path (what the Remote's Back reaches), not the host's key.
+  const bitchord = new BitChordApp(web, systemClock);
   const wc = webContents
     .getAllWebContents()
     .find((c) => !before.has(c.id) && c.getURL() !== undefined)!;
@@ -577,6 +582,49 @@ void app.whenReady().then(async () => {
     expectThat(
       (await js<string>(`location.pathname + location.search`)) !== pagePath,
       "the next Back goes back a page",
+    );
+    // Back on BitChord's own home with things open (#71), through the App: the page's full view and Up Next panel are closed first, and the App is left only when nothing is open.
+    await within("/home");
+    await sleep(1500);
+    await js(
+      `document.querySelector('[role="region"][aria-label="Player"] button[aria-label="Up Next"]')?.click()`,
+    );
+    await sleep(2000);
+    await js(`document.querySelector('button[aria-label="Open full screen player"]')?.click()`);
+    await sleep(2500);
+    // The full view is drawn over the panel, which is there again when the view closes.
+    expectThat(
+      (await count('[role="dialog"][aria-label="Now Playing"]')) === 1,
+      "on the home, the full view is open over the Up Next panel",
+    );
+    const homePath = await js<string>(`location.pathname + location.search`);
+    const appBack = async () => {
+      wc.focus();
+      const answer = await bitchord.back();
+      await sleep(900);
+      return answer;
+    };
+    expectThat(
+      (await appBack()) === "handled",
+      "the App's Back on the home is handled (the full view)",
+    );
+    expectThat(
+      (await count('[role="dialog"][aria-label="Now Playing"]')) === 0 &&
+        (await panelEdge()) !== null,
+      "it closed the full view and left the panel",
+    );
+    expectThat(
+      (await appBack()) === "handled",
+      "the App's Back on the home is handled (the panel)",
+    );
+    expectThat((await panelEdge()) === null, "it closed the Up Next panel");
+    expectThat(
+      (await js<string>(`location.pathname + location.search`)) === homePath,
+      "the page stayed on the home",
+    );
+    expectThat(
+      (await appBack()) === "leave",
+      "with nothing open, the App's Back on the home leaves",
     );
     if (!attached) wc.debugger.detach();
 
