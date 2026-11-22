@@ -17,6 +17,8 @@ if (!USER_DATA || (PHASE !== "save" && PHASE !== "check"))
   throw new Error("run through pnpm textsize:check");
 app.setPath("userData", USER_DATA);
 app.commandLine.appendSwitch("mute-audio");
+// As Couch does (src/main/index.ts): never the Mac's Now Playing app, so a headset's pause (or one dropping out) can't stop the check.
+app.commandLine.appendSwitch("disable-features", "HardwareMediaKeyHandling,MediaSessionService");
 app.dock?.hide();
 
 const PORT_A = 47811;

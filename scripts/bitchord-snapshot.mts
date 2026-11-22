@@ -15,6 +15,8 @@ import { hiddenWindow } from "./lib/hidden-window.mts";
 const userData = mkdtempSync(join(tmpdir(), "couch-bitchord-snap-"));
 app.setPath("userData", userData);
 app.commandLine.appendSwitch("mute-audio");
+// As Couch does (src/main/index.ts): never the Mac's Now Playing app, so a headset's pause (or one dropping out) can't stop the check.
+app.commandLine.appendSwitch("disable-features", "HardwareMediaKeyHandling,MediaSessionService");
 app.dock?.hide();
 
 const SITE = bitchordSite(process.env);
