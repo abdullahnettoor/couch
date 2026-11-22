@@ -18,5 +18,5 @@ describe.skipIf(process.platform !== "darwin")("native input policy (input_polic
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, 60_000); // compiling with c++ alone can take over 5 s on a busy CI runner
 });
