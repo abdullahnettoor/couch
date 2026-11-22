@@ -425,7 +425,11 @@ void app.whenReady().then(async () => {
         await js<string>(`innerWidth + "x" + innerHeight + " dpr " + devicePixelRatio`),
       );
       // The D-pad steps above left Couch's shield up; it comes down on a mouse move of more than a few pixels, after one that anchors.
-      await wc.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseMoved", x: at.x - 40, y: at.y - 40 });
+      await wc.debugger.sendCommand("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x: at.x - 40,
+        y: at.y - 40,
+      });
       await sleep(300);
       await wc.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
       await sleep(300);
