@@ -146,7 +146,7 @@ describe("BitChord's focus layout, on its saved pages", () => {
   });
 
   test("the layout is on the description, with its own search address", () => {
-    expect(desc.focus?.layout?.docks?.length).toBe(2);
+    expect(desc.focus?.layout?.docks?.length).toBe(4);
     expect(desc.search?.placeholder).toBe("Search BitChord");
     expect(desc.search?.typeIntoField).toBe(false);
     expect(desc.search?.navigate).toBe("history");
