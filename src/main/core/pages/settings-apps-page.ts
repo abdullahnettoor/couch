@@ -11,9 +11,21 @@ import { availableWithin } from "../../apps/availability.ts";
 import { copyFromCouchToast } from "../../apps/sign-in-text.ts";
 import { PlaybackUnavailable, type App } from "../../apps/app.ts";
 import { APPS_MENU_KEY, PLAYBACK_APP, SIGN_IN_APP, type HomeApps } from "../home-apps.ts";
+import type { TextSize } from "../../web/text-size.ts";
+import { TEXT_SIZE_LABELS, stepTextSize } from "../text-size-setting.ts";
 import { backTo, type Page, type PageBack, type PageContext } from "./page.ts";
 
+/** The Apps list's Text size row (the household default) and an App menu's own. */
+export const TEXT_SIZE_ALL = "app:textsize-all";
+export const TEXT_SIZE_APP = "app:textsize:";
+
 export interface SettingsAppsHost {
+  textSize: {
+    defaultSize(): TextSize;
+    of(id: string): TextSize;
+    setDefault(size: TextSize): void;
+    setApp(id: string, size: TextSize): void;
+  };
   homeApps: Pick<
     HomeApps,
     "menuId" | "menuGrid" | "grid" | "action" | "closeMenu" | "resetMenu" | "menuRow" | "openMenu"
@@ -45,7 +57,33 @@ export class SettingsAppsPage implements Page {
 
   grid(): GridItem[] {
     const apps = this.#h.homeApps;
-    return apps.menuId ? apps.menuGrid() : apps.grid((id) => `${SETTINGS_APP}${id}`);
+    const id = apps.menuId;
+    if (!id) {
+      const rows = apps.grid((app) => `${SETTINGS_APP}${app}`);
+      return [
+        ...rows,
+        {
+          id: "text-size",
+          r: rows.length,
+          c: 0,
+          label: `Text size: ${TEXT_SIZE_LABELS[this.#h.textSize.defaultSize()]}`,
+          action: TEXT_SIZE_ALL,
+        },
+      ];
+    }
+    const items = apps.menuGrid();
+    if (!this.#h.apps.get(id)?.supportsTextSize) return items;
+    const row = {
+      id: "text-size",
+      label: `Text size: ${TEXT_SIZE_LABELS[this.#h.textSize.of(id)]}`,
+      action: `${TEXT_SIZE_APP}${id}`,
+    };
+    const after = items.findIndex((i) => i.id === "playback" || i.id === "restart");
+    const at = after < 0 ? 3 : after + 1;
+    return [...items.slice(0, at), { ...row, r: 0, c: 0 }, ...items.slice(at)].map((item, r) => ({
+      ...item,
+      r,
+    }));
   }
 
   payload(): Partial<ScreenPayload> {
@@ -76,6 +114,16 @@ export class SettingsAppsPage implements Page {
     }
     if (action.startsWith(PLAYBACK_APP)) {
       void this.#switchPlayback(action.slice(PLAYBACK_APP.length));
+      return true;
+    }
+    if (action === TEXT_SIZE_ALL) {
+      this.#h.textSize.setDefault(stepTextSize(this.#h.textSize.defaultSize(), 1, true));
+      return true;
+    }
+    if (action.startsWith(TEXT_SIZE_APP)) {
+      const id = action.slice(TEXT_SIZE_APP.length);
+      if (this.#h.apps.get(id)?.supportsTextSize)
+        this.#h.textSize.setApp(id, stepTextSize(this.#h.textSize.of(id), 1, true));
       return true;
     }
     if (action.startsWith(RESTART_APP)) {

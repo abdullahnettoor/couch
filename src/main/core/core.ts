@@ -77,6 +77,8 @@ import type { WallpaperPorts } from "../ports/pictures.ts";
 import { SoundOutput } from "./sound-output.ts";
 import { InterfaceSounds } from "./interface-sounds.ts";
 import { QuickSettings } from "./quick-settings.ts";
+import { TextSizeSetting, stepTextSize } from "./text-size-setting.ts";
+import type { TextSize } from "../web/text-size.ts";
 import { Setup } from "./setup.ts";
 import type { SetupStep } from "./setup-steps.ts";
 import { LibrarySearchPage } from "./pages/library-search-page.ts";
@@ -252,6 +254,7 @@ export class Core {
   #sound: SoundOutput;
   #uiSounds: InterfaceSounds;
   #quick: QuickSettings;
+  #textSize: TextSizeSetting;
   #setup: Setup;
   #search: LibrarySearchPage;
   #libraryPage: LibraryPage;
@@ -379,6 +382,7 @@ export class Core {
     });
     this.#state.volume = this.#sound.volume;
     this.#uiSounds = new InterfaceSounds(ports.store);
+    this.#textSize = new TextSizeSetting(ports.store);
     this.#quick = new QuickSettings({
       clock: ports.clock,
       sound: this.#sound,
@@ -387,6 +391,15 @@ export class Core {
         (this.#state.view === "player" && !!this.#state.player) ||
         (this.#state.view === "app" && !!this.#state.app),
       front: () => this.#front()?.id,
+      textSize: () => {
+        const front = this.#front();
+        return front?.supportsTextSize ? this.#textSize.of(front.id) : undefined;
+      },
+      stepTextSize: (delta) => {
+        const front = this.#front();
+        if (front?.supportsTextSize)
+          this.#setAppTextSize(front.id, stepTextSize(this.#textSize.of(front.id), delta));
+      },
       stepVolume: (delta) => this.#setVolume(this.#state.volume + delta),
       toggleMute: () => this.#toggleMute(),
       pictureIsOff: () => this.#state.pictureOff,
@@ -481,6 +494,12 @@ export class Core {
     this.#settingsApps = new SettingsAppsPage(contextFor("settingsApps"), {
       homeApps: this.#homeApps,
       apps: this.#apps,
+      textSize: {
+        defaultSize: () => this.#textSize.defaultSize,
+        of: (id) => this.#textSize.of(id),
+        setDefault: (size) => this.#setDefaultTextSize(size),
+        setApp: (id, size) => this.#setAppTextSize(id, size),
+      },
       clearFailure: (id) => this.#app.failed.delete(id),
       catalog: () => this.#catalog(),
       addons: () => this.#addonsPage.rows(),
@@ -626,7 +645,27 @@ export class Core {
     for (const app of ports.apps) {
       this.#apps.set(app.id, app);
       this.#appsOff.push(app.onEvent((event) => this.#onApp(app, event)));
+      app.setTextSize?.(this.#textSize.of(app.id));
     }
+  }
+
+  /** Tells every App that has Text size its current size, whether or not it can apply it now. */
+  #applyTextSizes(): void {
+    for (const app of this.#apps.values()) app.setTextSize?.(this.#textSize.of(app.id));
+  }
+
+  #setDefaultTextSize(size: TextSize): void {
+    this.#textSize.setDefault(size);
+    this.#applyTextSizes();
+    this.#emit();
+  }
+
+  #setAppTextSize(id: string, size: TextSize): void {
+    if (this.#textSize.of(id) !== size) {
+      this.#textSize.setApp(id, size);
+      this.#apps.get(id)?.setTextSize?.(size);
+    }
+    this.#emit();
   }
 
   /** The App the Screen is showing, if any. */

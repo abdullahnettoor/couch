@@ -167,6 +167,12 @@ describe("Settings Pages Back", () => {
       page: new SettingsAppsPage(ctx, {
         homeApps,
         apps: new Map(),
+        textSize: {
+          defaultSize: () => "default",
+          of: () => "default",
+          setDefault() {},
+          setApp() {},
+        },
         clearFailure: () => {},
         catalog: () => [],
         addons: () => [],

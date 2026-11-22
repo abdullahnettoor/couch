@@ -420,6 +420,8 @@ export interface QuickPayload {
   focusedId: string;
   volume: number;
   muted: boolean;
+  /** The Text size row's value ("Smaller", "Default", "Larger"); only while an App that has it is in front. */
+  textSize?: string;
   /** The drawer is over video or an App (not one of Couch's own views), so its panel is more solid. */
   overMedia: boolean;
   /** While the App in front follows the Mac's output and a chosen device is in effect: "Netflix plays through the Mac's output". */

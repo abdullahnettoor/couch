@@ -21,6 +21,10 @@ describe("the BitChord description", () => {
     expect(d.drm).toBeUndefined();
   });
 
+  test("declares its Text size target width, 1280 (picked on #56)", () => {
+    expect(desc().textSize).toEqual({ targetWidth: 1280 });
+  });
+
   test("its own origins are the Pages deploy and the production domain, nothing else", () => {
     const d = desc();
     expect(d.isOwnOrigin(BITCHORD_PAGES)).toBe(true);

@@ -45,7 +45,10 @@ ${rowCss(".row", "var(--u)")}
 .row .sp { width:calc(34*var(--u)); height:calc(34*var(--u)); }
 .row.vol { gap:calc(12*var(--u)); padding-right:calc(12*var(--u)); }
 .row.vol .num { min-width:calc(110*var(--u)); text-align:center; font-size:var(--type-volume-level); font-weight:var(--weight-semibold); font-variant-numeric:tabular-nums; }
+.row.ts { gap:calc(12*var(--u)); padding-right:calc(12*var(--u)); }
+.row.ts .num { min-width:calc(150*var(--u)); text-align:center; font-weight:var(--weight-semibold); }
 .btn { width:calc(72*var(--u)); height:calc(72*var(--u)); border-radius:var(--radius-row); display:flex; align-items:center; justify-content:center; background:var(--button-fill-soft); }
+.row.focus .btn { background:var(--button-fill-on-focus); }
 .btn svg { width:calc(32*var(--u)); height:calc(32*var(--u)); fill:currentColor; }
 .btn.on { background:var(--danger); color:var(--text-primary); }
 `;
@@ -77,6 +80,9 @@ export function quickSettingsPage({ glass = false }: { glass?: boolean } = {}): 
     var level = q.muted ? "0" : String(Math.round(Number(q.volume)) || 0);
     return '<div class="row vol' + focusClass(q, i.id) + '" data-id="' + esc(i.id) + '"><span class="l">' + esc(i.label) + '</span>' + volumeButton("vol:down", "Volume down", "minus") + '<b class="num">' + esc(level) + "</b>" + volumeButton("vol:up", "Volume up", "plus") + volumeButton("vol:mute", "Mute", q.muted ? "speakerMute" : "speaker", q.muted) + "</div>";
   }
+  function textSizeRow(q, i) {
+    return '<div class="row ts' + focusClass(q, i.id) + '" data-id="' + esc(i.id) + '"><span class="l">' + esc(i.label) + '</span>' + volumeButton("ts:down", "Text size smaller", "minus") + '<b class="num">' + esc(q.textSize || "") + "</b>" + volumeButton("ts:up", "Text size larger", "plus") + "</div>";
+  }
   function actionRow(q, i, name) {
     return '<div class="row' + focusClass(q, i.id) + '" data-id="' + esc(i.id) + '"><span class="l">' + esc(i.label) + "</span>" + icon(name) + "</div>";
   }
@@ -93,6 +99,8 @@ export function quickSettingsPage({ glass = false }: { glass?: boolean } = {}): 
     (q.notes || []).forEach(function (t) { html += '<div class="row note">' + esc(t) + "</div>"; });
     var vol = byId(q, "vol"), picture = byId(q, "picture"), settings = byId(q, "settings");
     if (vol) html += "<h2>Volume</h2>" + volumeRow(q, vol);
+    var textsize = byId(q, "textsize");
+    if (textsize) html += textSizeRow(q, textsize);
     if (picture) html += actionRow(q, picture, "monitorSlash");
     if (settings) html += '<div class="end">' + actionRow(q, settings, "gear") + "</div>";
     drawer.innerHTML = html;

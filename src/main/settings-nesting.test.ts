@@ -66,7 +66,7 @@ describe("Settings nesting", () => {
     const phone = await openSettings();
     await enter(phone, "Apps");
     expect(view()).toBe("settingsApps");
-    expect(labels()).toEqual(["YouTube", "Netflix", "Library", "BitChord"]);
+    expect(labels()).toEqual(["YouTube", "Netflix", "Library", "BitChord", "Text size: Default"]);
     await phone.press("ok");
     expect(view()).toBe("settingsApps");
     expect(h.screen.last.appMenu?.id).toBe("youtube");

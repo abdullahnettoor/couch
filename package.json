@@ -26,6 +26,7 @@
     "look:record": "node scripts/look-record.mts",
     "bitchord:real": "node scripts/bitchord-real-check.mjs",
     "textsize:check": "node scripts/textsize-real-check.mjs",
+    "bitchord:sizes": "node scripts/bitchord-textsize-frames.mjs",
     "bitchord:snapshot": "node scripts/bitchord-snapshot.mjs",
     "drm-check": "node scripts/drm-check/run.mjs",
     "sample": "sh scripts/make-sample.sh",
