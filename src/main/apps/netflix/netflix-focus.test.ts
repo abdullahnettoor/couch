@@ -293,6 +293,8 @@ describe("a card partly off screen", () => {
     p.mutate();
     expect(p.on()).toBe(el);
     expect(Number.parseFloat(String(p.ring.style.left))).toBe(el.rect.left - 6);
-    expect(Number.parseFloat(String(p.ring.style.width))).toBe(snap.view.width - (el.rect.left - 6));
+    expect(Number.parseFloat(String(p.ring.style.width))).toBe(
+      snap.view.width - (el.rect.left - 6),
+    );
   });
 });
