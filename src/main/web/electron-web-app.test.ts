@@ -120,6 +120,12 @@ vi.mock("electron", () => {
   }
   const makeSession = () => ({
     setUserAgent() {},
+    on(event: string, h: unknown) {
+      fake.held[`on:${event}`] = h;
+    },
+    off(event: string, h: unknown) {
+      if (fake.held[`on:${event}`] === h) delete fake.held[`on:${event}`];
+    },
     setPermissionRequestHandler(h: unknown) {
       fake.held.permissionRequest = h;
     },
@@ -221,6 +227,27 @@ beforeEach(() => {
 
 afterEach(() => {
   rmSync(fake.state.userData, { recursive: true, force: true });
+});
+
+describe("downloads", () => {
+  const bitchord = bitchordDescription(
+    "130.0.0.0",
+    { request: () => Promise.reject(new Error("no")), manifest: () => Promise.resolve("{}") },
+    {},
+  );
+  test("BitChord's session cancels every download, and stops when the host goes", () => {
+    const web = new ElectronWebApp(bitchord, win);
+    const cancel = vi.fn();
+    (fake.held["on:will-download"] as any)({}, { cancel });
+    expect(cancel).toHaveBeenCalledTimes(1);
+    web.dispose();
+    expect(fake.held["on:will-download"]).toBeUndefined();
+  });
+
+  test("an App that doesn't refuse them keeps its session's default", () => {
+    new ElectronWebApp(netflix, win);
+    expect(fake.held["on:will-download"]).toBeUndefined();
+  });
 });
 
 describe("dispose (an engine switch)", () => {

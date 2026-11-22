@@ -43,6 +43,7 @@ function compound(sel: string): (el: FakeEl) => boolean {
     }
     const attr = ATTR.exec(rest);
     const not = /^:not\(/.exec(rest);
+    const has = /^:has\(>\s*/.exec(rest);
     if (attr) {
       const [whole, name, op, val] = attr;
       tests.push((el) => {
@@ -55,6 +56,19 @@ function compound(sel: string): (el: FakeEl) => boolean {
         return v.includes(val!);
       });
       rest = rest.slice(whole.length);
+    } else if (has) {
+      let depth = 0;
+      let end = 0;
+      for (let i = 0; i < rest.length; i++) {
+        if (rest[i] === "(") depth++;
+        if (rest[i] === ")" && --depth === 0) {
+          end = i;
+          break;
+        }
+      }
+      const inner = compound(rest.slice(has[0].length, end));
+      tests.push((el) => el.children.some(inner));
+      rest = rest.slice(end + 1);
     } else if (not) {
       let depth = 0;
       let end = 0;

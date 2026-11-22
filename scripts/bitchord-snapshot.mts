@@ -250,6 +250,12 @@ void app.whenReady().then(async () => {
       await save("playlist");
       await frame("playlist", ["down", "down", "down", "down"]);
     }
+    await go("/settings");
+    await save("settings");
+    await frame("settings", ["down", "down", "down", "down", "down", "down", "down", "down"]);
+    await go("/extension");
+    await save("extension");
+    await frame("extension", []);
     await states();
   } catch (e) {
     log("threw", String(e));

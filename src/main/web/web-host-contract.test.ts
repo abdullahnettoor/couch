@@ -48,7 +48,8 @@ const fake = vi.hoisted(() => {
     async executeJavaScript(script: string) {
       this.scripts.push(script);
       if (this.failing) throw new Error("page script failed");
-      for (const [part, answer] of this.answers) if (script.includes(part)) return answer;
+      for (const [part, answer] of this.answers)
+        if (script.includes(part)) return typeof answer === "function" ? answer(script) : answer;
       return undefined;
     }
     sendInputEvent(event: { type: string; keyCode: string }) {
@@ -88,6 +89,8 @@ vi.mock("electron", () => {
   }
   const session = {
     setUserAgent() {},
+    on() {},
+    off() {},
     setPermissionRequestHandler() {},
     setPermissionCheckHandler() {},
     webRequest: { onBeforeRequest() {}, onBeforeSendHeaders() {}, onHeadersReceived() {} },
@@ -203,7 +206,8 @@ class FakeWebKitView implements WebKitView {
   async evaluate(script: string, _options: { kind: EvaluateKind }) {
     this.scripts.push(script);
     if (this.failing) throw new Error("page script failed");
-    for (const [part, answer] of this.answers) if (script.includes(part)) return answer;
+    for (const [part, answer] of this.answers)
+      if (script.includes(part)) return typeof answer === "function" ? answer(script) : answer;
     return undefined;
   }
   userScripts: string[] = [];
