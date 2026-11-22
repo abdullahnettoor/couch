@@ -55,6 +55,11 @@ const fake = vi.hoisted(() => {
       this.inputs.push(event);
     }
     setUserAgent() {}
+    setZoomMode() {}
+    setZoomFactor() {}
+    getZoomFactor() {
+      return 1;
+    }
     setAudioMuted() {}
     css: string[] = [];
     async insertCSS(css: string) {

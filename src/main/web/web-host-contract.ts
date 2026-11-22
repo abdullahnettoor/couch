@@ -10,7 +10,7 @@ import { pageWithPlayerOutsideDocument } from "./fake-media-page.ts";
 
 /** What the shared host contract needs of an engine's test rig (fake `WebContents`, or the fake WebKit bridge). */
 export interface HostRig {
-  host: Required<Omit<YouTube, "followsMacOutput">>;
+  host: Required<Omit<YouTube, "followsMacOutput" | "supportsTextSize" | "setTextSize">>;
   events: YouTubeEvent[];
   /** Shows the host and waits until its home has been asked for. */
   show(): Promise<void>;

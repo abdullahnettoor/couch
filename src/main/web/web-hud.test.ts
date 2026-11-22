@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
 import vm from "node:vm";
-import { CONFIRM_MESSAGE, confirmScript } from "./web-hud.ts";
+import { CONFIRM_MESSAGE, confirmScript, searchBarScript } from "./web-hud.ts";
 
 describe("the page's confirmation", () => {
   test("its buttons take the mouse: hover focuses, click answers", () => {
@@ -62,5 +62,71 @@ describe("the page's confirmation, run for real", () => {
     expect(confirmScript({ title: "Q", buttons: ["a", "b"], focus: 0 })).not.toMatch(
       /'style'|<style/,
     );
+  });
+});
+
+describe("the search bar under a page zoom change, run for real", () => {
+  class El {
+    children: El[] = [];
+    attrs = new Map<string, string>();
+    props = new Map<string, string>();
+    id = "";
+    textContent = "";
+    style = { setProperty: (k: string, v: string) => this.props.set(k, v) };
+    constructor(private doc: Doc) {}
+    setAttribute(k: string, v: string) {
+      this.attrs.set(k, v);
+    }
+    getAttribute(k: string) {
+      return this.attrs.get(k) ?? null;
+    }
+    appendChild(n: El) {
+      this.children.push(n);
+      if (n.id) this.doc.byId.set(n.id, n);
+    }
+    querySelector(sel: string) {
+      const role = /data-role=(\w+)/.exec(sel)?.[1];
+      return this.children.find((c) => c.attrs.get("data-role") === role) ?? new El(this.doc);
+    }
+    animate() {}
+    remove() {
+      this.doc.byId.delete(this.id);
+      this.doc.removed++;
+    }
+  }
+  class Doc {
+    byId = new Map<string, El>();
+    removed = 0;
+    body = new El(this);
+    getElementById = (id: string) => this.byId.get(id) ?? null;
+    createElement = () => new El(this);
+    createElementNS = () => new El(this);
+  }
+  function page(innerWidth: number) {
+    const document = new Doc();
+    const sandbox: any = { innerWidth, innerHeight: 1080, document };
+    vm.createContext(sandbox);
+    const draw = (text: string) => vm.runInContext(searchBarScript(text, "Search"), sandbox);
+    return { document, sandbox, draw };
+  }
+
+  test("the same zoom updates the bar in place", () => {
+    const { document, draw } = page(1280);
+    draw("a");
+    draw("ab");
+    expect(document.removed).toBe(0);
+    expect(document.byId.get("couch-search")!.props.get("width")).toBe(`${1000 * (1280 / 1920)}px`);
+  });
+
+  test("a zoom change while the bar is open draws it again at the new zoom (its on-screen size is kept)", () => {
+    const { document, sandbox, draw } = page(1280);
+    draw("a");
+    const old = document.byId.get("couch-search")!;
+    sandbox.innerWidth = 1024;
+    draw("a");
+    const bar = document.byId.get("couch-search")!;
+    expect(document.removed).toBe(1);
+    expect(bar).not.toBe(old);
+    expect(bar.props.get("width")).toBe(`${1000 * (1024 / 1920)}px`);
   });
 });

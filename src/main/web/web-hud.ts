@@ -67,9 +67,12 @@ export function searchBarScript(text: string | undefined, placeholder: string): 
     return `(function(){var e=document.getElementById('couch-search');if(e)e.remove()})()`;
   }
   return `(function(){${HELPERS}
-var d=document.getElementById('couch-search'),fresh=!d;
+var d=document.getElementById('couch-search');
+// Sized for another zoom (the page's zoom changed while it was open): draw it again at this one.
+if(d&&d.getAttribute('data-u')!==String(U)){d.remove();d=null}
+var fresh=!d;
 if(fresh){
-d=document.createElement('div');d.id='couch-search';glass(d);
+d=document.createElement('div');d.id='couch-search';d.setAttribute('data-u',String(U));glass(d);
 css(d,{left:'50%',top:px(56),transform:'translateX(-50%)',width:px(1000),height:px(92),'box-sizing':'border-box',padding:'0 '+px(36),'border-radius':px(${GLASS.radius.searchField}),display:'flex','align-items':'center',gap:px(22),'font-size':px(${GLASS.type.size.search}),'font-weight':${JSON.stringify(GLASS.type.weight.medium)},'white-space':'nowrap',overflow:'hidden'});
 var s=document.createElementNS(SVG,'svg');s.setAttribute('viewBox',${JSON.stringify(ICON_VIEWBOX)});css(s,{width:px(38),height:px(38),fill:'currentColor',flex:'none',opacity:.6});
 ${JSON.stringify(SEARCH_PATHS)}.forEach(function(v){var q=document.createElementNS(SVG,'path');q.setAttribute('d',v);s.appendChild(q)});

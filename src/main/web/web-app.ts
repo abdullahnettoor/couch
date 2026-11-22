@@ -102,6 +102,11 @@ export interface WebAppDescription {
   drm?: boolean;
   /** App-specific main-world functions (source text) that run after `couchHooks` and before any add-on. */
   preloads: PagePreload[];
+  /**
+   * Opts in to Text size: the page is zoomed so a site that lays out best at `targetWidth` CSS px fills the Screen,
+   * times the household's size. Without it the page is never zoomed. Chromium hosts only for now (WebKit ignores it).
+   */
+  textSize?: { targetWidth: number };
   /** The site draws desktop scrollbars; hide them (scrolling still works). */
   hideScrollbars?: boolean;
   /** Domains (with their subdomains) the App's own artwork comes from; Now Playing artwork from anywhere else is dropped, since every Remote fetches it. */

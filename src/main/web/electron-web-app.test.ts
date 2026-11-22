@@ -69,6 +69,18 @@ const fake = vi.hoisted(() => {
     focus() {}
     close() {}
     reload() {}
+    zoomCalls: Array<string | number> = [];
+    zoom = 1;
+    setZoomMode(mode: string) {
+      this.zoomCalls.push(mode);
+    }
+    setZoomFactor(factor: number) {
+      this.zoomCalls.push(factor);
+      this.zoom = factor;
+    }
+    getZoomFactor() {
+      return this.zoom;
+    }
   }
   const views: FakeContents[] = [];
   const counts = { hooksAdded: 0, preloadsRegistered: 0, preloadsRemoved: 0 };
@@ -136,18 +148,26 @@ import { KEY_CASES } from "./keyboard-policy.cases.ts";
 
 const winResize = { n: 0 };
 const children = new Set<unknown>();
+const resizeHandlers = new Set<() => void>();
+const winWidth = { pt: 1280 };
 const win: any = {
   contentView: {
     addChildView: (v: unknown) => children.add(v),
     removeChildView: (v: unknown) => children.delete(v),
   },
-  on(event: string) {
-    if (event === "resize") winResize.n++;
+  on(event: string, fn?: () => void) {
+    if (event === "resize") {
+      winResize.n++;
+      if (fn) resizeHandlers.add(fn);
+    }
   },
-  off(event: string) {
-    if (event === "resize") winResize.n--;
+  off(event: string, fn?: () => void) {
+    if (event === "resize") {
+      winResize.n--;
+      if (fn) resizeHandlers.delete(fn);
+    }
   },
-  getContentBounds: () => ({ width: 1280, height: 720 }),
+  getContentBounds: () => ({ width: winWidth.pt, height: 720 }),
   isDestroyed: () => true,
   webContents: { focus() {} },
 };
@@ -172,6 +192,8 @@ beforeEach(() => {
   fake.views.length = 0;
   fake.counts.preloadsRegistered = fake.counts.preloadsRemoved = 0;
   winResize.n = 0;
+  winWidth.pt = 1280;
+  resizeHandlers.clear();
   children.clear();
   for (const k of Object.keys(fake.held)) delete fake.held[k];
   fake.state.session = undefined;
@@ -658,5 +680,116 @@ describe("a web App with a bridge and network rules (BitChord)", () => {
     };
     expect(send(bitchord())).toMatchObject({ Origin: "https://www.youtube.com" });
     expect(send(netflix)).toEqual({ Origin: SITE });
+  });
+});
+
+describe("Text size", () => {
+  const WIDTH = 1280;
+  const sized = { ...netflix, textSize: { targetWidth: WIDTH } };
+  const resize = (pt: number) => {
+    winWidth.pt = pt;
+    resizeHandlers.forEach((fn) => fn());
+  };
+
+  test("a page without textSize is isolated and stays at zoom 1, whatever the size or window", () => {
+    const web = new ElectronWebApp(netflix, win);
+    const wc = fake.views.at(-1)!;
+    expect(web.supportsTextSize).toBe(false);
+    web.setTextSize("larger");
+    resize(1920);
+    wc.emit("did-navigate", {}, "https://www.netflix.com/browse");
+    expect(wc.zoomCalls[0]).toBe("isolated");
+    expect(wc.zoom).toBe(1);
+    expect(wc.zoomCalls.slice(1).every((c) => c === 1)).toBe(true);
+  });
+
+  test("a page with textSize says it supports Text size", () => {
+    expect(new ElectronWebApp(sized, win).supportsTextSize).toBe(true);
+  });
+
+  test("isolated mode is set before the first zoom, on every web contents the host makes", () => {
+    const web = new ElectronWebApp(sized, win);
+    web.start();
+    web.unload();
+    for (const wc of fake.views) {
+      expect(wc.zoomCalls[0]).toBe("isolated");
+      expect(wc.zoomCalls.filter((c) => c === "isolated")).toHaveLength(1);
+    }
+    expect(fake.views.length).toBeGreaterThan(1);
+  });
+
+  test("the zoom follows the formula at load, after a resize, a size change and a navigation to another origin", () => {
+    winWidth.pt = 1920;
+    const web = new ElectronWebApp(sized, win);
+    const wc = fake.views.at(-1)!;
+    web.show();
+    wc.emit("dom-ready");
+    expect(wc.zoom).toBeCloseTo(1.5, 5);
+    resize(2560);
+    expect(wc.zoom).toBeCloseTo(2, 5);
+    web.setTextSize("larger");
+    expect(wc.zoom).toBeCloseTo(2.4, 5);
+    wc.zoom = 1;
+    wc.emit("did-navigate", {}, "https://other.example/");
+    expect(wc.zoom).toBeCloseTo(2.4, 5);
+    web.setTextSize("smaller");
+    expect(wc.zoom).toBeCloseTo(1.7, 5);
+  });
+
+  test("a resize while the App is hidden still updates the zoom (a display move)", () => {
+    const web = new ElectronWebApp(sized, win);
+    const wc = fake.views.at(-1)!;
+    expect(web.supportsTextSize).toBe(true);
+    resize(1920);
+    expect(wc.zoom).toBeCloseTo(1.5, 5);
+  });
+
+  test("the zoom depends on the window's points only, not on the display's scale", () => {
+    winWidth.pt = 1920;
+    const web = new ElectronWebApp(sized, win);
+    const wc = fake.views.at(-1)!;
+    web.show();
+    const at1x = wc.zoom;
+    (globalThis as any).devicePixelRatio = 2;
+    web.setTextSize("default");
+    expect(wc.zoom).toBe(at1x);
+    delete (globalThis as any).devicePixelRatio;
+  });
+
+  test("another web contents of the same App stays at 1 while the App's is zoomed", () => {
+    winWidth.pt = 1920;
+    const web = new ElectronWebApp(sized, win);
+    const wc = fake.views.at(-1)!;
+    web.show();
+    const other = new fake.FakeContents();
+    expect(wc.zoom).toBeGreaterThan(1);
+    expect(other.zoom).toBe(1);
+    expect(other.zoomCalls).toEqual([]);
+  });
+
+  test("a disposed host no longer zooms on a resize", () => {
+    const web = new ElectronWebApp(sized, win);
+    const wc = fake.views.at(-1)!;
+    web.dispose();
+    const before = wc.zoomCalls.length;
+    resize(1920);
+    expect(wc.zoomCalls.length).toBe(before);
+  });
+
+  test("an open search bar is redrawn at the new zoom when the zoom changes", () => {
+    const web = new ElectronWebApp(sized, win);
+    const wc = fake.views.at(-1)!;
+    web.showSearchBar("abc");
+    wc.scripts.length = 0;
+    web.setTextSize("larger");
+    expect(wc.scripts.some((s) => s.includes("couch-search") && s.includes('"abc"'))).toBe(true);
+  });
+
+  test("no search bar is redrawn when none is open", () => {
+    const web = new ElectronWebApp(sized, win);
+    const wc = fake.views.at(-1)!;
+    wc.scripts.length = 0;
+    web.setTextSize("larger");
+    expect(wc.scripts.some((s) => s.includes("couch-search"))).toBe(false);
   });
 });

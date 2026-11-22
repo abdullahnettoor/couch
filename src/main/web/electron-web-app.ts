@@ -25,6 +25,7 @@ import { HIDE_SCROLLBARS_CSS } from "./hide-scrollbars.ts";
 import { SessionPreloads } from "./session-preloads.ts";
 import type { IdleLifecycle } from "./idle-unload.ts";
 import { drmGate } from "./drm-gate.ts";
+import { textZoom, type TextSize } from "./text-size.ts";
 import { WebHostCore } from "./web-host-core.ts";
 import type { WebAppDescription, WebIdentity } from "./web-app.ts";
 import { CONFIRM_MESSAGE, confirmScript, noteScript, volumeScript } from "./web-hud.ts";
@@ -80,7 +81,11 @@ export class ElectronWebApp implements YouTube {
   #ses: Session;
   #addonRequests: Array<() => void> = [];
   #ownHooks: Array<() => void> = [];
-  #onResize = () => this.#fit();
+  #textSize: TextSize = "default";
+  #onResize = () => {
+    this.#fit();
+    this.#applyZoom();
+  };
   #disposed = false;
 
   constructor(desc: WebAppDescription, win: BrowserWindow, lifecycle?: IdleLifecycle) {
@@ -195,6 +200,9 @@ export class ElectronWebApp implements YouTube {
     this.#identityApplied = false;
 
     const wc = this.#view.webContents;
+    // Isolated before any zoom: in the default mode Electron keeps a zoom per origin on disk, and it would leak to this page.
+    wc.setZoomMode("isolated");
+    this.#applyZoom();
     this.#silence = new HiddenAudio(wc);
     this.#guard = new BlankGuard(wc, () => this.#load());
     wc.setUserAgent(this.#desc.identity.userAgent);
@@ -215,6 +223,7 @@ export class ElectronWebApp implements YouTube {
     });
     // A new document has none of Couch's volume or output yet.
     wc.on("dom-ready", () => {
+      this.#applyZoom();
       // A style the page itself adds doesn't beat the site's own rules; Chromium's inserted CSS does.
       if (this.#desc.hideScrollbars) void wc.insertCSS(HIDE_SCROLLBARS_CSS).catch(() => {});
       void this.#applySound();
@@ -224,7 +233,10 @@ export class ElectronWebApp implements YouTube {
       // A pushState (Netflix's search writes each letter into the address) keeps the field focused.
       if (isMainFrame && !inPlace) this.#fieldFocused = false;
     });
-    wc.on("did-navigate", (_e, url) => this.#guard.navigated(url));
+    wc.on("did-navigate", (_e, url) => {
+      this.#applyZoom();
+      this.#guard.navigated(url);
+    });
     // While a Continue open is pending, the page may not leave the App's own sites (a redirect included): cancel and go home.
     const police = (event: { url?: string; preventDefault(): void }, url?: string) => {
       if (!this.#core.allowNavigation(url ?? event.url ?? "")) event.preventDefault();
@@ -374,6 +386,31 @@ export class ElectronWebApp implements YouTube {
 
   #emit(event: YouTubeEvent): void {
     for (const l of [...this.#listeners]) l(event);
+  }
+
+  get supportsTextSize(): boolean {
+    return this.#desc.textSize !== undefined;
+  }
+
+  setTextSize(size: TextSize): void {
+    if (this.#disposed || !this.supportsTextSize) return;
+    this.#textSize = size;
+    this.#applyZoom();
+  }
+
+  /** Zooms the App's page for the window's width in points and the Text size; an App without `textSize` stays at 1. */
+  #applyZoom(): void {
+    if (this.#disposed) return;
+    const target = this.#desc.textSize?.targetWidth;
+    const wc = this.#view.webContents;
+    const zoom =
+      target === undefined
+        ? 1
+        : textZoom(this.#win.getContentBounds().width, target, this.#textSize);
+    if (wc.getZoomFactor() === zoom) return;
+    wc.setZoomFactor(zoom);
+    // Overlays Couch drew before the change were sized for the old zoom.
+    this.#core.redrawSearchBar();
   }
 
   #fit(): void {

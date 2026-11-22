@@ -2,6 +2,7 @@ import type { PromptId, TrackKind } from "../../shared/protocol.ts";
 import type { PlaybackReport } from "../apps/app.ts";
 import type { CommandName } from "../../shared/protocol.ts";
 import type { Confirmation } from "../../shared/protocol.ts";
+import type { TextSize } from "../web/text-size.ts";
 import type { TextEdit } from "../../shared/keyboard.ts";
 
 export type YouTubeKey = "up" | "down" | "left" | "right" | "ok" | "back";
@@ -73,6 +74,10 @@ export interface YouTube {
   pressPrompt?(id: PromptId): void;
   /** Sets the playback speed through the App's adapter; does nothing without one. */
   setSpeed?(speed: number): void;
+  /** The App can change its Text size (its page declares a target width, and the host zooms it). */
+  readonly supportsTextSize?: boolean;
+  /** Sets the Text size; does nothing for an App that doesn't support it. */
+  setTextSize?(size: TextSize): void;
   /** Draws the volume level above the view, or removes it when undefined. */
   showVolume(percent: number | undefined): void;
   /** Draws Couch's question over the view, or removes it when undefined. */

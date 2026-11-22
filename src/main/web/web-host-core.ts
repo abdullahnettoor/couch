@@ -380,8 +380,17 @@ export class WebHostCore {
       });
   }
 
+  /** The text the bar shows now (undefined: it is closed), so it can be drawn again when the page's zoom changes. */
+  #barText: string | undefined;
+
   showSearchBar(text: string | undefined): void {
     const search = this.#desc.search;
+    this.#barText = text;
     if (search) this.#run(searchBarScript(text, search.placeholder));
+  }
+
+  /** The page's zoom changed: an open bar was sized for the old one, so it is drawn again. */
+  redrawSearchBar(): void {
+    if (this.#barText !== undefined) this.showSearchBar(this.#barText);
   }
 }
