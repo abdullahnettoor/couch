@@ -423,7 +423,9 @@ describe("New in Couch: steps added by an update", () => {
       store.write("text-size", { default: "larger", apps: {} });
       await textSizeApp(store);
       expect(h.screen.last.setup).toBeUndefined();
-      expect(store.read<{ seen: string[] }>("setup", undefined)?.seen).toContain("text-size");
+      expect(store.read("setup", undefined)).toMatchObject({
+        seen: expect.arrayContaining(["text-size"]),
+      });
     });
 
     test("only a per-App choice: the prompt still shows", async () => {
