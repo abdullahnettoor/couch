@@ -148,7 +148,12 @@ export class Setup {
   }
 
   #startNew(deferred: unknown): void {
-    const pending = this.#steps.filter((s) => !this.#seen.has(s.id));
+    const fresh = this.#steps.filter((s) => !this.#seen.has(s.id));
+    const pending = fresh.filter((s) => !s.done(this.#ctx(), this.#control));
+    if (pending.length < fresh.length) {
+      for (const s of fresh) if (!pending.includes(s)) this.#seen.add(s.id);
+      this.#save(true);
+    }
     if (pending.length === 0) return;
     this.#deferred = typeof deferred === "number" ? deferred : 0;
     this.#steps = pending;

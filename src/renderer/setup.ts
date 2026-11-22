@@ -92,6 +92,7 @@ function open(): void {
     window.clearTimeout(closing);
     closing = undefined;
     shell = null;
+    disposeSamples();
     panel.replaceChildren();
   }
   if (shell) {
@@ -222,7 +223,18 @@ function build(s: SetupPayload, pairing: string): HTMLElement {
 }
 
 /** Each Text size step's sample, so a new size redraws it in place. */
-const samples = new WeakMap<HTMLElement, ReturnType<typeof textSizeSample>>();
+const samples = new Map<HTMLElement, ReturnType<typeof textSizeSample>>();
+
+/** A Text size step is gone: its sample stops listening for resizes. */
+function disposeSample(page: Element | null): void {
+  if (!(page instanceof HTMLElement)) return;
+  samples.get(page)?.dispose();
+  samples.delete(page);
+}
+function disposeSamples(): void {
+  for (const sample of samples.values()) sample.dispose();
+  samples.clear();
+}
 
 /** What changes without a redraw: which control has focus, which Apps are on, and the Text size shown. */
 function update(page: HTMLElement, s: SetupPayload): void {
@@ -257,6 +269,7 @@ let sizing: Animation[] = [];
 function swap(next: HTMLElement, direction: number, s: SetupPayload): void {
   const { box, stage, mark } = shell!;
   const old = stage.firstElementChild as HTMLElement | null;
+  disposeSample(old);
   const from = size(box);
   const markFrom = size(mark);
   const markFade = getComputedStyle(mark).opacity;
@@ -550,6 +563,7 @@ function close(s: SetupPayload): void {
     () => {
       closing = undefined;
       shell = null;
+      disposeSamples();
       panel.replaceChildren();
       panel.classList.remove("farewell");
       document.body.classList.remove("setup-farewell");

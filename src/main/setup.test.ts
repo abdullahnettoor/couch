@@ -388,6 +388,52 @@ describe("New in Couch: steps added by an update", () => {
     expect(h.screen.last.setup).toBeUndefined();
   });
 
+  describe("Text size, added after a household finished Setup", () => {
+    const oldFinished = () => {
+      const store = new MemoryStore();
+      store.write("setup", {
+        finished: true,
+        seen: ["pair", "listener", "apps", "videos", "done"],
+      });
+      return store;
+    };
+    const textSizeApp = async (store: MemoryStore) => {
+      const entry = {
+        id: "big",
+        label: "Big",
+        icon: "<svg></svg>",
+        action: "app:open:big",
+        web: true,
+        onByDefault: true,
+      };
+      h = await startHarness(store, {
+        beta: true,
+        apps: [{ entry, app: new FakeWebApp("big", "Big", { textSize: true }) }],
+      });
+    };
+
+    test("no default chosen: Text size shows once, as New in Couch", async () => {
+      const store = oldFinished();
+      await textSizeApp(store);
+      expect(h.screen.last.setup).toMatchObject({ id: "text-size", title: "New in Couch 0.2.0" });
+    });
+
+    test("a default already chosen in Settings → Apps: no prompt, and it counts as seen", async () => {
+      const store = oldFinished();
+      store.write("text-size", { default: "larger", apps: {} });
+      await textSizeApp(store);
+      expect(h.screen.last.setup).toBeUndefined();
+      expect(store.read<{ seen: string[] }>("setup", undefined)?.seen).toContain("text-size");
+    });
+
+    test("only a per-App choice: the prompt still shows", async () => {
+      const store = oldFinished();
+      store.write("text-size", { apps: { big: "larger" } });
+      await textSizeApp(store);
+      expect(h.screen.last.setup).toMatchObject({ id: "text-size" });
+    });
+  });
+
   test("with no new step nothing shows", async () => {
     h = await startHarness(finished(), { beta: true });
     expect(h.screen.last.setup).toBeUndefined();

@@ -317,6 +317,26 @@ describe("the Text size step", () => {
     expect(Math.round(parseFloat(page().style.width))).toBe(1280);
   });
 
+  test("a sample that is gone stops following the window: closing Setup, or moving to another step", () => {
+    screen(1920);
+    draw(step("default", "Default"));
+    const gone = page();
+    draw(undefined);
+    vi.runAllTimers();
+    screen(2560);
+    dispatchEvent(new Event("resize"));
+    expect(Number(gone.style.zoom)).toBeCloseTo(1.5, 5);
+
+    screen(1920);
+    draw(step("default", "Default"));
+    const left = page();
+    draw({ ...welcome, steps: 6 });
+    vi.runAllTimers();
+    screen(2560);
+    dispatchEvent(new Event("resize"));
+    expect(Number(left.style.zoom)).toBeCloseTo(1.5, 5);
+  });
+
   test("Continue is the only button; the arrows are not buttons, and a click on one steps the size", () => {
     screen(1920);
     draw(step("default", "Default"));

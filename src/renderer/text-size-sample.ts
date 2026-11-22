@@ -99,7 +99,7 @@ function sitePage(): HTMLElement {
  * that size. The page is laid out at the width such an App sees (the window's width over the zoom) and
  * scrolled to its first row of cards, whose heading sits at the top of the crop at every size.
  */
-export function textSizeSample(): { el: HTMLElement; show(size: TextSize): void } {
+export function textSizeSample(): { el: HTMLElement; show(size: TextSize): void; dispose(): void } {
   const el = node("div", "s-sample");
   const site = node("div", "s-site");
   const root = site.attachShadow({ mode: "open" });
@@ -110,16 +110,12 @@ export function textSizeSample(): { el: HTMLElement; show(size: TextSize): void 
   el.append(site);
   el.setAttribute("aria-hidden", "true");
   let size: TextSize = "default";
-  let placed = false;
+  let frame: number | undefined;
   const fit = () => {
     const zoom = textZoom(innerWidth, TYPICAL_TARGET_WIDTH, size);
     page.style.zoom = String(zoom);
     page.style.width = `${innerWidth / zoom}px`;
-    if (!el.isConnected) {
-      if (placed) removeEventListener("resize", fit);
-      return;
-    }
-    placed = true;
+    if (!el.isConnected) return;
     const top = root.querySelector("main h2")!.getBoundingClientRect().top;
     el.scrollTop = top - el.getBoundingClientRect().top + el.scrollTop - 16 * zoom;
   };
@@ -130,7 +126,18 @@ export function textSizeSample(): { el: HTMLElement; show(size: TextSize): void 
       size = next;
       fit();
       // Laid out only once on the page: measure again then.
-      if (typeof requestAnimationFrame === "function") requestAnimationFrame(fit);
+      if (typeof requestAnimationFrame === "function") {
+        if (frame !== undefined) cancelAnimationFrame(frame);
+        frame = requestAnimationFrame(() => {
+          frame = undefined;
+          fit();
+        });
+      }
+    },
+    dispose() {
+      removeEventListener("resize", fit);
+      if (frame !== undefined) cancelAnimationFrame(frame);
+      frame = undefined;
     },
   };
 }
