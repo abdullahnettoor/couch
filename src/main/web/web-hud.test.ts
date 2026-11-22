@@ -73,7 +73,10 @@ describe("the search bar under a page zoom change, run for real", () => {
     id = "";
     textContent = "";
     style = { setProperty: (k: string, v: string) => this.props.set(k, v) };
-    constructor(private doc: Doc) {}
+    doc: Doc;
+    constructor(doc: Doc) {
+      this.doc = doc;
+    }
     setAttribute(k: string, v: string) {
       this.attrs.set(k, v);
     }
