@@ -152,6 +152,7 @@ export type ColorName =
   | "maskOpaque"
   | "buttonFill"
   | "buttonFillSoft"
+  | "buttonFillOnFocus"
   | "press"
   | "pressSoft"
   | "hoverFill"
@@ -564,6 +565,7 @@ export const GLASS: Look = {
     maskOpaque: "#000",
     buttonFill: "rgba(255, 255, 255, 0.16)",
     buttonFillSoft: "rgba(255, 255, 255, 0.14)",
+    buttonFillOnFocus: "rgba(0, 0, 0, 0.12)",
     press: "rgba(255, 255, 255, 0.14)",
     pressSoft: "rgba(255, 255, 255, 0.12)",
     hoverFill: "rgba(255, 255, 255, 0.14)",

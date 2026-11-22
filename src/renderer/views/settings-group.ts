@@ -9,19 +9,32 @@ export function render(payload: ScreenPayload): void {
   const view = payload.state.view;
   const l = payload.listener;
   const menu = view === "settingsApps" ? payload.appMenu : undefined;
+  const textSize = payload.grid.find((i) => i.id === "text-size");
   const rows =
     view === "settingsApps"
-      ? (payload.homeApps ?? []).map((a) =>
-          glassRow({
-            id: a.id,
-            label: a.label,
-            focused: menu ? false : a.id === payload.focusedId,
-            marked: a.id === menu?.id,
-            switch: homeAppSwitch(payload.homeApps, a.id),
-            logo: a.icon || undefined,
-            ...(a.beta ? { value: "Beta" } : {}),
-          }),
-        )
+      ? [
+          ...(payload.homeApps ?? []).map((a) =>
+            glassRow({
+              id: a.id,
+              label: a.label,
+              focused: menu ? false : a.id === payload.focusedId,
+              marked: a.id === menu?.id,
+              switch: homeAppSwitch(payload.homeApps, a.id),
+              logo: a.icon || undefined,
+              ...(a.beta ? { value: "Beta" } : {}),
+            }),
+          ),
+          ...(textSize && !menu
+            ? [
+                glassRow({
+                  id: textSize.id,
+                  label: "Text size",
+                  focused: textSize.id === payload.focusedId,
+                  value: textSize.label.replace(/^Text size: /, ""),
+                }),
+              ]
+            : []),
+        ]
       : payload.grid.map((item) =>
           glassRow({
             id: item.id,

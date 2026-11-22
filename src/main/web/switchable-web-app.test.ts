@@ -129,6 +129,19 @@ describe("the Netflix host that can switch engine", () => {
     expect(app.supportsTextSize).toBe(false);
   });
 
+  test("a size set while the engine can't apply it is there when it switches to one that can", () => {
+    const { app, hosts } = rig("chromium");
+    app.setTextSize("larger");
+    app.switchTo("webkit");
+    hosts[1]!.supportsTextSize = false;
+    expect(app.supportsTextSize).toBe(false);
+    app.setTextSize("smaller");
+    expect(hosts[1]!.calls).toContain("textSize:smaller");
+    app.switchTo("chromium");
+    expect(hosts[2]!.calls.filter((c) => c.startsWith("textSize:"))).toEqual(["textSize:smaller"]);
+    expect(app.supportsTextSize).toBe(true);
+  });
+
   test("starts on the engine it is given and passes calls to it", () => {
     const { app, hosts } = rig("webkit");
     app.sendKey("ok");

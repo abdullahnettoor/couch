@@ -18201,6 +18201,13 @@
             "c": 0,
             "label": "Library",
             "action": "settings:app:library"
+          },
+          {
+            "id": "text-size",
+            "r": 3,
+            "c": 0,
+            "label": "Text size: Default",
+            "action": "app:textsize-all"
           }
         ],
         "focusedId": "youtube",
@@ -19196,6 +19203,13 @@
             "c": 0,
             "label": "Library",
             "action": "settings:app:library"
+          },
+          {
+            "id": "text-size",
+            "r": 3,
+            "c": 0,
+            "label": "Text size: Default",
+            "action": "app:textsize-all"
           }
         ],
         "focusedId": "youtube",
@@ -37187,21 +37201,21 @@
             },
             {
               "id": "vol",
+              "label": "Volume",
               "r": 3,
-              "c": 0,
-              "label": "Volume"
+              "c": 0
             },
             {
               "id": "picture",
+              "label": "Picture off",
               "r": 4,
-              "c": 0,
-              "label": "Picture off"
+              "c": 0
             },
             {
               "id": "settings",
+              "label": "All settings",
               "r": 5,
-              "c": 0,
-              "label": "All settings"
+              "c": 0
             }
           ],
           "focusedId": "out:default",
@@ -37252,21 +37266,21 @@
             },
             {
               "id": "vol",
+              "label": "Volume",
               "r": 3,
-              "c": 0,
-              "label": "Volume"
+              "c": 0
             },
             {
               "id": "picture",
+              "label": "Picture off",
               "r": 4,
-              "c": 0,
-              "label": "Picture off"
+              "c": 0
             },
             {
               "id": "settings",
+              "label": "All settings",
               "r": 5,
-              "c": 0,
-              "label": "All settings"
+              "c": 0
             }
           ],
           "focusedId": "out:BuiltInSpeakerDevice",
@@ -37315,21 +37329,21 @@
             },
             {
               "id": "vol",
+              "label": "Volume",
               "r": 3,
-              "c": 0,
-              "label": "Volume"
+              "c": 0
             },
             {
               "id": "picture",
+              "label": "Picture off",
               "r": 4,
-              "c": 0,
-              "label": "Picture off"
+              "c": 0
             },
             {
               "id": "settings",
+              "label": "All settings",
               "r": 5,
-              "c": 0,
-              "label": "All settings"
+              "c": 0
             }
           ],
           "focusedId": "out:30AEC067-0000-0000-1A24-0104B53C2278",
@@ -37378,21 +37392,21 @@
             },
             {
               "id": "vol",
+              "label": "Volume",
               "r": 3,
-              "c": 0,
-              "label": "Volume"
+              "c": 0
             },
             {
               "id": "picture",
+              "label": "Picture off",
               "r": 4,
-              "c": 0,
-              "label": "Picture off"
+              "c": 0
             },
             {
               "id": "settings",
+              "label": "All settings",
               "r": 5,
-              "c": 0,
-              "label": "All settings"
+              "c": 0
             }
           ],
           "focusedId": "vol",
@@ -37441,21 +37455,21 @@
             },
             {
               "id": "vol",
+              "label": "Volume",
               "r": 3,
-              "c": 0,
-              "label": "Volume"
+              "c": 0
             },
             {
               "id": "picture",
+              "label": "Picture off",
               "r": 4,
-              "c": 0,
-              "label": "Picture off"
+              "c": 0
             },
             {
               "id": "settings",
+              "label": "All settings",
               "r": 5,
-              "c": 0,
-              "label": "All settings"
+              "c": 0
             }
           ],
           "focusedId": "picture",
@@ -37504,21 +37518,21 @@
             },
             {
               "id": "vol",
+              "label": "Volume",
               "r": 3,
-              "c": 0,
-              "label": "Volume"
+              "c": 0
             },
             {
               "id": "picture",
+              "label": "Picture off",
               "r": 4,
-              "c": 0,
-              "label": "Picture off"
+              "c": 0
             },
             {
               "id": "settings",
+              "label": "All settings",
               "r": 5,
-              "c": 0,
-              "label": "All settings"
+              "c": 0
             }
           ],
           "focusedId": "settings",
@@ -39598,21 +39612,21 @@
             },
             {
               "id": "vol",
+              "label": "Volume",
               "r": 3,
-              "c": 0,
-              "label": "Volume"
+              "c": 0
             },
             {
               "id": "picture",
+              "label": "Picture off",
               "r": 4,
-              "c": 0,
-              "label": "Picture off"
+              "c": 0
             },
             {
               "id": "settings",
+              "label": "All settings",
               "r": 5,
-              "c": 0,
-              "label": "All settings"
+              "c": 0
             }
           ],
           "focusedId": "out:default",
