@@ -240,11 +240,16 @@ void app.whenReady().then(async () => {
       await escape();
     }
     if (await click(`${BAR} button[aria-label="Lyrics"]`, 3000)) {
+      await save("lyrics-panel");
       if (await click('aside[aria-label="Lyrics"] button[aria-haspopup="menu"]')) {
         await save("provider-menu");
         await escape();
       }
       await click(`${BAR} button[aria-label="Lyrics"]`);
+    }
+    if (await click(`${BAR} button[aria-label="Up Next"]`, 3000)) {
+      await save("queue-panel");
+      await click(`${BAR} button[aria-label="Up Next"]`);
     }
     if (await click('button[aria-label="Open full screen player"]', 2500)) {
       await save("fullview");

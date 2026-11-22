@@ -73,6 +73,8 @@ export interface FocusLayout {
   docks?: string[];
   /** Where Down lands in a bottom dock (one no taller than a quarter of the screen, with its top in the lower half), by dock selector: the first usable control matching the first of its selectors that has one; none matching, the control nearest. Down with nothing further down, in the page or a side dock, goes to a bottom dock, whatever the height of its controls' centres. */
   dockEntry?: Record<string, string[]>;
+  /** Panels that stay open across pages, and the control that closes each: Back presses it (the first open one, when no pop-up is on screen) instead of going back a page. */
+  closers?: Array<{ open: string; press: string }>;
   /** The highlight starts on the first control of the page's first row (the topmost, then the leftmost; on screen first), not the one nearest the middle, and is placed again as the page settles until the household first moves it. */
   startFirst?: boolean;
   /** A control inside an element matching this is outlined as that whole element (a song row, not its small Play button); OK still presses the control. */
@@ -102,7 +104,8 @@ export const BACK_QUERY = `(function () {
   try {
     var b = window.__couchPlayerBack && window.__couchPlayerBack();
     if (b) return b;
-    return window.__couchPopupOpen && window.__couchPopupOpen() ? 'escape' : '';
+    if (window.__couchPopupOpen && window.__couchPopupOpen()) return 'escape';
+    return window.__couchClosePanel && window.__couchClosePanel() ? 'handled' : '';
   } catch (e) { return ''; }
 })()`;
 
@@ -448,6 +451,23 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       document.body.appendChild(ring);
       return ring;
     };
+    // The part of a box that is visible: not past the screen's edge, and not under a dock that doesn't hold the control (an open side panel).
+    var visiblePart = function (r, el) {
+      try {
+        var out = { left: Math.max(r.left, 0), top: Math.max(r.top, 0), right: Math.min(r.right, innerWidth), bottom: Math.min(r.bottom, innerHeight) };
+        var docks = LAYOUT.docks && LAYOUT.docks.length ? document.querySelectorAll(LAYOUT.docks.join(',')) : [];
+        for (var i = 0; i < docks.length; i++) {
+          var d = docks[i], dr = shown(d);
+          if (!dr || d.contains(el)) continue;
+          if (dr.bottom <= out.top || dr.top >= out.bottom || dr.right <= out.left || dr.left >= out.right) continue;
+          var tall = dr.top <= out.top && dr.bottom >= out.bottom, wide = dr.left <= out.left && dr.right >= out.right;
+          if (tall && dr.left > out.left) out.right = dr.left;
+          else if (tall && dr.right < out.right) out.left = dr.right;
+          else if (wide && dr.top > out.top) out.bottom = dr.top;
+        }
+        return out.right > out.left && out.bottom > out.top ? out : r;
+      } catch (e) { return r; }
+    };
     var draw = function () {
       try {
         var r = barOn ? barCur && shown(barCur) : !noRing() && current && usable(current);
@@ -458,6 +478,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         if (!el) return;
         if (!r) { el.style.display = 'none'; return; }
         if (!barOn) lastRect = r;
+        if (!barOn) r = visiblePart(r, current);
         el.style.display = 'block';
         el.style.left = (r.left - 6) + 'px'; el.style.top = (r.top - 6) + 'px';
         el.style.width = (r.right - r.left + 12) + 'px'; el.style.height = (r.bottom - r.top + 12) + 'px';
@@ -748,6 +769,24 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         if (dir) barMove(dir); else barPress();
       } catch (err) {}
     };
+    // Back with a panel open: its own closer is pressed, and the page stays where it is.
+    var firstShown = function (sel) {
+      var all = document.querySelectorAll(sel);
+      for (var i = 0; i < all.length; i++) if (shown(all[i])) return all[i];
+      return null;
+    };
+    window.__couchClosePanel = function () {
+      try {
+        var cl = LAYOUT.closers || [];
+        for (var i = 0; i < cl.length; i++) {
+          var open = firstShown(cl[i].open), btn = open && firstShown(cl[i].press);
+          if (!btn) continue;
+          btn.click();
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    };
     // Back in the player: 'escape' (the host presses the site's Escape: it closes the menu, or hides the bar Netflix keeps up after Couch stops moving the pointer), '' (leave).
     window.__couchPlayerBack = function () {
       try {
@@ -815,6 +854,22 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         return j >= 0 ? idx[j] : -1;
       };
       var found = through(near);
+      // A control partly under a side dock (a panel open over a shelf): sideways, the dock is next, before the shelf's cards beyond the screen.
+      if (side && !home && (found < 0 || offScreen(list[found].rect))) {
+        var over = [];
+        for (k = 0; k < list.length; k++) {
+          var od = dockOf(list[k].el), odr = od && rectOf(od);
+          if (!odr || odr.bottom - odr.top <= innerHeight / 2) continue;
+          var ahead = dir === 'right' ? odr.left >= from.left : odr.right <= from.right;
+          if (ahead && odr.left < from.right && odr.right > from.left) over.push(k);
+        }
+        if (over.length) {
+          var edge = rectOf(dockOf(list[over[0]].el));
+          var start = dir === 'right' ? edge.left : edge.right;
+          var o = pick({ left: start, right: start, top: from.top, bottom: from.bottom }, rects(over.map(function (n) { return list[n]; })), dir, view());
+          if (o >= 0) return over[o];
+        }
+      }
       if (found >= 0) return found;
       if (dir === 'down' && (!home || rectOf(home).bottom - rectOf(home).top > innerHeight / 4 )) {
         var toBar = bottomDock(from, list);
@@ -832,7 +887,16 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       }
       // From a dock, on to the page, never to another dock.
       var page = [];
-      for (k = 0; k < list.length; k++) if (!dockOf(list[k].el)) page.push(k);
+      for (k = 0; k < list.length; k++) {
+        if (dockOf(list[k].el)) continue;
+        // Sideways, only what is on screen: a row of cards runs on past the edge, and the far end isn't "to the right" of a panel.
+        var rk = list[k].rect;
+        if (side && offScreen(rk)) continue;
+        // And beyond the dock's far edge: Right from a panel on the right has nowhere to go, not to a card under it.
+        var hr = home && rectOf(home);
+        if (side && hr && (dir === 'right' ? rk.right <= hr.right : rk.left >= hr.left)) continue;
+        page.push(k);
+      }
       return through(page);
     };
     var move = function (dir, afterPaging) {

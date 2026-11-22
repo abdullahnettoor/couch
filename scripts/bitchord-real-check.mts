@@ -8,6 +8,7 @@
 //   5. from the Remote's keys: the full view opens with the ring on Pause, a ⋯ menu opens on its first item with the ring
 //      following BitChord's own focus, and Back closes the menu, then the view, with the page left as it was,
 //   6. Down reaches the player bar on a long playlist, on Play/Pause, from its last row and from its middle via the sidebar (#73);
+//   7. the Up Next panel (#76): Right reaches it, rows are outlined up to its edge, Back closes it before the page goes back;
 //      BITCHORD_FRAMES=<dir> saves a frame of each.
 // The window is 1920 pt wide with Text size applied (BITCHORD_TEXT_SIZE, default "default").
 // BITCHORD_SITE overrides the site; BITCHORD_TRACKS=a,b,c and BITCHORD_AGE_RESTRICTED=id override the songs;
@@ -501,6 +502,82 @@ void app.whenReady().then(async () => {
         "the page didn't change",
       );
     }
+    // The panels (#76): Right reaches an open Up Next panel from the page, OK on a queued song plays it, rows are outlined only up to the panel's edge, and Back closes the panel with the page left where it is.
+    const ringBox = () =>
+      js<number[] | null>(`(() => {
+        const r = [...document.body.children].find((e) => e.style && e.style.zIndex === "2147483647");
+        if (!r || r.style.display === "none") return null;
+        const b = r.getBoundingClientRect();
+        return [b.left + 6, b.top + 6, b.right - 6, b.bottom - 6];
+      })()`);
+    const panelEdge = () =>
+      js<number | null>(
+        `(() => { const a = document.querySelector('aside[aria-label="Up Next"]'); return a ? a.getBoundingClientRect().left : null; })()`,
+      );
+    const inPanel = async () => {
+      const b = await ringBox();
+      const edge = await panelEdge();
+      return !!b && edge !== null && b[0]! >= edge - 2;
+    };
+    await within(LONG_PLAYLIST);
+    await sleep(1500);
+    await js(
+      `document.querySelector('[role="region"][aria-label="Player"] button[aria-label="Up Next"]')?.click()`,
+    );
+    await sleep(2500);
+    expectThat((await panelEdge()) !== null, "the Up Next panel opens from the bar's toggle");
+    // Down from the top of the page: the first row, with the panel over its right end.
+    await within("/home");
+    await within(LONG_PLAYLIST);
+    await sleep(1500);
+    const pagePath = await js<string>(`location.pathname + location.search`);
+    await sendKey("down");
+    const rowBox = await ringBox();
+    const edge = await panelEdge();
+    log("row ring", JSON.stringify(rowBox), "panel edge", edge);
+    await shoot("1-row-ring-to-panel-edge");
+    expectThat(
+      !!rowBox && edge !== null && rowBox[2]! <= edge + 1,
+      "a song row under the open panel is outlined only up to the panel's edge",
+    );
+    let reached = false;
+    for (let i = 0; i < 6 && !reached; i++) {
+      await sendKey("right");
+      reached = await inPanel();
+    }
+    await shoot("2-panel-reached-with-right");
+    expectThat(reached, "Right from the page reaches the open Up Next panel");
+    let onSong = "";
+    for (let i = 0; i < 6; i++) {
+      onSong = (await ringOn()) ?? "";
+      if (onSong.startsWith("Play ")) break;
+      await sendKey("down");
+    }
+    await shoot("3-queue-row-ringed");
+    expectThat(
+      onSong.startsWith("Play ") && (await inPanel()),
+      `the ring is on a queued song in the panel (${onSong})`,
+    );
+    const leftOf = await ringBox();
+    await sendKey("right");
+    const afterRight = await ringBox();
+    expectThat(
+      !!afterRight && !!leftOf && afterRight[0]! >= leftOf[0]! - 2,
+      "Right from a queue row doesn't jump to the page's left side",
+    );
+    await sendKey("back");
+    await shoot("4-after-back-closes-panel");
+    expectThat((await panelEdge()) === null, "Back closes the Up Next panel");
+    expectThat(
+      (await js<string>(`location.pathname + location.search`)) === pagePath,
+      "Back with a panel open stays on the page",
+    );
+    await sendKey("back");
+    await sleep(1500);
+    expectThat(
+      (await js<string>(`location.pathname + location.search`)) !== pagePath,
+      "the next Back goes back a page",
+    );
     if (!attached) wc.debugger.detach();
 
     const age = await play(AGE_RESTRICTED, 15);

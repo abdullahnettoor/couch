@@ -19,7 +19,24 @@ export const BITCHORD_LAYOUT: FocusLayout = {
   takeArrows: true,
   startFirst: true,
   ringAround: `${TRACK}, ${SWITCH_ROW}`,
-  docks: ['nav[aria-label="Main"]', '[role="region"][aria-label="Player"]'],
+  // The Lyrics and Up Next panels are docks too: Right from the page reaches an open one.
+  docks: [
+    'nav[aria-label="Main"]',
+    '[role="region"][aria-label="Player"]',
+    'aside[aria-label="Lyrics"]',
+    'aside[aria-label="Up Next"]',
+  ],
+  // Back closes an open panel by its own bar toggle, before it goes back a page.
+  closers: [
+    {
+      open: 'aside[aria-label="Lyrics"]',
+      press: '[role="region"][aria-label="Player"] button[aria-label="Lyrics"]',
+    },
+    {
+      open: 'aside[aria-label="Up Next"]',
+      press: '[role="region"][aria-label="Player"] button[aria-label="Up Next"]',
+    },
+  ],
   dockEntry: {
     '[role="region"][aria-label="Player"]': [
       'button[aria-label="Pause"]',
