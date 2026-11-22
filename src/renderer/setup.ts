@@ -182,7 +182,8 @@ function build(s: SetupPayload, pairing: string): HTMLElement {
     grid.style.setProperty("--cols", String(s.columns ?? s.tiles.length));
     s.tiles.forEach((t, i) => {
       const tile = el("div", "s-tile");
-      const face = el("div", `g-tile ${t.id.replace(/[^\w-]/g, "")}-face`);
+      const face = el("div", "g-tile g-glass");
+      face.dataset.app = t.id;
       face.innerHTML = t.icon;
       const tick = el("span", "s-tick");
       tick.innerHTML = CHECK_SVG;

@@ -268,20 +268,26 @@
   width: calc(76 * var(--u));
   height: calc(76 * var(--u));
 }
-.youtube-face,
-.netflix-face {
-  background: var(--app-face);
-}
-.h-app .youtube-face svg {
+.h-app [data-app="youtube"] svg {
   width: calc(112 * var(--u));
 }
-.h-app .netflix-face svg {
+.h-app [data-app="netflix"] svg {
   width: calc(80 * var(--u));
   height: calc(112 * var(--u));
 }
-.library-face {
-  background: linear-gradient(160deg, var(--art-library-from), var(--art-library-to));
-  color: var(--on-light);
+/* Over a photo the glass follows the picture's brightness, as the clock's tint does: darker over a bright one. */
+.home.photo .g-glass {
+  --tile-glass-tint: color-mix(
+    in srgb,
+    var(--tile-glass-tint-bright) calc(var(--wp-light, 0.5) * 100%),
+    var(--tile-glass-tint-dark)
+  );
+}
+.home.crossfading .g-glass {
+  transition:
+    --wp-light var(--duration-photo-crossfade) var(--ease-ambient),
+    transform var(--duration-focus) var(--ease-glass),
+    box-shadow var(--duration-focus) var(--ease-glass);
 }
 .h-film-art {
   background: hsl(var(--hue), 18%, 22%) center / cover;
@@ -298,7 +304,7 @@
   overflow: hidden;
   background: var(--app-badge-bg);
 }
-/* Beats the App tile's own logo sizes (.h-app .g-tile svg, .h-app .youtube-face svg), which the badge also matches. */
+/* Beats the App tile's own logo sizes (.h-app .g-tile svg), which the badge also matches. */
 .h-app .g-tile .h-badge svg {
   width: 70%;
   height: 70%;

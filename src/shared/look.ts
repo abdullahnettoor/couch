@@ -149,6 +149,9 @@ export type ColorName =
   | "clockFrostShadowDark"
   | "clockFrostShadowBright"
   | "clockFrostShadowBuiltin"
+  | "tileGlassTintDark"
+  | "tileGlassTintBright"
+  | "tileGlassTintBuiltin"
   | "maskOpaque"
   | "buttonFill"
   | "buttonFillSoft"
@@ -218,7 +221,6 @@ export type GradientName =
   | "scrimTileLabel"
   | "scrimShow"
   | "scrimPlayer"
-  | "appFace"
   | "setupVeil"
   | "setupLight"
   | "setupGlow"
@@ -396,6 +398,7 @@ export type ShadowName =
   | "focusRingSoft"
   | "tile"
   | "tileHero"
+  | "tileGlassRim"
   | "artwork"
   | "splitArt"
   | "splitArtDrop"
@@ -562,6 +565,15 @@ export const GLASS: Look = {
     clockFrostShadowDark: "rgba(0, 0, 0, 0.2)",
     clockFrostShadowBright: "rgba(0, 0, 0, 0.5)",
     clockFrostShadowBuiltin: "rgba(0, 0, 0, 0.35)",
+    /**
+     * Home's App tiles are glass (#69): a faint tint over the Wallpaper, which shows through (frosted by the photo's
+     * blur behind the row). Over the darkest photo the tint lifts the tile a little; over the brightest it darkens it,
+     * so the white logos and the light folder still read, and it runs between them with the picture's brightness.
+     */
+    tileGlassTintDark: "rgba(255, 255, 255, 0.08)",
+    tileGlassTintBright: "rgba(0, 0, 0, 0.2)",
+    /** Over the dark built-in Wallpapers. */
+    tileGlassTintBuiltin: "rgba(255, 255, 255, 0.08)",
     maskOpaque: "#000",
     buttonFill: "rgba(255, 255, 255, 0.16)",
     buttonFillSoft: "rgba(255, 255, 255, 0.14)",
@@ -636,7 +648,6 @@ export const GLASS: Look = {
     scrimShow:
       "linear-gradient(90deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.72) 45%, rgba(0, 0, 0, 0.88) 100%)",
     scrimPlayer: "linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.6))",
-    appFace: "linear-gradient(160deg, #3a3a3e, #17171a)",
     setupVeil: "radial-gradient(70% 70% at 50% 34%, #1b130c 0%, #0c0907 58%, #050404 100%)",
     setupLight: "radial-gradient(closest-side, rgba(255, 150, 70, 0.3), rgba(255, 150, 70, 0))",
     setupGlow: "radial-gradient(closest-side, rgba(255, 150, 70, 0.34), rgba(255, 150, 70, 0))",
@@ -825,6 +836,8 @@ export const GLASS: Look = {
     menu: "0 calc(40 * {u}) calc(100 * {u}) rgba(0, 0, 0, 0.6)",
     drawer: "inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 0 calc(90 * {u}) rgba(0, 0, 0, 0.45)",
     wallpaperPanel: "inset 0 0 0 calc(1.5 * {u}) rgba(255, 255, 255, 0.1)",
+    /** Home's glass App tile: its edge, all round, so the tile's shape reads on any Wallpaper (#69). */
+    tileGlassRim: "inset 0 0 0 calc(1.5 * {u}) rgba(255, 255, 255, 0.12)",
     swatch: "inset 0 0 0 calc(2 * {u}) rgba(255, 255, 255, 0.12)",
     qrGlow: "0 0 calc(90 * {u}) rgba(255, 150, 70, 0.16)",
     stepGlow: "0 0 calc(18 * {u}) rgba(255, 150, 70, 0.45)",
