@@ -48,12 +48,18 @@ export class BitChordApp implements App {
     for (const l of this.#listeners) l(event);
   }
 
-  back(): "leave" | "handled" {
+  back(): "leave" | "handled" | Promise<"leave" | "handled"> {
     const now = this.#clock.now();
     const stuck = this.#backAt !== undefined && now - this.#backAt >= BACK_SETTLE_MS;
-    if (this.#home || stuck) {
+    if (stuck) {
       this.#backAt = undefined;
       return "leave";
+    }
+    if (this.#home) {
+      this.#backAt = undefined;
+      // A menu, the full view or a panel open on the home is Back's first; the App is left only when the page had nothing to close.
+      const closing = this.#port.closeOverlay?.();
+      return closing ? closing.then((closed) => (closed ? "handled" : "leave")) : "leave";
     }
     this.#backAt = now;
     this.#port.sendKey("back");

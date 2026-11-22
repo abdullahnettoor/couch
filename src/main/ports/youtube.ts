@@ -50,6 +50,11 @@ export interface YouTube {
   /** Hides the view and pauses playback; it stays loaded. */
   hide(): void;
   sendKey(key: YouTubeKey): void;
+  /**
+   * Lets the page close what it has open (a menu, a full view, a panel) the way Back does, and never goes back in its
+   * history. Resolves to whether something was closed. Absent for a view that can't tell.
+   */
+  closeOverlay?(): Promise<boolean>;
   /** Scrolls the page back to its top; absent for a view that has nothing to scroll. */
   scrollToTop?(): void;
   /**

@@ -45,6 +45,9 @@ const SAME_DOCUMENT_ROUTE_MS = 1500;
 /** How often the page is asked whether it has drawn the search, meanwhile. */
 const ROUTE_ASK_MS = 150;
 
+/** A search of Couch's own starts the page's highlight over, even where the address stays the same. */
+const RESET_FOCUS_SCRIPT = `window.__couchResetFocus&&window.__couchResetFocus()`;
+
 const BLUR_ACTIVE_SCRIPT = `(function(){try{var e=document.activeElement;if(e&&e.blur)e.blur()}catch(x){}})()`;
 
 export class WebHostCore {
@@ -323,6 +326,14 @@ export class WebHostCore {
     this.#engine.press(keyCode);
   }
 
+  /** Back as far as the page's own pop-ups and panels: closes one if there is one, and never moves in history. */
+  async closeOverlay(): Promise<boolean> {
+    const answer = await this.#engine.run(BACK_QUERY).catch(() => "");
+    const todo = backAction(answer);
+    if (todo === "press") this.#engine.press(this.#desc.keyCodes.back);
+    return todo !== "history";
+  }
+
   /**
    * History back, or the App's home when there is no page behind this one: a title that was the page's first load
    * (a Continue open, a deep link) has nothing to go back to, and Back must still reach home. A full load takes
@@ -389,7 +400,7 @@ export class WebHostCore {
       if (this.#engine.url() !== url) {
         if (search.navigate === "history" && this.#onOwnOrigin()) this.#routeInPage(url);
         else this.#engine.load(url);
-      }
+      } else if (search.navigate === "history") this.#run(RESET_FOCUS_SCRIPT);
       this.#engine.focus();
     });
   }
@@ -423,7 +434,7 @@ export class WebHostCore {
     clearTimeout(this.#routeTimer);
     void this.#engine
       .run(
-        `(function(u){try{history.pushState(null,"",u);dispatchEvent(new PopStateEvent("popstate",{state:null}));if(window.__couchResetFocus)window.__couchResetFocus();return true}catch(e){return false}})(${JSON.stringify(want.pathname + want.search)})`,
+        `(function(u){try{history.pushState(null,"",u);dispatchEvent(new PopStateEvent("popstate",{state:null}));${RESET_FOCUS_SCRIPT};return true}catch(e){return false}})(${JSON.stringify(want.pathname + want.search)})`,
       )
       .catch(() => false)
       .then((ok) => {

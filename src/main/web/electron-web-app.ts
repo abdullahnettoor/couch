@@ -540,6 +540,9 @@ export class ElectronWebApp implements YouTube {
   sendKey(key: YouTubeKey): void {
     this.#core.sendKey(key);
   }
+  closeOverlay(): Promise<boolean> {
+    return this.#core.closeOverlay();
+  }
 
   /** The blank page the view starts on is not somewhere to go back to. */
   #canGoBack(): boolean {

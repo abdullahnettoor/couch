@@ -752,6 +752,22 @@ export function describeWebHostContract(
         expect(rig.loads()).toHaveLength(before);
       });
 
+      test("closing overlays presses Escape for a pop-up, says the page handled a panel, and never goes back in history", async () => {
+        const rig = makeRig();
+        await rig.show();
+        rig.allowHistoryBack();
+        let page = "escape";
+        rig.answer("__couchPlayerBack", () => page);
+        expect(await rig.host.closeOverlay()).toBe(true);
+        expect(rig.keys()).toEqual(["Escape"]);
+        page = "handled";
+        expect(await rig.host.closeOverlay()).toBe(true);
+        page = "";
+        expect(await rig.host.closeOverlay()).toBe(false);
+        expect(rig.scripts()).not.toContain("history.back()");
+        expect(rig.keys()).toEqual(["Escape"]);
+      });
+
       test("Back with a pop-up open presses Escape", async () => {
         const rig = makeRig();
         await rig.show();
@@ -903,6 +919,30 @@ export function describeWebHostContract(
           await vi.waitFor(() => expect(rig.loads().at(-1)).toBe(netflix.search!.urlFor("dark")), {
             timeout: 1500,
           });
+        });
+
+        test("a search starts the page's highlight over: in the push, and when the address stays", async () => {
+          const rig = makeRig(acknowledging);
+          await rig.show();
+          rig.navigate(home);
+          pushing(rig, true);
+          rig.host.submitSearch("dark");
+          await vi.waitFor(() =>
+            expect(rig.scripts().some((s) => s.includes("popstate"))).toBe(true),
+          );
+          expect(rig.scripts().find((s) => s.includes("popstate"))).toContain(
+            "__couchResetFocus",
+          );
+          const at = rig.scripts().length;
+          rig.host.submitSearch("dark");
+          await vi.waitFor(() =>
+            expect(
+              rig
+                .scripts()
+                .slice(at)
+                .some((s) => s.includes("__couchResetFocus")),
+            ).toBe(true),
+          );
         });
 
         test("a page that draws the search keeps its document", async () => {
