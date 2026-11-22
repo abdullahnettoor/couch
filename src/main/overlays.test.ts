@@ -190,6 +190,7 @@ class FakeWebKitView implements WebKitView {
   setVisible(v: boolean) {
     this.visibility.push(v);
   }
+  setPageZoom() {}
   focus() {}
   sendKey() {}
   answerKey() {}

@@ -705,13 +705,15 @@ describe("a web App with a bridge and network rules (BitChord)", () => {
 describe("Text size", () => {
   const WIDTH = 1280;
   const sized = { ...netflix, textSize: { targetWidth: WIDTH } };
+  const unsized = { ...netflix };
+  delete unsized.textSize;
   const resize = (pt: number) => {
     winWidth.pt = pt;
     resizeHandlers.forEach((fn) => fn());
   };
 
   test("a page without textSize is isolated and stays at zoom 1, whatever the size or window", () => {
-    const web = new ElectronWebApp(netflix, win);
+    const web = new ElectronWebApp(unsized, win);
     const wc = fake.views.at(-1)!;
     expect(web.supportsTextSize).toBe(false);
     web.setTextSize("larger");
@@ -793,7 +795,7 @@ describe("Text size", () => {
     const plain = new fake.FakeContents();
     plain.url = PAGE;
     plain.zoom = 2.5;
-    for (const desc of [netflix, sized]) {
+    for (const desc of [unsized, sized]) {
       const web = new ElectronWebApp(desc, win);
       const wc = fake.views.at(-1)!;
       web.show();

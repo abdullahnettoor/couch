@@ -214,6 +214,7 @@ class FakeWebKitView implements WebKitView {
   addMessageHandler() {}
   setFrame() {}
   setVisible() {}
+  setPageZoom() {}
   focus() {}
   answerKey() {}
   wakePointer() {}

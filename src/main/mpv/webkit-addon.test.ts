@@ -35,6 +35,8 @@ function fakeAddon() {
     webkitAddMessageHandler: (id, name) => calls.push(["handler", id, name]),
     webkitSetFrame: (id, x, y, w, h) => calls.push(["frame", id, x, y, w, h]),
     webkitSetVisible: (id, v) => calls.push(["visible", id, v]),
+    webkitSetPageZoom: (id, zoom) => calls.push(["zoom", id, zoom]),
+    webkitSnapshot: (_id, _path, cb) => cb(null, "[null]"),
     webkitFocus: (id) => calls.push(["focus", id]),
     webkitSendKey: (id, key, down) => calls.push(["key", id, key, down]),
     webkitAnswerKey: (id, keyId, replay) => calls.push(["answer", id, keyId, replay]),
@@ -114,6 +116,7 @@ describe("the WebKit bridge over the native add-on", () => {
     view.addMessageHandler("couch");
     view.setFrame(0, 0, 10, 20);
     view.setVisible(true);
+    view.setPageZoom(1.6);
     view.focus();
     view.sendKey("Return", true);
     view.destroy();
@@ -125,6 +128,7 @@ describe("the WebKit bridge over the native add-on", () => {
       ["handler", 7, "couch"],
       ["frame", 7, 0, 0, 10, 20],
       ["visible", 7, true],
+      ["zoom", 7, 1.6],
       ["focus", 7],
       ["key", 7, "Return", true],
       ["destroy", 7],

@@ -89,6 +89,11 @@ export interface WebKitView {
   /** A rectangle in window content points, top-left origin. */
   setFrame(x: number, y: number, width: number, height: number): void;
   setVisible(visible: boolean): void;
+  /**
+   * The view's own page zoom (`WKWebView.pageZoom`, Text size). It belongs to this view only and lasts across its
+   * navigations; WebKit keeps none in the data store, so a new view starts at 1.
+   */
+  setPageZoom(zoom: number): void;
   /** Sets cookies in the view's data store (`WKHTTPCookieStore`); resolves once all are set. */
   setCookies(cookies: WebKitCookie[]): Promise<void>;
   /** Makes the view the window's first responder, so keys reach it. */

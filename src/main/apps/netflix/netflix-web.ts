@@ -91,6 +91,8 @@ export function netflixDescription(version?: string): WebAppDescription {
     focus: { selectors: FOCUS_SELECTORS, layout: NETFLIX_LAYOUT },
     preloads: [NETFLIX_ART_PRELOAD],
     hideScrollbars: true,
+    // Text size (#62): Netflix's rows show 6 titles from 1400 CSS px; 1440 is just above, so Default keeps them.
+    textSize: { targetWidth: 1440 },
     artworkHosts: ["nflximg.net", "nflxso.net", "nflxext.com"],
     playback: NETFLIX_PLAYBACK,
     addons: [],

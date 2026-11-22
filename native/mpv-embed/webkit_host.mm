@@ -446,6 +446,50 @@ static napi_value WebkitSetFrame(napi_env env, napi_callback_info info) {
   return NULL;
 }
 
+// webkitSetPageZoom(id, zoom): the view's own WKWebView.pageZoom (Text size). It belongs to this view alone: WebKit keeps no
+// per-site zoom in the data store, so a new view (or a relaunch) starts at 1 until the host sets it.
+static napi_value WebkitSetPageZoom(napi_env env, napi_callback_info info) {
+  size_t argc = 2; napi_value argv[2];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  CouchWebKit *wk = wkFor(env, argv[0]);
+  double zoom = 1;
+  napi_get_value_double(env, argv[1], &zoom);
+  if (!(zoom > 0)) zoom = 1;
+  if (wk) onMain(^{ wk.web.pageZoom = zoom; });
+  return NULL;
+}
+
+// webkitSnapshot(id, path, callback(error|null, json)): the view's visible area as a PNG at `path` (its size in points), for
+// checks and frames only. json = [{width, height, pageZoom}].
+static napi_value WebkitSnapshot(napi_env env, napi_callback_info info) {
+  size_t argc = 3; napi_value argv[3];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  CouchWebKit *wk = wkFor(env, argv[0]);
+  NSString *path = [NSString stringWithUTF8String:str(env, argv[1]).c_str()];
+  napi_threadsafe_function fn = makeTsfn(env, argv[2], "couch-webkit-snapshot", CallWkResult);
+  auto reply = ^(NSString *error, NSString *json) {
+    napi_call_threadsafe_function(fn, new WkEvent{toStd(error), toStd(json), ""}, napi_tsfn_nonblocking);
+    napi_release_threadsafe_function(fn, napi_tsfn_release);
+  };
+  if (!wk) { reply(@"no such view", @"[null]"); return NULL; }
+  onMain(^{
+    WKSnapshotConfiguration *cfg = [WKSnapshotConfiguration new];
+    cfg.afterScreenUpdates = YES;
+    cfg.snapshotWidth = @(wk.web.bounds.size.width);
+    double zoom = wk.web.pageZoom;
+    [wk.web takeSnapshotWithConfiguration:cfg completionHandler:^(NSImage *image, NSError *e) {
+      if (!image) return reply(e.localizedDescription ?: @"no image", @"[null]");
+      CGImageRef cg = [image CGImageForProposedRect:NULL context:nil hints:nil];
+      NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithCGImage:cg];
+      rep.size = image.size;
+      NSData *png = [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+      if (path.length && ![png writeToFile:path atomically:YES]) return reply(@"could not write the frame", @"[null]");
+      reply(nil, wkJson(@{@"width": @(image.size.width), @"height": @(image.size.height), @"pageZoom": @(zoom)}));
+    }];
+  });
+  return NULL;
+}
+
 static napi_value WebkitSetVisible(napi_env env, napi_callback_info info) {
   size_t argc = 2; napi_value argv[2];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
@@ -923,6 +967,8 @@ void registerWebKit(napi_env env, napi_value exports) {
     {"webkitAddMessageHandler", 0, WebkitAddMessageHandler, 0, 0, 0, napi_default, 0},
     {"webkitSetFrame", 0, WebkitSetFrame, 0, 0, 0, napi_default, 0},
     {"webkitSetVisible", 0, WebkitSetVisible, 0, 0, 0, napi_default, 0},
+    {"webkitSetPageZoom", 0, WebkitSetPageZoom, 0, 0, 0, napi_default, 0},
+    {"webkitSnapshot", 0, WebkitSnapshot, 0, 0, 0, napi_default, 0},
     {"webkitFocus", 0, WebkitFocus, 0, 0, 0, napi_default, 0},
     {"webkitSendKey", 0, WebkitSendKey, 0, 0, 0, napi_default, 0},
     {"webkitSetInput", 0, WebkitSetInput, 0, 0, 0, napi_default, 0},

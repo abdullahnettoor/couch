@@ -89,6 +89,14 @@ export interface WebKitAddon {
   webkitAddMessageHandler(id: number, name: string): void;
   webkitSetFrame(id: number, x: number, y: number, w: number, h: number): void;
   webkitSetVisible(id: number, visible: boolean): void;
+  /** `WKWebView.pageZoom` of this view only (a value that is not above 0 is taken as 1). */
+  webkitSetPageZoom(id: number, zoom: number): void;
+  /** The view's visible area as a PNG at `path` (empty: none written); calls back with an error, or null and `[{ width, height, pageZoom }]`. For checks and frames only. */
+  webkitSnapshot(
+    id: number,
+    path: string,
+    callback: (error: string | null, json: string) => void,
+  ): void;
   webkitFocus(id: number): void;
   webkitSendKey(id: number, key: string, down: boolean): void;
   /** Answers a held key (its `id` in the key event): replay it to the view as the same NSEvent, or consume it. Once per key id. */
@@ -355,6 +363,7 @@ export function createWebKitBridge(
         addMessageHandler: (name) => addon.webkitAddMessageHandler(id, name),
         setFrame: (x, y, w, h) => addon.webkitSetFrame(id, x, y, w, h),
         setVisible: (visible) => addon.webkitSetVisible(id, visible),
+        setPageZoom: (zoom) => addon.webkitSetPageZoom(id, zoom),
         focus: () => addon.webkitFocus(id),
         sendKey: (key, down) => addon.webkitSendKey(id, key, down),
         answerKey: (keyId, replay) => addon.webkitAnswerKey(id, keyId, replay),

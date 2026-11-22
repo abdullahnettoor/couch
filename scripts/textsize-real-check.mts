@@ -119,7 +119,9 @@ async function check(): Promise<number> {
     drm: false,
   } satisfies WebAppDescription;
   const withSize: WebAppDescription = { ...base, textSize: { targetWidth: TARGET } };
+  // Netflix opts in itself (#62): the host without textSize is Netflix's description with it taken out.
   const without: WebAppDescription = { ...base };
+  delete without.textSize;
 
   const ids = () => new Set(webContents.getAllWebContents().map((c) => c.id));
   const newContents = (before: Set<number>): WebContents =>

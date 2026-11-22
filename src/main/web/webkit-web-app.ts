@@ -24,6 +24,7 @@ import { HIDE_SCROLLBARS_SCRIPT } from "./hide-scrollbars.ts";
 import { CONFIRM_MESSAGE, noteScript } from "./web-hud.ts";
 import { POLL_MS, WebHostCore } from "./web-host-core.ts";
 import { soundScript } from "./web-sound.ts";
+import { textZoom, type TextSize } from "./text-size.ts";
 
 /** The one script message handler Couch's own scripts (in the `couch` content world) talk to the host through. */
 export const MESSAGE_HANDLER = MESSAGE_HANDLER_NAME;
@@ -125,6 +126,7 @@ export class WebKitWebApp implements YouTube {
   /** The native view holds main-frame navigations for `navigating` while a Continue open is pending. */
   #guardOn = false;
   #stopResize: (() => void) | void = undefined;
+  #textSize: TextSize = "default";
 
   constructor(
     desc: WebAppDescription,
@@ -174,7 +176,10 @@ export class WebKitWebApp implements YouTube {
       fieldFocused: () => this.#fieldFocused,
       readClipboard: () => win.readClipboard?.() ?? "",
     });
-    this.#stopResize = win.onResize(() => this.#fit());
+    this.#stopResize = win.onResize(() => {
+      this.#applyZoom();
+      this.#fit();
+    });
   }
 
   /** Creates the view, registers its scripts, then loads the App's home. */
@@ -206,8 +211,29 @@ export class WebKitWebApp implements YouTube {
       "couch",
     );
     this.#syncDocumentStart();
+    this.#applyZoom();
     view.setVisible(false);
     this.#load();
+  }
+
+  get supportsTextSize(): boolean {
+    return this.#desc.textSize !== undefined;
+  }
+
+  setTextSize(size: TextSize): void {
+    if (this.#disposed || !this.supportsTextSize) return;
+    this.#textSize = size;
+    this.#applyZoom();
+  }
+
+  /** Zooms the view's page for the window's width in points and the Text size; an App without `textSize` stays at 1. */
+  #applyZoom(): void {
+    const target = this.#desc.textSize?.targetWidth;
+    const zoom =
+      target === undefined
+        ? 1
+        : textZoom(this.#win.getContentBounds().width, target, this.#textSize);
+    this.#view?.setPageZoom(zoom);
   }
 
   /**
@@ -237,6 +263,7 @@ export class WebKitWebApp implements YouTube {
   #onEvent(event: WebKitEvent): void {
     switch (event.type) {
       case "loaded":
+        this.#applyZoom();
         // The address change may have been answered by the old document; the new one is asked once it is there.
         this.#recheckField();
         if (this.#failed || !this.#isOwnPage(event.url)) return;
@@ -262,6 +289,7 @@ export class WebKitWebApp implements YouTube {
         this.#onKey(event.key);
         return;
       case "navigated":
+        this.#applyZoom();
         this.#recheckField();
         this.#url = event.url;
         this.#core.navigated(event.url);

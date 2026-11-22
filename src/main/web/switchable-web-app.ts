@@ -188,7 +188,7 @@ export class SwitchableWebApp implements YouTube {
   get supportsTextSize(): boolean {
     return this.#host.supportsTextSize === true;
   }
-  /** Kept, so a host switched to later gets it too. The WebKit host takes no Text size and ignores it. */
+  /** Kept, so a host switched to later gets it too. */
   setTextSize(size: TextSize): void {
     this.#textSize = size;
     this.#host.setTextSize?.(size);

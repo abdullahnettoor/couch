@@ -20,6 +20,10 @@ test("Skip is one Left or Right key in the player, nothing to commit", () => {
   expect(seekPlan(desc, 10, true)).toEqual({ keys: ["right"], commit: false });
 });
 
+test("Netflix lays out best at 1440 CSS px, so Text size zooms it by 4/3 in a 1920 pt window at Default (#62)", () => {
+  expect(desc.textSize).toEqual({ targetWidth: 1440 });
+});
+
 test("its route says home from the address alone", () => {
   const tracker = desc.route.tracker();
   expect(tracker.update("https://www.netflix.com/browse", null)).toMatchObject({ home: true });

@@ -27,6 +27,7 @@ import { webkitStoreId } from "./webkit-stores.ts";
 import { KEY_CLAIM_ATTRIBUTE, KEY_CLAIM_FUNCTION, PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import { FIELD_FOCUSED_QUERY } from "./page-focus.ts";
 import { WebKitWebApp, type WebKitHostWindow } from "./webkit-web-app.ts";
+import type { WebAppDescription } from "./web-app.ts";
 import { WEBKIT_KEY_NAMES } from "./webkit-bridge.ts";
 import { CursorHider } from "../cursor-hider.ts";
 import { MouseMoves } from "../mouse-moves.ts";
@@ -119,6 +120,14 @@ class FakeView implements WebKitView {
   answerNavigation(id: number, allow: boolean) {
     this.navigationAnswers.push([id, allow]);
   }
+  /** Every page zoom the host set, in order; `zoom` is the view's current one (a new view starts at 1). */
+  zooms: number[] = [];
+  get zoom(): number {
+    return this.zooms.at(-1) ?? 1;
+  }
+  setPageZoom(zoom: number) {
+    this.zooms.push(zoom);
+  }
   routing: WebKitInputRouting[] = [];
   setInputRouting(routing: WebKitInputRouting) {
     this.routing.push(routing);
@@ -153,11 +162,12 @@ const removed: Array<[string, boolean]> = [];
 let resize: () => void = () => {};
 let screenFocused = 0;
 let resizeListeners = 0;
+const winSize = { width: 1280, height: 720 };
 const win: WebKitHostWindow = {
   focusScreen: () => {
     screenFocused++;
   },
-  getContentBounds: () => ({ width: 1280, height: 720 }),
+  getContentBounds: () => ({ width: winSize.width, height: winSize.height }),
   onResize: (cb) => {
     resize = cb;
     resizeListeners++;
@@ -183,6 +193,8 @@ function make(store: WebKitStore = STORE): { web: WebKitWebApp; view: () => Fake
 }
 
 beforeEach(() => {
+  winSize.width = 1280;
+  winSize.height = 720;
   resizeListeners = 0;
   views.length = 0;
   removed.length = 0;
@@ -1793,5 +1805,96 @@ describe("the navigation guard for a Continue open", () => {
     ]);
     expect(events.filter((e) => e.type === "blocked")).toHaveLength(1);
     expect(view().guards).toEqual([true, false]);
+  });
+});
+
+describe("Text size", () => {
+  const sized = { ...netflix, textSize: { targetWidth: 1440 } };
+  const makeSized = (desc: WebAppDescription = sized) => {
+    const web = new WebKitWebApp(desc, bridge, win, STORE);
+    return { web, view: () => views.at(-1)! };
+  };
+
+  test("the view's page zoom follows the formula from the moment it is made", () => {
+    winSize.width = 1920;
+    const { web, view } = makeSized();
+    web.show();
+    expect(view().zoom).toBeCloseTo(1920 / 1440, 5);
+  });
+
+  test("follows a resize, also while the App is hidden (a display move)", () => {
+    winSize.width = 1920;
+    const { web, view } = makeSized();
+    web.show();
+    winSize.width = 2880;
+    resize();
+    expect(view().zoom).toBeCloseTo(2, 5);
+    web.hide();
+    winSize.width = 1440;
+    resize();
+    expect(view().zoom).toBeCloseTo(1, 5);
+  });
+
+  test("a Text size change zooms the page now, and says the App supports it", () => {
+    winSize.width = 1920;
+    const { web, view } = makeSized();
+    expect(web.supportsTextSize).toBe(true);
+    web.show();
+    web.setTextSize("larger");
+    expect(view().zoom).toBeCloseTo(1.6, 5);
+    web.setTextSize("smaller");
+    expect(view().zoom).toBeCloseTo((1920 / 1440) * 0.85, 5);
+  });
+
+  test("is set again after a load and after each address change", () => {
+    winSize.width = 1920;
+    const { web, view } = makeSized();
+    web.setTextSize("larger");
+    web.show();
+    view().zooms.push(1);
+    view().emit({ type: "loaded", url: "https://www.netflix.com/browse" });
+    expect(view().zoom).toBeCloseTo(1.6, 5);
+    view().zooms.push(1);
+    view().emit({ type: "navigated", url: "https://www.netflix.com/login" });
+    expect(view().zoom).toBeCloseTo(1.6, 5);
+  });
+
+  test("a view made again (after an idle unload) starts at the current Text size's zoom", () => {
+    winSize.width = 1920;
+    const { web } = makeSized();
+    web.show();
+    web.setTextSize("larger");
+    web.hide();
+    web.unload();
+    const first = views.at(-1)!;
+    web.show();
+    const second = views.at(-1)!;
+    expect(second).not.toBe(first);
+    expect(second.zooms[0]).toBeCloseTo(1.6, 5);
+  });
+
+  test("an App without textSize stays at zoom 1, whatever the size or window", () => {
+    winSize.width = 3840;
+    const unsized = { ...netflix };
+    delete unsized.textSize;
+    const { web, view } = makeSized(unsized);
+    expect(web.supportsTextSize).toBe(false);
+    web.show();
+    web.setTextSize("larger");
+    resize();
+    view().emit({ type: "loaded", url: "https://www.netflix.com/browse" });
+    expect(view().zooms.length).toBeGreaterThan(0);
+    expect(view().zooms.every((z) => z === 1)).toBe(true);
+  });
+
+  test("a disposed host no longer zooms on a resize", () => {
+    const { web, view } = makeSized();
+    web.show();
+    const v = view();
+    web.dispose();
+    const before = v.zooms.length;
+    resize();
+    web.setTextSize("larger");
+    expect(v.zooms.length).toBe(before);
   });
 });
