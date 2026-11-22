@@ -27,7 +27,7 @@ const log = (...a: unknown[]) => console.log("[bitchord-snapshot]", ...a);
 
 const walkSource = (end: boolean) => `(function () {
   // What the focus tests read: the rest of a page's attributes, and all but its song-row classes, only add size.
-  var KEEP = ["href","role","tabindex","aria-label","aria-modal","aria-hidden","aria-disabled","type","placeholder","disabled"];
+  var KEEP = ["href","role","tabindex","aria-label","aria-modal","aria-hidden","aria-disabled","aria-checked","aria-pressed","aria-haspopup","type","placeholder","disabled"];
   // A list keeps its first rows or cards; the focus tests walk a few and a snapshot of a whole playlist is a megabyte.
   var CAP = ${end ? 40 : 12};
   // At a page's end the rows that scrolled off are left out, so a long page's last rows fit in a small copy.
@@ -36,6 +36,8 @@ const walkSource = (end: boolean) => `(function () {
   var n = 0;
   function walk(el) {
     if (SKIP[el.tagName.toUpperCase()] || n > 6000) return null;
+    // Couch's own ring and pointer shield are not the page.
+    if (el.style && (el.style.zIndex === "2147483647" || el.style.zIndex === "2147483646")) return null;
     var r = el.getBoundingClientRect(), cs = getComputedStyle(el);
     var a = {};
     KEEP.forEach(function (k) { var v = el.getAttribute(k); if (v !== null) a[k] = v.slice(0, 200); });
@@ -181,6 +183,78 @@ void app.whenReady().then(async () => {
     js<string[]>(
       `[...new Set([...document.querySelectorAll("a[href]")].map(a => a.getAttribute("href")).filter(h => new RegExp(${JSON.stringify(re)}).test(h)))].slice(0, 5)`,
     );
+  // With a song loaded: BitChord's player bar, its full-screen view and its menus (a song is played from /debug, as bitchord:real does).
+  const states = async () => {
+    const track = process.env.BITCHORD_TRACKS?.split(",")[0] ?? "ZEcqHA7dbwM";
+    await go("/debug", 3000);
+    await js(`(() => {
+      const input = document.querySelector("form input");
+      const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+      set.call(input, ${JSON.stringify(track)});
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.form.requestSubmit();
+    })()`);
+    await sleep(8000);
+    await js(
+      `[...document.querySelectorAll("a")].find(a => /^\\s*Home/.test(a.innerText))?.click()`,
+    );
+    for (let i = 0; i < 20; i++) {
+      if (
+        await js<boolean>(`!!document.querySelector('[role="region"][aria-label="Player"] button')`)
+      )
+        break;
+      await sleep(1000);
+    }
+    await sleep(2000);
+    log(
+      "player",
+      await js<string>(
+        `location.pathname + " " + (document.querySelector('[role="region"][aria-label="Player"]')?.innerText ?? "no bar").slice(0, 80)`,
+      ),
+    );
+    const click = async (sel: string, wait = 1500) => {
+      const found = await js<boolean>(
+        `(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (e) e.click(); return !!e; })()`,
+      );
+      await sleep(wait);
+      if (!found) log("missing", sel);
+      return found;
+    };
+    const BAR = '[role="region"][aria-label="Player"]';
+    const MORE = 'button[aria-label^="More options for"]';
+    const escape = async () => {
+      if (!wc.debugger.isAttached()) wc.debugger.attach("1.3");
+      await wc.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
+      wc.focus();
+      web.sendKey("back");
+      await sleep(1200);
+      log(
+        "after back:",
+        await js<string>(
+          `location.pathname + " menus " + document.querySelectorAll('[role="menu"]').length + " dialog " + document.querySelectorAll('[role="dialog"]').length`,
+        ),
+      );
+    };
+    if (await click(`${BAR} ${MORE}`)) {
+      await save("menu");
+      await escape();
+    }
+    if (await click(`${BAR} button[aria-label="Lyrics"]`, 3000)) {
+      if (await click('aside[aria-label="Lyrics"] button[aria-haspopup="menu"]')) {
+        await save("provider-menu");
+        await escape();
+      }
+      await click(`${BAR} button[aria-label="Lyrics"]`);
+    }
+    if (await click('button[aria-label="Open full screen player"]', 2500)) {
+      await save("fullview");
+      if (await click(`[aria-label="Now Playing"] ${MORE}`)) {
+        await save("fullview-menu");
+        await escape();
+      }
+      await escape();
+    }
+  };
   try {
     await go("/home");
     await save("home");
@@ -227,6 +301,7 @@ void app.whenReady().then(async () => {
       process.env.BITCHORD_LONG_PLAYLIST ?? "/playlist/VLPLO7-VO1D0_6MlO4UxJWFBUq3U-7zoIBf7",
     );
     await saveEnd("playlist-long-end");
+    await states();
   } catch (e) {
     log("threw", String(e));
   }

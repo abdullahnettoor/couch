@@ -4,8 +4,10 @@
 //   1. BitChord's Extension page says the extension is installed (and asks for no update),
 //   2. a known song from BitChord's /debug page plays past 90 s, and two more for 20 s each,
 //   3. an age-restricted song shows BitChord's own sign-in message,
-//   4. lyrics load for the long song: the bridge fetched a listed lyric host and BitChord's lyrics view shows lines.
-//   5. Down reaches the player bar on a long playlist, on Play/Pause, from its last row and from its middle via the sidebar (#73);
+//   4. lyrics load for the long song: the bridge fetched a listed lyric host and BitChord's lyrics view shows lines,
+//   5. from the Remote's keys: the full view opens with the ring on Pause, a ⋯ menu opens on its first item with the ring
+//      following BitChord's own focus, and Back closes the menu, then the view, with the page left as it was,
+//   6. Down reaches the player bar on a long playlist, on Play/Pause, from its last row and from its middle via the sidebar (#73);
 //      BITCHORD_FRAMES=<dir> saves a frame of each.
 // The window is 1920 pt wide with Text size applied (BITCHORD_TEXT_SIZE, default "default").
 // BITCHORD_SITE overrides the site; BITCHORD_TRACKS=a,b,c and BITCHORD_AGE_RESTRICTED=id override the songs;
@@ -357,6 +359,139 @@ void app.whenReady().then(async () => {
       /^bar:(Pause|Play)$/.test(where) && sidebarDowns <= 7,
       `Left then Down reaches the bar in ${sidebarDowns} presses (at most 7)`,
     );
+
+    // The Remote (#74): the full view and a ⋯ menu, with the host's real keys (a never-shown window needs focus emulation to get them).
+    // The ring is Couch's own box in the page: what it is on is the biggest control inside it.
+    const ringOn = () =>
+      js<string | null>(`(() => {
+        const r = [...document.body.children].find((e) => e.style && e.style.zIndex === "2147483647");
+        if (!r || r.style.display === "none") return null;
+        const b = r.getBoundingClientRect();
+        const inside = [...document.querySelectorAll("button, a[href], [role^=menuitem]")]
+          .map((e) => ({ e, q: e.getBoundingClientRect() }))
+          .filter(({ q }) => q.width && q.height && q.left >= b.left - 8 && q.top >= b.top - 8 && q.right <= b.right + 8 && q.bottom <= b.bottom + 8)
+          .sort((x, y) => y.q.width * y.q.height - x.q.width * x.q.height);
+        const e = inside[0]?.e;
+        return e ? (e.getAttribute("aria-label") || e.innerText || "").trim() : null;
+      })()`);
+    const press = async (k: "up" | "down" | "left" | "right" | "ok" | "back") => {
+      wc.focus();
+      web.sendKey(k);
+      await sleep(900);
+    };
+    // BITCHORD_FRAMES=<dir> keeps a frame of each step, with the ring.
+    const shoot = async (name: string) => {
+      if (!process.env.BITCHORD_FRAMES) return;
+      mkdirSync(process.env.BITCHORD_FRAMES, { recursive: true });
+      await js(
+        `(() => { const r = [...document.body.children].find((e) => e.style && e.style.zIndex === "2147483647"); if (r) { r.style.transition = "none"; r.getBoundingClientRect(); } })()`,
+      );
+      wc.invalidate();
+      await sleep(500);
+      const shot = (await wc.debugger.sendCommand("Page.captureScreenshot", { format: "png" })) as {
+        data: string;
+      };
+      writeFileSync(
+        join(process.env.BITCHORD_FRAMES, `${name}.png`),
+        Buffer.from(shot.data, "base64"),
+      );
+    };
+    const count = (sel: string) =>
+      js<number>(
+        `[...document.querySelectorAll(${JSON.stringify(sel)})].filter((e) => e.getBoundingClientRect().width).length`,
+      );
+    const attached = wc.debugger.isAttached();
+    if (!attached) wc.debugger.attach("1.3");
+    await wc.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
+    const where = await js<string>(`location.pathname + location.search`);
+    // A mouse click of the household's makes the bar's artwork the held control, as reaching it with the D-pad does.
+    const art = await js<number[] | null>(`(() => {
+      const e = document.querySelector('button[aria-label="Open full screen player"]');
+      const q = e?.getBoundingClientRect();
+      return q ? [q.left + q.width / 2, q.top + q.height / 2] : null;
+    })()`);
+    expectThat(!!art, "the player bar has its artwork button while a song plays");
+    if (art) {
+      const zoom = 1;
+      const at = { x: art[0]! * zoom, y: art[1]! * zoom };
+      log(
+        "artwork at",
+        JSON.stringify(art),
+        "zoom",
+        zoom,
+        "inner",
+        await js<string>(`innerWidth + "x" + innerHeight + " dpr " + devicePixelRatio`),
+      );
+      await wc.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+      await wc.debugger.sendCommand("Input.dispatchMouseEvent", {
+        type: "mousePressed",
+        ...at,
+        button: "left",
+        clickCount: 1,
+      });
+      await wc.debugger.sendCommand("Input.dispatchMouseEvent", {
+        type: "mouseReleased",
+        ...at,
+        button: "left",
+        clickCount: 1,
+      });
+      await sleep(2500);
+      expectThat(
+        (await count('[role="dialog"][aria-label="Now Playing"]')) === 1,
+        "OK on the bar's artwork opens the full view",
+      );
+      const start = await ringOn();
+      log("full view ring on:", start);
+      await shoot("1-full-view-start");
+      expectThat(start === "Pause", "the ring starts on Pause in the full view");
+      await press("up");
+      const more = await ringOn();
+      expectThat(
+        !!more?.startsWith("More options"),
+        `Up from Pause reaches the full view's ⋯ (ring on ${more})`,
+      );
+      await shoot("2-full-view-more");
+      await press("ok");
+      await shoot("3-menu-open");
+      expectThat((await count('[role="menu"]')) === 1, "OK on ⋯ opens BitChord's menu");
+      const first = await ringOn();
+      expectThat(first === "Play Next", `the ring starts on the menu's first item (${first})`);
+      await press("down");
+      const second = await ringOn();
+      const focused = await js<string>(`(document.activeElement?.innerText ?? "").trim()`);
+      log("menu ring on:", second, "focus on:", focused);
+      await shoot("4-menu-walked");
+      expectThat(
+        second === "Add to Queue" && focused === second,
+        "Down walks the menu: the ring and BitChord's focus are on the same item",
+      );
+      await press("back");
+      await shoot("5-after-first-back");
+      expectThat((await count('[role="menu"]')) === 0, "Back closes the menu");
+      expectThat(
+        (await count('[role="dialog"][aria-label="Now Playing"]')) === 1,
+        "Back with a menu open leaves the full view open",
+      );
+      expectThat(
+        String((await ringOn())?.startsWith("More options")) === "true",
+        "the ring is back on the ⋯ that opened the menu",
+      );
+      await press("back");
+      await shoot("6-after-second-back");
+      expectThat(
+        (await count('[role="dialog"][aria-label="Now Playing"]')) === 0,
+        "Back closes the full view",
+      );
+      expectThat(
+        (await ringOn()) === "Open full screen player",
+        "the ring is back on the bar's artwork",
+      );
+      expectThat(
+        (await js<string>(`location.pathname + location.search`)) === where,
+        "the page didn't change",
+      );
+    }
+    if (!attached) wc.debugger.detach();
 
     const age = await play(AGE_RESTRICTED, 15);
     log("age-restricted log:", age.lines);
