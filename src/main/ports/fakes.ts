@@ -255,7 +255,8 @@ export class FakeWebApp implements App {
   readonly setTrack: ((kind: TrackKind, id: string) => void) | undefined;
   readonly pressPrompt: ((id: PromptId) => void) | undefined;
   readonly setSpeed: ((speed: number) => void) | undefined;
-  readonly supportsTextSize: boolean;
+  /** Settable, so a test can play an App whose engine stops supporting Text size. */
+  supportsTextSize: boolean;
   setTextSize: ((size: TextSize) => void) | undefined;
   constructor(id: string, label: string, options: FakeWebAppOptions = {}) {
     this.id = id;

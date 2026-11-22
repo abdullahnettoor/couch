@@ -88,7 +88,7 @@ A black cover over the whole Screen, with a small dim Couch mark, while playback
 _Avoid_: screen off, blank, sleep
 
 **Quick settings**:
-A drawer that slides in from the right of the Screen, over Home, the Library and any App without pausing it, for what you change mid-watch: Sound output, volume and mute, Text size (only while an App that has it is in front), Picture off (only while something plays) and All settings; opened from the phone's Quick settings button or by resting the mouse at the Screen's right edge, closed by Back, Right, the button again, a click outside or 10 s without input.
+A drawer that slides in from the right of the Screen, over Home, the Library and any App without pausing it, for what you change mid-watch: Sound output, volume and mute, Text size (only while an App that has it is in front), Picture off (only while something plays) and All settings; opened from the phone's Quick settings button or by resting the mouse at the Screen's right edge, closed by Back, Right (except on the Volume and Text size rows, where Left and Right step the value), the button again, a click outside or 10 s without input.
 _Avoid_: side menu, control centre
 
 **Text size**:

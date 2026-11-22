@@ -48,6 +48,7 @@ ${rowCss(".row", "var(--u)")}
 .row.ts { gap:calc(12*var(--u)); padding-right:calc(12*var(--u)); }
 .row.ts .num { min-width:calc(150*var(--u)); text-align:center; font-weight:var(--weight-semibold); }
 .btn { width:calc(72*var(--u)); height:calc(72*var(--u)); border-radius:var(--radius-row); display:flex; align-items:center; justify-content:center; background:var(--button-fill-soft); }
+.row.focus .btn { background:var(--button-fill-on-focus); }
 .btn svg { width:calc(32*var(--u)); height:calc(32*var(--u)); fill:currentColor; }
 .btn.on { background:var(--danger); color:var(--text-primary); }
 `;

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "vite-plus/test";
 import { FakeWebApp } from "./ports/fakes.ts";
 import { startHarness, type FakePhone, type Harness } from "./testing/harness.ts";
+import { homeAppSwitch } from "../shared/home-apps.ts";
 import { quickSettingsPage } from "../shared/quick-settings-page.ts";
 
 let h: Harness;
@@ -21,15 +22,17 @@ const sizes = (app: FakeWebApp) =>
 async function start(given?: Harness["store"]) {
   const big = new FakeWebApp("big", "Big", { textSize: true });
   const plain = new FakeWebApp("plain", "Plain");
+  const wide = new FakeWebApp("wide", "Wide", { textSize: true });
   h = await startHarness(given, {
     apps: [
       { entry: entry("big", "Big"), app: big },
       { entry: entry("plain", "Plain"), app: plain },
+      { entry: entry("wide", "Wide"), app: wide },
     ],
   });
   const phone = await h.connectPhone();
   await settle();
-  return { big, plain, phone };
+  return { big, plain, wide, phone };
 }
 
 async function openApp(phone: FakePhone, id: string) {
@@ -65,6 +68,29 @@ describe("Text size in Quick settings", () => {
     expect(quick()?.textSize).toBe("Default");
     const rows = quick()!.items;
     expect(rows.map((i) => i.r)).toEqual(rows.map((_, i) => i));
+  });
+
+  test("each App keeps its own size: one's change leaves the other's", async () => {
+    const { big, wide, phone } = await start();
+    await openApp(phone, "big");
+    await drawer(phone);
+    await toRow(phone, "textsize");
+    await phone.press("right");
+    await phone.press("quickSettings");
+    await phone.press("home");
+    await openApp(phone, "wide");
+    await drawer(phone);
+    expect(quick()?.textSize).toBe("Default");
+    await toRow(phone, "textsize");
+    await phone.press("left");
+    expect(quick()?.textSize).toBe("Smaller");
+    expect(sizes(big).at(-1)).toBe("larger");
+    expect(sizes(wide).at(-1)).toBe("smaller");
+    await phone.press("quickSettings");
+    await phone.press("home");
+    await openApp(phone, "big");
+    await drawer(phone);
+    expect(quick()?.textSize).toBe("Larger");
   });
 
   test("never over YouTube", async () => {
@@ -146,6 +172,64 @@ describe("Text size in Settings", () => {
     await go(phone, "Big");
     await phone.press("ok");
     expect(label()).toBe("Text size: Larger");
+  });
+
+  test("the Library has no Text size row", async () => {
+    const { phone } = await start();
+    await phone.press("up");
+    await phone.press("ok");
+    await go(phone, "Library");
+    await phone.press("ok");
+    expect(h.screen.last.state.view).toBe("settingsLibrary");
+    expect(h.screen.last.grid.some((i) => i.id === "text-size")).toBe(false);
+  });
+
+  test("the default clears App choices in the stored document and survives a restart", async () => {
+    const { phone } = await start();
+    await openApp(phone, "big");
+    await drawer(phone);
+    await toRow(phone, "textsize");
+    await phone.press("left");
+    await phone.press("quickSettings");
+    await phone.press("home");
+    expect(h.store.read<{ apps?: object }>("text-size", {}).apps).toEqual({ big: "smaller" });
+    await toApps(phone);
+    await go(phone, "text-size");
+    await phone.press("ok");
+    expect(h.store.read("text-size", {})).toEqual({ default: "larger", apps: {} });
+    const store = h.store;
+    await h.app.stop();
+    const { big, wide } = await start(store);
+    expect(sizes(big)).toEqual(["larger"]);
+    expect(sizes(wide)).toEqual(["larger"]);
+  });
+
+  test("an App that is hidden from Home still gets the default", async () => {
+    const { big, phone } = await start();
+    await toApps(phone);
+    await go(phone, "Big");
+    await phone.press("ok");
+    await go(phone, "Hide from Home");
+    await phone.press("ok");
+    await phone.press("back");
+    expect(homeAppSwitch(h.screen.last.homeApps, "big")).toBe("off");
+    await go(phone, "text-size");
+    await phone.press("ok");
+    expect(sizes(big).at(-1)).toBe("larger");
+  });
+
+  test("a default changed while an App can't apply it still reaches it when it can again", async () => {
+    const { big, phone } = await start();
+    big.supportsTextSize = false;
+    await toApps(phone);
+    await go(phone, "text-size");
+    await phone.press("ok");
+    expect(sizes(big).at(-1)).toBe("larger");
+    big.supportsTextSize = true;
+    await phone.press("home");
+    await openApp(phone, "big");
+    await drawer(phone);
+    expect(quick()?.textSize).toBe("Larger");
   });
 
   test("an App's menu has its own row, only for an App that supports it, and agrees with Quick settings", async () => {

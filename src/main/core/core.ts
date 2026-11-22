@@ -645,14 +645,13 @@ export class Core {
     for (const app of ports.apps) {
       this.#apps.set(app.id, app);
       this.#appsOff.push(app.onEvent((event) => this.#onApp(app, event)));
-      if (app.supportsTextSize) app.setTextSize?.(this.#textSize.of(app.id));
+      app.setTextSize?.(this.#textSize.of(app.id));
     }
   }
 
-  /** Tells every App that has Text size its current size. */
+  /** Tells every App that has Text size its current size, whether or not it can apply it now. */
   #applyTextSizes(): void {
-    for (const app of this.#apps.values())
-      if (app.supportsTextSize) app.setTextSize?.(this.#textSize.of(app.id));
+    for (const app of this.#apps.values()) app.setTextSize?.(this.#textSize.of(app.id));
   }
 
   #setDefaultTextSize(size: TextSize): void {
