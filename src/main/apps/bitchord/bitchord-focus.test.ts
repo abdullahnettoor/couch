@@ -148,6 +148,17 @@ describe("BitChord's focus layout, on its saved pages", () => {
   test("the layout is on the description, with its own search address", () => {
     expect(desc.focus?.layout?.docks?.length).toBe(2);
     expect(desc.search?.placeholder).toBe("Search BitChord");
+    expect(desc.search?.typeIntoField).toBe(false);
+    expect(desc.search?.navigate).toBe("history");
+  });
+
+  test("the search page's own field is never a stop: the phone types, and the ring starts on a result", () => {
+    const p = open("search");
+    const field = p.all.filter((e) => e.matches?.('form[role="search"] input') ?? false);
+    expect(p.on()?.tagName).not.toBe("INPUT");
+    expect(p.on()?.getAttribute("role")).not.toBe("combobox");
+    for (const f of field) expect(p.on()).not.toBe(f);
+    expect(isPlay(p.on()) || href(p.on()) !== "").toBe(true);
   });
 
   describe("home", () => {

@@ -219,6 +219,38 @@ void app.whenReady().then(async () => {
     log(`seek +60 s from ${from}s: now at ${after}s`);
     expectThat(after >= from + 55, `a direct seek sticks (${from}s -> ${after}s)`);
 
+    // Search from the phone (#72): typed text opens the results in the same document, so the song keeps playing,
+    // even with BitChord's own search field focused; a second search replaces the results.
+    const origin = () => js<number>(`performance.timeOrigin`);
+    const resultsFor = (q: string) =>
+      js<boolean>(
+        `location.pathname === "/search" && new URLSearchParams(location.search).get("q") === ${JSON.stringify(q)} && /songs|artists|albums/i.test(document.querySelector("main")?.innerText ?? "")`,
+      );
+    const searched = async (q: string) => {
+      web.submitSearch(q);
+      for (let i = 0; i < 20 && !(await resultsFor(q)); i++) await sleep(500);
+      await sleep(1500);
+      return resultsFor(q);
+    };
+    const t0 = await origin();
+    const p0 = (await probe())!.position;
+    expectThat(await searched("coldplay"), "a search from the phone shows BitChord's results");
+    expectThat((await origin()) === t0, "the search kept the same document (no reload)");
+    const p1 = await probe();
+    log(`search while playing: ${p0}s -> ${p1?.position}s, ${p1?.paused ? "paused" : "playing"}`);
+    expectThat(!!p1 && !p1.paused && p1.position > p0, "the song kept playing through the search");
+    await js(`document.querySelector('input[aria-label="Search"]')?.focus()`);
+    expectThat(
+      await js<boolean>(`document.activeElement?.getAttribute("aria-label") === "Search"`),
+      "BitChord's search field has focus",
+    );
+    expectThat(await searched("adele"), "a search with the field focused replaces the results");
+    expectThat((await origin()) === t0, "the second search kept the document too");
+    expectThat(
+      (await probe())?.paused === false,
+      "the song was still playing after the second search",
+    );
+
     const age = await play(AGE_RESTRICTED, 15);
     log("age-restricted log:", age.lines);
     const shown = await js<string>(`document.body.innerText`);

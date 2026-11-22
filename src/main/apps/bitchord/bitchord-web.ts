@@ -47,6 +47,8 @@ export function bitchordDescription(
       isSearchUrl: isBitchordSearchUrl,
       urlFor: (text) => bitchordSearchUrlFor(site, text),
       placeholder: "Search BitChord",
+      typeIntoField: false,
+      navigate: "history",
     },
     route: urlRoute(isBitchordHome),
     textSize: { targetWidth: 1280 },

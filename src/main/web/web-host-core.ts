@@ -40,6 +40,11 @@ export interface HostEngine {
  * polling, the adapter's commands, seeking, Back and search. Input capture and the view's lifecycle stay
  * in the engine-specific host, which composes one of these.
  */
+/** A same-document search that hasn't changed the address within this long is loaded instead. */
+const SAME_DOCUMENT_ROUTE_MS = 1500;
+
+const BLUR_ACTIVE_SCRIPT = `(function(){try{var e=document.activeElement;if(e&&e.blur)e.blur()}catch(x){}})()`;
+
 export class WebHostCore {
   #desc: WebAppDescription;
   #engine: HostEngine;
@@ -53,6 +58,7 @@ export class WebHostCore {
   #tracksAt = 0;
   #timer: ReturnType<typeof setInterval> | undefined;
   #inSearch = false;
+  #routeTimer: ReturnType<typeof setTimeout> | undefined;
   #skipTimer: ReturnType<typeof setTimeout> | undefined;
   #searchTimer: ReturnType<typeof setTimeout> | undefined;
   #lastSkipAt = 0;
@@ -192,6 +198,7 @@ export class WebHostCore {
     this.#skipTimer = undefined;
     clearTimeout(this.#searchTimer);
     this.#searchTimer = undefined;
+    clearTimeout(this.#routeTimer);
     clearTimeout(this.#homeTimer);
     this.#homeTimer = undefined;
     this.#setPending(false);
@@ -367,16 +374,55 @@ export class WebHostCore {
     const search = this.#desc.search;
     if (!search) return;
     // A field in the page that has focus (a sign-in form) is what the household is typing into.
+    const typed =
+      search.typeIntoField === false
+        ? Promise.resolve(false)
+        : this.#engine.run(typeIntoFieldScript(text)).catch(() => false);
+    void typed.then((done) => {
+      if (done === true) return this.#engine.focus();
+      // Going to search is Couch's own doing, not the household opening the App's search screen.
+      this.#inSearch = true;
+      const url = search.urlFor(text);
+      if (search.typeIntoField === false) void this.#engine.run(BLUR_ACTIVE_SCRIPT).catch(() => {});
+      if (this.#engine.url() !== url) {
+        if (search.navigate === "history" && this.#onOwnOrigin()) this.#routeInPage(url);
+        else this.#engine.load(url);
+      }
+      this.#engine.focus();
+    });
+  }
+
+  #onOwnOrigin(): boolean {
+    try {
+      return this.#desc.isOwnOrigin(new URL(this.#engine.url()).origin);
+    } catch {
+      return false;
+    }
+  }
+
+  /** Pushes `url` and fires popstate so the App's router follows in the same document; loads it if the page doesn't route. */
+  #routeInPage(url: string): void {
+    const want = new URL(url);
+    const arrived = () => {
+      try {
+        const now = new URL(this.#engine.url());
+        return now.pathname + now.search === want.pathname + want.search;
+      } catch {
+        return false;
+      }
+    };
+    const fallback = () => {
+      if (!arrived()) this.#engine.load(url);
+    };
     void this.#engine
-      .run(typeIntoFieldScript(text))
+      .run(
+        `(function(u){try{history.pushState(null,"",u);dispatchEvent(new PopStateEvent("popstate",{state:null}));return true}catch(e){return false}})(${JSON.stringify(want.pathname + want.search)})`,
+      )
       .catch(() => false)
-      .then((typed) => {
-        if (typed === true) return this.#engine.focus();
-        // Going to search is Couch's own doing, not the household opening the App's search screen.
-        this.#inSearch = true;
-        const url = search.urlFor(text);
-        if (this.#engine.url() !== url) this.#engine.load(url);
-        this.#engine.focus();
+      .then((ok) => {
+        if (ok === false) return fallback();
+        clearTimeout(this.#routeTimer);
+        this.#routeTimer = setTimeout(fallback, SAME_DOCUMENT_ROUTE_MS);
       });
   }
 
