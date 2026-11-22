@@ -201,9 +201,14 @@ describe("the Apps step", () => {
       "Library",
     ]);
     expect(tiles().map((t) => t.querySelector(".g-tile")?.className)).toEqual([
-      "g-tile youtube-face",
-      "g-tile netflix-face",
-      "g-tile library-face",
+      "g-tile g-glass",
+      "g-tile g-glass",
+      "g-tile g-glass",
+    ]);
+    expect(tiles().map((t) => t.querySelector<HTMLElement>(".g-tile")?.dataset.app)).toEqual([
+      "youtube",
+      "netflix",
+      "library",
     ]);
     expect(tiles()[0]!.querySelector('[data-n="yt"]')).not.toBeNull();
     expect(tiles().map((t) => t.className)).toEqual([
