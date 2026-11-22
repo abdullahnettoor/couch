@@ -216,6 +216,12 @@ void app.whenReady().then(async () => {
       await save("playlist");
       await frame("playlist", ["down", "down", "down", "down"]);
     }
+    await go("/settings");
+    await save("settings");
+    await frame("settings", ["down", "down", "down", "down", "down", "down", "down", "down"]);
+    await go("/extension");
+    await save("extension");
+    await frame("extension", []);
     // A 100-song playlist, saved at its end: its rows are virtualised, and its last row sits at the screen's bottom edge, level with the player bar.
     await go(
       process.env.BITCHORD_LONG_PLAYLIST ?? "/playlist/VLPLO7-VO1D0_6MlO4UxJWFBUq3U-7zoIBf7",

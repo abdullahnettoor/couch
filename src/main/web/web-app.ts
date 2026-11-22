@@ -80,12 +80,18 @@ export interface WebAppDescription {
   identity: WebIdentity;
   keyCodes: Record<AppKey, string>;
   isOwnOrigin(origin: string): boolean;
+  /** The App's session cancels every download (nothing is ever saved from inside it). */
+  refuseDownloads?: boolean;
   /** Present when the App takes typed search; without it the App has no typing. */
   search?: {
     isSearchUrl(url: string): boolean;
     urlFor(text: string): string;
     /** The floating search bar's empty text, e.g. "Search YouTube". */
     placeholder: string;
+    /** False: a focused field in the page isn't typed into; it is blurred and the search address opens. Default true. */
+    typeIntoField?: boolean;
+    /** "history": the address is pushed with a popstate in the same document (a playing song continues), loading it if the page doesn't route in about 1.5 s or isn't on the App's origin. Default: load. */
+    navigate?: "history";
   };
   route: RouteSignals;
   /** App-specific key sequences for a skip, and when to commit it with OK. */
