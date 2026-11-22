@@ -17,6 +17,17 @@ export const BITCHORD_LAYOUT: FocusLayout = {
   startFirst: true,
   ringAround: TRACK,
   docks: ['nav[aria-label="Main"]', '[role="region"][aria-label="Player"]'],
+  // Every ⋯ menu (a song's, the lyrics provider's, the video quality's); the full view is already role=dialog.
+  scopes: ['[role="menu"]'],
+  // Inside a menu BitChord moves its own focus with the arrows: the ring follows it, so OK presses what the ring is on.
+  followFocus: true,
+  // The checked item of a menu, else its first; in the full view, Pause, else Play (BitChord itself focuses Close).
+  modalEntry: [
+    '[role="menu"] [role^="menuitem"][aria-checked="true"]',
+    '[role="menu"] [role^="menuitem"]',
+    '[aria-label="Now Playing"] section[aria-label="Player"] button[aria-label="Pause"]',
+    '[aria-label="Now Playing"] section[aria-label="Player"] button[aria-label="Play"]',
+  ],
   ignore: [
     // The shelves' paging arrows: the highlight scrolls a shelf by itself.
     'button[aria-label$="Page"]',
@@ -25,8 +36,16 @@ export const BITCHORD_LAYOUT: FocusLayout = {
     'a[href^="/playlist/"]:not([aria-label])',
     // Volume is Couch's own: the Remote sets it.
     'input[type="range"]',
-    // A song row is its Play button: its menu, title, artists and album link are for a mouse.
-    'button[aria-label^="More options"]',
+    // A song row is its Play button: its menu, title, artists and album link are for a mouse (the bar's and the full view's ⋯ are not rows).
+    ...inTracks('button[aria-label^="More options"]').split(", "),
+    'aside button[aria-label^="More options"]',
+    // Couch is already full screen, and BitChord's own does nothing from a key.
+    'button[aria-label="Enter full screen"]',
+    // The full view's title, album and artists lead out of it: its controls are what the ring is for.
+    '[aria-label="Now Playing"] a[href]',
+    '[aria-label="Now Playing"] section[aria-label="Player"] button:not([aria-label])',
+    // Shown only under a mouse: the ring would outline nothing.
+    '[aria-label="Now Playing"] section[aria-label="Lyrics"] button',
     ...inTracks("a").split(", "),
     ...inTracks("button:not([aria-label])").split(", "),
   ],

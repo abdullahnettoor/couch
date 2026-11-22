@@ -61,6 +61,8 @@ export interface FocusLayout {
   scopes?: string[];
   /** Overlays that never count as covering a control (a hover preview): the highlight stays on the control beneath. */
   passive?: string[];
+  /** Inside a pop-up the highlight and the page's own focus stay together: the entry control takes the focus, and the highlight follows it when the page moves it with the arrows (a menu's roving focus), so OK presses what the highlight is on. */
+  followFocus?: boolean;
   /** Where the highlight lands when a pop-up opens: the first usable match of the first selector that has one, inside the pop-up. While none matches yet, the highlight waits (never on a text link); the wait ends when one does or the household moves, and from then on it stays where they put it. */
   modalEntry?: string[];
   /** Rows of cards: Left/Right stay in the row, Up/Down leave it; at the row's end `next`/`prev` (inside the row) page it. */
@@ -584,7 +586,13 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         if (topLayer && topLayer.entering && topLayer.modal === modal) {
           // Until the household moves, the ring waits for an entry control: geometry never picks a text link here.
           var entry = entryControl(modal);
-          if (entry) { if (entry !== current) { current = entry; heldKey = keyOf(entry); displaced = null; } }
+          if (entry) {
+            if (entry !== current) {
+              current = entry; heldKey = keyOf(entry); displaced = null;
+              // The page's focus starts where the highlight is, so its own arrow moves go on from the entry.
+              if (LAYOUT.followFocus) { try { entry.focus({ preventScroll: true }); } catch (e) {} }
+            }
+          }
           else { current = null; displaced = null; draw(); return; }
         }
         leaveEarlyDock();
@@ -961,8 +969,23 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     }, true);
     addEventListener('keydown', onBarKey, true);
     addEventListener('keydown', onKey, false);
+    // With followFocus a key of the household's ends the wait for the entry control, before the page's own handlers move its focus.
+    addEventListener('keydown', function (e) {
+      try {
+        if (LAYOUT.followFocus && DIRS[e.key] && layers.length) layers[layers.length - 1].entering = false;
+      } catch (err) {}
+    }, true);
     addEventListener('focusin', function (e) {
       try { if (editable(e.target)) console.debug(${JSON.stringify(FIELD_FOCUSED)}); } catch (err) {}
+      try {
+        if (!LAYOUT.followFocus || barOn || noRing() || !layers.length || !e.target || e.target === current) return;
+        var top = layers[layers.length - 1];
+        // The pop-up's own first focus is not the household's move: the entry control still waits.
+        if (top.entering || top.modal !== scopeEl()) return;
+        if (!matchesAny(e.target, [SELECTOR]) || !usable(e.target)) return;
+        current = e.target; heldKey = keyOf(current); lost = null; displaced = null; pending = null; strayed = null; landed = true;
+        draw();
+      } catch (err) {}
     }, true);
     addEventListener('focusout', function (e) {
       try { if (editable(e.target)) console.debug(${JSON.stringify(FIELD_BLURRED)}); } catch (err) {}
