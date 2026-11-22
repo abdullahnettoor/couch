@@ -22,16 +22,13 @@ function greeting(date: Date): string {
         : "Good evening";
 }
 
+/** Every App's tile is the same glass tile; `data-app` only sizes its logo. */
 function appTile(id: string, label: string, icon: string, focused: boolean): HTMLElement {
-  const face = icon;
-  return focusable(
-    el(
-      "button",
-      `h-app${focused ? " focused" : ""}`,
-      `<div class="g-tile ${id}-face">${face}</div><div class="g-cap">${label}</div>`,
-    ),
-    id,
-  );
+  const face = el("div", "g-tile g-glass", icon);
+  face.dataset.app = id;
+  const node = el("button", `h-app${focused ? " focused" : ""}`);
+  node.append(face, el("div", "g-cap", label));
+  return focusable(node, id);
 }
 
 /** Long titles drop one or two sizes before the two-line cut-off. */
@@ -50,7 +47,7 @@ function filmTile(v: LibraryEntry, focused: boolean): HTMLElement {
       el("div", "h-prog", `<i style="width:${Math.round(v.progress.fraction * 100)}%"></i>`),
     );
   }
-  if (v.app) tile.append(el("span", `h-badge ${v.app.id}-face`, v.app.icon));
+  if (v.app) tile.append(el("span", "h-badge", v.app.icon));
   const cap = el(
     "div",
     "g-cap",

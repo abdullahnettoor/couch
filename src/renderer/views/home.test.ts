@@ -462,6 +462,39 @@ describe("Settings → Home with the Mac's pictures", () => {
   });
 });
 
+describe("Home's App tiles are glass", () => {
+  const apps = ["youtube", "netflix", "library", "bitchord"].map((id) => ({
+    id,
+    label: id,
+    icon: `<svg data-n="${id}"></svg>`,
+    shown: true,
+  }));
+  const faces = () =>
+    Array.from(screen.querySelectorAll<HTMLElement>(".h-app:not(.h-film) > .g-tile"));
+
+  test("every App gets the same glass tile, its logo inside and the App named for logo sizes", () => {
+    home.render(payload({ homeApps: apps } as Partial<ScreenPayload>));
+    expect(faces().map((f) => f.className)).toEqual(apps.map(() => "g-tile g-glass"));
+    expect(faces().map((f) => f.dataset.app)).toEqual(apps.map((a) => a.id));
+    for (const a of apps) expect(screen.querySelector(`[data-n="${a.id}"]`)).not.toBeNull();
+  });
+
+  test("no App has a face of its own: the glass lets the Wallpaper through, the logos keep their colours", () => {
+    for (const rule of css.rules) expect(rule.selectorText).not.toMatch(/-face\b/);
+    expect(css.prop(".g-glass", "background-color")).not.toBe("");
+    expect(css.prop(".g-glass", "background-image")).toBe("");
+    expect(css.prop(".g-glass", "color")).toBe("var(--text-primary)");
+  });
+
+  test("over a photo the glass follows the picture's brightness, as the glass clock does", () => {
+    expect(css.prop(".home.photo .g-glass", "--tile-glass-tint")).toContain("--wp-light");
+  });
+
+  test("a Continue badge keeps its own solid background, not the tile's glass", () => {
+    expect(css.prop(".h-badge", "background")).toBe("var(--app-badge-bg)");
+  });
+});
+
 describe("Home's Continue watching for an App title", () => {
   const title = (fromStart: boolean): LibraryEntry =>
     ({

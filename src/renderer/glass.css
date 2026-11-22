@@ -145,6 +145,25 @@ svg.i {
 .g-tile.focused::after {
   opacity: 1;
 }
+/*
+ * The glass tile, every App's tile on Home and in Setup's Apps step (#69): no face of its own, only a faint tint and an
+ * edge, so the Wallpaper shows through (frosted by the photo's blur behind Home's row) and each logo keeps its own
+ * colours; a mark drawn in currentColor is light. A new App needs no tile styling. It sets no backdrop-filter: a fading
+ * parent would turn it off (#33), and the row's blur is already behind it.
+ */
+.g-glass {
+  --tile-glass-tint: var(--tile-glass-tint-builtin);
+  background-color: var(--tile-glass-tint);
+  color: var(--text-primary);
+}
+.g-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: var(--shadow-tile-glass-rim);
+}
 .g-cap {
   margin-top: calc(18 * var(--u));
   font-size: var(--type-tile-caption);
@@ -667,9 +686,6 @@ body.native-app-front .setup .box {
   cursor: pointer;
   text-align: center;
 }
-:where(.setup .s-tile) > .g-tile {
-  background: var(--app-face);
-}
 .setup .s-tile > .g-tile {
   height: calc(158 * var(--u));
   display: grid;
@@ -684,10 +700,10 @@ body.native-app-front .setup .box {
   width: calc(72 * var(--u));
   height: calc(72 * var(--u));
 }
-.setup .s-tile > .youtube-face > svg {
+.setup .s-tile > [data-app="youtube"] > svg {
   width: calc(104 * var(--u));
 }
-.setup .s-tile > .netflix-face > svg {
+.setup .s-tile > [data-app="netflix"] > svg {
   width: calc(76 * var(--u));
   height: calc(104 * var(--u));
 }
