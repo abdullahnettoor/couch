@@ -374,7 +374,7 @@ void app.whenReady().then(async () => {
         const e = inside[0]?.e;
         return e ? (e.getAttribute("aria-label") || e.innerText || "").trim() : null;
       })()`);
-    const press = async (k: "up" | "down" | "left" | "right" | "ok" | "back") => {
+    const sendKey = async (k: "up" | "down" | "left" | "right" | "ok" | "back") => {
       wc.focus();
       web.sendKey(k);
       await sleep(900);
@@ -403,7 +403,9 @@ void app.whenReady().then(async () => {
     const attached = wc.debugger.isAttached();
     if (!attached) wc.debugger.attach("1.3");
     await wc.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
-    const where = await js<string>(`location.pathname + location.search`);
+    await within("/home");
+    await sleep(1500);
+    const startPath = await js<string>(`location.pathname + location.search`);
     // A mouse click of the household's makes the bar's artwork the held control, as reaching it with the D-pad does.
     const art = await js<number[] | null>(`(() => {
       const e = document.querySelector('button[aria-label="Open full screen player"]');
@@ -422,7 +424,11 @@ void app.whenReady().then(async () => {
         "inner",
         await js<string>(`innerWidth + "x" + innerHeight + " dpr " + devicePixelRatio`),
       );
+      // The D-pad steps above left Couch's shield up; it comes down on a mouse move of more than a few pixels, after one that anchors.
+      await wc.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseMoved", x: at.x - 40, y: at.y - 40 });
+      await sleep(300);
       await wc.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+      await sleep(300);
       await wc.debugger.sendCommand("Input.dispatchMouseEvent", {
         type: "mousePressed",
         ...at,
@@ -444,19 +450,19 @@ void app.whenReady().then(async () => {
       log("full view ring on:", start);
       await shoot("1-full-view-start");
       expectThat(start === "Pause", "the ring starts on Pause in the full view");
-      await press("up");
+      await sendKey("up");
       const more = await ringOn();
       expectThat(
         !!more?.startsWith("More options"),
         `Up from Pause reaches the full view's ⋯ (ring on ${more})`,
       );
       await shoot("2-full-view-more");
-      await press("ok");
+      await sendKey("ok");
       await shoot("3-menu-open");
       expectThat((await count('[role="menu"]')) === 1, "OK on ⋯ opens BitChord's menu");
       const first = await ringOn();
       expectThat(first === "Play Next", `the ring starts on the menu's first item (${first})`);
-      await press("down");
+      await sendKey("down");
       const second = await ringOn();
       const focused = await js<string>(`(document.activeElement?.innerText ?? "").trim()`);
       log("menu ring on:", second, "focus on:", focused);
@@ -465,7 +471,7 @@ void app.whenReady().then(async () => {
         second === "Add to Queue" && focused === second,
         "Down walks the menu: the ring and BitChord's focus are on the same item",
       );
-      await press("back");
+      await sendKey("back");
       await shoot("5-after-first-back");
       expectThat((await count('[role="menu"]')) === 0, "Back closes the menu");
       expectThat(
@@ -476,7 +482,7 @@ void app.whenReady().then(async () => {
         String((await ringOn())?.startsWith("More options")) === "true",
         "the ring is back on the ⋯ that opened the menu",
       );
-      await press("back");
+      await sendKey("back");
       await shoot("6-after-second-back");
       expectThat(
         (await count('[role="dialog"][aria-label="Now Playing"]')) === 0,
@@ -487,7 +493,7 @@ void app.whenReady().then(async () => {
         "the ring is back on the bar's artwork",
       );
       expectThat(
-        (await js<string>(`location.pathname + location.search`)) === where,
+        (await js<string>(`location.pathname + location.search`)) === startPath,
         "the page didn't change",
       );
     }

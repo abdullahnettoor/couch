@@ -59,6 +59,16 @@ function reach(p: Page, steps = 400) {
     const e = p.on();
     if (e) stops.add(e);
   }
+  // Down now ends in the bar, which Right then walks: the shuffle alone rarely stays there.
+  const sweep = (key: string, n: number) => {
+    for (let i = 0; i < n; i++) {
+      p.key(key);
+      const e = p.on();
+      if (e) stops.add(e);
+    }
+  };
+  sweep("ArrowDown", 60);
+  sweep("ArrowRight", 15);
   return stops;
 }
 
