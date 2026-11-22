@@ -5,6 +5,7 @@
 //   2. a known song from BitChord's /debug page plays past 90 s, and two more for 20 s each,
 //   3. an age-restricted song shows BitChord's own sign-in message,
 //   4. lyrics load for the long song: the bridge fetched a listed lyric host and BitChord's lyrics view shows lines.
+// The window is 1920 pt wide with Text size applied (BITCHORD_TEXT_SIZE, default "default").
 // BITCHORD_SITE overrides the site; BITCHORD_TRACKS=a,b,c and BITCHORD_AGE_RESTRICTED=id override the songs;
 // BITCHORD_LONG (seconds, default 95) shortens the long play for a quick look; the long song must reach 90 s (or that shorter
 // wish), the others 20 s, with no tolerance.
@@ -17,6 +18,7 @@ import { bridgeNetwork } from "../src/main/apps/bitchord/bitchord-network.ts";
 import { bitchordSite } from "../src/main/apps/bitchord/bitchord-route.ts";
 import { ownArtwork, playbackProbe } from "../src/main/web/playback.ts";
 import { BITCHORD_PARTITION, bitchordDescription } from "../src/main/apps/bitchord/bitchord-web.ts";
+import type { TextSize } from "../src/main/web/text-size.ts";
 import { ElectronWebApp } from "../src/main/web/electron-web-app.ts";
 
 const userData = mkdtempSync(join(tmpdir(), "couch-bitchord-check-"));
@@ -57,7 +59,14 @@ void app.whenReady().then(async () => {
     process.env,
   );
   // A window that is never shown, far off screen. The host asks to reveal it only when it is not "focused and visible", so say it is.
-  const win = new BrowserWindow({ show: false, x: -10000, y: -10000, width: 1280, height: 800 });
+  const win = new BrowserWindow({
+    show: false,
+    x: -10000,
+    y: -10000,
+    width: 1920,
+    height: 1080,
+    useContentSize: true,
+  });
   const hidden = new Proxy(win, {
     get(target, key) {
       if (key === "isFocused" || key === "isVisible") return () => true;
@@ -76,6 +85,8 @@ void app.whenReady().then(async () => {
       log("page:", e.message?.slice(0, 200));
   });
   const js = <T,>(code: string) => wc.executeJavaScript(code, true) as Promise<T>;
+  // Text size applies: the window is 1920 pt wide, so BitChord runs zoomed (BITCHORD_TEXT_SIZE=smaller|default|larger).
+  web.setTextSize((process.env.BITCHORD_TEXT_SIZE ?? "default") as TextSize);
   web.show();
   const go = async (path: string) => {
     await wc.loadURL(`${SITE}${path}`);

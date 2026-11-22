@@ -49,6 +49,7 @@ export function bitchordDescription(
       placeholder: "Search BitChord",
     },
     route: urlRoute(isBitchordHome),
+    textSize: { targetWidth: 1280 },
     focus: { selectors: BITCHORD_FOCUS_SELECTORS, layout: BITCHORD_LAYOUT },
     preloads: [BITCHORD_RELAY],
     artworkHosts: BITCHORD_ARTWORK_HOSTS,
