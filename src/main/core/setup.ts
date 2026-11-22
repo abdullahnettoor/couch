@@ -1,6 +1,8 @@
 import type { Command, SetupPayload, UiSound } from "../../shared/protocol.ts";
 import { SETUP_TILE_COLUMNS } from "../../shared/setup-controls.ts";
+import type { TextSize } from "../../shared/text-size.ts";
 import type { Store } from "../ports/store.ts";
+import { TEXT_SIZE_LABELS, stepTextSize } from "./text-size-setting.ts";
 import { SETUP_STEPS, type SetupContext, type SetupStep } from "./setup-steps.ts";
 
 export interface SetupControls {
@@ -13,6 +15,8 @@ export interface SetupControls {
   /** The Start Couch Listener at login setting, the one Settings → Remotes and Devices shows. */
   listenerOn(): boolean;
   turnListenerOn(): void;
+  /** Sets the household's default Text size, as Settings → Apps does. */
+  keepTextSize(size: TextSize): void;
 }
 
 export interface SetupHost {
@@ -34,6 +38,14 @@ export interface SetupHost {
   folders(): string[];
   /** Opens the Mac's folder picker and adds what it returns, as Settings → Library does. */
   addFolder(): void;
+  /** The household's default Text size, the setting Settings → Apps shows. */
+  textSize: {
+    size(): TextSize;
+    chosen(): boolean;
+    setDefault(size: TextSize): void;
+    /** The Apps on Home that have Text size, by name, in Home's order. */
+    apps(): string[];
+  };
   /** A timer on the Clock port; returns its canceller. */
   later(fn: () => void, ms: number): () => void;
   cue(sound: UiSound): void;
@@ -91,6 +103,8 @@ export class Setup {
   #deferred = 0;
   #justConnected = false;
   #addingPhone = false;
+  /** The Text size step's size while Left/Right change it, before Continue keeps it. */
+  #textSize?: TextSize;
   #cancelAdvance?: () => void;
   /** Settings → About → Run setup again: the full list, saving nothing; `#before` is what to put back. */
   #before?: {
@@ -110,6 +124,7 @@ export class Setup {
       listenerOn: () => host.listenerOn(),
       turnListenerOn: () => host.turnListenerOn(),
       addFolder: () => host.addFolder(),
+      keepTextSize: (size) => host.textSize.setDefault(size),
     };
     this.#steps = steps;
     this.#all = steps;
@@ -133,7 +148,12 @@ export class Setup {
   }
 
   #startNew(deferred: unknown): void {
-    const pending = this.#steps.filter((s) => !this.#seen.has(s.id));
+    const fresh = this.#steps.filter((s) => !this.#seen.has(s.id));
+    const pending = fresh.filter((s) => !s.done(this.#ctx(), this.#control));
+    if (pending.length < fresh.length) {
+      for (const s of fresh) if (!pending.includes(s)) this.#seen.add(s.id);
+      this.#save(true);
+    }
     if (pending.length === 0) return;
     this.#deferred = typeof deferred === "number" ? deferred : 0;
     this.#steps = pending;
@@ -155,6 +175,7 @@ export class Setup {
     this.#cancelAdvance = undefined;
     this.#justConnected = false;
     this.#addingPhone = false;
+    this.#textSize = undefined;
     this.#index = index;
     this.#focus = 0;
     this.#lastTile = 0;
@@ -227,6 +248,11 @@ export class Setup {
       addingPhone: this.#addingPhone,
       apps: this.#h.apps,
       folders: this.#h.folders(),
+      textSize: {
+        shown: this.#textSize ?? this.#h.textSize.size(),
+        chosen: this.#h.textSize.chosen(),
+        apps: this.#h.textSize.apps(),
+      },
     };
   }
 
@@ -292,6 +318,9 @@ export class Setup {
             columns: Math.min(tiles.length, SETUP_TILE_COLUMNS),
           }
         : {}),
+      ...(page.textSize
+        ? { textSize: { size: page.textSize, label: TEXT_SIZE_LABELS[page.textSize] } }
+        : {}),
       buttons: page.buttons.map((b) => b.label),
       focus: this.#focus,
       ...(this.#whatsNew || this.#before ? {} : { intro: true as const }),
@@ -350,9 +379,15 @@ export class Setup {
     controls[index]?.run();
   }
 
-  /** Arrows move in the tiles' grid, then along the row of buttons under it. */
+  /** Arrows move in the tiles' grid, then along the row of buttons under it; Left/Right step a Text size. */
   #arrow(key: "left" | "right" | "up" | "down"): void {
     const page = this.#page();
+    if (page.textSize && (key === "left" || key === "right")) {
+      const to = stepTextSize(page.textSize, key === "left" ? -1 : 1);
+      this.#h.cue(to === page.textSize ? "blocked" : "move");
+      this.#textSize = to;
+      return;
+    }
     const n = page.tiles?.length ?? 0;
     const count = n + page.buttons.length;
     const f = this.#focus;

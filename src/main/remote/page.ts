@@ -197,6 +197,10 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .sheet .tick { display:inline-grid; place-items:center; width:20px; height:20px; border-radius:var(--radius-tick); background:var(--tick-bg); color:var(--tick-fg); vertical-align:-3px; }
   .sheet .tick svg { width:12px; height:12px; }
   .sheet .tile .tick { position:absolute; top:8px; right:8px; }
+  .sheet .size { display:grid; grid-template-columns:64px 1fr 64px; align-items:center; gap:10px; }
+  .sheet .size .k { height:56px; background:var(--card-key); border-radius:var(--radius-sheet-control); box-shadow:none; transition:opacity var(--duration-quick); }
+  .sheet .size .k.end { opacity:.35; }
+  .sheet .size b { text-align:center; font-size:var(--type-phone-heading); }
 </style>
 </head>
 <body>
@@ -220,6 +224,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     <b id="ask-title" style="font-size:var(--type-phone-heading)"></b>
     <span id="ask-body" style="color:var(--text-tertiary);font-size:var(--type-phone-subhead);white-space:pre-line"></span>
     <div class="tiles" id="ask-tiles" hidden></div>
+    <div class="size" id="ask-size" hidden><button type="button" class="k" id="ask-size-less" data-cmd="left" aria-label="Left" data-i="left"></button><b id="ask-size-name"></b><button type="button" class="k" id="ask-size-more" data-cmd="right" aria-label="Right" data-i="right"></button></div>
     <div class="stack" id="ask-btns"></div>
     <span id="ask-foot" style="color:var(--text-tertiary);font-size:var(--type-phone-caption)" hidden></span>
     <div class="btns" id="ask-nav" hidden><button type="button" class="k txt" data-cmd="back" aria-label="Back">Back</button><button type="button" class="k txt" data-cmd="home" aria-label="Home">Home</button></div>
@@ -517,6 +522,13 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       });
       $("ask-tiles").innerHTML = tiles;
       $("ask-tiles").hidden = !tiles;
+      var ts = su && su.textSize;
+      $("ask-size").hidden = !ts;
+      if (ts) {
+        $("ask-size-name").textContent = ts.label;
+        $("ask-size-less").classList.toggle("end", ts.size === "smaller");
+        $("ask-size-more").classList.toggle("end", ts.size === "larger");
+      }
       $("ask-btns").innerHTML = btns;
       $("ask-foot").textContent = q.foot || "";
       $("ask-foot").hidden = !q.foot;

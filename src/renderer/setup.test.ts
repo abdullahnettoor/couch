@@ -236,6 +236,121 @@ describe("the Apps step", () => {
   });
 });
 
+describe("the Text size step", () => {
+  const step = (size: "smaller" | "default" | "larger", label: string): SetupPayload => ({
+    id: "text-size",
+    title: "Text size",
+    body: "How large text looks in Apps like BitChord and Netflix.",
+    textSize: { size, label },
+    step: 3,
+    steps: 6,
+    buttons: ["Continue"],
+    focus: 0,
+  });
+  const sample = () => panel.querySelector<HTMLElement>(".s-sample")!;
+  const site = () => sample().querySelector<HTMLElement>(".s-site")!.shadowRoot!;
+  const page = () => site().querySelector<HTMLElement>(".page")!;
+  const arrows = () => Array.from(panel.querySelectorAll<HTMLElement>(".s-size .s-arrow"));
+  let width: number;
+  beforeAll(() => {
+    width = innerWidth;
+  });
+  afterEach(() => {
+    Object.defineProperty(window, "innerWidth", { value: width, configurable: true });
+  });
+  const screen = (w: number, h = Math.round((w * 9) / 16)) => {
+    Object.defineProperty(window, "innerWidth", { value: w, configurable: true });
+    Object.defineProperty(window, "innerHeight", { value: h, configurable: true });
+  };
+
+  test("draws a site's page under the words: cards with titles and grey lines, made-up names", () => {
+    screen(1920);
+    draw(step("default", "Default"));
+    expect(text(".s-title")).toBe("Text size");
+    const cards = Array.from(site().querySelectorAll(".card"));
+    expect(cards.length).toBeGreaterThanOrEqual(5);
+    for (const card of cards) {
+      expect(card.querySelector(".t")?.textContent).toBeTruthy();
+      expect(card.querySelector(".s")?.textContent).toBeTruthy();
+    }
+    expect(site().querySelector("style")?.textContent).toMatch(/\.s\s*\{[^}]*color:/);
+    expect(text(".s-size .s-value")).toBe("Default");
+    expect(sample().nextElementSibling?.classList.contains("s-size")).toBe(true);
+  });
+
+  test.each([
+    [1920, "smaller", "Smaller", 1.275, 1506],
+    [1920, "default", "Default", 1.5, 1280],
+    [1920, "larger", "Larger", 1.8, 1067],
+    [1280, "default", "Default", 1, 1280],
+    [3840, "default", "Default", 3, 1280],
+  ] as const)(
+    "a %i pt Screen at %s: the page is laid out and zoomed as a typical App would be",
+    (w, size, label, zoom, layout) => {
+      screen(w);
+      draw(step(size, label));
+      expect(Number(page().style.zoom)).toBeCloseTo(zoom, 5);
+      expect(Math.round(parseFloat(page().style.width))).toBe(layout);
+    },
+  );
+
+  test("Left and Right redraw the sample and the name in place; the arrow at an end is dimmed", () => {
+    screen(1920);
+    draw(step("default", "Default"));
+    const before = sample();
+    expect(arrows().map((a) => a.classList.contains("end"))).toEqual([false, false]);
+    draw(step("larger", "Larger"));
+    expect(sample()).toBe(before);
+    expect(Number(page().style.zoom)).toBeCloseTo(1.8, 5);
+    expect(text(".s-size .s-value")).toBe("Larger");
+    expect(arrows().map((a) => a.classList.contains("end"))).toEqual([false, true]);
+    draw(step("smaller", "Smaller"));
+    expect(arrows().map((a) => a.classList.contains("end"))).toEqual([true, false]);
+  });
+
+  test("follows the Screen when the window changes size (another display)", () => {
+    screen(1920);
+    draw(step("default", "Default"));
+    screen(2560);
+    dispatchEvent(new Event("resize"));
+    expect(Number(page().style.zoom)).toBeCloseTo(2, 5);
+    expect(Math.round(parseFloat(page().style.width))).toBe(1280);
+  });
+
+  test("a sample that is gone stops following the window: closing Setup, or moving to another step", () => {
+    screen(1920);
+    draw(step("default", "Default"));
+    const gone = page();
+    draw(undefined);
+    vi.runAllTimers();
+    screen(2560);
+    dispatchEvent(new Event("resize"));
+    expect(Number(gone.style.zoom)).toBeCloseTo(1.5, 5);
+
+    screen(1920);
+    draw(step("default", "Default"));
+    const left = page();
+    draw({ ...welcome, steps: 6 });
+    vi.runAllTimers();
+    screen(2560);
+    dispatchEvent(new Event("resize"));
+    expect(Number(left.style.zoom)).toBeCloseTo(1.5, 5);
+  });
+
+  test("Continue is the only button; the arrows are not buttons, and a click on one steps the size", () => {
+    screen(1920);
+    draw(step("default", "Default"));
+    expect(buttons().map((b) => b.textContent)).toEqual(["Continue"]);
+    for (const a of arrows()) {
+      expect(a.tagName).not.toBe("BUTTON");
+      expect(a.dataset.i).toBeUndefined();
+    }
+    arrows()[0]!.dispatchEvent(new Event("click", { bubbles: true }));
+    arrows()[1]!.dispatchEvent(new Event("click", { bubbles: true }));
+    expect(sent).toEqual([{ command: "left" }, { command: "right" }]);
+  });
+});
+
 describe("the intro", () => {
   const intro = () => panel.querySelector(".s-intro");
 

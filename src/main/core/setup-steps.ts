@@ -1,4 +1,5 @@
 import type { SetupTip } from "../../shared/protocol.ts";
+import type { TextSize } from "../../shared/text-size.ts";
 import type { SetupControls } from "./setup.ts";
 
 export interface SetupButton {
@@ -23,6 +24,15 @@ export interface SetupContext {
   };
   /** The Library folders already added. */
   folders: string[];
+  /** The household's default Text size: the same setting as Settings → Apps → Text size. */
+  textSize: {
+    /** The size the step shows: the default until Left or Right changes it. */
+    shown: TextSize;
+    /** A default has been chosen, here or in Settings → Apps. */
+    chosen: boolean;
+    /** The Apps on Home that have Text size, by name. */
+    apps: string[];
+  };
 }
 
 export interface SetupPage {
@@ -44,6 +54,8 @@ export interface SetupPage {
   buttons: SetupButton[];
   /** On/off tiles ahead of the buttons, each an App with its logo; arrows move in their grid, OK flips one. */
   tiles?: SetupTile[];
+  /** The Text size the step shows, with its sample; Left and Right step it, the buttons keep it. */
+  textSize?: TextSize;
 }
 
 export interface SetupTile {
@@ -72,6 +84,14 @@ export interface SetupStep {
 
 const next = (c: SetupControls) => c.next();
 const NOT_NOW = { label: "Not now", run: next };
+
+/** "Apps like BitChord and Netflix", naming at most two; "web Apps" when none on Home has it. */
+const appsLike = (apps: string[]) =>
+  apps.length === 0
+    ? "web Apps"
+    : apps.length === 1
+      ? apps[0]!
+      : `Apps like ${apps[0]} and ${apps[1]}`;
 
 export const SETUP_STEPS: SetupStep[] = [
   {
@@ -148,6 +168,24 @@ export const SETUP_STEPS: SetupStep[] = [
         toggle: () => apps.setShown(row.id, !row.shown),
       })),
       buttons: [{ label: "Continue", run: next }],
+    }),
+  },
+  {
+    id: "text-size",
+    done: ({ textSize }) => textSize.chosen,
+    page: ({ textSize }) => ({
+      title: "Text size",
+      body: `How large text looks in ${appsLike(textSize.apps)}.`,
+      textSize: textSize.shown,
+      buttons: [
+        {
+          label: "Continue",
+          run: (c) => {
+            c.keepTextSize(textSize.shown);
+            c.next();
+          },
+        },
+      ],
     }),
   },
   {
