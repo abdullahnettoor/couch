@@ -72,6 +72,11 @@ function reach(p: Page, steps = 400) {
   return stops;
 }
 
+// A walk of the full view takes about 2 s here and more on a busy CI runner: walk it once for the tests that read it.
+let fullViewStops: Set<FakeEl> | undefined;
+const fullViewReach = () => (fullViewStops ??= reach(open("fullview")));
+const WALK_MS = 30_000;
+
 describe("BitChord's full view, from the Remote", () => {
   test("the ring starts on Pause, not on BitChord's own Close", () => {
     const p = open("fullview");
@@ -79,35 +84,47 @@ describe("BitChord's full view, from the Remote", () => {
     expect(p.on()!.closest("section")?.getAttribute("aria-label")).toBe("Player");
   });
 
-  test("the controls, the Lyrics toggle, Up Next, Mute, ⋯ and Close can all be reached", () => {
-    const stops = reach(open("fullview"));
-    const names = new Set([...stops].map(label));
-    for (const want of [
-      "Shuffle",
-      "Previous",
-      "Next",
-      "Repeat",
-      "Lyrics",
-      "Up Next",
-      "Mute",
-      "Close",
-    ])
-      expect(names.has(want), want).toBe(true);
-    expect([...stops].some(isMore)).toBe(true);
-  });
+  test(
+    "the controls, the Lyrics toggle, Up Next, Mute, ⋯ and Close can all be reached",
+    () => {
+      const stops = fullViewReach();
+      const names = new Set([...stops].map(label));
+      for (const want of [
+        "Shuffle",
+        "Previous",
+        "Next",
+        "Repeat",
+        "Lyrics",
+        "Up Next",
+        "Mute",
+        "Close",
+      ])
+        expect(names.has(want), want).toBe(true);
+      expect([...stops].some(isMore)).toBe(true);
+    },
+    WALK_MS,
+  );
 
-  test("the ring never lands on Enter full screen, the volume slider or a hover-only lyric button", () => {
-    for (const e of reach(open("fullview"))) {
-      expect(label(e)).not.toBe("Enter full screen");
-      expect(label(e)).not.toBe("Lyric settings");
-      expect(e.getAttribute("type")).not.toBe("range");
-      expect(e.closest('section[aria-label="Lyrics"]')).toBeNull();
-    }
-  });
+  test(
+    "the ring never lands on Enter full screen, the volume slider or a hover-only lyric button",
+    () => {
+      for (const e of fullViewReach()) {
+        expect(label(e)).not.toBe("Enter full screen");
+        expect(label(e)).not.toBe("Lyric settings");
+        expect(e.getAttribute("type")).not.toBe("range");
+        expect(e.closest('section[aria-label="Lyrics"]')).toBeNull();
+      }
+    },
+    WALK_MS,
+  );
 
-  test("the ring stays inside the full view", () => {
-    for (const e of reach(open("fullview"))) expect(e.closest("[role=dialog]")).toBeTruthy();
-  });
+  test(
+    "the ring stays inside the full view",
+    () => {
+      for (const e of fullViewReach()) expect(e.closest("[role=dialog]")).toBeTruthy();
+    },
+    WALK_MS,
+  );
 
   test("Back closes the full view, and the ring goes back to the bar's artwork", () => {
     const p = open("fullview", (page) => hide(dialog(page)));
@@ -127,18 +144,22 @@ describe("BitChord's full view, from the Remote", () => {
 });
 
 describe("BitChord's ⋯ menus, from the Remote", () => {
-  test("the bar's ⋯ is a stop, and a song row's ⋯ is not", () => {
-    const p = open("menu", (page) => hide(menuOf(page), backdropOf(page)));
-    const stops = reach(p);
-    const more = [...stops].filter(isMore);
-    expect(more.length).toBeGreaterThan(0);
-    for (const e of more) expect(e.closest(BAR)).toBeTruthy();
-    expect(
-      [...stops]
-        .filter((e) => e.closest('[class*="group/track"]'))
-        .every((e) => label(e).startsWith("Play ")),
-    ).toBe(true);
-  });
+  test(
+    "the bar's ⋯ is a stop, and a song row's ⋯ is not",
+    () => {
+      const p = open("menu", (page) => hide(menuOf(page), backdropOf(page)));
+      const stops = reach(p);
+      const more = [...stops].filter(isMore);
+      expect(more.length).toBeGreaterThan(0);
+      for (const e of more) expect(e.closest(BAR)).toBeTruthy();
+      expect(
+        [...stops]
+          .filter((e) => e.closest('[class*="group/track"]'))
+          .every((e) => label(e).startsWith("Play ")),
+      ).toBe(true);
+    },
+    WALK_MS,
+  );
 
   test("a menu opens with the ring on its first item, and Down and Up walk it", () => {
     const p = open("menu");
@@ -153,9 +174,13 @@ describe("BitChord's ⋯ menus, from the Remote", () => {
     expect(p.ok()).toBe(first);
   });
 
-  test("the ring never leaves an open menu", () => {
-    for (const e of reach(open("menu"), 120)) expect(e.closest("[role=menu]")).toBeTruthy();
-  });
+  test(
+    "the ring never leaves an open menu",
+    () => {
+      for (const e of reach(open("menu"), 120)) expect(e.closest("[role=menu]")).toBeTruthy();
+    },
+    WALK_MS,
+  );
 
   test("the lyrics provider menu opens on the checked item and is walked from there", () => {
     const p = open("provider-menu");
