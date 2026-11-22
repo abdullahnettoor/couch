@@ -152,7 +152,7 @@ export class SwitchableWebApp implements YouTube {
     this.#host.sendKey(key);
   }
   closeOverlay(): Promise<boolean> {
-    return this.#host.closeOverlay();
+    return this.#host.closeOverlay?.() ?? Promise.resolve(false);
   }
   scrollToTop(): void {
     this.#host.scrollToTop?.();

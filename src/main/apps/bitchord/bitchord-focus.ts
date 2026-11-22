@@ -1,7 +1,7 @@
 import type { FocusLayout } from "../../web/page-focus.ts";
 
-/** A Settings switch row: its checkbox is a small box inside a full-width label, so the row is the stop. */
-const SWITCH_ROW = 'main label:has(> input[type="checkbox"])';
+/** A Settings row: its checkbox (or its menu button, Crossfade's) is a small control inside a full-width label, so the row is the stop; OK on the label presses what is in it. */
+const SWITCH_ROW = 'main label:has(> input[type="checkbox"]), main label:has(> button)';
 
 /** BitChord's own controls beyond the host's defaults (links, buttons, roles). */
 export const BITCHORD_FOCUS_SELECTORS: string[] = [SWITCH_ROW];
@@ -80,6 +80,7 @@ export const BITCHORD_LAYOUT: FocusLayout = {
     ...inTracks("a").split(", "),
     ...inTracks("button:not([aria-label])").split(", "),
     'main label > input[type="checkbox"]',
+    "main label > button",
     // Out of scope (#50), or a file Couch never saves: downloads, GitHub and Listen Together.
     'a[href*="/downloads/"]',
     'a[href^="https://github.com/"]',

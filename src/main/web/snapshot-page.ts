@@ -12,6 +12,8 @@ export interface SnapNode {
   fixed?: boolean;
   /** pointer-events: none: clicks and hit tests pass through it. */
   through?: boolean;
+  /** The text of a label (what names a switch row). */
+  x?: string;
   c?: SnapNode[];
 }
 export interface Snapshot {
@@ -139,6 +141,10 @@ export class FakeEl {
   connected = true;
   clicks = 0;
   disabled = false;
+  /** What the page's label or button says, when the snapshot kept it. */
+  text: string;
+  /** A checkbox's state: a press of it, or of the label that holds it, flips it. */
+  checked = false;
   isContentEditable = false;
   z?: number;
   fixed: boolean;
@@ -154,6 +160,7 @@ export class FakeEl {
     this.rect = { left: n.r[0], top: n.r[1], right: n.r[0] + n.r[2], bottom: n.r[1] + n.r[3] };
     this.hiddenStyle = !!n.hidden;
     this.disabled = "disabled" in this.attrs;
+    this.text = n.x ?? "";
   }
   get isConnected() {
     return this.connected;
@@ -221,6 +228,8 @@ export class FakeEl {
   }
   click() {
     this.clicks++;
+    const box = this.tagName === "LABEL" ? this.querySelector('input[type="checkbox"]') : this;
+    if (box && box.tagName === "INPUT" && box.type === "checkbox") box.checked = !box.checked;
   }
   /** Events the page sent this element (the pointer movement that wakes a player's bar). */
   events: string[] = [];

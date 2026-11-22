@@ -25,11 +25,11 @@ const OUT = resolve(
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const log = (...a: unknown[]) => console.log("[bitchord-snapshot]", ...a);
 
-const walkSource = (end: boolean) => `(function () {
+const walkSource = (end: boolean, cap = end ? 40 : 12) => `(function () {
   // What the focus tests read: the rest of a page's attributes, and all but its song-row classes, only add size.
   var KEEP = ["href","role","tabindex","aria-label","aria-modal","aria-hidden","aria-disabled","aria-checked","aria-pressed","aria-haspopup","type","placeholder","disabled"];
   // A list keeps its first rows or cards; the focus tests walk a few and a snapshot of a whole playlist is a megabyte.
-  var CAP = ${end ? 40 : 12};
+  var CAP = ${cap};
   // At a page's end the rows that scrolled off are left out, so a long page's last rows fit in a small copy.
   var END = ${end};
   var SKIP = {SCRIPT:1,STYLE:1,NOSCRIPT:1,LINK:1,META:1,HEAD:1,TITLE:1,PATH:1,CIRCLE:1,RECT:1,LINE:1,POLYLINE:1,POLYGON:1,G:1,DEFS:1,SVG:1,IMG:1,PICTURE:1,SOURCE:1};
@@ -41,7 +41,7 @@ const walkSource = (end: boolean) => `(function () {
     var r = el.getBoundingClientRect(), cs = getComputedStyle(el);
     var a = {};
     KEEP.forEach(function (k) { var v = el.getAttribute(k); if (v !== null) a[k] = v.slice(0, 200); });
-    var rows = String(el.getAttribute("class") || "").split(/s+/).filter(function (c) { return c.indexOf("group/track") === 0 || c.indexOf("group/row") === 0; });
+    var rows = String(el.getAttribute("class") || "").split(/\\s+/).filter(function (c) { return c.indexOf("group/track") === 0 || c.indexOf("group/row") === 0; });
     if (rows.length) a["class"] = rows.join(" ");
     // A box with no size can't be pointed at, so it is left out with all that is in it.
     if (!r.width || !r.height) return null;
@@ -56,17 +56,21 @@ const walkSource = (end: boolean) => `(function () {
     if (cs.position === "fixed" || cs.position === "sticky" || el.matches('nav[aria-label="Main"], [role="region"][aria-label="Player"]')) node.fixed = true;
     if (cs.pointerEvents === "none") node.through = true;
     n++;
+    // A switch row's or a button's own words are what names it when it has no aria-label.
+    if (el.tagName === "LABEL" || (el.tagName === "BUTTON" && !a["aria-label"])) node.x = String(el.innerText || "").replace(/\\s+/g, " ").trim().slice(0, 60);
     if (node.hidden) return node;
     var kids = [];
     for (var c = el.firstElementChild; c && kids.length < CAP; c = c.nextElementSibling) { var k = walk(c); if (k) kids.push(k); }
     if (kids.length) node.c = kids;
     // Plain text boxes with no attribute say nothing the focus script reads.
-    else if (!node.a && !node.hidden && !node.fixed && node.z === undefined && !node.through) return null;
+    else if (!node.x && !node.a && !node.hidden && !node.fixed && node.z === undefined && !node.through) return null;
     return node;
   }
   return { url: location.href, view: { width: innerWidth, height: innerHeight }, tree: walk(document.documentElement) };
 })()`;
-const WALK = walkSource(false);
+// BITCHORD_ONLY=settings,menu records just these pages (the rest of the walk still runs, and saves nothing).
+const ONLY = process.env.BITCHORD_ONLY?.split(",");
+const wanted = (name: string) => !ONLY || ONLY.includes(name);
 
 void app.whenReady().then(async () => {
   mkdirSync(OUT, { recursive: true });
@@ -107,13 +111,16 @@ void app.whenReady().then(async () => {
     }
     await sleep(1500);
   };
-  const save = async (name: string) => {
-    const snap = await js<unknown>(WALK);
+  // `cap`: how many children of one element are kept. Settings is a short page of sections that must all be there.
+  const save = async (name: string, cap?: number) => {
+    if (!wanted(name)) return;
+    const snap = await js<unknown>(walkSource(false, cap));
     writeFileSync(join(OUT, `${name}.json`), JSON.stringify(snap));
     log("saved", name, (snap as { url: string }).url);
   };
   // The page scrolled to its very end (a long list's last rows sit at the screen's bottom edge, under the player bar).
   const saveEnd = async (name: string) => {
+    if (!wanted(name)) return;
     wc.focus();
     // A virtualised list draws its rows as the page is walked, so the page goes to its end the way the household does: Down, a press at a time, until the page stops scrolling.
     let still = 0;
@@ -296,7 +303,7 @@ void app.whenReady().then(async () => {
       await frame("playlist", ["down", "down", "down", "down"]);
     }
     await go("/settings");
-    await save("settings");
+    await save("settings", 60);
     await frame("settings", ["down", "down", "down", "down", "down", "down", "down", "down"]);
     await go("/extension");
     await save("extension");

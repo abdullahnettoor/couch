@@ -416,9 +416,11 @@ export class WebHostCore {
   /** Pushes `url` and fires popstate so the App's router follows in the same document; loads it if the page doesn't route. */
   #routeInPage(url: string): void {
     const want = new URL(url);
-    const routed = this.#desc.search?.routed;
+    const search = this.#desc.search;
+    const routed = !!search?.routed;
     const done = async (): Promise<boolean> => {
-      if (routed) return (await this.#engine.run(routed(url)).catch(() => false)) === true;
+      if (search?.routed)
+        return (await this.#engine.run(search.routed(url)).catch(() => false)) === true;
       try {
         const now = new URL(this.#engine.url());
         return now.pathname + now.search === want.pathname + want.search;

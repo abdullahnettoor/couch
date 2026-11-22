@@ -80,7 +80,9 @@ export class AppPage implements Page {
         if (typeof answer === "string") return answered(answer);
         // The App asked its page first: if Back has moved on to another App or page meanwhile, there is nothing to ask.
         void answer.then((a) => {
-          if (this.#h.front() === front) answered(a);
+          if (this.#h.front() !== front) return;
+          answered(a);
+          this.#ctx.emit();
         });
       },
     };

@@ -930,9 +930,7 @@ export function describeWebHostContract(
           await vi.waitFor(() =>
             expect(rig.scripts().some((s) => s.includes("popstate"))).toBe(true),
           );
-          expect(rig.scripts().find((s) => s.includes("popstate"))).toContain(
-            "__couchResetFocus",
-          );
+          expect(rig.scripts().find((s) => s.includes("popstate"))).toContain("__couchResetFocus");
           const at = rig.scripts().length;
           rig.host.submitSearch("dark");
           await vi.waitFor(() =>

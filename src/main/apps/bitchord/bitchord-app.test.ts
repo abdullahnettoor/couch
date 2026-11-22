@@ -47,7 +47,7 @@ class Page implements HostEngine {
 /** The port over the shared host logic, with the engine's page behind it. */
 class HostedPort extends FakeYouTube {
   core: WebHostCore;
-  constructor(readonly page: Page) {
+  constructor(page: Page) {
     super();
     this.core = new WebHostCore(description, page, (e: YouTubeEvent) => this.emit(e), {
       pollsRoute: false,

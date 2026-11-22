@@ -515,7 +515,12 @@ describe("BitChord's focus layout, on its saved pages", () => {
         const e = p.on();
         if (e && rows.includes(e)) {
           seen.add(e);
-          if (!toggled.has(e)) expect(p.ok()).toBe(e);
+          if (!toggled.has(e)) {
+            const box = e.querySelector('input[type="checkbox"]')!;
+            const before = box.checked;
+            expect(p.ok()).toBe(e);
+            expect(box.checked).toBe(!before);
+          }
           toggled.add(e);
         }
         expect(e?.tagName).not.toBe("INPUT");
@@ -524,18 +529,20 @@ describe("BitChord's focus layout, on its saved pages", () => {
       expect(seen.size).toBe(5);
     });
 
-    test("the Crossfade and Lyric Sources buttons stay reachable", () => {
-      const p = open("settings");
-      const seen = new Set<string>();
+    test("the Crossfade row and the Lyric Sources button are stops, each reached by name", () => {
+      // The saved page is taller than its 720 px window; the fake page doesn't scroll to rows past the edge, so it is given room.
+      const snap = fixture("settings");
+      snap.view.height = 1100;
+      const p = { ...netflixPage(snap, desc.focus!), snap };
+      const named = new Set<string>();
       for (let i = 0; i < 40; i++) {
         const e = p.on();
-        if (e?.tagName === "BUTTON") seen.add(label(e) || e.getAttribute("type") || "button");
+        if (e && !label(e)) named.add(e.text || e.closest("label")?.text || "");
         p.key("ArrowDown");
       }
-      expect(seen.size).toBeGreaterThanOrEqual(1);
-      expect(p.all.some((e) => e.tagName === "BUTTON" && !label(e) && e.closest("label"))).toBe(
-        true,
-      );
+      const starts = (word: string) => [...named].some((n) => n.startsWith(word));
+      expect(starts("Crossfade"), [...named].join(" | ")).toBe(true);
+      expect(starts("Lyric Sources"), [...named].join(" | ")).toBe(true);
     });
 
     for (const name of ["settings", "extension"]) {
