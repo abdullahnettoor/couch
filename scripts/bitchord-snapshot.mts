@@ -1,7 +1,7 @@
 // Records BitChord's live pages as page snapshots (the test fixtures in src/main/apps/bitchord/fixtures), by hand:
 //   pnpm bitchord:snapshot [outDir]
 // Signed out, muted, offscreen (a window that is never shown), on a temp userData. It also saves a frame of each page with
-// Couch's real focus ring when BITCHORD_FRAMES=<dir> is set (1920×1080). Not in CI: it hits the live site.
+// Couch's real focus ring when BITCHORD_FRAMES=<dir> is set (1920 pt wide, so the page's 1280×720 at the default Text size). Not in CI: it hits the live site.
 import { app, BrowserWindow, session, webContents } from "electron";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -25,11 +25,13 @@ const OUT = resolve(
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const log = (...a: unknown[]) => console.log("[bitchord-snapshot]", ...a);
 
-const WALK = `(function () {
+const walkSource = (end: boolean) => `(function () {
   // What the focus tests read: the rest of a page's attributes, and all but its song-row classes, only add size.
   var KEEP = ["href","role","tabindex","aria-label","aria-modal","aria-hidden","aria-disabled","type","placeholder","disabled"];
   // A list keeps its first rows or cards; the focus tests walk a few and a snapshot of a whole playlist is a megabyte.
-  var CAP = 12;
+  var CAP = ${end ? 40 : 12};
+  // At a page's end the rows that scrolled off are left out, so a long page's last rows fit in a small copy.
+  var END = ${end};
   var SKIP = {SCRIPT:1,STYLE:1,NOSCRIPT:1,LINK:1,META:1,HEAD:1,TITLE:1,PATH:1,CIRCLE:1,RECT:1,LINE:1,POLYLINE:1,POLYGON:1,G:1,DEFS:1,SVG:1,IMG:1,PICTURE:1,SOURCE:1};
   var n = 0;
   function walk(el) {
@@ -41,6 +43,9 @@ const WALK = `(function () {
     if (rows.length) a["class"] = rows.join(" ");
     // A box with no size can't be pointed at, so it is left out with all that is in it.
     if (!r.width || !r.height) return null;
+    if (END && el !== document.documentElement && el !== document.body && (r.bottom < 0 || r.top > innerHeight) && !el.closest('nav[aria-label="Main"], [role="region"][aria-label="Player"]')) return null;
+    // Couch's own highlight and shield, drawn over the page by the focus script, are not the page's.
+    if (Number(cs.zIndex) >= 2147483000) return null;
     var node = { t: el.tagName.toLowerCase(), r: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)] };
     if (Object.keys(a).length) node.a = a;
     if (cs.visibility === "hidden" || cs.display === "none") node.hidden = true;
@@ -59,6 +64,7 @@ const WALK = `(function () {
   }
   return { url: location.href, view: { width: innerWidth, height: innerHeight }, tree: walk(document.documentElement) };
 })()`;
+const WALK = walkSource(false);
 
 void app.whenReady().then(async () => {
   mkdirSync(OUT, { recursive: true });
@@ -83,6 +89,9 @@ void app.whenReady().then(async () => {
   wc.setAudioMuted(true);
   const js = <T,>(code: string) => wc.executeJavaScript(code, true) as Promise<T>;
   web.show();
+  // The window is never shown, so the page would stop drawing (a virtualised list draws its rows on animation frames): emulate focus.
+  wc.debugger.attach("1.3");
+  await wc.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
   const go = async (path: string, wait = 6000) => {
     await wc.loadURL(path.startsWith("http") ? path : `${SITE}${path}`);
     await sleep(wait);
@@ -98,6 +107,36 @@ void app.whenReady().then(async () => {
   };
   const save = async (name: string) => {
     const snap = await js<unknown>(WALK);
+    writeFileSync(join(OUT, `${name}.json`), JSON.stringify(snap));
+    log("saved", name, (snap as { url: string }).url);
+  };
+  // The page scrolled to its very end (a long list's last rows sit at the screen's bottom edge, under the player bar).
+  const saveEnd = async (name: string) => {
+    wc.focus();
+    // A virtualised list draws its rows as the page is walked, so the page goes to its end the way the household does: Down, a press at a time, until the page stops scrolling.
+    let still = 0;
+    for (let i = 0, last = ""; i < 140 && still < 6; i++) {
+      await js(
+        `window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }))`,
+      );
+      await sleep(350);
+      // Where the page is and where the ring is: while either moves the walk goes on.
+      const at = await js<string>(
+        `(() => { const r = [...document.body.children].find((e) => e.style && e.style.zIndex === "2147483647"); return (document.querySelector("main")?.scrollTop ?? 0) + "/" + (r ? r.style.left + r.style.top : ""); })()`,
+      );
+      still = at === last ? still + 1 : 0;
+      last = at;
+    }
+    await sleep(1500);
+    log(
+      "page text",
+      (
+        await js<string>(
+          `document.body.innerText.slice(0, 80) + " | plays " + [...document.querySelectorAll('button[aria-label^="Play "]')].map((b) => Math.round(b.getBoundingClientRect().top)).slice(-4) + " | rows " + document.querySelectorAll('[class*="group/"]').length + " scroll " + [...document.querySelectorAll("*")].filter((e) => e.scrollTop > 0).map((e) => e.tagName + e.scrollTop + "/" + e.scrollHeight)`,
+        )
+      ).replace(/\s+/g, " "),
+    );
+    const snap = await js<unknown>(walkSource(true));
     writeFileSync(join(OUT, `${name}.json`), JSON.stringify(snap));
     log("saved", name, (snap as { url: string }).url);
   };
@@ -145,6 +184,7 @@ void app.whenReady().then(async () => {
   try {
     await go("/home");
     await save("home");
+    await saveEnd("home-end");
     await frame("home-start", []);
     await frame("home-right", ["right", "right"]);
     const albums = await links("^/album");
@@ -176,6 +216,11 @@ void app.whenReady().then(async () => {
       await save("playlist");
       await frame("playlist", ["down", "down", "down", "down"]);
     }
+    // A 100-song playlist, saved at its end: its rows are virtualised, and its last row sits at the screen's bottom edge, level with the player bar.
+    await go(
+      process.env.BITCHORD_LONG_PLAYLIST ?? "/playlist/VLPLO7-VO1D0_6MlO4UxJWFBUq3U-7zoIBf7",
+    );
+    await saveEnd("playlist-long-end");
   } catch (e) {
     log("threw", String(e));
   }

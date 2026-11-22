@@ -17,6 +17,12 @@ export const BITCHORD_LAYOUT: FocusLayout = {
   startFirst: true,
   ringAround: TRACK,
   docks: ['nav[aria-label="Main"]', '[role="region"][aria-label="Player"]'],
+  dockEntry: {
+    '[role="region"][aria-label="Player"]': [
+      'button[aria-label="Pause"]',
+      'button[aria-label="Play"]',
+    ],
+  },
   ignore: [
     // The shelves' paging arrows: the highlight scrolls a shelf by itself.
     'button[aria-label$="Page"]',

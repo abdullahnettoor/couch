@@ -69,6 +69,8 @@ export interface FocusLayout {
   takeArrows?: boolean;
   /** Docked regions that stay put while the page scrolls (a sidebar, a player bar): a move stays inside the region it starts in (or in the page, from the page) while that has a control that way; from a dock it then goes to the page, never to another dock. */
   docks?: string[];
+  /** Where Down lands in a bottom dock (one no taller than a quarter of the screen, with its top in the lower half), by dock selector: the first usable control matching the first of its selectors that has one; none matching, the control nearest. Down with nothing further down, in the page or a side dock, goes to a bottom dock, whatever the height of its controls' centres. */
+  dockEntry?: Record<string, string[]>;
   /** The highlight starts on the first control of the page's first row (the topmost, then the leftmost; on screen first), not the one nearest the middle, and is placed again as the page settles until the household first moves it. */
   startFirst?: boolean;
   /** A control inside an element matching this is outlined as that whole element (a song row, not its small Play button); OK still presses the control. */
@@ -757,6 +759,31 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     var dockOf = function (el) {
       try { return LAYOUT.docks && LAYOUT.docks.length && el.closest ? el.closest(LAYOUT.docks.join(',')) : null; } catch (e) { return null; }
     };
+    var bottomOf = function (el) {
+      var d = dockOf(el), r = d && rectOf(d);
+      return r && r.bottom - r.top <= innerHeight / 4 && r.top >= innerHeight / 2 ? d : null;
+    };
+    // The control Down reaches in a bottom dock: the layout's entry control, else the one nearest across.
+    var bottomDock = function (from, list) {
+      var cx = (from.left + from.right) / 2, near = -1, nearDx = Infinity, entries = {}, q;
+      for (q = 0; q < list.length; q++) {
+        var d = bottomOf(list[q].el);
+        if (!d) continue;
+        var dx = Math.abs((list[q].rect.left + list[q].rect.right) / 2 - cx);
+        if (dx < nearDx) { near = q; nearDx = dx; }
+        var want = null;
+        for (var key in (LAYOUT.dockEntry || {})) { try { if (d.matches(key)) want = LAYOUT.dockEntry[key]; } catch (e) {} }
+        for (var w = 0; want && w < want.length; w++) {
+          try { if (list[q].el.matches(want[w]) && (entries[w] === undefined)) entries[w] = q; } catch (e) {}
+        }
+      }
+      for (var e = 0; e < 20; e++) if (entries[e] !== undefined) return entries[e];
+      return near;
+    };
+    // Nothing further down on the page: the nearest control anywhere, unless a bottom dock took it above.
+    var pickPage = function (from, list, dir) {
+      return pick(from, list.map(function (c) { return c.rect; }), dir, view());
+    };
     var pickIn = function (from, list, dir) {
       var rects = function (l) { return l.map(function (c) { return c.rect; }); };
       if (!LAYOUT.docks || !LAYOUT.docks.length) return pick(from, rects(list), dir, view());
@@ -781,9 +808,13 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       };
       var found = through(near);
       if (found >= 0) return found;
+      if (dir === 'down' && (!home || rectOf(home).bottom - rectOf(home).top > innerHeight / 4 )) {
+        var toBar = bottomDock(from, list);
+        if (toBar >= 0) return toBar;
+      }
       if (!home) {
         // From the end of its line a sideways move can only go to a side dock (one as tall as the screen's half): a bar along the bottom is for Down.
-        if (!side) return pick(from, rects(list), dir, view());
+        if (!side) return pickPage(from, list, dir);
         var docked = [];
         for (k = 0; k < list.length; k++) {
           var d = dockOf(list[k].el), dr = d && rectOf(d);

@@ -242,6 +242,108 @@ describe("BitChord's focus layout, on its saved pages", () => {
     });
   });
 
+  describe("reaching the player bar from any page, on pages saved to their end", () => {
+    const inBar = (e?: FakeEl) => !!e?.closest('[role="region"][aria-label="Player"]');
+    const inNav = (e?: FakeEl) => !!e?.closest("nav");
+    const bar = (p: { all: FakeEl[] }) =>
+      p.all.find((e) => e.getAttribute("aria-label") === "Player")!;
+    const play = (p: { all: FakeEl[] }) =>
+      p.all.find((e) => inBar(e) && label(e) === "Play" && e.tagName === "BUTTON")!;
+    const lastRowOf = (p: { all: FakeEl[] }) =>
+      p.all.filter((e) => e.matches(TRACK_ROW) && !e.stuck && e.rect.top >= 0).at(-1)!;
+    const TRACK_ROW = '[class*="group/track"], [class*="group/row"]';
+    /** Goes Down to the last control of the page, then once more. */
+    const downToEnd = (p: ReturnType<typeof open>) => {
+      let last: FakeEl | undefined;
+      for (let i = 0; i < 200 && p.on() !== last; i++) {
+        last = p.on();
+        p.key("ArrowDown");
+        if (inDock(p.on())) break;
+      }
+    };
+
+    for (const name of ["playlist-long-end", "home-end"]) {
+      test(`${name}: the saved page reaches past the 12 rows of the others`, () => {
+        const p = open(name);
+        expect(p.all.length).toBeGreaterThan(150);
+        expect(bar(p)).toBeDefined();
+      });
+    }
+
+    test("a last row at the screen's bottom edge, its centre below the bar's, still leads Down to the bar", () => {
+      const p = open("playlist-long-end");
+      const row = lastRowOf(p);
+      expect(row.rect.bottom).toBeGreaterThan(p.snap.view.height - 8);
+      const r = row.getBoundingClientRect();
+      const barRect = bar(p).getBoundingClientRect();
+      expect((r.top + r.bottom) / 2).toBeGreaterThan((barRect.top + barRect.bottom) / 2);
+      downToEnd(p);
+      expect(inBar(p.on())).toBe(true);
+    });
+
+    test("a page ending in cards beside the sidebar goes Down to the bar, not the sidebar", () => {
+      const p = open("home-end");
+      for (let i = 0; i < 100 && !inDock(p.on()); i++) p.key("ArrowDown");
+      expect(inBar(p.on())).toBe(true);
+      expect(inNav(p.on())).toBe(false);
+    });
+
+    test("the sidebar's last item goes Down to the bar, and Up goes back to the page", () => {
+      const p = open("home-end");
+      until(p, "ArrowLeft", inNav);
+      for (let i = 0; i < 20 && !inBar(p.on()); i++) p.key("ArrowDown");
+      expect(inBar(p.on())).toBe(true);
+      p.key("ArrowUp");
+      expect(inDock(p.on())).toBe(false);
+    });
+
+    test("from the middle of a long page, Left then a few Downs reaches the bar", () => {
+      const p = open("playlist-long-end");
+      for (let i = 0; i < 5; i++) p.key("ArrowDown");
+      p.key("ArrowLeft");
+      expect(inNav(p.on())).toBe(true);
+      let presses = 0;
+      while (!inBar(p.on()) && presses < 7) {
+        p.key("ArrowDown");
+        presses++;
+      }
+      expect(inBar(p.on())).toBe(true);
+    });
+
+    test("Down from a row that is not the last one scrolls the list; it does not jump to the bar", () => {
+      const p = open("playlist-long-end");
+      p.key("ArrowDown");
+      p.key("ArrowDown");
+      expect(inDock(p.on())).toBe(false);
+    });
+
+    test("the bar is entered on Play when a song is loaded, whatever the ring's column", () => {
+      const p = open("playlist-long-end");
+      const button = play(p);
+      delete button.attrs.disabled;
+      button.disabled = false;
+      downToEnd(p);
+      expect(p.on()).toBe(button);
+    });
+
+    test("the bar is entered on Pause when the song is playing", () => {
+      const p = open("home-end");
+      const button = play(p);
+      delete button.attrs.disabled;
+      button.disabled = false;
+      button.attrs["aria-label"] = "Pause";
+      for (let i = 0; i < 100 && !inDock(p.on()); i++) p.key("ArrowDown");
+      expect(p.on()).toBe(button);
+    });
+
+    test("with no Play or Pause to land on, the control nearest across is the entry", () => {
+      const p = open("home-end");
+      for (let i = 0; i < 100 && !inDock(p.on()); i++) p.key("ArrowDown");
+      expect(inBar(p.on())).toBe(true);
+      expect(p.on()?.tagName).toBe("BUTTON");
+    });
+  });
+
   describe("sidebar and player bar", () => {
     test("Down from the last thing on a page reaches the player bar, and Up comes back to the page", () => {
       const p = open("home");

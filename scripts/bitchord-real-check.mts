@@ -5,12 +5,14 @@
 //   2. a known song from BitChord's /debug page plays past 90 s, and two more for 20 s each,
 //   3. an age-restricted song shows BitChord's own sign-in message,
 //   4. lyrics load for the long song: the bridge fetched a listed lyric host and BitChord's lyrics view shows lines.
+//   5. Down reaches the player bar on a long playlist, on Play/Pause, from its last row and from its middle via the sidebar (#73);
+//      BITCHORD_FRAMES=<dir> saves a frame of each.
 // The window is 1920 pt wide with Text size applied (BITCHORD_TEXT_SIZE, default "default").
 // BITCHORD_SITE overrides the site; BITCHORD_TRACKS=a,b,c and BITCHORD_AGE_RESTRICTED=id override the songs;
 // BITCHORD_LONG (seconds, default 95) shortens the long play for a quick look; the long song must reach 90 s (or that shorter
 // wish), the others 20 s, with no tolerance.
 import { app, BrowserWindow, session, webContents } from "electron";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { lyricOrigin } from "../src/main/apps/bitchord/bitchord-lyrics.ts";
@@ -218,6 +220,96 @@ void app.whenReady().then(async () => {
     const after = (await probe())!.position;
     log(`seek +60 s from ${from}s: now at ${after}s`);
     expectThat(after >= from + 55, `a direct seek sticks (${from}s -> ${after}s)`);
+
+    // The player bar from a long playlist (#73): the ring walks with the page's own keys, as the Remote's Down does.
+    const RING_STATE = `(() => {
+      const ring = [...document.body.children].find((e) => e.style && e.style.zIndex === "2147483647");
+      const bar = document.querySelector('[role="region"][aria-label="Player"]');
+      const nav = document.querySelector('nav[aria-label="Main"]');
+      if (!ring || ring.style.display === "none" || !bar) return "none";
+      const r = ring.getBoundingClientRect(), within = (el) => { const b = el.getBoundingClientRect(); return r.left >= b.left - 6 && r.right <= b.right + 6 && r.top >= b.top - 6 && r.bottom <= b.bottom + 6; };
+      if (within(bar)) {
+        const on = [...bar.querySelectorAll("button, a")].find((b) => { const q = b.getBoundingClientRect(); return Math.abs(q.left + q.width / 2 - (r.left + r.width / 2)) < 8 && Math.abs(q.top + q.height / 2 - (r.top + r.height / 2)) < 8; });
+        return "bar:" + (on ? on.getAttribute("aria-label") ?? on.tagName : "?");
+      }
+      if (nav && within(nav)) return "sidebar";
+      return "page";
+    })()`;
+    if (!wc.debugger.isAttached()) wc.debugger.attach("1.3");
+    await wc.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
+    const FRAMES = process.env.BITCHORD_FRAMES;
+    const frame = async (name: string) => {
+      if (!FRAMES) return;
+      mkdirSync(FRAMES, { recursive: true });
+      await js(
+        `(() => { const r = [...document.body.children].find((e) => e.style && e.style.zIndex === "2147483647"); if (r) { r.style.transition = "none"; r.getBoundingClientRect(); } })()`,
+      );
+      wc.invalidate();
+      await sleep(500);
+      const shot = (await wc.debugger.sendCommand("Page.captureScreenshot", { format: "png" })) as {
+        data: string;
+      };
+      writeFileSync(join(FRAMES, `${name}.png`), Buffer.from(shot.data, "base64"));
+      log("frame", name);
+    };
+    const press = async (k: string) => {
+      wc.focus();
+      await js(
+        `window.dispatchEvent(new KeyboardEvent("keydown", { key: ${JSON.stringify(k)}, bubbles: true, cancelable: true }))`,
+      );
+      await sleep(300);
+      return js<string>(RING_STATE);
+    };
+    const LONG_PLAYLIST =
+      process.env.BITCHORD_LONG_PLAYLIST ?? "/playlist/VLPLO7-VO1D0_6MlO4UxJWFBUq3U-7zoIBf7";
+    // BitChord's own navigation, so the song keeps playing (a load would stop it): the bar then has Pause to land on.
+    const within = async (path: string) => {
+      await js(
+        `(history.pushState({}, "", ${JSON.stringify(path)}), dispatchEvent(new PopStateEvent("popstate")), 0)`,
+      );
+      await sleep(4000);
+    };
+    // From the page's end: Down until the ring is on the bar.
+    await within(LONG_PLAYLIST);
+    let where = await press("ArrowDown");
+    let downs = 1;
+    while (!where.startsWith("bar") && downs < 130) {
+      where = await press("ArrowDown");
+      downs++;
+    }
+    log(`playlist end: Down reached "${where}" after ${downs} presses`);
+    await frame("playlist-down-at-end");
+    expectThat(
+      /^bar:(Pause|Play)$/.test(where),
+      "Down at the end of a 100-song playlist reaches the bar, on Play/Pause",
+    );
+    // Left and Right walk the bar; Up returns to the page.
+    const right = await press("ArrowRight");
+    expectThat(right.startsWith("bar") && right !== where, `Right walks the bar (now ${right})`);
+    expectThat((await press("ArrowUp")) === "page", "Up from the bar returns to the page");
+    // From the middle of the page: Left to the sidebar, then a few Downs.
+    await within("/home");
+    await within(LONG_PLAYLIST);
+    const trail: string[] = [];
+    for (let i = 0; i < 12; i++) trail.push(await press("ArrowDown"));
+    log("  twelve Downs:", trail.join(" "));
+    where = await press("ArrowLeft");
+    expectThat(
+      where === "sidebar",
+      `Left from the middle of the playlist reaches the sidebar (${where})`,
+    );
+    await frame("playlist-sidebar");
+    let sidebarDowns = 0;
+    while (where !== "page" && !where.startsWith("bar") && sidebarDowns < 10) {
+      where = await press("ArrowDown");
+      sidebarDowns++;
+    }
+    log(`sidebar: Down reached "${where}" after ${sidebarDowns} presses`);
+    await frame("playlist-sidebar-to-bar");
+    expectThat(
+      /^bar:(Pause|Play)$/.test(where) && sidebarDowns <= 7,
+      `Left then Down reaches the bar in ${sidebarDowns} presses (at most 7)`,
+    );
 
     const age = await play(AGE_RESTRICTED, 15);
     log("age-restricted log:", age.lines);
