@@ -330,4 +330,68 @@ describe("BitChord's focus layout, on its saved pages", () => {
       expect(kinds.has("album")).toBe(true);
     });
   });
+
+  describe("Settings and the Extension page", () => {
+    const outOfReach = (e?: FakeEl) =>
+      !!e &&
+      (href(e).includes("/downloads/") ||
+        href(e).startsWith("https://github.com/") ||
+        href(e) === "/settings/listen-together");
+
+    test("Down walks every switch row, one stop each, and OK toggles it", () => {
+      // The saved page is taller than its 720 px window; the fake page doesn't scroll to rows past the edge, so it is given room.
+      const snap = fixture("settings");
+      snap.view.height = 1000;
+      const p = { ...netflixPage(snap, desc.focus!), snap };
+      const rows = p.all.filter(
+        (e) => e.tagName === "LABEL" && e.children.some((c) => c.tagName === "INPUT"),
+      );
+      expect(rows.length).toBe(5);
+      const seen = new Set<FakeEl>();
+      const toggled = new Set<FakeEl>();
+      for (let i = 0; i < 40; i++) {
+        const e = p.on();
+        if (e && rows.includes(e)) {
+          seen.add(e);
+          if (!toggled.has(e)) expect(p.ok()).toBe(e);
+          toggled.add(e);
+        }
+        expect(e?.tagName).not.toBe("INPUT");
+        p.key("ArrowDown");
+      }
+      expect(seen.size).toBe(5);
+    });
+
+    test("the Crossfade and Lyric Sources buttons stay reachable", () => {
+      const p = open("settings");
+      const seen = new Set<string>();
+      for (let i = 0; i < 40; i++) {
+        const e = p.on();
+        if (e?.tagName === "BUTTON") seen.add(label(e) || e.getAttribute("type") || "button");
+        p.key("ArrowDown");
+      }
+      expect(seen.size).toBeGreaterThanOrEqual(1);
+      expect(p.all.some((e) => e.tagName === "BUTTON" && !label(e) && e.closest("label"))).toBe(
+        true,
+      );
+    });
+
+    for (const name of ["settings", "extension"]) {
+      test(`${name}: the ring never starts on or reaches a download, GitHub or Listen Together`, () => {
+        const p = open(name);
+        expect(outOfReach(p.on())).toBe(false);
+        for (const k of ["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"])
+          for (let i = 0; i < 25; i++) {
+            p.key(k);
+            expect(outOfReach(p.on())).toBe(false);
+          }
+      });
+    }
+
+    test("extension: the ring starts on something that isn't a download", () => {
+      const p = open("extension");
+      expect(p.on()).toBeDefined();
+      expect(href(p.on())).not.toContain("/downloads/");
+    });
+  });
 });

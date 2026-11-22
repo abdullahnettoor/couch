@@ -80,6 +80,8 @@ export interface WebAppDescription {
   identity: WebIdentity;
   keyCodes: Record<AppKey, string>;
   isOwnOrigin(origin: string): boolean;
+  /** The App's session cancels every download (nothing is ever saved from inside it). */
+  refuseDownloads?: boolean;
   /** Present when the App takes typed search; without it the App has no typing. */
   search?: {
     isSearchUrl(url: string): boolean;

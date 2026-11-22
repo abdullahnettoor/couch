@@ -95,6 +95,22 @@ void app.whenReady().then(async () => {
       `(document.querySelector('main') ?? document.body).innerText.slice(0, 1500)`,
     );
     log("Extension page says:", JSON.stringify(text.replace(/\s+/g, " ").slice(0, 700)));
+    // BitChord's session refuses every download: the session sees it start, and nothing is saved.
+    let downloads = 0;
+    const saved: string[] = [];
+    const seen = (_e: unknown, item: { getSavePath(): string }) => {
+      downloads++;
+      setImmediate(() => saved.push(item.getSavePath()));
+    };
+    ses.prependListener("will-download", seen);
+    wc.downloadURL(`${SITE}/home`);
+    await sleep(4000);
+    ses.off("will-download", seen);
+    expectThat(downloads > 0, "a download started in the page reaches the session");
+    expectThat(
+      saved.every((p) => !p),
+      "…and nothing is saved (the download is cancelled)",
+    );
     const ping = await js<{
       ok?: boolean;
       result?: { version: string; browser: string };

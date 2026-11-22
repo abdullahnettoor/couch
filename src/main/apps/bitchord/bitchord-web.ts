@@ -42,6 +42,7 @@ export function bitchordDescription(
       back: "Escape",
     },
     backByHistory: true,
+    refuseDownloads: true,
     isOwnOrigin: (origin) => origins.includes(origin),
     search: {
       isSearchUrl: isBitchordSearchUrl,

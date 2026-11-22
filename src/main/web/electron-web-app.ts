@@ -81,6 +81,7 @@ export class ElectronWebApp implements YouTube {
   #ses: Session;
   #addonRequests: Array<() => void> = [];
   #ownHooks: Array<() => void> = [];
+  #onDownload = (_event: unknown, item: { cancel(): void }) => item.cancel();
   #textSize: TextSize = "default";
   #onResize = () => {
     this.#fit();
@@ -128,6 +129,7 @@ export class ElectronWebApp implements YouTube {
     // The view may ask the Mac for nothing (no microphone, no camera). Its media permission *check*
     // is answered yes only for the App's own origin, and only for what choosing an output needs.
     this.#ses = ses;
+    if (desc.refuseDownloads) ses.on("will-download", this.#onDownload);
     permissionOwners.set(ses, this);
     ses.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
     ses.setPermissionCheckHandler((_wc, permission, origin) => {
@@ -362,6 +364,7 @@ export class ElectronWebApp implements YouTube {
     for (const off of [...this.#ownHooks.splice(0), ...this.#addonRequests.splice(0)]) off();
     this.#preloads.clear();
     releaseRequestHooks(this.#ses);
+    this.#ses.off("will-download", this.#onDownload);
     // Only if no newer host took the handlers over since.
     if (permissionOwners.get(this.#ses) === this) {
       permissionOwners.delete(this.#ses);

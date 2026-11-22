@@ -88,6 +88,8 @@ vi.mock("electron", () => {
   }
   const session = {
     setUserAgent() {},
+    on() {},
+    off() {},
     setPermissionRequestHandler() {},
     setPermissionCheckHandler() {},
     webRequest: { onBeforeRequest() {}, onBeforeSendHeaders() {}, onHeadersReceived() {} },
