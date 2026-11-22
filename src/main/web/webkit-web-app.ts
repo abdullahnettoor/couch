@@ -545,6 +545,9 @@ export class WebKitWebApp implements YouTube {
   sendKey(key: YouTubeKey): void {
     this.#core.sendKey(key);
   }
+  closeOverlay(): Promise<boolean> {
+    return this.#core.closeOverlay();
+  }
 
   #press(keyCode: string): void {
     const view = this.#view;

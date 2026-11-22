@@ -177,9 +177,9 @@ export interface App extends SoundSink {
   sendKey(key: AppKey): void;
   /**
    * Back pressed. "leave": the App is at its home, so core asks "Leave <label>?";
-   * "handled": the App went back by itself.
+   * "handled": the App went back by itself. An App that must ask its page first answers later.
    */
-  back(): "leave" | "handled";
+  back(): "leave" | "handled" | Promise<"leave" | "handled">;
   /** Absent for an App with nothing to play or pause. */
   playPause?(): void;
   /** Skips the playing video forward (+) or back (−) by this many seconds; absent when it can't. */

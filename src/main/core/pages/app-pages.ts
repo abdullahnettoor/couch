@@ -67,13 +67,23 @@ export class AppPage implements Page {
     if (!front) return undefined;
     return {
       act: () => {
-        if (front.back() !== "leave") return;
-        this.#ctx.ask(
-          `Leave ${front.label}?`,
-          ["Stay", "Go to Home"],
-          [() => {}, () => this.#ctx.go("home")],
-        );
-        this.#leaveConfirm = this.#ctx.state.confirm;
+        const answered = (answer: "leave" | "handled") => {
+          if (answer !== "leave") return;
+          this.#ctx.ask(
+            `Leave ${front.label}?`,
+            ["Stay", "Go to Home"],
+            [() => {}, () => this.#ctx.go("home")],
+          );
+          this.#leaveConfirm = this.#ctx.state.confirm;
+        };
+        const answer = front.back();
+        if (typeof answer === "string") return answered(answer);
+        // The App asked its page first: if Back has moved on to another App or page meanwhile, there is nothing to ask.
+        void answer.then((a) => {
+          if (this.#h.front() !== front) return;
+          answered(a);
+          this.#ctx.emit();
+        });
       },
     };
   }

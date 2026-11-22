@@ -282,3 +282,17 @@ describe("a page Couch does not know", () => {
     });
   }
 });
+
+describe("a card partly off screen", () => {
+  const snap = fixture("browse");
+  test("its ring outlines the whole card, as it always has: nothing clips it to the screen", () => {
+    const p = open(snap);
+    const el = p.on()!;
+    const w = el.rect.right - el.rect.left;
+    el.rect = { ...el.rect, left: snap.view.width - 40, right: snap.view.width - 40 + w };
+    p.mutate();
+    expect(p.on()).toBe(el);
+    expect(Number.parseFloat(String(p.ring.style.left))).toBe(el.rect.left - 6);
+    expect(Number.parseFloat(String(p.ring.style.width))).toBe(w + 12);
+  });
+});

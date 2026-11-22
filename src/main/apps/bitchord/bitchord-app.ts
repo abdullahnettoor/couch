@@ -1,7 +1,7 @@
 import type { Confirmation } from "../../../shared/protocol.ts";
 import type { Clock } from "../../ports/clock.ts";
 import type { YouTube } from "../../ports/youtube.ts";
-import type { App, AppEvent, AppKey } from "../app.ts";
+import type { App, AppEvent, AppKey, AppTyping } from "../app.ts";
 import type { TextSize } from "../../../shared/text-size.ts";
 
 /** A Back sent to BitChord that changed no route within this long counts as already at its first page. */
@@ -13,6 +13,7 @@ export class BitChordApp implements App {
   readonly label = "BitChord";
   readonly showVolume = true;
   readonly showSkip = false;
+  readonly typing: AppTyping;
   #port: YouTube;
   #clock: Clock;
   #home = true;
@@ -23,6 +24,12 @@ export class BitChordApp implements App {
   constructor(port: YouTube, clock: Clock) {
     this.#port = port;
     this.#clock = clock;
+    this.typing = {
+      label: "Search BitChord",
+      submitSearch: (text) => port.submitSearch(text),
+      showSearchBar: (text) => port.showSearchBar(text),
+      captureText: (on) => port.captureText(on),
+    };
     port.onEvent((event) => {
       if (event.type === "backHandled") {
         this.#backAt = undefined;
@@ -41,12 +48,18 @@ export class BitChordApp implements App {
     for (const l of this.#listeners) l(event);
   }
 
-  back(): "leave" | "handled" {
+  back(): "leave" | "handled" | Promise<"leave" | "handled"> {
     const now = this.#clock.now();
     const stuck = this.#backAt !== undefined && now - this.#backAt >= BACK_SETTLE_MS;
-    if (this.#home || stuck) {
+    if (stuck) {
       this.#backAt = undefined;
       return "leave";
+    }
+    if (this.#home) {
+      this.#backAt = undefined;
+      // A menu, the full view or a panel open on the home is Back's first; the App is left only when the page had nothing to close.
+      const closing = this.#port.closeOverlay?.();
+      return closing ? closing.then((closed) => (closed ? "handled" : "leave")) : "leave";
     }
     this.#backAt = now;
     this.#port.sendKey("back");

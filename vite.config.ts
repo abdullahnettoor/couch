@@ -34,7 +34,15 @@ export default defineConfig({
   // The landing page in site/ is its own project (own package.json, checks and tests): the app's checks leave it out.
   // AGENTS.md is written by the graft CLI (graft init), which would undo any reformatting.
   // The screenshot fixtures are recorded by scripts/look-record.mts.
-  fmt: { ignorePatterns: ["site/**", "AGENTS.md", "scripts/look-fixtures/**"] },
+  // BitChord's page snapshots are saved compact by pnpm bitchord:snapshot; pretty-printed they are six times the size.
+  fmt: {
+    ignorePatterns: [
+      "site/**",
+      "AGENTS.md",
+      "scripts/look-fixtures/**",
+      "src/main/apps/bitchord/fixtures/**",
+    ],
+  },
   lint: {
     ignorePatterns: ["site/**"],
     jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],

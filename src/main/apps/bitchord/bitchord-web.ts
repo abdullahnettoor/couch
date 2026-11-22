@@ -12,6 +12,7 @@ import {
   bitchordSite,
   isBitchordHome,
   isBitchordSearchUrl,
+  bitchordSearchRoutedScript,
 } from "./bitchord-route.ts";
 
 export const BITCHORD_PARTITION = "persist:bitchord";
@@ -42,11 +43,15 @@ export function bitchordDescription(
       back: "Escape",
     },
     backByHistory: true,
+    refuseDownloads: true,
     isOwnOrigin: (origin) => origins.includes(origin),
     search: {
       isSearchUrl: isBitchordSearchUrl,
       urlFor: (text) => bitchordSearchUrlFor(site, text),
       placeholder: "Search BitChord",
+      typeIntoField: false,
+      navigate: "history",
+      routed: bitchordSearchRoutedScript,
     },
     route: urlRoute(isBitchordHome),
     textSize: { targetWidth: 1280 },

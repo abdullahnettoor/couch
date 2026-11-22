@@ -151,6 +151,9 @@ export class SwitchableWebApp implements YouTube {
   sendKey(key: YouTubeKey): void {
     this.#host.sendKey(key);
   }
+  closeOverlay(): Promise<boolean> {
+    return this.#host.closeOverlay?.() ?? Promise.resolve(false);
+  }
   scrollToTop(): void {
     this.#host.scrollToTop?.();
   }

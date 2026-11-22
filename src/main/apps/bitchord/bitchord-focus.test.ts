@@ -146,8 +146,68 @@ describe("BitChord's focus layout, on its saved pages", () => {
   });
 
   test("the layout is on the description, with its own search address", () => {
-    expect(desc.focus?.layout?.docks?.length).toBe(2);
+    expect(desc.focus?.layout?.docks?.length).toBe(4);
     expect(desc.search?.placeholder).toBe("Search BitChord");
+    expect(desc.search?.typeIntoField).toBe(false);
+    expect(desc.search?.navigate).toBe("history");
+  });
+
+  describe("a search of Couch's own", () => {
+    const reset = (p: ReturnType<typeof open>) => p.run("window.__couchResetFocus()");
+
+    test("puts the ring back on the first result, from the sidebar, though the page is /search still", () => {
+      const p = open("search");
+      const first = p.on()!;
+      until(p, "ArrowLeft", (e) => inDock(e));
+      expect(p.on()).not.toBe(first);
+      reset(p);
+      expect(p.on()).toBe(first);
+    });
+
+    test("and from the player bar", () => {
+      const p = open("search");
+      const first = p.on()!;
+      until(p, "ArrowDown", (e) => !!e?.closest('[role="region"][aria-label="Player"]'));
+      // The new results come in at the top of the page.
+      p.scroll.y = 0;
+      reset(p);
+      expect(p.on()).toBe(first);
+    });
+
+    test("and from further down the results", () => {
+      const p = open("search");
+      const first = p.on()!;
+      for (let i = 0; i < 4; i++) p.key("ArrowDown");
+      expect(p.on()).not.toBe(first);
+      p.scroll.y = 0;
+      reset(p);
+      expect(p.on()).toBe(first);
+    });
+  });
+
+  describe("the ring at the screen's edge", () => {
+    test("outlines only the part of a card that is on screen", () => {
+      const p = open("home");
+      p.key("ArrowDown");
+      const el = p.on()!;
+      const w = el.rect.right - el.rect.left;
+      const at = (n: number) => Number.parseFloat(String(n));
+      el.rect = { ...el.rect, left: p.snap.view.width - 40, right: p.snap.view.width - 40 + w };
+      p.mutate();
+      expect(p.on()).toBe(el);
+      expect(at(p.ring.style.left) + at(p.ring.style.width)).toBeLessThanOrEqual(
+        p.snap.view.width + 6,
+      );
+    });
+  });
+
+  test("the search page's own field is never a stop: the phone types, and the ring starts on a result", () => {
+    const p = open("search");
+    const field = p.all.filter((e) => e.matches?.('form[role="search"] input') ?? false);
+    expect(p.on()?.tagName).not.toBe("INPUT");
+    expect(p.on()?.getAttribute("role")).not.toBe("combobox");
+    for (const f of field) expect(p.on()).not.toBe(f);
+    expect(isPlay(p.on()) || href(p.on()) !== "").toBe(true);
   });
 
   describe("home", () => {
@@ -242,6 +302,108 @@ describe("BitChord's focus layout, on its saved pages", () => {
     });
   });
 
+  describe("reaching the player bar from any page, on pages saved to their end", () => {
+    const inBar = (e?: FakeEl) => !!e?.closest('[role="region"][aria-label="Player"]');
+    const inNav = (e?: FakeEl) => !!e?.closest("nav");
+    const bar = (p: { all: FakeEl[] }) =>
+      p.all.find((e) => e.getAttribute("aria-label") === "Player")!;
+    const play = (p: { all: FakeEl[] }) =>
+      p.all.find((e) => inBar(e) && label(e) === "Play" && e.tagName === "BUTTON")!;
+    const lastRowOf = (p: { all: FakeEl[] }) =>
+      p.all.filter((e) => e.matches(TRACK_ROW) && !e.stuck && e.rect.top >= 0).at(-1)!;
+    const TRACK_ROW = '[class*="group/track"], [class*="group/row"]';
+    /** Goes Down to the last control of the page, then once more. */
+    const downToEnd = (p: ReturnType<typeof open>) => {
+      let last: FakeEl | undefined;
+      for (let i = 0; i < 200 && p.on() !== last; i++) {
+        last = p.on();
+        p.key("ArrowDown");
+        if (inDock(p.on())) break;
+      }
+    };
+
+    for (const name of ["playlist-long-end", "home-end"]) {
+      test(`${name}: the saved page reaches past the 12 rows of the others`, () => {
+        const p = open(name);
+        expect(p.all.length).toBeGreaterThan(150);
+        expect(bar(p)).toBeDefined();
+      });
+    }
+
+    test("a last row at the screen's bottom edge, its centre below the bar's, still leads Down to the bar", () => {
+      const p = open("playlist-long-end");
+      const row = lastRowOf(p);
+      expect(row.rect.bottom).toBeGreaterThan(p.snap.view.height - 8);
+      const r = row.getBoundingClientRect();
+      const barRect = bar(p).getBoundingClientRect();
+      expect((r.top + r.bottom) / 2).toBeGreaterThan((barRect.top + barRect.bottom) / 2);
+      downToEnd(p);
+      expect(inBar(p.on())).toBe(true);
+    });
+
+    test("a page ending in cards beside the sidebar goes Down to the bar, not the sidebar", () => {
+      const p = open("home-end");
+      for (let i = 0; i < 100 && !inDock(p.on()); i++) p.key("ArrowDown");
+      expect(inBar(p.on())).toBe(true);
+      expect(inNav(p.on())).toBe(false);
+    });
+
+    test("the sidebar's last item goes Down to the bar, and Up goes back to the page", () => {
+      const p = open("home-end");
+      until(p, "ArrowLeft", inNav);
+      for (let i = 0; i < 20 && !inBar(p.on()); i++) p.key("ArrowDown");
+      expect(inBar(p.on())).toBe(true);
+      p.key("ArrowUp");
+      expect(inDock(p.on())).toBe(false);
+    });
+
+    test("from the middle of a long page, Left then a few Downs reaches the bar", () => {
+      const p = open("playlist-long-end");
+      for (let i = 0; i < 5; i++) p.key("ArrowDown");
+      p.key("ArrowLeft");
+      expect(inNav(p.on())).toBe(true);
+      let presses = 0;
+      while (!inBar(p.on()) && presses < 7) {
+        p.key("ArrowDown");
+        presses++;
+      }
+      expect(inBar(p.on())).toBe(true);
+    });
+
+    test("Down from a row that is not the last one scrolls the list; it does not jump to the bar", () => {
+      const p = open("playlist-long-end");
+      p.key("ArrowDown");
+      p.key("ArrowDown");
+      expect(inDock(p.on())).toBe(false);
+    });
+
+    test("the bar is entered on Play when a song is loaded, whatever the ring's column", () => {
+      const p = open("playlist-long-end");
+      const button = play(p);
+      delete button.attrs.disabled;
+      button.disabled = false;
+      downToEnd(p);
+      expect(p.on()).toBe(button);
+    });
+
+    test("the bar is entered on Pause when the song is playing", () => {
+      const p = open("home-end");
+      const button = play(p);
+      delete button.attrs.disabled;
+      button.disabled = false;
+      button.attrs["aria-label"] = "Pause";
+      for (let i = 0; i < 100 && !inDock(p.on()); i++) p.key("ArrowDown");
+      expect(p.on()).toBe(button);
+    });
+
+    test("with no Play or Pause to land on, the control nearest across is the entry", () => {
+      const p = open("home-end");
+      for (let i = 0; i < 100 && !inDock(p.on()); i++) p.key("ArrowDown");
+      expect(inBar(p.on())).toBe(true);
+      expect(p.on()?.tagName).toBe("BUTTON");
+    });
+  });
+
   describe("sidebar and player bar", () => {
     test("Down from the last thing on a page reaches the player bar, and Up comes back to the page", () => {
       const p = open("home");
@@ -328,6 +490,77 @@ describe("BitChord's focus layout, on its saved pages", () => {
       }
       expect(kinds.has("play")).toBe(true);
       expect(kinds.has("album")).toBe(true);
+    });
+  });
+
+  describe("Settings and the Extension page", () => {
+    const outOfReach = (e?: FakeEl) =>
+      !!e &&
+      (href(e).includes("/downloads/") ||
+        href(e).startsWith("https://github.com/") ||
+        href(e) === "/settings/listen-together");
+
+    test("Down walks every switch row, one stop each, and OK toggles it", () => {
+      // The saved page is taller than its 720 px window; the fake page doesn't scroll to rows past the edge, so it is given room.
+      const snap = fixture("settings");
+      snap.view.height = 1000;
+      const p = { ...netflixPage(snap, desc.focus!), snap };
+      const rows = p.all.filter(
+        (e) => e.tagName === "LABEL" && e.children.some((c) => c.tagName === "INPUT"),
+      );
+      expect(rows.length).toBe(5);
+      const seen = new Set<FakeEl>();
+      const toggled = new Set<FakeEl>();
+      for (let i = 0; i < 40; i++) {
+        const e = p.on();
+        if (e && rows.includes(e)) {
+          seen.add(e);
+          if (!toggled.has(e)) {
+            const box = e.querySelector('input[type="checkbox"]')!;
+            const before = box.checked;
+            expect(p.ok()).toBe(e);
+            expect(box.checked).toBe(!before);
+          }
+          toggled.add(e);
+        }
+        expect(e?.tagName).not.toBe("INPUT");
+        p.key("ArrowDown");
+      }
+      expect(seen.size).toBe(5);
+    });
+
+    test("the Crossfade row and the Lyric Sources button are stops, each reached by name", () => {
+      // The saved page is taller than its 720 px window; the fake page doesn't scroll to rows past the edge, so it is given room.
+      const snap = fixture("settings");
+      snap.view.height = 1100;
+      const p = { ...netflixPage(snap, desc.focus!), snap };
+      const named = new Set<string>();
+      for (let i = 0; i < 40; i++) {
+        const e = p.on();
+        if (e && !label(e)) named.add(e.text || e.closest("label")?.text || "");
+        p.key("ArrowDown");
+      }
+      const starts = (word: string) => [...named].some((n) => n.startsWith(word));
+      expect(starts("Crossfade"), [...named].join(" | ")).toBe(true);
+      expect(starts("Lyric Sources"), [...named].join(" | ")).toBe(true);
+    });
+
+    for (const name of ["settings", "extension"]) {
+      test(`${name}: the ring never starts on or reaches a download, GitHub or Listen Together`, () => {
+        const p = open(name);
+        expect(outOfReach(p.on())).toBe(false);
+        for (const k of ["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"])
+          for (let i = 0; i < 25; i++) {
+            p.key(k);
+            expect(outOfReach(p.on())).toBe(false);
+          }
+      });
+    }
+
+    test("extension: the ring starts on something that isn't a download", () => {
+      const p = open("extension");
+      expect(p.on()).toBeDefined();
+      expect(href(p.on())).not.toContain("/downloads/");
     });
   });
 });

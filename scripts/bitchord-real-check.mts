@@ -4,18 +4,26 @@
 //   1. BitChord's Extension page says the extension is installed (and asks for no update),
 //   2. a known song from BitChord's /debug page plays past 90 s, and two more for 20 s each,
 //   3. an age-restricted song shows BitChord's own sign-in message,
-//   4. lyrics load for the long song: the bridge fetched a listed lyric host and BitChord's lyrics view shows lines.
+//   4. lyrics load for the long song: the bridge fetched a listed lyric host and BitChord's lyrics view shows lines,
+//   5. from the Remote's keys: the full view opens with the ring on Pause, a ⋯ menu opens on its first item with the ring
+//      following BitChord's own focus, and Back closes the menu, then the view, with the page left as it was,
+//   6. Down reaches the player bar on a long playlist, on Play/Pause, from its last row and from its middle via the sidebar (#73);
+//   7. the Up Next panel (#76): Right reaches it, rows are outlined up to its edge, Back closes it before the page goes back;
+//   8. Back through the App (BitChordApp.back) on the home with the full view and the panel open closes them, one per Back, and leaves only after;
+//      BITCHORD_FRAMES=<dir> saves a frame of each.
 // The window is 1920 pt wide with Text size applied (BITCHORD_TEXT_SIZE, default "default").
 // BITCHORD_SITE overrides the site; BITCHORD_TRACKS=a,b,c and BITCHORD_AGE_RESTRICTED=id override the songs;
 // BITCHORD_LONG (seconds, default 95) shortens the long play for a quick look; the long song must reach 90 s (or that shorter
 // wish), the others 20 s, with no tolerance.
 import { app, BrowserWindow, session, webContents } from "electron";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { lyricOrigin } from "../src/main/apps/bitchord/bitchord-lyrics.ts";
 import { bridgeNetwork } from "../src/main/apps/bitchord/bitchord-network.ts";
 import { bitchordSite } from "../src/main/apps/bitchord/bitchord-route.ts";
+import { BitChordApp } from "../src/main/apps/bitchord/bitchord-app.ts";
+import { systemClock } from "../src/main/ports/clock.ts";
 import { ownArtwork, playbackProbe } from "../src/main/web/playback.ts";
 import { BITCHORD_PARTITION, bitchordDescription } from "../src/main/apps/bitchord/bitchord-web.ts";
 import type { TextSize } from "../src/shared/text-size.ts";
@@ -25,6 +33,8 @@ import { hiddenWindow } from "./lib/hidden-window.mts";
 const userData = mkdtempSync(join(tmpdir(), "couch-bitchord-check-"));
 app.setPath("userData", userData);
 app.commandLine.appendSwitch("mute-audio");
+// As Couch does (src/main/index.ts): never the Mac's Now Playing app, so a headset's pause (or one dropping out) can't stop the check.
+app.commandLine.appendSwitch("disable-features", "HardwareMediaKeyHandling,MediaSessionService");
 app.dock?.hide();
 
 const SITE = bitchordSite(process.env);
@@ -71,6 +81,8 @@ void app.whenReady().then(async () => {
   const hidden = hiddenWindow(win);
   const before = new Set(webContents.getAllWebContents().map((c) => c.id));
   const web = new ElectronWebApp(description, hidden as BrowserWindow);
+  // Back through the App's own path (what the Remote's Back reaches), not the host's key.
+  const bitchord = new BitChordApp(web, systemClock);
   const wc = webContents
     .getAllWebContents()
     .find((c) => !before.has(c.id) && c.getURL() !== undefined)!;
@@ -95,6 +107,22 @@ void app.whenReady().then(async () => {
       `(document.querySelector('main') ?? document.body).innerText.slice(0, 1500)`,
     );
     log("Extension page says:", JSON.stringify(text.replace(/\s+/g, " ").slice(0, 700)));
+    // BitChord's session refuses every download: the session sees it start, and nothing is saved.
+    let downloads = 0;
+    const saved: string[] = [];
+    const seen = (_e: unknown, item: { getSavePath(): string }) => {
+      downloads++;
+      setImmediate(() => saved.push(item.getSavePath()));
+    };
+    ses.prependListener("will-download", seen);
+    wc.downloadURL(`${SITE}/home`);
+    await sleep(4000);
+    ses.off("will-download", seen);
+    expectThat(downloads > 0, "a download started in the page reaches the session");
+    expectThat(
+      saved.every((p) => !p),
+      "…and nothing is saved (the download is cancelled)",
+    );
     const ping = await js<{
       ok?: boolean;
       result?: { version: string; browser: string };
@@ -218,6 +246,389 @@ void app.whenReady().then(async () => {
     const after = (await probe())!.position;
     log(`seek +60 s from ${from}s: now at ${after}s`);
     expectThat(after >= from + 55, `a direct seek sticks (${from}s -> ${after}s)`);
+
+    // Search from the phone (#72): typed text opens the results in the same document, so the song keeps playing,
+    // even with BitChord's own search field focused; a second search replaces the results.
+    const origin = () => js<number>(`performance.timeOrigin`);
+    const resultsFor = (q: string) =>
+      js<boolean>(
+        `location.pathname === "/search" && new URLSearchParams(location.search).get("q") === ${JSON.stringify(q)} && /songs|artists|albums/i.test(document.querySelector("main")?.innerText ?? "")`,
+      );
+    const searched = async (q: string) => {
+      web.submitSearch(q);
+      for (let i = 0; i < 20 && !(await resultsFor(q)); i++) await sleep(500);
+      await sleep(1500);
+      return resultsFor(q);
+    };
+    const t0 = await origin();
+    const p0 = (await probe())!.position;
+    expectThat(await searched("coldplay"), "a search from the phone shows BitChord's results");
+    expectThat((await origin()) === t0, "the search kept the same document (no reload)");
+    const p1 = await probe();
+    log(`search while playing: ${p0}s -> ${p1?.position}s, ${p1?.paused ? "paused" : "playing"}`);
+    expectThat(!!p1 && !p1.paused && p1.position > p0, "the song kept playing through the search");
+    await js(`document.querySelector('input[aria-label="Search"]')?.focus()`);
+    expectThat(
+      await js<boolean>(`document.activeElement?.getAttribute("aria-label") === "Search"`),
+      "BitChord's search field has focus",
+    );
+    expectThat(await searched("adele"), "a search with the field focused replaces the results");
+    expectThat((await origin()) === t0, "the second search kept the document too");
+    expectThat(
+      (await probe())?.paused === false,
+      "the song was still playing after the second search",
+    );
+    // The player bar from a long playlist (#73): the ring walks with the page's own keys, as the Remote's Down does.
+    const RING_STATE = `(() => {
+      const ring = [...document.body.children].find((e) => e.style && e.style.zIndex === "2147483647");
+      const bar = document.querySelector('[role="region"][aria-label="Player"]');
+      const nav = document.querySelector('nav[aria-label="Main"]');
+      if (!ring || ring.style.display === "none" || !bar) return "none";
+      const r = ring.getBoundingClientRect(), within = (el) => { const b = el.getBoundingClientRect(); return r.left >= b.left - 6 && r.right <= b.right + 6 && r.top >= b.top - 6 && r.bottom <= b.bottom + 6; };
+      if (within(bar)) {
+        const on = [...bar.querySelectorAll("button, a")].find((b) => { const q = b.getBoundingClientRect(); return Math.abs(q.left + q.width / 2 - (r.left + r.width / 2)) < 8 && Math.abs(q.top + q.height / 2 - (r.top + r.height / 2)) < 8; });
+        return "bar:" + (on ? on.getAttribute("aria-label") ?? on.tagName : "?");
+      }
+      if (nav && within(nav)) return "sidebar";
+      return "page";
+    })()`;
+    if (!wc.debugger.isAttached()) wc.debugger.attach("1.3");
+    await wc.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
+    const FRAMES = process.env.BITCHORD_FRAMES;
+    const frame = async (name: string) => {
+      if (!FRAMES) return;
+      mkdirSync(FRAMES, { recursive: true });
+      await js(
+        `(() => { const r = [...document.body.children].find((e) => e.style && e.style.zIndex === "2147483647"); if (r) { r.style.transition = "none"; r.getBoundingClientRect(); } })()`,
+      );
+      wc.invalidate();
+      await sleep(500);
+      const shot = (await wc.debugger.sendCommand("Page.captureScreenshot", { format: "png" })) as {
+        data: string;
+      };
+      writeFileSync(join(FRAMES, `${name}.png`), Buffer.from(shot.data, "base64"));
+      log("frame", name);
+    };
+    const press = async (k: string) => {
+      wc.focus();
+      await js(
+        `window.dispatchEvent(new KeyboardEvent("keydown", { key: ${JSON.stringify(k)}, bubbles: true, cancelable: true }))`,
+      );
+      await sleep(300);
+      return js<string>(RING_STATE);
+    };
+    const LONG_PLAYLIST =
+      process.env.BITCHORD_LONG_PLAYLIST ?? "/playlist/VLPLO7-VO1D0_6MlO4UxJWFBUq3U-7zoIBf7";
+    // BitChord's own navigation, so the song keeps playing (a load would stop it): the bar then has Pause to land on.
+    const within = async (path: string) => {
+      await js(
+        `(history.pushState({}, "", ${JSON.stringify(path)}), dispatchEvent(new PopStateEvent("popstate")), 0)`,
+      );
+      await sleep(4000);
+    };
+    // From the page's end: Down until the ring is on the bar.
+    await within(LONG_PLAYLIST);
+    let where = await press("ArrowDown");
+    let downs = 1;
+    while (!where.startsWith("bar") && downs < 130) {
+      where = await press("ArrowDown");
+      downs++;
+    }
+    log(`playlist end: Down reached "${where}" after ${downs} presses`);
+    await frame("playlist-down-at-end");
+    expectThat(
+      /^bar:(Pause|Play)$/.test(where),
+      "Down at the end of a 100-song playlist reaches the bar, on Play/Pause",
+    );
+    // Left and Right walk the bar; Up returns to the page.
+    const right = await press("ArrowRight");
+    expectThat(right.startsWith("bar") && right !== where, `Right walks the bar (now ${right})`);
+    expectThat((await press("ArrowUp")) === "page", "Up from the bar returns to the page");
+    // From the middle of the page: Left to the sidebar, then a few Downs.
+    await within("/home");
+    await within(LONG_PLAYLIST);
+    const trail: string[] = [];
+    for (let i = 0; i < 12; i++) trail.push(await press("ArrowDown"));
+    log("  twelve Downs:", trail.join(" "));
+    where = await press("ArrowLeft");
+    expectThat(
+      where === "sidebar",
+      `Left from the middle of the playlist reaches the sidebar (${where})`,
+    );
+    await frame("playlist-sidebar");
+    let sidebarDowns = 0;
+    while (where !== "page" && !where.startsWith("bar") && sidebarDowns < 10) {
+      where = await press("ArrowDown");
+      sidebarDowns++;
+    }
+    log(`sidebar: Down reached "${where}" after ${sidebarDowns} presses`);
+    await frame("playlist-sidebar-to-bar");
+    expectThat(
+      /^bar:(Pause|Play)$/.test(where) && sidebarDowns <= 7,
+      `Left then Down reaches the bar in ${sidebarDowns} presses (at most 7)`,
+    );
+
+    // The Remote (#74): the full view and a ⋯ menu, with the host's real keys (a never-shown window needs focus emulation to get them).
+    // The ring is Couch's own box in the page: what it is on is the biggest control inside it.
+    const ringOn = () =>
+      js<string | null>(`(() => {
+        const r = [...document.body.children].find((e) => e.style && e.style.zIndex === "2147483647");
+        if (!r || r.style.display === "none") return null;
+        const b = r.getBoundingClientRect();
+        const inside = [...document.querySelectorAll("button, a[href], [role^=menuitem]")]
+          .map((e) => ({ e, q: e.getBoundingClientRect() }))
+          .filter(({ q }) => q.width && q.height && q.left >= b.left - 8 && q.top >= b.top - 8 && q.right <= b.right + 8 && q.bottom <= b.bottom + 8)
+          .sort((x, y) => y.q.width * y.q.height - x.q.width * x.q.height);
+        const e = inside[0]?.e;
+        return e ? (e.getAttribute("aria-label") || e.innerText || "").trim() : null;
+      })()`);
+    const sendKey = async (k: "up" | "down" | "left" | "right" | "ok" | "back") => {
+      wc.focus();
+      web.sendKey(k);
+      await sleep(900);
+    };
+    // BITCHORD_FRAMES=<dir> keeps a frame of each step, with the ring.
+    const shoot = async (name: string) => {
+      if (!process.env.BITCHORD_FRAMES) return;
+      mkdirSync(process.env.BITCHORD_FRAMES, { recursive: true });
+      await js(
+        `(() => { const r = [...document.body.children].find((e) => e.style && e.style.zIndex === "2147483647"); if (r) { r.style.transition = "none"; r.getBoundingClientRect(); } })()`,
+      );
+      wc.invalidate();
+      await sleep(500);
+      const shot = (await wc.debugger.sendCommand("Page.captureScreenshot", { format: "png" })) as {
+        data: string;
+      };
+      writeFileSync(
+        join(process.env.BITCHORD_FRAMES, `${name}.png`),
+        Buffer.from(shot.data, "base64"),
+      );
+    };
+    const count = (sel: string) =>
+      js<number>(
+        `[...document.querySelectorAll(${JSON.stringify(sel)})].filter((e) => e.getBoundingClientRect().width).length`,
+      );
+    const attached = wc.debugger.isAttached();
+    if (!attached) wc.debugger.attach("1.3");
+    await wc.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
+    await within("/home");
+    await sleep(1500);
+    const startPath = await js<string>(`location.pathname + location.search`);
+    // A mouse click of the household's makes the bar's artwork the held control, as reaching it with the D-pad does.
+    const art = await js<number[] | null>(`(() => {
+      const e = document.querySelector('button[aria-label="Open full screen player"]');
+      const q = e?.getBoundingClientRect();
+      return q ? [q.left + q.width / 2, q.top + q.height / 2] : null;
+    })()`);
+    expectThat(!!art, "the player bar has its artwork button while a song plays");
+    if (art) {
+      const zoom = 1;
+      const at = { x: art[0]! * zoom, y: art[1]! * zoom };
+      log(
+        "artwork at",
+        JSON.stringify(art),
+        "zoom",
+        zoom,
+        "inner",
+        await js<string>(`innerWidth + "x" + innerHeight + " dpr " + devicePixelRatio`),
+      );
+      // The D-pad steps above left Couch's shield up; it comes down on a mouse move of more than a few pixels, after one that anchors.
+      await wc.debugger.sendCommand("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x: at.x - 40,
+        y: at.y - 40,
+      });
+      await sleep(300);
+      await wc.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+      await sleep(300);
+      await wc.debugger.sendCommand("Input.dispatchMouseEvent", {
+        type: "mousePressed",
+        ...at,
+        button: "left",
+        clickCount: 1,
+      });
+      await wc.debugger.sendCommand("Input.dispatchMouseEvent", {
+        type: "mouseReleased",
+        ...at,
+        button: "left",
+        clickCount: 1,
+      });
+      await sleep(2500);
+      expectThat(
+        (await count('[role="dialog"][aria-label="Now Playing"]')) === 1,
+        "OK on the bar's artwork opens the full view",
+      );
+      const start = await ringOn();
+      log("full view ring on:", start);
+      await shoot("1-full-view-start");
+      expectThat(start === "Pause", "the ring starts on Pause in the full view");
+      await sendKey("up");
+      const more = await ringOn();
+      expectThat(
+        !!more?.startsWith("More options"),
+        `Up from Pause reaches the full view's ⋯ (ring on ${more})`,
+      );
+      await shoot("2-full-view-more");
+      await sendKey("ok");
+      await shoot("3-menu-open");
+      expectThat((await count('[role="menu"]')) === 1, "OK on ⋯ opens BitChord's menu");
+      const first = await ringOn();
+      expectThat(first === "Play Next", `the ring starts on the menu's first item (${first})`);
+      await sendKey("down");
+      const second = await ringOn();
+      const focused = await js<string>(`(document.activeElement?.innerText ?? "").trim()`);
+      log("menu ring on:", second, "focus on:", focused);
+      await shoot("4-menu-walked");
+      expectThat(
+        second === "Add to Queue" && focused === second,
+        "Down walks the menu: the ring and BitChord's focus are on the same item",
+      );
+      await sendKey("back");
+      await shoot("5-after-first-back");
+      expectThat((await count('[role="menu"]')) === 0, "Back closes the menu");
+      expectThat(
+        (await count('[role="dialog"][aria-label="Now Playing"]')) === 1,
+        "Back with a menu open leaves the full view open",
+      );
+      expectThat(
+        String((await ringOn())?.startsWith("More options")) === "true",
+        "the ring is back on the ⋯ that opened the menu",
+      );
+      await sendKey("back");
+      await shoot("6-after-second-back");
+      expectThat(
+        (await count('[role="dialog"][aria-label="Now Playing"]')) === 0,
+        "Back closes the full view",
+      );
+      expectThat(
+        (await ringOn()) === "Open full screen player",
+        "the ring is back on the bar's artwork",
+      );
+      expectThat(
+        (await js<string>(`location.pathname + location.search`)) === startPath,
+        "the page didn't change",
+      );
+    }
+    // The panels (#76): Right reaches an open Up Next panel from the page, OK on a queued song plays it, rows are outlined only up to the panel's edge, and Back closes the panel with the page left where it is.
+    const ringBox = () =>
+      js<number[] | null>(`(() => {
+        const r = [...document.body.children].find((e) => e.style && e.style.zIndex === "2147483647");
+        if (!r || r.style.display === "none") return null;
+        const b = r.getBoundingClientRect();
+        return [b.left + 6, b.top + 6, b.right - 6, b.bottom - 6];
+      })()`);
+    const panelEdge = () =>
+      js<number | null>(
+        `(() => { const a = document.querySelector('aside[aria-label="Up Next"]'); return a ? a.getBoundingClientRect().left : null; })()`,
+      );
+    const inPanel = async () => {
+      const b = await ringBox();
+      const edge = await panelEdge();
+      return !!b && edge !== null && b[0]! >= edge - 2;
+    };
+    await within(LONG_PLAYLIST);
+    await sleep(1500);
+    await js(
+      `document.querySelector('[role="region"][aria-label="Player"] button[aria-label="Up Next"]')?.click()`,
+    );
+    await sleep(2500);
+    expectThat((await panelEdge()) !== null, "the Up Next panel opens from the bar's toggle");
+    // Down from the top of the page: the first row, with the panel over its right end.
+    await within("/home");
+    await within(LONG_PLAYLIST);
+    await sleep(1500);
+    const pagePath = await js<string>(`location.pathname + location.search`);
+    await sendKey("down");
+    const rowBox = await ringBox();
+    const edge = await panelEdge();
+    log("row ring", JSON.stringify(rowBox), "panel edge", edge);
+    await shoot("1-row-ring-to-panel-edge");
+    expectThat(
+      !!rowBox && edge !== null && rowBox[2]! <= edge + 1,
+      "a song row under the open panel is outlined only up to the panel's edge",
+    );
+    let reached = false;
+    for (let i = 0; i < 6 && !reached; i++) {
+      await sendKey("right");
+      reached = await inPanel();
+    }
+    await shoot("2-panel-reached-with-right");
+    expectThat(reached, "Right from the page reaches the open Up Next panel");
+    let onSong = "";
+    for (let i = 0; i < 6; i++) {
+      onSong = (await ringOn()) ?? "";
+      if (onSong.startsWith("Play ")) break;
+      await sendKey("down");
+    }
+    await shoot("3-queue-row-ringed");
+    expectThat(
+      onSong.startsWith("Play ") && (await inPanel()),
+      `the ring is on a queued song in the panel (${onSong})`,
+    );
+    const leftOf = await ringBox();
+    await sendKey("right");
+    const afterRight = await ringBox();
+    expectThat(
+      !!afterRight && !!leftOf && afterRight[0]! >= leftOf[0]! - 2,
+      "Right from a queue row doesn't jump to the page's left side",
+    );
+    await sendKey("back");
+    await shoot("4-after-back-closes-panel");
+    expectThat((await panelEdge()) === null, "Back closes the Up Next panel");
+    expectThat(
+      (await js<string>(`location.pathname + location.search`)) === pagePath,
+      "Back with a panel open stays on the page",
+    );
+    await sendKey("back");
+    await sleep(1500);
+    expectThat(
+      (await js<string>(`location.pathname + location.search`)) !== pagePath,
+      "the next Back goes back a page",
+    );
+    // Back on BitChord's own home with things open (#71), through the App: the page's full view and Up Next panel are closed first, and the App is left only when nothing is open.
+    await within("/home");
+    await sleep(1500);
+    await js(
+      `document.querySelector('[role="region"][aria-label="Player"] button[aria-label="Up Next"]')?.click()`,
+    );
+    await sleep(2000);
+    await js(`document.querySelector('button[aria-label="Open full screen player"]')?.click()`);
+    await sleep(2500);
+    // The full view is drawn over the panel, which is there again when the view closes.
+    expectThat(
+      (await count('[role="dialog"][aria-label="Now Playing"]')) === 1,
+      "on the home, the full view is open over the Up Next panel",
+    );
+    const homePath = await js<string>(`location.pathname + location.search`);
+    const appBack = async () => {
+      wc.focus();
+      const answer = await bitchord.back();
+      await sleep(900);
+      return answer;
+    };
+    expectThat(
+      (await appBack()) === "handled",
+      "the App's Back on the home is handled (the full view)",
+    );
+    expectThat(
+      (await count('[role="dialog"][aria-label="Now Playing"]')) === 0 &&
+        (await panelEdge()) !== null,
+      "it closed the full view and left the panel",
+    );
+    expectThat(
+      (await appBack()) === "handled",
+      "the App's Back on the home is handled (the panel)",
+    );
+    expectThat((await panelEdge()) === null, "it closed the Up Next panel");
+    expectThat(
+      (await js<string>(`location.pathname + location.search`)) === homePath,
+      "the page stayed on the home",
+    );
+    expectThat(
+      (await appBack()) === "leave",
+      "with nothing open, the App's Back on the home leaves",
+    );
+    if (!attached) wc.debugger.detach();
 
     const age = await play(AGE_RESTRICTED, 15);
     log("age-restricted log:", age.lines);

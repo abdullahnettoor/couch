@@ -1,7 +1,7 @@
 // Records BitChord's live pages as page snapshots (the test fixtures in src/main/apps/bitchord/fixtures), by hand:
 //   pnpm bitchord:snapshot [outDir]
 // Signed out, muted, offscreen (a window that is never shown), on a temp userData. It also saves a frame of each page with
-// Couch's real focus ring when BITCHORD_FRAMES=<dir> is set (1920×1080). Not in CI: it hits the live site.
+// Couch's real focus ring when BITCHORD_FRAMES=<dir> is set (1920 pt wide, so the page's 1280×720 at the default Text size). Not in CI: it hits the live site.
 import { app, BrowserWindow, session, webContents } from "electron";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -15,6 +15,8 @@ import { hiddenWindow } from "./lib/hidden-window.mts";
 const userData = mkdtempSync(join(tmpdir(), "couch-bitchord-snap-"));
 app.setPath("userData", userData);
 app.commandLine.appendSwitch("mute-audio");
+// As Couch does (src/main/index.ts): never the Mac's Now Playing app, so a headset's pause (or one dropping out) can't stop the check.
+app.commandLine.appendSwitch("disable-features", "HardwareMediaKeyHandling,MediaSessionService");
 app.dock?.hide();
 
 const SITE = bitchordSite(process.env);
@@ -25,22 +27,29 @@ const OUT = resolve(
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const log = (...a: unknown[]) => console.log("[bitchord-snapshot]", ...a);
 
-const WALK = `(function () {
+const walkSource = (end: boolean, cap = end ? 40 : 12) => `(function () {
   // What the focus tests read: the rest of a page's attributes, and all but its song-row classes, only add size.
-  var KEEP = ["href","role","tabindex","aria-label","aria-modal","aria-hidden","aria-disabled","type","placeholder","disabled"];
+  var KEEP = ["href","role","tabindex","aria-label","aria-modal","aria-hidden","aria-disabled","aria-checked","aria-pressed","aria-haspopup","type","placeholder","disabled"];
   // A list keeps its first rows or cards; the focus tests walk a few and a snapshot of a whole playlist is a megabyte.
-  var CAP = 12;
+  var CAP = ${cap};
+  // At a page's end the rows that scrolled off are left out, so a long page's last rows fit in a small copy.
+  var END = ${end};
   var SKIP = {SCRIPT:1,STYLE:1,NOSCRIPT:1,LINK:1,META:1,HEAD:1,TITLE:1,PATH:1,CIRCLE:1,RECT:1,LINE:1,POLYLINE:1,POLYGON:1,G:1,DEFS:1,SVG:1,IMG:1,PICTURE:1,SOURCE:1};
   var n = 0;
   function walk(el) {
     if (SKIP[el.tagName.toUpperCase()] || n > 6000) return null;
+    // Couch's own ring and pointer shield are not the page.
+    if (el.style && (el.style.zIndex === "2147483647" || el.style.zIndex === "2147483646")) return null;
     var r = el.getBoundingClientRect(), cs = getComputedStyle(el);
     var a = {};
     KEEP.forEach(function (k) { var v = el.getAttribute(k); if (v !== null) a[k] = v.slice(0, 200); });
-    var rows = String(el.getAttribute("class") || "").split(/s+/).filter(function (c) { return c.indexOf("group/track") === 0 || c.indexOf("group/row") === 0; });
+    var rows = String(el.getAttribute("class") || "").split(/\\s+/).filter(function (c) { return c.indexOf("group/track") === 0 || c.indexOf("group/row") === 0; });
     if (rows.length) a["class"] = rows.join(" ");
     // A box with no size can't be pointed at, so it is left out with all that is in it.
     if (!r.width || !r.height) return null;
+    if (END && el !== document.documentElement && el !== document.body && (r.bottom < 0 || r.top > innerHeight) && !el.closest('nav[aria-label="Main"], [role="region"][aria-label="Player"]')) return null;
+    // Couch's own highlight and shield, drawn over the page by the focus script, are not the page's.
+    if (Number(cs.zIndex) >= 2147483000) return null;
     var node = { t: el.tagName.toLowerCase(), r: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)] };
     if (Object.keys(a).length) node.a = a;
     if (cs.visibility === "hidden" || cs.display === "none") node.hidden = true;
@@ -49,16 +58,21 @@ const WALK = `(function () {
     if (cs.position === "fixed" || cs.position === "sticky" || el.matches('nav[aria-label="Main"], [role="region"][aria-label="Player"]')) node.fixed = true;
     if (cs.pointerEvents === "none") node.through = true;
     n++;
+    // A switch row's or a button's own words are what names it when it has no aria-label.
+    if (el.tagName === "LABEL" || (el.tagName === "BUTTON" && !a["aria-label"])) node.x = String(el.innerText || "").replace(/\\s+/g, " ").trim().slice(0, 60);
     if (node.hidden) return node;
     var kids = [];
     for (var c = el.firstElementChild; c && kids.length < CAP; c = c.nextElementSibling) { var k = walk(c); if (k) kids.push(k); }
     if (kids.length) node.c = kids;
     // Plain text boxes with no attribute say nothing the focus script reads.
-    else if (!node.a && !node.hidden && !node.fixed && node.z === undefined && !node.through) return null;
+    else if (!node.x && !node.a && !node.hidden && !node.fixed && node.z === undefined && !node.through) return null;
     return node;
   }
   return { url: location.href, view: { width: innerWidth, height: innerHeight }, tree: walk(document.documentElement) };
 })()`;
+// BITCHORD_ONLY=settings,menu records just these pages (the rest of the walk still runs, and saves nothing).
+const ONLY = process.env.BITCHORD_ONLY?.split(",");
+const wanted = (name: string) => !ONLY || ONLY.includes(name);
 
 void app.whenReady().then(async () => {
   mkdirSync(OUT, { recursive: true });
@@ -83,6 +97,9 @@ void app.whenReady().then(async () => {
   wc.setAudioMuted(true);
   const js = <T,>(code: string) => wc.executeJavaScript(code, true) as Promise<T>;
   web.show();
+  // The window is never shown, so the page would stop drawing (a virtualised list draws its rows on animation frames): emulate focus.
+  wc.debugger.attach("1.3");
+  await wc.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
   const go = async (path: string, wait = 6000) => {
     await wc.loadURL(path.startsWith("http") ? path : `${SITE}${path}`);
     await sleep(wait);
@@ -96,8 +113,41 @@ void app.whenReady().then(async () => {
     }
     await sleep(1500);
   };
-  const save = async (name: string) => {
-    const snap = await js<unknown>(WALK);
+  // `cap`: how many children of one element are kept. Settings is a short page of sections that must all be there.
+  const save = async (name: string, cap?: number) => {
+    if (!wanted(name)) return;
+    const snap = await js<unknown>(walkSource(false, cap));
+    writeFileSync(join(OUT, `${name}.json`), JSON.stringify(snap));
+    log("saved", name, (snap as { url: string }).url);
+  };
+  // The page scrolled to its very end (a long list's last rows sit at the screen's bottom edge, under the player bar).
+  const saveEnd = async (name: string) => {
+    if (!wanted(name)) return;
+    wc.focus();
+    // A virtualised list draws its rows as the page is walked, so the page goes to its end the way the household does: Down, a press at a time, until the page stops scrolling.
+    let still = 0;
+    for (let i = 0, last = ""; i < 140 && still < 6; i++) {
+      await js(
+        `window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }))`,
+      );
+      await sleep(350);
+      // Where the page is and where the ring is: while either moves the walk goes on.
+      const at = await js<string>(
+        `(() => { const r = [...document.body.children].find((e) => e.style && e.style.zIndex === "2147483647"); return (document.querySelector("main")?.scrollTop ?? 0) + "/" + (r ? r.style.left + r.style.top : ""); })()`,
+      );
+      still = at === last ? still + 1 : 0;
+      last = at;
+    }
+    await sleep(1500);
+    log(
+      "page text",
+      (
+        await js<string>(
+          `document.body.innerText.slice(0, 80) + " | plays " + [...document.querySelectorAll('button[aria-label^="Play "]')].map((b) => Math.round(b.getBoundingClientRect().top)).slice(-4) + " | rows " + document.querySelectorAll('[class*="group/"]').length + " scroll " + [...document.querySelectorAll("*")].filter((e) => e.scrollTop > 0).map((e) => e.tagName + e.scrollTop + "/" + e.scrollHeight)`,
+        )
+      ).replace(/\s+/g, " "),
+    );
+    const snap = await js<unknown>(walkSource(true));
     writeFileSync(join(OUT, `${name}.json`), JSON.stringify(snap));
     log("saved", name, (snap as { url: string }).url);
   };
@@ -142,9 +192,87 @@ void app.whenReady().then(async () => {
     js<string[]>(
       `[...new Set([...document.querySelectorAll("a[href]")].map(a => a.getAttribute("href")).filter(h => new RegExp(${JSON.stringify(re)}).test(h)))].slice(0, 5)`,
     );
+  // With a song loaded: BitChord's player bar, its full-screen view and its menus (a song is played from /debug, as bitchord:real does).
+  const states = async () => {
+    const track = process.env.BITCHORD_TRACKS?.split(",")[0] ?? "ZEcqHA7dbwM";
+    await go("/debug", 3000);
+    await js(`(() => {
+      const input = document.querySelector("form input");
+      const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+      set.call(input, ${JSON.stringify(track)});
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.form.requestSubmit();
+    })()`);
+    await sleep(8000);
+    await js(
+      `[...document.querySelectorAll("a")].find(a => /^\\s*Home/.test(a.innerText))?.click()`,
+    );
+    for (let i = 0; i < 20; i++) {
+      if (
+        await js<boolean>(`!!document.querySelector('[role="region"][aria-label="Player"] button')`)
+      )
+        break;
+      await sleep(1000);
+    }
+    await sleep(2000);
+    log(
+      "player",
+      await js<string>(
+        `location.pathname + " " + (document.querySelector('[role="region"][aria-label="Player"]')?.innerText ?? "no bar").slice(0, 80)`,
+      ),
+    );
+    const click = async (sel: string, wait = 1500) => {
+      const found = await js<boolean>(
+        `(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (e) e.click(); return !!e; })()`,
+      );
+      await sleep(wait);
+      if (!found) log("missing", sel);
+      return found;
+    };
+    const BAR = '[role="region"][aria-label="Player"]';
+    const MORE = 'button[aria-label^="More options for"]';
+    const escape = async () => {
+      if (!wc.debugger.isAttached()) wc.debugger.attach("1.3");
+      await wc.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
+      wc.focus();
+      web.sendKey("back");
+      await sleep(1200);
+      log(
+        "after back:",
+        await js<string>(
+          `location.pathname + " menus " + document.querySelectorAll('[role="menu"]').length + " dialog " + document.querySelectorAll('[role="dialog"]').length`,
+        ),
+      );
+    };
+    if (await click(`${BAR} ${MORE}`)) {
+      await save("menu");
+      await escape();
+    }
+    if (await click(`${BAR} button[aria-label="Lyrics"]`, 3000)) {
+      await save("lyrics-panel");
+      if (await click('aside[aria-label="Lyrics"] button[aria-haspopup="menu"]')) {
+        await save("provider-menu");
+        await escape();
+      }
+      await click(`${BAR} button[aria-label="Lyrics"]`);
+    }
+    if (await click(`${BAR} button[aria-label="Up Next"]`, 3000)) {
+      await save("queue-panel");
+      await click(`${BAR} button[aria-label="Up Next"]`);
+    }
+    if (await click('button[aria-label="Open full screen player"]', 2500)) {
+      await save("fullview");
+      if (await click(`[aria-label="Now Playing"] ${MORE}`)) {
+        await save("fullview-menu");
+        await escape();
+      }
+      await escape();
+    }
+  };
   try {
     await go("/home");
     await save("home");
+    await saveEnd("home-end");
     await frame("home-start", []);
     await frame("home-right", ["right", "right"]);
     const albums = await links("^/album");
@@ -176,6 +304,18 @@ void app.whenReady().then(async () => {
       await save("playlist");
       await frame("playlist", ["down", "down", "down", "down"]);
     }
+    await go("/settings");
+    await save("settings", 60);
+    await frame("settings", ["down", "down", "down", "down", "down", "down", "down", "down"]);
+    await go("/extension");
+    await save("extension");
+    await frame("extension", []);
+    // A 100-song playlist, saved at its end: its rows are virtualised, and its last row sits at the screen's bottom edge, level with the player bar.
+    await go(
+      process.env.BITCHORD_LONG_PLAYLIST ?? "/playlist/VLPLO7-VO1D0_6MlO4UxJWFBUq3U-7zoIBf7",
+    );
+    await saveEnd("playlist-long-end");
+    await states();
   } catch (e) {
     log("threw", String(e));
   }

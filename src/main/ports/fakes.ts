@@ -143,6 +143,12 @@ export class FakeYouTube implements YouTube {
   scrollToTop() {
     this.#record("scrollToTop");
   }
+  /** How many things the page has open that Back would close (a menu, a panel); each closeOverlay closes one. */
+  overlays = 0;
+  closeOverlay(): Promise<boolean> {
+    this.#record("closeOverlay");
+    return Promise.resolve(this.overlays > 0 && !!this.overlays--);
+  }
   seekTo(seconds: number) {
     this.#record("seekTo", seconds);
   }

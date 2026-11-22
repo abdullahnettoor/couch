@@ -61,6 +61,8 @@ export interface FocusLayout {
   scopes?: string[];
   /** Overlays that never count as covering a control (a hover preview): the highlight stays on the control beneath. */
   passive?: string[];
+  /** Inside a pop-up the highlight and the page's own focus stay together: the entry control takes the focus, and the highlight follows it when the page moves it with the arrows (a menu's roving focus), so OK presses what the highlight is on. */
+  followFocus?: boolean;
   /** Where the highlight lands when a pop-up opens: the first usable match of the first selector that has one, inside the pop-up. While none matches yet, the highlight waits (never on a text link); the wait ends when one does or the household moves, and from then on it stays where they put it. */
   modalEntry?: string[];
   /** Rows of cards: Left/Right stay in the row, Up/Down leave it; at the row's end `next`/`prev` (inside the row) page it. */
@@ -69,8 +71,14 @@ export interface FocusLayout {
   takeArrows?: boolean;
   /** Docked regions that stay put while the page scrolls (a sidebar, a player bar): a move stays inside the region it starts in (or in the page, from the page) while that has a control that way; from a dock it then goes to the page, never to another dock. */
   docks?: string[];
+  /** Where Down lands in a bottom dock (one no taller than a quarter of the screen, with its top in the lower half), by dock selector: the first usable control matching the first of its selectors that has one; none matching, the control nearest. Down with nothing further down, in the page or a side dock, goes to a bottom dock, whatever the height of its controls' centres. */
+  dockEntry?: Record<string, string[]>;
+  /** Panels that stay open across pages, and the control that closes each: Back presses it (the first open one, when no pop-up is on screen) instead of going back a page. */
+  closers?: Array<{ open: string; press: string }>;
   /** The highlight starts on the first control of the page's first row (the topmost, then the leftmost; on screen first), not the one nearest the middle, and is placed again as the page settles until the household first moves it. */
   startFirst?: boolean;
+  /** The ring outlines only the part of a control that is on screen (not past an edge, not under a dock that doesn't hold it). Off: the whole control, even where it runs off screen. */
+  clipRing?: boolean;
   /** A control inside an element matching this is outlined as that whole element (a song row, not its small Play button); OK still presses the control. */
   ringAround?: string;
   /** RegExp source whose first group is a title's id in a link's `href`: how a control opened from a card is found again after the page redraws it. */
@@ -98,7 +106,8 @@ export const BACK_QUERY = `(function () {
   try {
     var b = window.__couchPlayerBack && window.__couchPlayerBack();
     if (b) return b;
-    return window.__couchPopupOpen && window.__couchPopupOpen() ? 'escape' : '';
+    if (window.__couchPopupOpen && window.__couchPopupOpen()) return 'escape';
+    return window.__couchClosePanel && window.__couchClosePanel() ? 'handled' : '';
   } catch (e) { return ''; }
 })()`;
 
@@ -444,6 +453,23 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       document.body.appendChild(ring);
       return ring;
     };
+    // The part of a box that is visible: not past the screen's edge, and not under a dock that doesn't hold the control (an open side panel).
+    var visiblePart = function (r, el) {
+      try {
+        var out = { left: Math.max(r.left, 0), top: Math.max(r.top, 0), right: Math.min(r.right, innerWidth), bottom: Math.min(r.bottom, innerHeight) };
+        var docks = LAYOUT.docks && LAYOUT.docks.length ? document.querySelectorAll(LAYOUT.docks.join(',')) : [];
+        for (var i = 0; i < docks.length; i++) {
+          var d = docks[i], dr = shown(d);
+          if (!dr || d.contains(el)) continue;
+          if (dr.bottom <= out.top || dr.top >= out.bottom || dr.right <= out.left || dr.left >= out.right) continue;
+          var tall = dr.top <= out.top && dr.bottom >= out.bottom, wide = dr.left <= out.left && dr.right >= out.right;
+          if (tall && dr.left > out.left) out.right = dr.left;
+          else if (tall && dr.right < out.right) out.left = dr.right;
+          else if (wide && dr.top > out.top) out.bottom = dr.top;
+        }
+        return out.right > out.left && out.bottom > out.top ? out : r;
+      } catch (e) { return r; }
+    };
     var draw = function () {
       try {
         var r = barOn ? barCur && shown(barCur) : !noRing() && current && usable(current);
@@ -454,6 +480,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         if (!el) return;
         if (!r) { el.style.display = 'none'; return; }
         if (!barOn) lastRect = r;
+        if (!barOn && LAYOUT.clipRing) r = visiblePart(r, current);
         el.style.display = 'block';
         el.style.left = (r.left - 6) + 'px'; el.style.top = (r.top - 6) + 'px';
         el.style.width = (r.right - r.left + 12) + 'px'; el.style.height = (r.bottom - r.top + 12) + 'px';
@@ -584,7 +611,13 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         if (topLayer && topLayer.entering && topLayer.modal === modal) {
           // Until the household moves, the ring waits for an entry control: geometry never picks a text link here.
           var entry = entryControl(modal);
-          if (entry) { if (entry !== current) { current = entry; heldKey = keyOf(entry); displaced = null; } }
+          if (entry) {
+            if (entry !== current) {
+              current = entry; heldKey = keyOf(entry); displaced = null;
+              // The page's focus starts where the highlight is, so its own arrow moves go on from the entry.
+              if (LAYOUT.followFocus) { try { entry.focus({ preventScroll: true }); } catch (e) {} }
+            }
+          }
           else { current = null; displaced = null; draw(); return; }
         }
         leaveEarlyDock();
@@ -738,6 +771,34 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         if (dir) barMove(dir); else barPress();
       } catch (err) {}
     };
+    // Back with a panel open: its own closer is pressed, and the page stays where it is.
+    var firstShown = function (sel) {
+      var all = document.querySelectorAll(sel);
+      for (var i = 0; i < all.length; i++) if (shown(all[i])) return all[i];
+      return null;
+    };
+    // Only a control that can be pressed closes anything: a disabled one does nothing, so Back must not count it.
+    var firstEnabled = function (sel) {
+      var all = document.querySelectorAll(sel);
+      for (var i = 0; i < all.length; i++) {
+        var b = all[i];
+        if (!shown(b) || b.disabled || b.hasAttribute('disabled') || b.getAttribute('aria-disabled') === 'true') continue;
+        return b;
+      }
+      return null;
+    };
+    window.__couchClosePanel = function () {
+      try {
+        var cl = LAYOUT.closers || [];
+        for (var i = 0; i < cl.length; i++) {
+          var open = firstShown(cl[i].open), btn = open && firstEnabled(cl[i].press);
+          if (!btn) continue;
+          btn.click();
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    };
     // Back in the player: 'escape' (the host presses the site's Escape: it closes the menu, or hides the bar Netflix keeps up after Couch stops moving the pointer), '' (leave).
     window.__couchPlayerBack = function () {
       try {
@@ -757,8 +818,30 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     var dockOf = function (el) {
       try { return LAYOUT.docks && LAYOUT.docks.length && el.closest ? el.closest(LAYOUT.docks.join(',')) : null; } catch (e) { return null; }
     };
+    var bottomOf = function (el) {
+      var d = dockOf(el), r = d && rectOf(d);
+      return r && r.bottom - r.top <= innerHeight / 4 && r.top >= innerHeight / 2 ? d : null;
+    };
+    // The control Down reaches in a bottom dock: the layout's entry control, else the one nearest across.
+    var bottomDock = function (from, list) {
+      var cx = (from.left + from.right) / 2, near = -1, nearDx = Infinity, entries = {}, widest = 0, q;
+      for (var key0 in (LAYOUT.dockEntry || {})) widest = Math.max(widest, LAYOUT.dockEntry[key0].length);
+      for (q = 0; q < list.length; q++) {
+        var d = bottomOf(list[q].el);
+        if (!d) continue;
+        var dx = Math.abs((list[q].rect.left + list[q].rect.right) / 2 - cx);
+        if (dx < nearDx) { near = q; nearDx = dx; }
+        var want = null;
+        for (var key in (LAYOUT.dockEntry || {})) { try { if (d.matches(key)) want = LAYOUT.dockEntry[key]; } catch (e) {} }
+        for (var w = 0; want && w < want.length; w++) {
+          try { if (list[q].el.matches(want[w]) && (entries[w] === undefined)) entries[w] = q; } catch (e) {}
+        }
+      }
+      for (var e = 0; e < widest; e++) if (entries[e] !== undefined) return entries[e];
+      return near;
+    };
+    var rects = function (l) { return l.map(function (c) { return c.rect; }); };
     var pickIn = function (from, list, dir) {
-      var rects = function (l) { return l.map(function (c) { return c.rect; }); };
       if (!LAYOUT.docks || !LAYOUT.docks.length) return pick(from, rects(list), dir, view());
       if (!from || !current) {
         // Starting from nothing: on the page, when it has anything.
@@ -780,7 +863,27 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         return j >= 0 ? idx[j] : -1;
       };
       var found = through(near);
+      // A control partly under a side dock (a panel open over a shelf): sideways, the dock is next, before the shelf's cards beyond the screen.
+      if (side && !home && (found < 0 || offScreen(list[found].rect))) {
+        var over = [];
+        for (k = 0; k < list.length; k++) {
+          var od = dockOf(list[k].el), odr = od && rectOf(od);
+          if (!odr || odr.bottom - odr.top <= innerHeight / 2) continue;
+          var ahead = dir === 'right' ? odr.left >= from.left : odr.right <= from.right;
+          if (ahead && odr.left < from.right && odr.right > from.left) over.push(k);
+        }
+        if (over.length) {
+          var edge = rectOf(dockOf(list[over[0]].el));
+          var start = dir === 'right' ? edge.left : edge.right;
+          var o = pick({ left: start, right: start, top: from.top, bottom: from.bottom }, rects(over.map(function (n) { return list[n]; })), dir, view());
+          if (o >= 0) return over[o];
+        }
+      }
       if (found >= 0) return found;
+      if (dir === 'down' && (!home || rectOf(home).bottom - rectOf(home).top > innerHeight / 4 )) {
+        var toBar = bottomDock(from, list);
+        if (toBar >= 0) return toBar;
+      }
       if (!home) {
         // From the end of its line a sideways move can only go to a side dock (one as tall as the screen's half): a bar along the bottom is for Down.
         if (!side) return pick(from, rects(list), dir, view());
@@ -793,7 +896,16 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       }
       // From a dock, on to the page, never to another dock.
       var page = [];
-      for (k = 0; k < list.length; k++) if (!dockOf(list[k].el)) page.push(k);
+      for (k = 0; k < list.length; k++) {
+        if (dockOf(list[k].el)) continue;
+        // Sideways, only what is on screen: a row of cards runs on past the edge, and the far end isn't "to the right" of a panel.
+        var rk = list[k].rect;
+        if (side && offScreen(rk)) continue;
+        // And beyond the dock's far edge: Right from a panel on the right has nowhere to go, not to a card under it.
+        var hr = home && rectOf(home);
+        if (side && hr && (dir === 'right' ? rk.right <= hr.right : rk.left >= hr.left)) continue;
+        page.push(k);
+      }
       return through(page);
     };
     var move = function (dir, afterPaging) {
@@ -916,6 +1028,15 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         ensure();
       } catch (e) {}
     };
+    // A search of Couch's own: the page is the same (a /search stays /search), but the highlight starts over, on the first result.
+    window.__couchResetFocus = function () {
+      try {
+        current = null; layers = []; displaced = null; lost = null; pending = null; strayed = null; heldKey = null; lastRect = null;
+        if (LAYOUT.startFirst) landed = false;
+        if (barOn) barOff();
+        ensure();
+      } catch (e) {}
+    };
     // Whether a pop-up is on screen: Back should close it the site's way instead of going back in history. Never in a player.
     window.__couchPopupOpen = function () {
       try { return !noRing() && !!scopeEl(); } catch (e) { return false; }
@@ -961,8 +1082,23 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     }, true);
     addEventListener('keydown', onBarKey, true);
     addEventListener('keydown', onKey, false);
+    // With followFocus a key of the household's ends the wait for the entry control, before the page's own handlers move its focus.
+    addEventListener('keydown', function (e) {
+      try {
+        if (LAYOUT.followFocus && DIRS[e.key] && layers.length) layers[layers.length - 1].entering = false;
+      } catch (err) {}
+    }, true);
     addEventListener('focusin', function (e) {
       try { if (editable(e.target)) console.debug(${JSON.stringify(FIELD_FOCUSED)}); } catch (err) {}
+      try {
+        if (!LAYOUT.followFocus || barOn || noRing() || !layers.length || !e.target || e.target === current) return;
+        var top = layers[layers.length - 1];
+        // The pop-up's own first focus is not the household's move: the entry control still waits.
+        if (top.entering || top.modal !== scopeEl()) return;
+        if (!matchesAny(e.target, [SELECTOR]) || !usable(e.target)) return;
+        current = e.target; heldKey = keyOf(current); lost = null; displaced = null; pending = null; strayed = null; landed = true;
+        draw();
+      } catch (err) {}
     }, true);
     addEventListener('focusout', function (e) {
       try { if (editable(e.target)) console.debug(${JSON.stringify(FIELD_BLURRED)}); } catch (err) {}
