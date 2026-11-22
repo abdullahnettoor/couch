@@ -285,7 +285,7 @@ describe("a page Couch does not know", () => {
 
 describe("a card partly off screen", () => {
   const snap = fixture("browse");
-  test("its ring outlines the whole card, as it always has: nothing clips it to the screen", () => {
+  test("its ring outlines the card but ends inside the screen's edge, so its whole stroke shows", () => {
     const p = open(snap);
     const el = p.on()!;
     const w = el.rect.right - el.rect.left;
@@ -293,6 +293,6 @@ describe("a card partly off screen", () => {
     p.mutate();
     expect(p.on()).toBe(el);
     expect(Number.parseFloat(String(p.ring.style.left))).toBe(el.rect.left - 6);
-    expect(Number.parseFloat(String(p.ring.style.width))).toBe(w + 12);
+    expect(Number.parseFloat(String(p.ring.style.width))).toBe(snap.view.width - (el.rect.left - 6));
   });
 });

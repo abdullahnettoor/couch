@@ -186,6 +186,15 @@ describe("page focus script", () => {
     flush();
     expect([ring.style.left, ring.style.top]).toEqual(["294px", "97px"]);
   });
+  test("a control flush with the window's edge keeps its whole ring on screen, drawn inside that edge", () => {
+    const right = new El("right", box(900, 375));
+    const { ring } = setup([right]);
+    expect([ring.style.left, ring.style.width]).toEqual(["894px", "106px"]);
+    const corner = new El("corner", box(0, 750));
+    const again = setup([corner]);
+    expect([again.ring.style.left, again.ring.style.top]).toEqual(["0px", "744px"]);
+    expect([again.ring.style.width, again.ring.style.height]).toEqual(["106px", "56px"]);
+  });
   test("a page with nothing to focus yet gets its ring when something appears", () => {
     const els: El[] = [];
     const { ring, mutate, key } = setup(els);

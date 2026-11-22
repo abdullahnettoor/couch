@@ -482,8 +482,11 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         if (!barOn) lastRect = r;
         if (!barOn && LAYOUT.clipRing) r = visiblePart(r, current);
         el.style.display = 'block';
-        el.style.left = (r.left - 6) + 'px'; el.style.top = (r.top - 6) + 'px';
-        el.style.width = (r.right - r.left + 12) + 'px'; el.style.height = (r.bottom - r.top + 12) + 'px';
+        // 6 px outside the control, but never past the window's edge: on a side where it would end off screen, the ring is drawn inside that edge.
+        var rl = Math.max(r.left - 6, 0), rt = Math.max(r.top - 6, 0);
+        var rr = Math.min(r.right + 6, innerWidth), rb = Math.min(r.bottom + 6, innerHeight);
+        el.style.left = rl + 'px'; el.style.top = rt + 'px';
+        el.style.width = (rr - rl) + 'px'; el.style.height = (rb - rt) + 'px';
       } catch (e) {}
     };
     var candidates = function () {
