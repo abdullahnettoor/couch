@@ -18,5 +18,5 @@ describe.skipIf(process.platform !== "darwin")("native media-key policy (media_p
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, 60_000); // compiling with c++ alone can take over 5 s on a busy CI runner
 });
