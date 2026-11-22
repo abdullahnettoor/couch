@@ -17,7 +17,7 @@ nav b { color: #f2f2f2; font-weight: 600; }
 main { padding: 24px 32px 32px; }
 h2 { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
 .lede { font-size: 13px; color: #9a9a9a; margin-bottom: 14px; }
-.row { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); grid-template-rows: auto; grid-auto-rows: 0; column-gap: 20px; overflow: hidden; }
+.row { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); grid-template-rows: auto; grid-auto-rows: 0; column-gap: 20px; overflow: hidden; padding-top: 10px; margin-top: -10px; }
 .art { aspect-ratio: 16 / 9; border-radius: 6px; margin-bottom: 10px; }
 .card .t { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card .s { font-size: 12px; color: #9a9a9a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
