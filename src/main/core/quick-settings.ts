@@ -5,6 +5,8 @@ import type {
   QuickPayload,
   SoundPayload,
 } from "../../shared/protocol.ts";
+import type { TextSize } from "../web/text-size.ts";
+import { TEXT_SIZE_LABELS } from "./text-size-setting.ts";
 import type { Clock } from "../ports/clock.ts";
 
 const IDLE_MS = 10_000;
@@ -28,6 +30,9 @@ export interface QuickSettingsHost {
   overMedia(): boolean;
   /** The id of the App on the Screen, if one is. */
   front(): string | undefined;
+  /** The Text size of the App in front, only while that App supports it. */
+  textSize(): TextSize | undefined;
+  stepTextSize(delta: number): void;
   stepVolume(delta: number): void;
   toggleMute(): void;
   /** Whether Picture off is on right now. */
@@ -38,6 +43,12 @@ export interface QuickSettingsHost {
 }
 
 const VOLUME_STEP = 5;
+
+/** The Text size row's buttons, like the Volume row's. */
+const TEXT_SIZE_CONTROLS = new Map<string, (h: QuickSettingsHost) => void>([
+  ["ts:down", (h) => h.stepTextSize(-1)],
+  ["ts:up", (h) => h.stepTextSize(1)],
+]);
 
 /** The Volume row works like a slider; a click on its buttons does the same as the keys. */
 const VOLUME_CONTROLS = new Map<string, (h: QuickSettingsHost) => void>([
@@ -100,22 +111,15 @@ export class QuickSettings {
       action: g.action,
       checked: (g.id === "default" ? "default" : g.id.slice(4)) === selected,
     }));
-    const r = outputs.length;
-    return [
-      ...outputs,
-      { id: "vol", r, c: 0, label: "Volume" },
+    const rows: Array<Omit<QuickItem, "r" | "c">> = [
+      { id: "vol", label: "Volume" },
+      ...(this.#h.textSize() ? [{ id: "textsize", label: "Text size" }] : []),
       ...(this.#h.playing()
-        ? [
-            {
-              id: "picture",
-              r: r + 1,
-              c: 0,
-              label: this.#h.pictureIsOff() ? "Picture on" : "Picture off",
-            },
-          ]
+        ? [{ id: "picture", label: this.#h.pictureIsOff() ? "Picture on" : "Picture off" }]
         : []),
-      { id: "settings", r: r + (this.#h.playing() ? 2 : 1), c: 0, label: "All settings" },
+      { id: "settings", label: "All settings" },
     ];
+    return [...outputs, ...rows.map((row, i) => ({ ...row, r: outputs.length + i, c: 0 }))];
   }
 
   payload(): QuickPayload | undefined {
@@ -123,7 +127,9 @@ export class QuickSettings {
     const items = this.#items();
     const focusedId = items.some((i) => i.id === this.#focus) ? this.#focus : items[0]!.id;
     const notes = this.#h.sound.drawerNotes(this.#h.front());
+    const textSize = this.#h.textSize();
     return {
+      ...(textSize ? { textSize: TEXT_SIZE_LABELS[textSize] } : {}),
       items,
       focusedId,
       volume: this.#h.sound.volume,
@@ -148,6 +154,12 @@ export class QuickSettings {
     }
     if (name === "quickPick") {
       const id = command.args?.item;
+      const textControl = typeof id === "string" ? TEXT_SIZE_CONTROLS.get(id) : undefined;
+      if (textControl && this.#h.textSize()) {
+        this.#focus = "textsize";
+        textControl(this.#h);
+        return true;
+      }
       const control = typeof id === "string" ? VOLUME_CONTROLS.get(id) : undefined;
       if (control) {
         this.#focus = "vol";
@@ -182,6 +194,7 @@ export class QuickSettings {
     if (direction === "left" || direction === "right") {
       if (cur.id === "vol")
         VOLUME_CONTROLS.get(direction === "left" ? "vol:down" : "vol:up")!(this.#h);
+      else if (cur.id === "textsize") this.#h.stepTextSize(direction === "left" ? -1 : 1);
       else if (direction === "right") this.close();
       return;
     }

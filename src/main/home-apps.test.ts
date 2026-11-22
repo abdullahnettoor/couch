@@ -69,7 +69,7 @@ describe("Home Apps: choose and order", () => {
     h = await startHarness(undefined, { beta: true });
     const phone = await h.connectPhone();
     await openApps(phone);
-    expect(labels()).toEqual(["YouTube", "Netflix", "Library", "BitChord"]);
+    expect(labels()).toEqual(["YouTube", "Netflix", "Library", "BitChord", "Text size: Default"]);
     expect(h.screen.last.appMenu).toBeUndefined();
     expect(h.screen.last.homeApps?.map((a) => [a.id, a.shown])).toEqual([
       ["youtube", true],
@@ -166,7 +166,7 @@ describe("Home Apps: choose and order", () => {
     await phone.press("back");
     expect(view()).toBe("settingsApps");
     expect(h.screen.last.appMenu).toBeUndefined();
-    expect(labels()).toEqual(["Library", "YouTube", "Netflix", "BitChord"]);
+    expect(labels()).toEqual(["Library", "YouTube", "Netflix", "BitChord", "Text size: Default"]);
     expect(h.screen.last.focusedLabel).toBe("Library");
     await phone.press("back");
     expect(view()).toBe("settings");

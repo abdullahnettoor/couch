@@ -88,8 +88,12 @@ A black cover over the whole Screen, with a small dim Couch mark, while playback
 _Avoid_: screen off, blank, sleep
 
 **Quick settings**:
-A drawer that slides in from the right of the Screen, over Home, the Library and any App without pausing it, for what you change mid-watch: Sound output, volume and mute, Picture off (only while something plays) and All settings; opened from the phone's Quick settings button or by resting the mouse at the Screen's right edge, closed by Back, Right, the button again, a click outside or 10 s without input.
+A drawer that slides in from the right of the Screen, over Home, the Library and any App without pausing it, for what you change mid-watch: Sound output, volume and mute, Text size (only while an App that has it is in front), Picture off (only while something plays) and All settings; opened from the phone's Quick settings button or by resting the mouse at the Screen's right edge, closed by Back, Right, the button again, a click outside or 10 s without input.
 _Avoid_: side menu, control centre
+
+**Text size**:
+How large a Web App's page is drawn on the Screen: Smaller, Default or Larger. Setup and Settings → Apps set it for every App; Quick settings (while such an App is in front) and Settings → Apps → <App> change it for that App alone, and Couch remembers it. Couch zooms the page so the site keeps its own layout. YouTube's TV page and Couch's own Pages are already sized for a TV and don't have it.
+_Avoid_: zoom, display size, font size (in UI copy)
 
 **Speed**:
 How fast the video plays (0.5× to 2× in the Library, the App's own choices in a web App), shown on the phone's Speed button and picked from a list. Every new video starts at 1×; the choice holds for that video even if the page resets it. Netflix's speed is set through its own menu.

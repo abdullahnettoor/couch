@@ -1,3 +1,4 @@
+import type { TextSize } from "../web/text-size.ts";
 import type { Thumbnails } from "./thumbnails.ts";
 import type {
   ConvertedPicture,
@@ -217,6 +218,8 @@ export interface FakeWebAppOptions {
   typeLabel?: string;
   showVolume?: boolean;
   showSkip?: boolean;
+  /** The App supports Text size and records every size it is told. */
+  textSize?: boolean;
   /** false: the App doesn't take text. */
   typing?: boolean;
   /** false: the App has no play/pause or seek. */
@@ -252,11 +255,15 @@ export class FakeWebApp implements App {
   readonly setTrack: ((kind: TrackKind, id: string) => void) | undefined;
   readonly pressPrompt: ((id: PromptId) => void) | undefined;
   readonly setSpeed: ((speed: number) => void) | undefined;
+  readonly supportsTextSize: boolean;
+  setTextSize: ((size: TextSize) => void) | undefined;
   constructor(id: string, label: string, options: FakeWebAppOptions = {}) {
     this.id = id;
     this.label = label;
     this.options = options;
     this.layout = options.layout;
+    this.supportsTextSize = options.textSize === true;
+    if (options.textSize) this.setTextSize = (size) => this.#record("setTextSize", size);
     this.signIn = options.signIn;
     this.welcome = options.welcome;
     if (options.typing !== false)

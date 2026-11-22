@@ -3,6 +3,8 @@ import { Channel } from "../shared/ipc.ts";
 
 /** Volume buttons the drawer's page draws inside the Volume row. */
 const VOLUME_PICKS = ["vol:down", "vol:up", "vol:mute"];
+/** Buttons inside the Text size row. */
+const TEXT_SIZE_PICKS = ["ts:down", "ts:up"];
 
 /**
  * What the drawer's page may ask for: a pick of a row it was given (or a Volume button), or a close.
@@ -18,8 +20,10 @@ export function quickCommandFrom(raw: unknown, ids: readonly string[]): Command 
   const keys = Object.keys(args);
   const item = (args as Record<string, unknown>).item;
   if (keys.length !== 1 || keys[0] !== "item" || typeof item !== "string") return undefined;
-  if (!ids.includes(item) && !(ids.includes("vol") && VOLUME_PICKS.includes(item)))
-    return undefined;
+  const inRow =
+    (ids.includes("vol") && VOLUME_PICKS.includes(item)) ||
+    (ids.includes("textsize") && TEXT_SIZE_PICKS.includes(item));
+  if (!ids.includes(item) && !inRow) return undefined;
   return { command, args: { item } };
 }
 
