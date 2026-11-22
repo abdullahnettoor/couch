@@ -37,6 +37,7 @@ function fakeAddon() {
     webkitSetVisible: (id, v) => calls.push(["visible", id, v]),
     webkitSetPageZoom: (id, zoom) => calls.push(["zoom", id, zoom]),
     webkitSnapshot: (_id, _path, cb) => cb(null, "[null]"),
+    webkitTestKeyWindow: () => {},
     webkitFocus: (id) => calls.push(["focus", id]),
     webkitSendKey: (id, key, down) => calls.push(["key", id, key, down]),
     webkitAnswerKey: (id, keyId, replay) => calls.push(["answer", id, keyId, replay]),

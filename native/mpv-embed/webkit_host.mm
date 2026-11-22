@@ -490,6 +490,37 @@ static napi_value WebkitSnapshot(napi_env env, napi_callback_info info) {
   return NULL;
 }
 
+// webkitTestKeyWindow(handle): for checks only. WebKit dispatches a hover move (a trusted mousemove) only to an active window,
+// and a window that is never shown is not key: this one window says it is, as the self-test's own window does.
+static napi_value WebkitTestKeyWindow(napi_env env, napi_callback_info info) {
+  size_t argc = 1; napi_value argv[1];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  NSView *parent = windowParent(env, argv[0]);
+  if (!parent) return fail(env, "bad native handle");
+  onMain(^{
+    NSWindow *w = parent.window;
+    if (!w) return;
+    static const void *kKeyFlag = &kKeyFlag;
+    static NSMutableSet *patched = [NSMutableSet new];
+    Class c = [w class];
+    if (![patched containsObject:c]) {
+      [patched addObject:c];
+      for (NSString *name in @[@"isKeyWindow", @"canBecomeKeyWindow"]) {
+        SEL sel = NSSelectorFromString(name);
+        Method m = class_getInstanceMethod(c, sel);
+        auto orig = (BOOL (*)(id, SEL))method_getImplementation(m);
+        class_replaceMethod(c, sel, imp_implementationWithBlock(^BOOL(id self_) {
+          return objc_getAssociatedObject(self_, kKeyFlag) ? YES : orig(self_, sel);
+        }), method_getTypeEncoding(m));
+      }
+    }
+    objc_setAssociatedObject(w, kKeyFlag, @YES, OBJC_ASSOCIATION_RETAIN);
+    w.acceptsMouseMovedEvents = YES;
+    [[NSNotificationCenter defaultCenter] postNotificationName:NSWindowDidBecomeKeyNotification object:w];
+  });
+  return NULL;
+}
+
 static napi_value WebkitSetVisible(napi_env env, napi_callback_info info) {
   size_t argc = 2; napi_value argv[2];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
@@ -770,6 +801,7 @@ static napi_value WebkitAnswerKey(napi_env env, napi_callback_info info) {
 }
 
 // A real mouse-moved event at a point of the page (client coordinates, top-left origin), for Couch's own wake of a player's bar.
+// Client coordinates are CSS px: under a page zoom (Text size) one is pageZoom points of the view.
 static napi_value WebkitWakePointer(napi_env env, napi_callback_info info) {
   size_t argc = 3; napi_value argv[3];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
@@ -780,7 +812,8 @@ static napi_value WebkitWakePointer(napi_env env, napi_callback_info info) {
   onMain(^{
     WKWebView *web = wk.web;
     if (!web.window || web.hidden) return;
-    NSPoint p = [web convertPoint:NSMakePoint(x, y) toView:nil];
+    CGFloat zoom = web.pageZoom > 0 ? web.pageZoom : 1;
+    NSPoint p = [web convertPoint:NSMakePoint(x * zoom, y * zoom) toView:nil];
     NSEvent *e = [NSEvent mouseEventWithType:NSEventTypeMouseMoved location:p modifierFlags:0 timestamp:uptime()
                                 windowNumber:web.window.windowNumber context:nil eventNumber:0 clickCount:0 pressure:0];
     sendMouseMoved(web, e);
@@ -969,6 +1002,7 @@ void registerWebKit(napi_env env, napi_value exports) {
     {"webkitSetVisible", 0, WebkitSetVisible, 0, 0, 0, napi_default, 0},
     {"webkitSetPageZoom", 0, WebkitSetPageZoom, 0, 0, 0, napi_default, 0},
     {"webkitSnapshot", 0, WebkitSnapshot, 0, 0, 0, napi_default, 0},
+    {"webkitTestKeyWindow", 0, WebkitTestKeyWindow, 0, 0, 0, napi_default, 0},
     {"webkitFocus", 0, WebkitFocus, 0, 0, 0, napi_default, 0},
     {"webkitSendKey", 0, WebkitSendKey, 0, 0, 0, napi_default, 0},
     {"webkitSetInput", 0, WebkitSetInput, 0, 0, 0, napi_default, 0},

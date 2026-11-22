@@ -177,6 +177,15 @@ describe("page focus script", () => {
     key("Enter");
     expect([a.clicks, b.clicks, c.clicks]).toEqual([0, 1, 0]);
   });
+  test("after a resize (a Text size change) the ring follows a control the page moves as it settles", () => {
+    const [a, b, c] = mk();
+    const { ring, fire, flush } = setup([a, b, c]);
+    fire("resize", null);
+    // The page lays itself out again after the resize, with no event the ring hears.
+    b.rect = box(300, 103);
+    flush();
+    expect([ring.style.left, ring.style.top]).toEqual(["294px", "97px"]);
+  });
   test("a page with nothing to focus yet gets its ring when something appears", () => {
     const els: El[] = [];
     const { ring, mutate, key } = setup(els);

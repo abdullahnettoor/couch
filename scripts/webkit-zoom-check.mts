@@ -9,6 +9,7 @@ import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { netflixDescription } from "../src/main/apps/netflix/netflix-web.ts";
 import { createWebKitBridge, type WebKitAddon } from "../src/main/mpv/embed-addon.ts";
+import { SHIELD_ID, WAKE_POINTER_SOURCE } from "../src/main/web/pointer-wake.ts";
 import { textZoom, type TextSize } from "../src/main/web/text-size.ts";
 import { WebKitWebApp } from "../src/main/web/webkit-web-app.ts";
 import type { YouTubeEvent } from "../src/main/ports/youtube.ts";
@@ -74,6 +75,19 @@ void app.whenReady().then(async () => {
       return app.exit(0);
     }
     if (!/^[0-9A-F-]{36}$/i.test(STORE)) throw new Error("COUCH_ZOOM_STORE must be a fresh UUID");
+    if (PHASE === "cleanup") {
+      // WebKit has to be running in this process before a store can be removed.
+      const warm = new BrowserWindow({ show: false, width: 320, height: 200 });
+      addon.webkitDestroy((await view(warm, "")).id);
+      await sleep(500);
+      const removed = await new Promise<string | null>((r) => addon.webkitRemoveStore(STORE, r));
+      console.log(
+        `ZOOM cleanup: ${removed === null ? "the throwaway store is removed" : `store not removed (${removed})`}`,
+      );
+      server.close();
+      clearTimeout(timeout);
+      return app.exit(removed === null ? 0 : 1);
+    }
     const win = new BrowserWindow({
       show: false,
       width: WIDTH,
@@ -126,6 +140,8 @@ void app.whenReady().then(async () => {
       check(removed === null, "the throwaway store is removed", removed ?? "");
 
       // Couch's real WebKit host, sized like Netflix, over the loopback page (a non-persistent store).
+      // The window is never shown; it only says it is key, so WebKit hands its views a hover move as in a shown window.
+      addon.webkitTestKeyWindow(win.getNativeWindowHandle());
       const real = createWebKitBridge(
         () => win,
         () => addon,
@@ -183,6 +199,58 @@ void app.whenReady().then(async () => {
           m ? `innerWidth ${m.iw}, bar ${(m.bar * z).toFixed(1)} pt` : "no page",
         );
       }
+      // Couch's wake of a player's bar under a page zoom: the real move it makes must come back at the client point the
+      // page asked for, so the D-pad shield knows it for Couch's own and D-pad mode stays on.
+      const js = (s: string) => hostView!.evaluate(s, { kind: "expression" }).catch(() => null);
+      await js(
+        `(window.__wakeMoves || (window.__wakeMoves = [], addEventListener('mousemove', function (e) { if (e.isTrusted) window.__wakeMoves.push([e.clientX, e.clientY]); }, true)), true)`,
+      );
+      let step = 0;
+      for (const size of ["smaller", "default", "larger"] as TextSize[]) {
+        host.setTextSize(size);
+        await sleep(500);
+        await js(
+          `(window.__wakeMoves.length = 0, document.documentElement.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Unidentified' })), true)`,
+        );
+        const pairs: string[] = [];
+        let agree = true;
+        for (let i = 0; i < 8; i++) {
+          const asked = (await js(`((${WAKE_POINTER_SOURCE})(${++step}), window.__couchWake)`)) as {
+            x: number;
+            y: number;
+          } | null;
+          await sleep(150);
+          const moves = ((await js("window.__wakeMoves")) ?? []) as Array<[number, number]>;
+          const got = moves[moves.length - 1];
+          const ok =
+            !!asked &&
+            !!got &&
+            moves.length === i + 1 &&
+            Math.abs(got[0] - asked.x) <= 2 &&
+            Math.abs(got[1] - asked.y) <= 2;
+          if (!ok) agree = false;
+          if (i < 2 || !ok)
+            pairs.push(
+              `${asked ? `${asked.x},${asked.y}` : "?"} → ${got ? `${got[0]},${got[1]}` : "none"}`,
+            );
+        }
+        check(
+          agree,
+          `${size}: each of 8 wakes comes back as a real move at the client point asked for (within 2 px)`,
+          pairs.join("; "),
+        );
+        const state = (await js(
+          `({ dpad: document.documentElement.hasAttribute('data-couch-dpad'), shield: !!document.getElementById(${JSON.stringify(SHIELD_ID)}) })`,
+        )) as { dpad: boolean; shield: boolean } | null;
+        check(
+          !!state?.dpad && !!state.shield,
+          `${size}: after the wakes, D-pad mode and the hover shield are still on`,
+          `dpad ${state?.dpad}, shield ${state?.shield}`,
+        );
+      }
+      host.setTextSize("default");
+      await sleep(300);
+
       width = 2880;
       resizeCb();
       await sleep(400);

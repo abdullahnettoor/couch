@@ -992,7 +992,9 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       try { if (e && e.isTrusted && current && current.isConnected && !scopeEl() && offScreen(rectOf(current))) strayed = current; } catch (err) {}
       try { if (current && heldKey && !scopeEl() && !pending) heldKey.view = viewOf(current); } catch (e) {}
     }, true);
-    addEventListener('resize', draw, true);
+    // A resize (a Text size change too) draws at once, then again once the page has laid itself out again: Netflix moves
+    // its row controls for a moment after a resize with no event the ring hears.
+    addEventListener('resize', function () { draw(); setTimeout(draw, 500); }, true);
     addEventListener('popstate', changed, true);
     addEventListener('hashchange', changed, true);
     addEventListener('load', changed, true);

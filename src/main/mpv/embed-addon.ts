@@ -97,6 +97,8 @@ export interface WebKitAddon {
     path: string,
     callback: (error: string | null, json: string) => void,
   ): void;
+  /** Makes one never-shown window (a native handle) report itself as key, so WebKit dispatches hover moves to its views. For checks only. */
+  webkitTestKeyWindow(handle: Buffer): void;
   webkitFocus(id: number): void;
   webkitSendKey(id: number, key: string, down: boolean): void;
   /** Answers a held key (its `id` in the key event): replay it to the view as the same NSEvent, or consume it. Once per key id. */
