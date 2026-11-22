@@ -14,7 +14,7 @@ export interface HostRig {
   events: YouTubeEvent[];
   /** Shows the host and waits until its home has been asked for. */
   show(): Promise<void>;
-  /** The page answers any script containing `part` with `value`. */
+  /** The page answers any script containing `part` with `value` (a function: with what it returns for the script). */
   answer(part: string, value: unknown): void;
   /** Every script from now on throws in the page. */
   failScripts(): void;
@@ -824,6 +824,84 @@ export function describeWebHostContract(
     });
 
     describe("search", () => {
+      const sameDocument: WebAppDescription = {
+        ...contractDescription,
+        search: { ...netflix.search!, typeIntoField: false, navigate: "history" },
+      };
+      const home = "https://www.netflix.com/browse";
+      /** A page whose router follows pushState + popstate: the address changes and the document stays. */
+      const routing = (rig: HostRig) =>
+        rig.answer("popstate", (script: string) => {
+          const path = /\(("\/[^"]*")\)\s*$/.exec(script)?.[1];
+          if (path) rig.navigate(`https://www.netflix.com${JSON.parse(path)}`);
+          return true;
+        });
+
+      test("with same-document navigation a page that routes keeps its document", async () => {
+        const rig = makeRig(sameDocument);
+        await rig.show();
+        rig.navigate(home);
+        routing(rig);
+        const before = rig.loads().length;
+        rig.host.submitSearch("dark");
+        await vi.waitFor(() =>
+          expect(rig.scripts().some((s) => s.includes("popstate"))).toBe(true),
+        );
+        await new Promise((r) => setTimeout(r, 1700));
+        expect(rig.loads()).toHaveLength(before);
+      });
+
+      test("with same-document navigation a page that doesn't route is loaded after about 1.5 s", async () => {
+        const rig = makeRig(sameDocument);
+        await rig.show();
+        rig.navigate(home);
+        rig.host.submitSearch("dark");
+        await vi.waitFor(() =>
+          expect(rig.scripts().some((s) => s.includes("popstate"))).toBe(true),
+        );
+        const before = rig.loads().length;
+        await new Promise((r) => setTimeout(r, 1000));
+        expect(rig.loads()).toHaveLength(before);
+        await vi.waitFor(() => expect(rig.loads().at(-1)).toBe(netflix.search!.urlFor("dark")), {
+          timeout: 1500,
+        });
+      });
+
+      test("with same-document navigation a page outside the App's origin is loaded at once", async () => {
+        const rig = makeRig(sameDocument);
+        await rig.show();
+        rig.navigate("https://elsewhere.example/oops");
+        rig.host.submitSearch("dark");
+        await vi.waitFor(() => expect(rig.loads().at(-1)).toBe(netflix.search!.urlFor("dark")));
+        expect(rig.scripts().some((s) => s.includes("popstate"))).toBe(false);
+      });
+
+      test("when the option says so a focused field isn't typed into: it is blurred and the search opens", async () => {
+        const rig = makeRig(sameDocument);
+        await rig.show();
+        rig.navigate(home);
+        rig.answer("isField", true);
+        rig.host.submitSearch("dark");
+        await vi.waitFor(() => expect(rig.scripts().some((s) => s.includes("blur()"))).toBe(true));
+        expect(
+          rig
+            .scripts()
+            .some((s) => s.includes("insertText") || s.includes("dispatchEvent(new Event('input'")),
+        ).toBe(false);
+        await vi.waitFor(() =>
+          expect(rig.scripts().some((s) => s.includes("popstate"))).toBe(true),
+        );
+      });
+
+      test("the defaults load the address, as YouTube and Netflix do", async () => {
+        const rig = makeRig();
+        await rig.show();
+        rig.navigate(home);
+        rig.host.submitSearch("dark");
+        await vi.waitFor(() => expect(rig.loads().at(-1)).toBe(netflix.search!.urlFor("dark")));
+        expect(rig.scripts().some((s) => s.includes("popstate"))).toBe(false);
+      });
+
       test("typing with no field focused in the page goes to the App's search address", async () => {
         const rig = makeRig();
         await rig.show();

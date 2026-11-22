@@ -26,6 +26,9 @@ export const BITCHORD_LAYOUT: FocusLayout = {
     // A card is its artwork link (named by the title); the title's own link under it says the same.
     'a[href^="/album/"]:not([aria-label])',
     'a[href^="/playlist/"]:not([aria-label])',
+    // The search field and its Clear button are the phone's: Couch's search types for it, so the ring starts on the first result.
+    'form[role="search"] input',
+    'form[role="search"] button',
     // Volume is Couch's own: the Remote sets it.
     'input[type="range"]',
     // A song row is its Play button: its menu, title, artists and album link are for a mouse.

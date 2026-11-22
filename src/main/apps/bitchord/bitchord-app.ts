@@ -1,7 +1,7 @@
 import type { Confirmation } from "../../../shared/protocol.ts";
 import type { Clock } from "../../ports/clock.ts";
 import type { YouTube } from "../../ports/youtube.ts";
-import type { App, AppEvent, AppKey } from "../app.ts";
+import type { App, AppEvent, AppKey, AppTyping } from "../app.ts";
 import type { TextSize } from "../../../shared/text-size.ts";
 
 /** A Back sent to BitChord that changed no route within this long counts as already at its first page. */
@@ -13,6 +13,7 @@ export class BitChordApp implements App {
   readonly label = "BitChord";
   readonly showVolume = true;
   readonly showSkip = false;
+  readonly typing: AppTyping;
   #port: YouTube;
   #clock: Clock;
   #home = true;
@@ -23,6 +24,12 @@ export class BitChordApp implements App {
   constructor(port: YouTube, clock: Clock) {
     this.#port = port;
     this.#clock = clock;
+    this.typing = {
+      label: "Search BitChord",
+      submitSearch: (text) => port.submitSearch(text),
+      showSearchBar: (text) => port.showSearchBar(text),
+      captureText: (on) => port.captureText(on),
+    };
     port.onEvent((event) => {
       if (event.type === "backHandled") {
         this.#backAt = undefined;
