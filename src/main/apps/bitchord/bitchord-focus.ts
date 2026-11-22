@@ -17,6 +17,8 @@ const inTracks = (inner: string) =>
 export const BITCHORD_LAYOUT: FocusLayout = {
   // BitChord's own arrow shortcuts (volume, seeking) are Couch's to set; the arrows move the highlight.
   takeArrows: true,
+  // A card of a shelf runs past the screen's edge, and a panel covers part of one: the ring outlines what is seen.
+  clipRing: true,
   startFirst: true,
   ringAround: `${TRACK}, ${SWITCH_ROW}`,
   // The Lyrics and Up Next panels are docks too: Right from the page reaches an open one.

@@ -152,6 +152,55 @@ describe("BitChord's focus layout, on its saved pages", () => {
     expect(desc.search?.navigate).toBe("history");
   });
 
+  describe("a search of Couch's own", () => {
+    const reset = (p: ReturnType<typeof open>) => p.run("window.__couchResetFocus()");
+
+    test("puts the ring back on the first result, from the sidebar, though the page is /search still", () => {
+      const p = open("search");
+      const first = p.on()!;
+      until(p, "ArrowLeft", (e) => inDock(e));
+      expect(p.on()).not.toBe(first);
+      reset(p);
+      expect(p.on()).toBe(first);
+    });
+
+    test("and from the player bar", () => {
+      const p = open("search");
+      const first = p.on()!;
+      until(p, "ArrowDown", (e) => !!e?.closest('[role="region"][aria-label="Player"]'));
+      // The new results come in at the top of the page.
+      p.scroll.y = 0;
+      reset(p);
+      expect(p.on()).toBe(first);
+    });
+
+    test("and from further down the results", () => {
+      const p = open("search");
+      const first = p.on()!;
+      for (let i = 0; i < 4; i++) p.key("ArrowDown");
+      expect(p.on()).not.toBe(first);
+      p.scroll.y = 0;
+      reset(p);
+      expect(p.on()).toBe(first);
+    });
+  });
+
+  describe("the ring at the screen's edge", () => {
+    test("outlines only the part of a card that is on screen", () => {
+      const p = open("home");
+      p.key("ArrowDown");
+      const el = p.on()!;
+      const w = el.rect.right - el.rect.left;
+      const at = (n: number) => Number.parseFloat(String(n));
+      el.rect = { ...el.rect, left: p.snap.view.width - 40, right: p.snap.view.width - 40 + w };
+      p.mutate();
+      expect(p.on()).toBe(el);
+      expect(at(p.ring.style.left) + at(p.ring.style.width)).toBeLessThanOrEqual(
+        p.snap.view.width + 6,
+      );
+    });
+  });
+
   test("the search page's own field is never a stop: the phone types, and the ring starts on a result", () => {
     const p = open("search");
     const field = p.all.filter((e) => e.matches?.('form[role="search"] input') ?? false);

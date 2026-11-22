@@ -77,6 +77,8 @@ export interface FocusLayout {
   closers?: Array<{ open: string; press: string }>;
   /** The highlight starts on the first control of the page's first row (the topmost, then the leftmost; on screen first), not the one nearest the middle, and is placed again as the page settles until the household first moves it. */
   startFirst?: boolean;
+  /** The ring outlines only the part of a control that is on screen (not past an edge, not under a dock that doesn't hold it). Off: the whole control, even where it runs off screen. */
+  clipRing?: boolean;
   /** A control inside an element matching this is outlined as that whole element (a song row, not its small Play button); OK still presses the control. */
   ringAround?: string;
   /** RegExp source whose first group is a title's id in a link's `href`: how a control opened from a card is found again after the page redraws it. */
@@ -478,7 +480,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
         if (!el) return;
         if (!r) { el.style.display = 'none'; return; }
         if (!barOn) lastRect = r;
-        if (!barOn) r = visiblePart(r, current);
+        if (!barOn && LAYOUT.clipRing) r = visiblePart(r, current);
         el.style.display = 'block';
         el.style.left = (r.left - 6) + 'px'; el.style.top = (r.top - 6) + 'px';
         el.style.width = (r.right - r.left + 12) + 'px'; el.style.height = (r.bottom - r.top + 12) + 'px';
@@ -775,11 +777,21 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       for (var i = 0; i < all.length; i++) if (shown(all[i])) return all[i];
       return null;
     };
+    // Only a control that can be pressed closes anything: a disabled one does nothing, so Back must not count it.
+    var firstEnabled = function (sel) {
+      var all = document.querySelectorAll(sel);
+      for (var i = 0; i < all.length; i++) {
+        var b = all[i];
+        if (!shown(b) || b.disabled || b.hasAttribute('disabled') || b.getAttribute('aria-disabled') === 'true') continue;
+        return b;
+      }
+      return null;
+    };
     window.__couchClosePanel = function () {
       try {
         var cl = LAYOUT.closers || [];
         for (var i = 0; i < cl.length; i++) {
-          var open = firstShown(cl[i].open), btn = open && firstShown(cl[i].press);
+          var open = firstShown(cl[i].open), btn = open && firstEnabled(cl[i].press);
           if (!btn) continue;
           btn.click();
           return true;
@@ -812,7 +824,8 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     };
     // The control Down reaches in a bottom dock: the layout's entry control, else the one nearest across.
     var bottomDock = function (from, list) {
-      var cx = (from.left + from.right) / 2, near = -1, nearDx = Infinity, entries = {}, q;
+      var cx = (from.left + from.right) / 2, near = -1, nearDx = Infinity, entries = {}, widest = 0, q;
+      for (var key0 in (LAYOUT.dockEntry || {})) widest = Math.max(widest, LAYOUT.dockEntry[key0].length);
       for (q = 0; q < list.length; q++) {
         var d = bottomOf(list[q].el);
         if (!d) continue;
@@ -824,15 +837,11 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
           try { if (list[q].el.matches(want[w]) && (entries[w] === undefined)) entries[w] = q; } catch (e) {}
         }
       }
-      for (var e = 0; e < 20; e++) if (entries[e] !== undefined) return entries[e];
+      for (var e = 0; e < widest; e++) if (entries[e] !== undefined) return entries[e];
       return near;
     };
-    // Nothing further down on the page: the nearest control anywhere, unless a bottom dock took it above.
-    var pickPage = function (from, list, dir) {
-      return pick(from, list.map(function (c) { return c.rect; }), dir, view());
-    };
+    var rects = function (l) { return l.map(function (c) { return c.rect; }); };
     var pickIn = function (from, list, dir) {
-      var rects = function (l) { return l.map(function (c) { return c.rect; }); };
       if (!LAYOUT.docks || !LAYOUT.docks.length) return pick(from, rects(list), dir, view());
       if (!from || !current) {
         // Starting from nothing: on the page, when it has anything.
@@ -877,7 +886,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       }
       if (!home) {
         // From the end of its line a sideways move can only go to a side dock (one as tall as the screen's half): a bar along the bottom is for Down.
-        if (!side) return pickPage(from, list, dir);
+        if (!side) return pick(from, rects(list), dir, view());
         var docked = [];
         for (k = 0; k < list.length; k++) {
           var d = dockOf(list[k].el), dr = d && rectOf(d);
@@ -1016,6 +1025,15 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
           lastHref = href();
           if (moved) { current = null; layers = []; displaced = null; lost = null; if (LAYOUT.startFirst) landed = false; }
         }
+        ensure();
+      } catch (e) {}
+    };
+    // A search of Couch's own: the page is the same (a /search stays /search), but the highlight starts over, on the first result.
+    window.__couchResetFocus = function () {
+      try {
+        current = null; layers = []; displaced = null; lost = null; pending = null; strayed = null; heldKey = null; lastRect = null;
+        if (LAYOUT.startFirst) landed = false;
+        if (barOn) barOff();
         ensure();
       } catch (e) {}
     };

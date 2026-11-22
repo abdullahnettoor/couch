@@ -89,6 +89,23 @@ describe.each([
     expect(toggleEl.clicks).toBe(1);
   });
 
+  test("Back with a disabled toggle doesn't count as closed: it goes back a page", () => {
+    const p = open(file);
+    const toggleEl = toggle(p, name);
+    toggleEl.attrs.disabled = "";
+    toggleEl.disabled = true;
+    expect(back(p)).toBe("history");
+    expect(toggleEl.clicks).toBe(0);
+  });
+
+  test("Back doesn't count an aria-disabled toggle either", () => {
+    const p = open(file);
+    const toggleEl = toggle(p, name);
+    toggleEl.attrs["aria-disabled"] = "true";
+    expect(back(p)).toBe("history");
+    expect(toggleEl.clicks).toBe(0);
+  });
+
   test("Back with the ring in the panel closes it as well", () => {
     const p = open(file);
     until(p, "ArrowRight", () => inPanel(p.on()));
