@@ -817,6 +817,36 @@ describe("Setup on the phone", () => {
     expect(title).toMatch(/^<span class="tick"><svg[^]*<\/span> Phone connected$/);
   });
 
+  test("the Text size step: the size between Left and Right keys, then Continue", () => {
+    const step = (size: string, label: string) => ({
+      ...apps,
+      id: "text-size",
+      title: "Text size",
+      body: "How large text looks in Apps like BitChord and Netflix.",
+      tiles: undefined,
+      textSize: { size, label },
+      focus: 0,
+    });
+    show(step("default", "Default"));
+    const row = page.els.get("ask-size")!;
+    expect(row.hidden).toBe(false);
+    expect(page.els.get("ask-size-name")!.textContent).toBe("Default");
+    expect(PAGE_HTML).toMatch(
+      /id="ask-size"[^>]*>[^]*?data-cmd="left"[^]*?id="ask-size-name"[^]*?data-cmd="right"/,
+    );
+    expect(page.els.get("ask-btns")!.innerHTML).toContain("Continue");
+    expect(args("ask-btns")).toEqual([{ index: 0, text: "text-size" }]);
+    expect(page.els.get("ask-size-less")!.classes.has("end")).toBe(false);
+    show(step("larger", "Larger"));
+    expect(page.els.get("ask-size-name")!.textContent).toBe("Larger");
+    expect(page.els.get("ask-size-more")!.classes.has("end")).toBe(true);
+    show(step("smaller", "Smaller"));
+    expect(page.els.get("ask-size-less")!.classes.has("end")).toBe(true);
+    expect(page.els.get("ask-size-more")!.classes.has("end")).toBe(false);
+    show(apps);
+    expect(row.hidden).toBe(true);
+  });
+
   test("keeps Back and Home reachable, only while Setup shows", () => {
     show(apps);
     const nav = page.els.get("ask-nav")!;

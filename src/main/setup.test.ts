@@ -42,7 +42,7 @@ describe("Setup on a fresh install", () => {
       footnote: "You can change all of this later in Settings.",
       qr: true,
       step: 0,
-      steps: 5,
+      steps: 6,
       buttons: ["Not now"],
       focus: 0,
       intro: true,
@@ -52,10 +52,17 @@ describe("Setup on a fresh install", () => {
     expect(phone.last?.setup).toEqual(h.screen.last.setup);
   });
 
-  test("the steps are pair, listener, apps, videos, done; none offers Skip or Set up later, none more than two buttons", async () => {
+  test("the steps are pair, listener, apps, text-size, videos, done; none offers Skip or Set up later, none more than two buttons", async () => {
     await fresh();
     const steps = await walk();
-    expect(steps.map((s) => s.id)).toEqual(["pair", "listener", "apps", "videos", "done"]);
+    expect(steps.map((s) => s.id)).toEqual([
+      "pair",
+      "listener",
+      "apps",
+      "text-size",
+      "videos",
+      "done",
+    ]);
     for (const { buttons } of steps) {
       expect(buttons.length).toBeLessThanOrEqual(2);
       for (const b of buttons) expect(b).not.toMatch(/skip|set up later/i);
@@ -65,7 +72,10 @@ describe("Setup on a fresh install", () => {
 
   test("the last step has the tips with their keys, the Settings line and one button", async () => {
     const store = new MemoryStore();
-    store.write("setup", { finished: false, seen: ["pair", "listener", "apps", "videos"] });
+    store.write("setup", {
+      finished: false,
+      seen: ["pair", "listener", "apps", "text-size", "videos"],
+    });
     await fresh(store);
     expect(h.screen.last.setup).toMatchObject({
       id: "done",
@@ -83,7 +93,7 @@ describe("Setup on a fresh install", () => {
 });
 
 describe("Setup for a household that already uses Couch", () => {
-  const SEEN = ["pair", "listener", "apps", "videos", "done"];
+  const SEEN = ["pair", "listener", "apps", "text-size", "videos", "done"];
   const used: Array<[string, (s: MemoryStore) => void]> = [
     ["a phone that paired earlier", (s) => s.write("pairing", { key: "k", phonesPaired: true })],
     ["a Library folder", (s) => s.write("library", { folders: ["/Movies"] })],
@@ -141,13 +151,17 @@ describe("moving through Setup", () => {
     h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
     expect(h.screen.last.setup).toMatchObject({ id: "apps", step: 2, focus: 0 });
     h.app.screenCommand({ command: "confirmAt", args: { index: 4 } });
-    expect(h.screen.last.setup).toMatchObject({ id: "videos", step: 3, focus: 0 });
+    expect(h.screen.last.setup).toMatchObject({ id: "text-size", step: 3, focus: 0 });
+    h.app.screenCommand({ command: "confirmAt", args: { index: 0 } });
+    expect(h.screen.last.setup).toMatchObject({ id: "videos", step: 4, focus: 0 });
     h.app.screenCommand({ command: "confirmAt", args: { index: 1 } });
-    expect(h.screen.last.setup).toMatchObject({ id: "done", step: 4, focus: 0 });
+    expect(h.screen.last.setup).toMatchObject({ id: "done", step: 5, focus: 0 });
     await phone.settle();
     expect(phone.last?.setup?.id).toBe("done");
     await phone.press("back");
     expect(h.screen.last.setup?.id).toBe("videos");
+    await phone.press("back");
+    expect(h.screen.last.setup?.id).toBe("text-size");
     await phone.press("back");
     expect(h.screen.last.setup?.id).toBe("apps");
     await phone.press("back");
@@ -157,6 +171,8 @@ describe("moving through Setup", () => {
     await phone.press({ command: "confirmAnswer", args: { index: 0, text: "pair" } });
     expect(h.screen.last.setup?.id).toBe("apps");
     await phone.press({ command: "confirmAnswer", args: { index: 4, text: "apps" } });
+    expect(h.screen.last.setup?.id).toBe("text-size");
+    await phone.press({ command: "confirmAnswer", args: { index: 0, text: "text-size" } });
     expect(h.screen.last.setup?.id).toBe("videos");
     await phone.press({ command: "confirmAnswer", args: { index: 1, text: "videos" } });
     expect(h.screen.last.setup?.id).toBe("done");
@@ -181,7 +197,7 @@ describe("moving through Setup", () => {
     expect(h.screen.last.setup).toBeUndefined();
     expect(store.read("setup", undefined)).toEqual({
       finished: true,
-      seen: ["pair", "listener", "apps", "videos", "done"],
+      seen: ["pair", "listener", "apps", "text-size", "videos", "done"],
     });
     await h.stop();
     await fresh(store);
@@ -207,7 +223,7 @@ describe("moving through Setup", () => {
     await h.stop();
     store.write("setup", {
       finished: true,
-      seen: ["welcome", "pair", "listener", "apps", "videos", "done"],
+      seen: ["welcome", "pair", "listener", "apps", "text-size", "videos", "done"],
     });
     await fresh(store);
     expect(h.screen.last.setup).toBeUndefined();
@@ -279,7 +295,7 @@ describe("the Listener step", () => {
       body: "With this on, the Power button on your phone can open Couch even after it's been closed. A tiny helper starts when you log in to this Mac and waits for the button. It uses almost no power.",
       note: "macOS will say a background item was added. That's this helper.",
       step: 1,
-      steps: 5,
+      steps: 6,
       buttons: ["Turn on", "Not now"],
       focus: 0,
       intro: true,
@@ -343,7 +359,7 @@ describe("New in Couch: steps added by an update", () => {
     const store = new MemoryStore();
     store.write("setup", {
       finished: true,
-      seen: ["pair", "listener", "apps", "videos", "done"],
+      seen: ["pair", "listener", "apps", "text-size", "videos", "done"],
     });
     return store;
   };
@@ -365,7 +381,7 @@ describe("New in Couch: steps added by an update", () => {
     expect(h.screen.last.setup).toBeUndefined();
     expect(store.read("setup", undefined)).toMatchObject({
       finished: true,
-      seen: ["pair", "listener", "apps", "videos", "done", "remote-style"],
+      seen: ["pair", "listener", "apps", "text-size", "videos", "done", "remote-style"],
     });
     await h.stop();
     await start(store);
@@ -459,7 +475,7 @@ describe("New in Couch: steps added by an update", () => {
 });
 
 describe("the videos step", () => {
-  const BEFORE = ["pair", "listener", "apps"];
+  const BEFORE = ["pair", "listener", "apps", "text-size"];
   const atVideos = async (extra: Record<string, unknown> = {}) => {
     const store = new MemoryStore();
     store.write("setup", { finished: false, seen: BEFORE });
@@ -617,7 +633,7 @@ describe("the Apps step", () => {
       ["bitchord", false],
     ]);
     h.app.screenCommand({ command: "confirmAt", args: { index: 4 } });
-    expect(h.screen.last.setup?.id).toBe("videos");
+    expect(h.screen.last.setup?.id).toBe("text-size");
     expect(homeLabels()).toEqual(["Netflix", "Library"]);
   });
 
@@ -646,7 +662,7 @@ describe("the Apps step", () => {
     expect(phone.last?.setup?.tiles?.map((s) => s.on)).toEqual([false, false, true, false]);
     expect(phone.last?.setup?.tiles?.[0]?.icon).toContain("<svg");
     await phone.press({ command: "confirmAnswer", args: { index: 4, text: "apps" } });
-    expect(h.screen.last.setup?.id).toBe("videos");
+    expect(h.screen.last.setup?.id).toBe("text-size");
   });
 
   test("a phone's index past the last control is ignored", async () => {
@@ -678,8 +694,159 @@ describe("the Apps step", () => {
   });
 });
 
+describe("the Text size step", () => {
+  const entry = (id: string, label: string, onByDefault = true) => ({
+    id,
+    label,
+    icon: "<svg></svg>",
+    action: `app:open:${id}`,
+    web: true,
+    onByDefault,
+  });
+  /** Setup open at the Text size step, with web Apps that support it (Big, Wide) and one that doesn't (Plain). */
+  const atTextSize = async (store = new MemoryStore(), { wideOn = true } = {}) => {
+    if (store.read("setup", undefined) === undefined)
+      store.write("setup", { finished: false, seen: ["pair", "listener", "apps"] });
+    const big = new FakeWebApp("big", "Big", { textSize: true });
+    const wide = new FakeWebApp("wide", "Wide", { textSize: true });
+    h = await startHarness(store, {
+      beta: true,
+      setup: "fresh",
+      apps: [
+        { entry: entry("big", "Big"), app: big },
+        { entry: entry("plain", "Plain"), app: new FakeWebApp("plain", "Plain") },
+        { entry: entry("wide", "Wide", wideOn), app: wide },
+      ],
+    });
+    return { store, big, wide };
+  };
+  const shown = () => h.screen.last.setup!;
+  const sizes = (app: FakeWebApp) =>
+    app.calls.filter((c) => c.call === "setTextSize").map((c) => c.args[0]);
+
+  test("comes after Pick your Apps: the words, the size shown and Continue, the one way past", async () => {
+    const store = new MemoryStore();
+    store.write("setup", { finished: false, seen: ["pair", "listener"] });
+    await atTextSize(store);
+    expect(shown().id).toBe("apps");
+    h.app.screenCommand({ command: "confirmAt", args: { index: shown().tiles!.length } });
+    expect(shown()).toEqual({
+      id: "text-size",
+      title: "Text size",
+      body: "How large text looks in Apps like Big and Wide.",
+      textSize: { size: "default", label: "Default" },
+      step: 3,
+      steps: 6,
+      buttons: ["Continue"],
+      focus: 0,
+      intro: true,
+    });
+  });
+
+  test("names only the Apps on Home that have Text size", async () => {
+    await atTextSize(new MemoryStore(), { wideOn: false });
+    expect(shown().body).toBe("How large text looks in Big.");
+    h.app.screenCommand({ command: "back" });
+    for (const id of ["big"]) {
+      const i = shown().tiles!.findIndex((t) => t.id === id);
+      h.app.screenCommand({ command: "confirmAt", args: { index: i } });
+    }
+    h.app.screenCommand({ command: "confirmAt", args: { index: shown().tiles!.length } });
+    expect(shown()).toMatchObject({ id: "text-size", body: "How large text looks in web Apps." });
+  });
+
+  test("Left and Right step through the sizes and stop at the ends; nothing is kept before Continue", async () => {
+    const { store, big } = await atTextSize();
+    const cues = () => h.screen.sounds.at(-1)?.sound;
+    h.app.screenCommand({ command: "right" });
+    expect(shown().textSize).toEqual({ size: "larger", label: "Larger" });
+    expect(cues()).toBe("move");
+    h.app.screenCommand({ command: "right" });
+    expect(shown().textSize).toEqual({ size: "larger", label: "Larger" });
+    expect(cues()).toBe("blocked");
+    h.app.screenCommand({ command: "left" });
+    h.app.screenCommand({ command: "left" });
+    expect(shown().textSize).toEqual({ size: "smaller", label: "Smaller" });
+    h.app.screenCommand({ command: "left" });
+    expect(shown().textSize?.size).toBe("smaller");
+    expect(cues()).toBe("blocked");
+    expect(shown().focus).toBe(0);
+    expect(store.read("text-size", undefined)).toBeUndefined();
+    expect(sizes(big)).toEqual(["default"]);
+  });
+
+  test("Continue keeps the shown size as the household default, the one Settings → Apps shows", async () => {
+    const { store, big, wide } = await atTextSize();
+    h.app.screenCommand({ command: "right" });
+    h.app.screenCommand({ command: "ok" });
+    expect(shown().id).toBe("videos");
+    expect(store.read("text-size", undefined)).toEqual({ default: "larger", apps: {} });
+    expect(sizes(big).at(-1)).toBe("larger");
+    expect(sizes(wide).at(-1)).toBe("larger");
+    h.app.screenCommand({ command: "home" });
+    const phone = await h.connectPhone();
+    await phone.press("openSettings");
+    for (let i = 0; i < 12 && h.screen.last.focusedLabel !== "Apps"; i++) await phone.press("down");
+    await phone.press("ok");
+    expect(h.screen.last.grid.map((i) => i.label)).toContain("Text size: Larger");
+  });
+
+  test("a phone shows the same step, and its Left and Right change the size", async () => {
+    await atTextSize();
+    const phone = await h.connectPhone();
+    await phone.settle();
+    expect(phone.last?.setup).toEqual(shown());
+    await phone.press("left");
+    expect(shown().textSize?.size).toBe("smaller");
+    await phone.settle();
+    expect(phone.last?.setup?.textSize).toEqual({ size: "smaller", label: "Smaller" });
+    await phone.press({ command: "confirmAnswer", args: { index: 0, text: "text-size" } });
+    expect(shown().id).toBe("videos");
+  });
+
+  test("a restart resumes past it once a default is chosen, in Setup or in Settings → Apps", async () => {
+    const store = new MemoryStore();
+    store.write("setup", { finished: false, seen: ["pair", "listener", "apps"] });
+    await atTextSize(store);
+    expect(shown().id).toBe("text-size");
+    await h.stop();
+    store.write("text-size", { default: "default", apps: {} });
+    await atTextSize(store);
+    expect(shown().id).toBe("videos");
+  });
+
+  test("Back from the next step shows it again with the size kept; Run setup again shows the current choice", async () => {
+    const { store } = await atTextSize();
+    h.app.screenCommand({ command: "left" });
+    h.app.screenCommand({ command: "ok" });
+    h.app.screenCommand({ command: "back" });
+    expect(shown()).toMatchObject({ id: "text-size", textSize: { size: "smaller" } });
+    h.app.screenCommand({ command: "home" });
+    await h.stop();
+    await atTextSize(store);
+    expect(h.screen.last.setup).toBeUndefined();
+    const phone = await h.connectPhone();
+    await phone.press("openSettings");
+    for (let i = 0; i < 12 && h.screen.last.focusedLabel !== "About"; i++)
+      await phone.press("down");
+    await phone.press("ok");
+    for (let i = 0; i < 6 && h.screen.last.focusedLabel !== "Run setup again"; i++)
+      await phone.press("down");
+    await phone.press("ok");
+    for (let i = 0; i < 6 && shown().id !== "text-size"; i++) {
+      const s = shown();
+      const past = s.buttons.findIndex((b) => ["Not now", "Continue"].includes(b));
+      h.app.screenCommand({ command: "confirmAt", args: { index: (s.tiles?.length ?? 0) + past } });
+    }
+    expect(shown()).toMatchObject({ id: "text-size", textSize: { size: "smaller" } });
+    h.app.screenCommand({ command: "right" });
+    h.app.screenCommand({ command: "ok" });
+    expect(store.read("text-size", undefined)).toEqual({ default: "default", apps: {} });
+  });
+});
+
 describe("Settings → About → Run setup again", () => {
-  const SEEN = ["pair", "listener", "apps", "videos", "done"];
+  const SEEN = ["pair", "listener", "apps", "text-size", "videos", "done"];
   const flush = () => new Promise((r) => setTimeout(r, 0));
 
   async function openAbout(store = new MemoryStore(), options = {}) {
@@ -730,6 +897,8 @@ describe("Settings → About → Run setup again", () => {
     });
     press("Continue");
     press("Continue");
+    expect(h.screen.last.setup).toMatchObject({ id: "text-size", buttons: ["Continue"] });
+    press("Continue");
     expect(h.screen.last.setup).toMatchObject({
       id: "videos",
       list: ["/Movies"],
@@ -773,6 +942,12 @@ describe("Settings → About → Run setup again", () => {
         phonePaired: () => false,
         folders: () => [],
         addFolder: () => {},
+        textSize: {
+          size: () => "default",
+          chosen: () => false,
+          setDefault: () => {},
+          apps: () => [],
+        },
         later: () => () => {},
         cue: () => {},
         changed: () => {},
@@ -792,7 +967,14 @@ describe("Settings → About → Run setup again", () => {
     const { phone } = await openAbout(store);
     const before = store.read("setup", undefined);
     await runAgain(phone);
-    expect((await walk()).map((s) => s.id)).toEqual(["pair", "listener", "apps", "videos", "done"]);
+    expect((await walk()).map((s) => s.id)).toEqual([
+      "pair",
+      "listener",
+      "apps",
+      "text-size",
+      "videos",
+      "done",
+    ]);
     expect(h.screen.last.setup).toBeUndefined();
     expect(store.read("setup", undefined)).toEqual(before);
   });

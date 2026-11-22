@@ -1,6 +1,7 @@
 import type { TimeFormat } from "./clock-format.ts";
 /** Remote protocol and the state shapes shared by the core, the Remote page and the Screen renderer. */
 import type { PlayerOverlay } from "./player.ts";
+import type { TextSize } from "./text-size.ts";
 import type { PictureTile, Slideshow, WallpaperChoice } from "./wallpapers.ts";
 
 export type RemoteId = string;
@@ -186,6 +187,8 @@ export interface SetupPayload {
   tiles?: SetupTilePayload[];
   /** How many tiles a row holds on the Screen; the arrows move in that grid. */
   columns?: number;
+  /** The Text size step: the size shown, which Left and Right step through; the Screen draws its sample at it. */
+  textSize?: { size: TextSize; label: string };
   /** At most two. */
   buttons: string[];
   focus: number;

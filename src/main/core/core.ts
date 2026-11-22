@@ -623,6 +623,16 @@ export class Core {
         phonePaired: () => this.#phonePaired(),
         folders: () => this.#folders.list,
         addFolder: () => this.#folders.add(),
+        textSize: {
+          size: () => this.#textSize.defaultSize,
+          chosen: () => this.#textSize.chosen,
+          setDefault: (size) => this.#setDefaultTextSize(size),
+          apps: () =>
+            this.#homeApps
+              .rows()
+              .filter((row) => row.shown && this.#apps.get(row.id)?.supportsTextSize)
+              .map((row) => row.label),
+        },
         later: (fn, ms) => ports.clock.setTimeout(fn, ms),
         cue: (sound) => this.#cue(sound),
         changed: () => this.#emit(),

@@ -769,6 +769,49 @@ body.native-app-front .setup .box {
   white-space: nowrap;
 }
 
+/* Text size: a crop of a site's page at true scale, crisp at its top-left corner, fading out right and below as the page goes on. */
+.setup .s-sample {
+  width: calc(1020 * var(--u));
+  height: calc(430 * var(--u));
+  margin-top: calc(28 * var(--u));
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  mask-image:
+    linear-gradient(to right, black calc(100% - 140 * var(--u)), transparent),
+    linear-gradient(to bottom, black calc(100% - 24 * var(--u)), transparent);
+  mask-composite: intersect;
+}
+.setup .s-size {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(20 * var(--u));
+  margin-top: calc(18 * var(--u));
+}
+.setup .s-size .s-value {
+  min-width: calc(200 * var(--u));
+  font-size: var(--type-title);
+  font-weight: var(--weight-semibold);
+  line-height: var(--line-height-title);
+}
+.setup .s-arrow {
+  display: grid;
+  place-items: center;
+  width: calc(56 * var(--u));
+  height: calc(56 * var(--u));
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: opacity var(--duration-tint);
+}
+.setup .s-arrow svg {
+  width: calc(28 * var(--u));
+  height: calc(28 * var(--u));
+}
+.setup .s-arrow.end {
+  opacity: 0.25;
+  cursor: default;
+}
+
 /* You're set: the keys, drawn as keys. */
 .setup .s-tips {
   display: flex;

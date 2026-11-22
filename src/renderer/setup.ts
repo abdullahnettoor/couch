@@ -6,6 +6,7 @@ import { setupControls } from "../shared/setup-controls.ts";
 import { designUnit } from "../shared/design-unit.ts";
 import { GLASS } from "../shared/look.ts";
 import sofa from "./assets/sofa.png";
+import { textSizeSample } from "./text-size-sample.ts";
 import { qrSvg } from "./views/dom.ts";
 
 const panel = document.getElementById("setup")!;
@@ -55,7 +56,7 @@ export function renderSetup(payload: ScreenPayload): void {
     return;
   }
   const key = JSON.stringify([
-    { ...s, focus: 0, tiles: s.tiles?.map((t) => ({ ...t, on: 0 })) },
+    { ...s, focus: 0, tiles: s.tiles?.map((t) => ({ ...t, on: 0 })), textSize: !!s.textSize },
     pairing,
   ]);
   if (key === structure && last) {
@@ -137,6 +138,22 @@ function build(s: SetupPayload, pairing: string): HTMLElement {
     page.append(qr);
   }
   if (s.note) page.append(el("p", "s-note", s.note));
+  if (s.textSize) {
+    const sample = textSizeSample();
+    samples.set(page, sample);
+    const sizes = el("div", "s-size");
+    const arrow = (side: "left" | "right") => {
+      const node = el("span", `s-arrow ${side}`);
+      node.innerHTML = iconSvg(side);
+      node.addEventListener("click", (event) => {
+        event.stopPropagation();
+        window.couch.send({ command: side });
+      });
+      return node;
+    };
+    sizes.append(arrow("left"), el("span", "s-value"), arrow("right"));
+    page.append(sample.el, sizes);
+  }
   if (s.list?.length) {
     const list = el("ul", "list");
     for (const entry of s.list) {
@@ -204,8 +221,17 @@ function build(s: SetupPayload, pairing: string): HTMLElement {
   return page;
 }
 
-/** What changes without a redraw: which control has focus, and which Apps are on. */
+/** Each Text size step's sample, so a new size redraws it in place. */
+const samples = new WeakMap<HTMLElement, ReturnType<typeof textSizeSample>>();
+
+/** What changes without a redraw: which control has focus, which Apps are on, and the Text size shown. */
 function update(page: HTMLElement, s: SetupPayload): void {
+  if (s.textSize) {
+    samples.get(page)?.show(s.textSize.size);
+    page.querySelector(".s-size .s-value")!.textContent = s.textSize.label;
+    page.querySelector(".s-arrow.left")!.classList.toggle("end", s.textSize.size === "smaller");
+    page.querySelector(".s-arrow.right")!.classList.toggle("end", s.textSize.size === "larger");
+  }
   for (const node of page.querySelectorAll<HTMLElement>("[data-i]"))
     node.classList.toggle("focused", Number(node.dataset.i) === s.focus);
   page.querySelectorAll<HTMLElement>(".s-tile").forEach((tile, i) => {
