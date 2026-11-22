@@ -2,7 +2,7 @@ import type { Confirmation } from "../../../shared/protocol.ts";
 import type { Clock } from "../../ports/clock.ts";
 import type { YouTube } from "../../ports/youtube.ts";
 import type { App, AppEvent, AppKey } from "../app.ts";
-import type { TextSize } from "../../web/text-size.ts";
+import type { TextSize } from "../../../shared/text-size.ts";
 
 /** A Back sent to BitChord that changed no route within this long counts as already at its first page. */
 const BACK_SETTLE_MS = 800;

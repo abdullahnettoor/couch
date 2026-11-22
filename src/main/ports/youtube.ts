@@ -2,7 +2,7 @@ import type { PromptId, TrackKind } from "../../shared/protocol.ts";
 import type { PlaybackReport } from "../apps/app.ts";
 import type { CommandName } from "../../shared/protocol.ts";
 import type { Confirmation } from "../../shared/protocol.ts";
-import type { TextSize } from "../web/text-size.ts";
+import type { TextSize } from "../../shared/text-size.ts";
 import type { TextEdit } from "../../shared/keyboard.ts";
 
 export type YouTubeKey = "up" | "down" | "left" | "right" | "ok" | "back";

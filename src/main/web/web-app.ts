@@ -104,7 +104,7 @@ export interface WebAppDescription {
   preloads: PagePreload[];
   /**
    * Opts in to Text size: the page is zoomed so a site that lays out best at `targetWidth` CSS px fills the Screen,
-   * times the household's size. Without it the page is never zoomed. Chromium hosts only for now (WebKit ignores it).
+   * times the household's size. Without it the page is never zoomed. Both engines apply it (Chromium as page zoom factor, WebKit through pageZoom).
    */
   textSize?: { targetWidth: number };
   /** The site draws desktop scrollbars; hide them (scrolling still works). */

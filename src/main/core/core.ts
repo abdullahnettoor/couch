@@ -78,7 +78,7 @@ import { SoundOutput } from "./sound-output.ts";
 import { InterfaceSounds } from "./interface-sounds.ts";
 import { QuickSettings } from "./quick-settings.ts";
 import { TextSizeSetting, stepTextSize } from "./text-size-setting.ts";
-import type { TextSize } from "../web/text-size.ts";
+import type { TextSize } from "../../shared/text-size.ts";
 import { Setup } from "./setup.ts";
 import type { SetupStep } from "./setup-steps.ts";
 import { LibrarySearchPage } from "./pages/library-search-page.ts";

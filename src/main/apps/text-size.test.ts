@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
 import { FakeClock, FakeYouTube } from "../ports/fakes.ts";
 import type { YouTube } from "../ports/youtube.ts";
-import type { TextSize } from "../web/text-size.ts";
+import type { TextSize } from "../../shared/text-size.ts";
 import type { App } from "./app.ts";
 import { BitChordApp } from "./bitchord/bitchord-app.ts";
 import { NetflixApp } from "./netflix/netflix-app.ts";

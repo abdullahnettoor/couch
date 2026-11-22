@@ -24,7 +24,7 @@ import { HIDE_SCROLLBARS_SCRIPT } from "./hide-scrollbars.ts";
 import { CONFIRM_MESSAGE, noteScript } from "./web-hud.ts";
 import { POLL_MS, WebHostCore } from "./web-host-core.ts";
 import { soundScript } from "./web-sound.ts";
-import { textZoom, type TextSize } from "./text-size.ts";
+import { textZoom, type TextSize } from "../../shared/text-size.ts";
 
 /** The one script message handler Couch's own scripts (in the `couch` content world) talk to the host through. */
 export const MESSAGE_HANDLER = MESSAGE_HANDLER_NAME;

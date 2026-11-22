@@ -1,5 +1,5 @@
 import type { Store } from "../ports/store.ts";
-import type { TextSize } from "../web/text-size.ts";
+import type { TextSize } from "../../shared/text-size.ts";
 
 const KEY = "text-size";
 export const TEXT_SIZES: readonly TextSize[] = ["smaller", "default", "larger"];

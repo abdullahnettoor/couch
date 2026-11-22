@@ -1,7 +1,7 @@
 import type { Confirmation, PromptId, TrackKind } from "../../shared/protocol.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
 import type { KeyGate } from "./keyboard-policy.ts";
-import type { TextSize } from "./text-size.ts";
+import type { TextSize } from "../../shared/text-size.ts";
 import type { Engine } from "./native-front.ts";
 
 /** What the switcher needs of a host beyond the App port: both `ElectronWebApp` and `WebKitWebApp` have it. */

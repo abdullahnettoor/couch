@@ -73,15 +73,15 @@ export function quickSettingsPage({ glass = false }: { glass?: boolean } = {}): 
   function outputRow(q, i) {
     return '<div class="row' + focusClass(q, i.id) + '" data-id="' + esc(i.id) + '"><span class="l">' + esc(i.label) + "</span>" + (i.checked ? '<span class="v">' + icon("check") + "</span>" : "") + "</div>";
   }
-  function volumeButton(id, label, name, on) {
+  function rowButton(id, label, name, on) {
     return '<span class="btn' + (on ? " on" : "") + '" data-id="' + id + '" aria-label="' + label + '">' + icon(name) + "</span>";
   }
   function volumeRow(q, i) {
     var level = q.muted ? "0" : String(Math.round(Number(q.volume)) || 0);
-    return '<div class="row vol' + focusClass(q, i.id) + '" data-id="' + esc(i.id) + '"><span class="l">' + esc(i.label) + '</span>' + volumeButton("vol:down", "Volume down", "minus") + '<b class="num">' + esc(level) + "</b>" + volumeButton("vol:up", "Volume up", "plus") + volumeButton("vol:mute", "Mute", q.muted ? "speakerMute" : "speaker", q.muted) + "</div>";
+    return '<div class="row vol' + focusClass(q, i.id) + '" data-id="' + esc(i.id) + '"><span class="l">' + esc(i.label) + '</span>' + rowButton("vol:down", "Volume down", "minus") + '<b class="num">' + esc(level) + "</b>" + rowButton("vol:up", "Volume up", "plus") + rowButton("vol:mute", "Mute", q.muted ? "speakerMute" : "speaker", q.muted) + "</div>";
   }
   function textSizeRow(q, i) {
-    return '<div class="row ts' + focusClass(q, i.id) + '" data-id="' + esc(i.id) + '"><span class="l">' + esc(i.label) + '</span>' + volumeButton("ts:down", "Text size smaller", "minus") + '<b class="num">' + esc(q.textSize || "") + "</b>" + volumeButton("ts:up", "Text size larger", "plus") + "</div>";
+    return '<div class="row ts' + focusClass(q, i.id) + '" data-id="' + esc(i.id) + '"><span class="l">' + esc(i.label) + '</span>' + rowButton("ts:down", "Text size smaller", "minus") + '<b class="num">' + esc(q.textSize || "") + "</b>" + rowButton("ts:up", "Text size larger", "plus") + "</div>";
   }
   function actionRow(q, i, name) {
     return '<div class="row' + focusClass(q, i.id) + '" data-id="' + esc(i.id) + '"><span class="l">' + esc(i.label) + "</span>" + icon(name) + "</div>";

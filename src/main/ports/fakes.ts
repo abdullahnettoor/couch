@@ -1,4 +1,4 @@
-import type { TextSize } from "../web/text-size.ts";
+import type { TextSize } from "../../shared/text-size.ts";
 import type { Thumbnails } from "./thumbnails.ts";
 import type {
   ConvertedPicture,

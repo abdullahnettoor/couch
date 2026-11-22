@@ -2,7 +2,7 @@ import { describe, expect, test } from "vite-plus/test";
 import type { YouTubeEvent } from "../ports/youtube.ts";
 import { SwitchableWebApp, type SwitchableHost } from "./switchable-web-app.ts";
 import type { Engine } from "./native-front.ts";
-import type { TextSize } from "./text-size.ts";
+import type { TextSize } from "../../shared/text-size.ts";
 import { FakeClock } from "../ports/fakes.ts";
 import { MemoryStore } from "../ports/store.ts";
 import { IdleUnloader, type IdleLifecycle } from "./idle-unload.ts";
@@ -76,7 +76,7 @@ class FakeHost implements SwitchableHost {
   setOverlay(on: boolean) {
     this.#log(`overlay:${on}`);
   }
-  /** The Chromium host can; the WebKit host has neither member. */
+  /** Both hosts apply Text size (Chromium zoom factor, WebKit pageZoom). */
   supportsTextSize = true;
   setTextSize(size: TextSize) {
     this.#log(`textSize:${size}`);

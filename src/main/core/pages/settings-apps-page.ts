@@ -11,7 +11,7 @@ import { availableWithin } from "../../apps/availability.ts";
 import { copyFromCouchToast } from "../../apps/sign-in-text.ts";
 import { PlaybackUnavailable, type App } from "../../apps/app.ts";
 import { APPS_MENU_KEY, PLAYBACK_APP, SIGN_IN_APP, type HomeApps } from "../home-apps.ts";
-import type { TextSize } from "../../web/text-size.ts";
+import type { TextSize } from "../../../shared/text-size.ts";
 import { TEXT_SIZE_LABELS, stepTextSize } from "../text-size-setting.ts";
 import { backTo, type Page, type PageBack, type PageContext } from "./page.ts";
 

@@ -1,7 +1,7 @@
 import type { Confirmation, PromptId, TrackKind } from "../../../shared/protocol.ts";
 import type { Clock } from "../../ports/clock.ts";
 import type { YouTube } from "../../ports/youtube.ts";
-import type { TextSize } from "../../web/text-size.ts";
+import type { TextSize } from "../../../shared/text-size.ts";
 import type {
   App,
   AppEvent,

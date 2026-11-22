@@ -25,7 +25,7 @@ import { HIDE_SCROLLBARS_CSS } from "./hide-scrollbars.ts";
 import { SessionPreloads } from "./session-preloads.ts";
 import type { IdleLifecycle } from "./idle-unload.ts";
 import { drmGate } from "./drm-gate.ts";
-import { textZoom, type TextSize } from "./text-size.ts";
+import { textZoom, type TextSize } from "../../shared/text-size.ts";
 import { WebHostCore } from "./web-host-core.ts";
 import type { WebAppDescription, WebIdentity } from "./web-app.ts";
 import { CONFIRM_MESSAGE, confirmScript, noteScript, volumeScript } from "./web-hud.ts";

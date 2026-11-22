@@ -18,8 +18,9 @@ import { bridgeNetwork } from "../src/main/apps/bitchord/bitchord-network.ts";
 import { bitchordSite } from "../src/main/apps/bitchord/bitchord-route.ts";
 import { ownArtwork, playbackProbe } from "../src/main/web/playback.ts";
 import { BITCHORD_PARTITION, bitchordDescription } from "../src/main/apps/bitchord/bitchord-web.ts";
-import type { TextSize } from "../src/main/web/text-size.ts";
+import type { TextSize } from "../src/shared/text-size.ts";
 import { ElectronWebApp } from "../src/main/web/electron-web-app.ts";
+import { hiddenWindow } from "./lib/hidden-window.mts";
 
 const userData = mkdtempSync(join(tmpdir(), "couch-bitchord-check-"));
 app.setPath("userData", userData);
@@ -67,13 +68,7 @@ void app.whenReady().then(async () => {
     height: 1080,
     useContentSize: true,
   });
-  const hidden = new Proxy(win, {
-    get(target, key) {
-      if (key === "isFocused" || key === "isVisible") return () => true;
-      const value = Reflect.get(target, key, target);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
-  });
+  const hidden = hiddenWindow(win);
   const before = new Set(webContents.getAllWebContents().map((c) => c.id));
   const web = new ElectronWebApp(description, hidden as BrowserWindow);
   const wc = webContents

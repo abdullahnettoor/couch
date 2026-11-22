@@ -9,6 +9,7 @@ import { createServer, type Server } from "node:http";
 import { netflixDescription } from "../src/main/apps/netflix/netflix-web.ts";
 import { ElectronWebApp } from "../src/main/web/electron-web-app.ts";
 import type { WebAppDescription } from "../src/main/web/web-app.ts";
+import { hiddenWindow } from "./lib/hidden-window.mts";
 
 const PHASE = process.env.COUCH_TEXTSIZE_PHASE;
 const USER_DATA = process.env.COUCH_TEXTSIZE_USER_DATA;
@@ -102,13 +103,7 @@ async function check(): Promise<number> {
     height: 1080,
     useContentSize: true,
   });
-  const hidden = new Proxy(win, {
-    get(target, key) {
-      if (key === "isFocused" || key === "isVisible") return () => true;
-      const value = Reflect.get(target, key, target);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
-  });
+  const hidden = hiddenWindow(win);
   const width = win.getContentBounds().width;
   const expected = Math.max(1, width / TARGET); // Default size: no multiplier
   const base = {

@@ -10,7 +10,7 @@ import { resolve } from "node:path";
 import { netflixDescription } from "../src/main/apps/netflix/netflix-web.ts";
 import { createWebKitBridge, type WebKitAddon } from "../src/main/mpv/embed-addon.ts";
 import { SHIELD_ID, WAKE_POINTER_SOURCE } from "../src/main/web/pointer-wake.ts";
-import { textZoom, type TextSize } from "../src/main/web/text-size.ts";
+import { textZoom, type TextSize } from "../src/shared/text-size.ts";
 import { WebKitWebApp } from "../src/main/web/webkit-web-app.ts";
 import type { YouTubeEvent } from "../src/main/ports/youtube.ts";
 import type { WebKitView } from "../src/main/web/webkit-bridge.ts";

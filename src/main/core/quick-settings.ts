@@ -5,7 +5,7 @@ import type {
   QuickPayload,
   SoundPayload,
 } from "../../shared/protocol.ts";
-import type { TextSize } from "../web/text-size.ts";
+import type { TextSize } from "../../shared/text-size.ts";
 import { TEXT_SIZE_LABELS } from "./text-size-setting.ts";
 import type { Clock } from "../ports/clock.ts";
 

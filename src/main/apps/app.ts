@@ -7,7 +7,7 @@ import type {
   TrackList,
 } from "../../shared/protocol.ts";
 import type { TextEdit } from "../../shared/keyboard.ts";
-import type { TextSize } from "../web/text-size.ts";
+import type { TextSize } from "../../shared/text-size.ts";
 
 /** The title and art an App already knows for a title id (for example from a Continue entry), lent to Now Playing while that id plays. */
 export interface NowPlayingHint {
