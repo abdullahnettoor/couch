@@ -61,6 +61,53 @@ describe("Pointer mode: the mode", () => {
     expect(phone.last?.pointer).toBe(true);
   });
 
+  test("moving between Home, the Library and Settings (Couch's pages) never flips the mode", async () => {
+    await send(phone, { command: "pointerMode", args: { on: true } });
+    await phone.press({ command: "openSettings" });
+    expect(h.screen.last.state.view).toBe("settings");
+    expect(phone.last?.pointer).toBe(true);
+    await phone.press("back");
+    expect(phone.last?.pointer).toBe(true);
+    await phone.press("home");
+    expect(phone.last?.pointer).toBe(true);
+  });
+
+  test("an App's mode is applied again when it reopens, while another App stays on the D-pad", async () => {
+    const other = new FakeWebApp("other", "Other", {});
+    const two = await startHarness(undefined, {
+      apps: [
+        { entry: entry("tube", "Tube"), app: tube },
+        { entry: entry("other", "Other"), app: other },
+      ],
+    });
+    const p = await two.connectPhone();
+    await p.press({ command: "openApp", args: { app: "tube" } });
+    await send(p, { command: "pointerMode", args: { on: true } });
+    await p.press("home");
+    await p.press({ command: "openApp", args: { app: "other" } });
+    expect(p.last?.pointer).toBeUndefined();
+    await p.press("home");
+    await p.press({ command: "openApp", args: { app: "tube" } });
+    expect(p.last?.pointer).toBe(true);
+    expect(tube.pointerCalls.at(-1)).toEqual({ call: "setMode", args: [true] });
+    await two.stop();
+  });
+
+  test("while an App plays, Now Playing shows with pointer mode on, on every phone", async () => {
+    const second = await h.connectPhone();
+    await phone.press({ command: "openApp", args: { app: "tube" } });
+    await send(phone, { command: "pointerMode", args: { on: true } });
+    tube.emit({
+      type: "playback",
+      playback: { position: 30, duration: 600, paused: false, title: "Cat" },
+    });
+    await phone.waitFor(() => phone.last?.nowPlaying !== undefined);
+    for (const p of [phone, second]) {
+      await p.waitFor(() => p.last?.nowPlaying !== undefined && p.last?.pointer === true);
+      expect(p.last?.pointerAvailable).toBe(true);
+    }
+  });
+
   test("the choice survives a restart", async () => {
     await send(phone, { command: "pointerMode", args: { on: true } });
     const store = h.store;

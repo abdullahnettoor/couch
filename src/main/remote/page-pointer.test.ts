@@ -317,4 +317,24 @@ describe("the Remote's touchpad", () => {
     expect(p.els.get("nowp")!.hidden).toBe(false);
     expect(p.els.get("tpad")!.hidden).toBe(true);
   });
+
+  test("in Now Playing with pointer mode off, the D-pad button opens the full-screen D-pad", () => {
+    const p = load();
+    p.snapshot({
+      layout: "app",
+      pointer: undefined,
+      nowPlaying: {
+        title: "T",
+        folder: "F",
+        position: 1,
+        duration: 10,
+        paused: false,
+        subtitlesOn: false,
+        active: true,
+      },
+    });
+    p.els.get("chip-pad")!.handlers.click!();
+    expect(p.els.get("npad")!.hidden).toBe(false);
+    expect(p.els.get("tpad")!.hidden).toBe(true);
+  });
 });
