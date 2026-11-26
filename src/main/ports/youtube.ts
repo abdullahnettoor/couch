@@ -69,8 +69,6 @@ export interface YouTube {
   showSearchBar(text: string | undefined): void;
   /** While on, every key on the Mac keyboard becomes an `edit` event instead of reaching YouTube. */
   captureText(on: boolean): void;
-  /** Present when the view takes the pointer (Pointer mode). */
-  readonly pointer?: AppPointer;
   playPause(): void;
   /** Skips the playing video forward (+) or back (−) by this many seconds. */
   seekBy(seconds: number): void;
@@ -109,5 +107,7 @@ export interface YouTube {
   unload(): void;
   /** Runs exactly these add-ons (by id) from the next page load, and reloads the page now; `note` is overlaid once it has loaded. */
   setAddons(ids: string[], note?: string): void;
+  /** Pointer mode delivery: real mouse events at a point, and lifting/restoring the D-pad shield. */
+  readonly pointer?: AppPointer;
   onEvent(listener: (event: YouTubeEvent) => void): () => void;
 }

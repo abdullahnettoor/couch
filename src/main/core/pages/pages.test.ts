@@ -93,6 +93,8 @@ describe("Settings Pages Back", () => {
         new RemotesPage(c, {
           listener: () => ({ available: false, on: false, running: false }),
           refresh: () => {},
+          pointerSpeed: () => "normal",
+          stepPointerSpeed: () => {},
         }),
       "Settings",
       "settings",

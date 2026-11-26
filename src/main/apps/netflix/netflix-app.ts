@@ -27,7 +27,6 @@ export class NetflixApp implements App {
   readonly showSkip = true;
   readonly typing: AppTyping;
   readonly playback: AppPlayback | undefined;
-  readonly pointer: AppPointer | undefined;
   readonly welcome: AppWelcome | undefined;
   #signIn: AppSignIn | (() => AppSignIn | undefined) | undefined;
   #port: YouTube;
@@ -51,7 +50,6 @@ export class NetflixApp implements App {
     this.#signIn = signIn;
     this.playback = playback;
     this.#port = port;
-    this.pointer = port.pointer;
     this.#clock = clock;
     this.typing = {
       label: "Search Netflix",
@@ -149,6 +147,9 @@ export class NetflixApp implements App {
   }
   setOutputDevice(name: string | undefined) {
     return this.#port.setOutputDevice(name);
+  }
+  get pointer(): AppPointer | undefined {
+    return this.#port.pointer;
   }
   restart() {
     this.#port.restart();

@@ -2,6 +2,7 @@ import { describe, expect, test } from "vite-plus/test";
 import type { YouTubeEvent } from "../ports/youtube.ts";
 import { SwitchableWebApp, type SwitchableHost } from "./switchable-web-app.ts";
 import type { Engine } from "./native-front.ts";
+import type { AppPointer } from "../../shared/pointer.ts";
 import type { TextSize } from "../../shared/text-size.ts";
 import { FakeClock } from "../ports/fakes.ts";
 import { MemoryStore } from "../ports/store.ts";
@@ -17,10 +18,18 @@ class FakeHost implements SwitchableHost {
   /** Set to make the next setup call (key gate) throw: an init failure. */
   failInit = false;
   idle: IdleLifecycle | undefined;
+  pointer: AppPointer | undefined;
   constructor(engine: Engine, idle?: IdleLifecycle) {
     this.engine = engine;
     this.idle = idle;
     this.followsMacOutput = engine === "webkit";
+    this.pointer = {
+      move: (x, y) => this.#log(`pointer:move:${x},${y}`),
+      click: (x, y) => this.#log(`pointer:click:${x},${y}`),
+      rightClick: (x, y) => this.#log(`pointer:rightClick:${x},${y}`),
+      scroll: (x, y, dx, dy) => this.#log(`pointer:scroll:${x},${y},${dx},${dy}`),
+      setMode: (on) => this.#log(`pointer:mode:${on}`),
+    };
   }
   #log(c: string) {
     this.calls.push(c);
@@ -244,6 +253,30 @@ describe("the Netflix host that can switch engine", () => {
     expect(app.host("webkit")).toBeUndefined();
     app.switchTo("webkit");
     expect(app.host("webkit")).toBe(hosts[1]);
+  });
+
+  test("pointer forwards to the active host, follows availability, and carries pointer mode across a switch", () => {
+    const { app, hosts } = rig("chromium");
+    app.pointer!.setMode(true);
+    app.pointer!.move(10, 20);
+    app.pointer!.click(10, 20);
+    app.pointer!.rightClick(30, 40);
+    app.pointer!.scroll(30, 40, -5, -10);
+    expect(hosts[0]!.calls).toEqual([
+      "pointer:mode:true",
+      "pointer:move:10,20",
+      "pointer:click:10,20",
+      "pointer:rightClick:30,40",
+      "pointer:scroll:30,40,-5,-10",
+    ]);
+
+    app.switchTo("webkit");
+    expect(hosts[1]!.calls).toContain("pointer:mode:true");
+    app.pointer!.click(50, 60);
+    expect(hosts[1]!.calls).toContain("pointer:click:50,60");
+
+    hosts[1]!.pointer = undefined;
+    expect(app.pointer).toBeUndefined();
   });
 });
 

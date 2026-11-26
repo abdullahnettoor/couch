@@ -3,9 +3,8 @@ import type { Confirmation, PromptId, TrackKind } from "../../shared/protocol.ts
 import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
 import { FIELD_BLURRED, FIELD_FOCUSED, FIELD_FOCUSED_QUERY } from "./page-focus.ts";
 import { hiddenScript } from "./hidden-audio.ts";
-import { pageFocusFunction } from "./page-focus.ts";
+import { pageFocusFunction, pointerModeScript } from "./page-focus.ts";
 import type { AppPointer } from "../../shared/pointer.ts";
-import { pointerModeScript } from "./pointer-wake.ts";
 import type { KeyGate } from "./keyboard-policy.ts";
 import { WebKitKeyboard } from "./webkit-keyboard.ts";
 import { KEY_CLAIM_FUNCTION, PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
@@ -308,10 +307,10 @@ export class WebKitWebApp implements YouTube {
 
   /** The pointer, as Pointer mode asks of an App: real mouse events in the view at a window point, only while it is on screen. */
   readonly pointer: AppPointer = {
-    move: (x, y) => this.#point("move", x, y),
-    click: (x, y) => this.#point("click", x, y),
-    rightClick: (x, y) => this.#point("rightClick", x, y),
-    scroll: (x, y, dx, dy) => this.#point("scroll", x, y, dx, dy),
+    move: (x, y) => this.#point("move", Math.round(x), Math.round(y)),
+    click: (x, y) => this.#point("click", Math.round(x), Math.round(y)),
+    rightClick: (x, y) => this.#point("rightClick", Math.round(x), Math.round(y)),
+    scroll: (x, y, dx, dy) => this.#point("scroll", Math.round(x), Math.round(y), dx, dy),
     setMode: (on) => {
       this.#pointerMode = on;
       this.#run(pointerModeScript(on));

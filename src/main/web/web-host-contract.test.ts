@@ -12,7 +12,16 @@ const fake = vi.hoisted(() => {
     handlers = new Map<string, Array<(...args: any[]) => void>>();
     scripts: string[] = [];
     loads: string[] = [];
-    inputs: Array<{ type: string; keyCode: string }> = [];
+    inputs: Array<{
+      type: string;
+      keyCode?: string;
+      x?: number;
+      y?: number;
+      button?: "left" | "right";
+      clickCount?: number;
+      deltaX?: number;
+      deltaY?: number;
+    }> = [];
     answers: Array<[string, unknown]> = [];
     failing = false;
     debugger = {
@@ -52,8 +61,18 @@ const fake = vi.hoisted(() => {
         if (script.includes(part)) return typeof answer === "function" ? answer(script) : answer;
       return undefined;
     }
-    sendInputEvent(event: { type: string; keyCode: string }) {
+    sendInputEvent(event: {
+      type: string;
+      keyCode?: string;
+      x?: number;
+      y?: number;
+      button?: "left" | "right";
+      clickCount?: number;
+      deltaX?: number;
+      deltaY?: number;
+    }) {
       this.inputs.push(event);
+      if (event.type === "mouseDown") this.emit("before-mouse-event", {}, { type: "mouseDown" });
     }
     setUserAgent() {}
     setZoomMode() {}
@@ -113,7 +132,11 @@ vi.mock("electron", () => {
 import type { YouTubeEvent } from "../ports/youtube.ts";
 import { COUCH_HOST_CONSOLE, COUCH_HOST_WEBKIT } from "./couch-host.ts";
 import { ElectronWebApp } from "./electron-web-app.ts";
-import { describeWebHostContract, type HostRig } from "./web-host-contract.ts";
+import {
+  describeWebHostContract,
+  type HostPointerEvent,
+  type HostRig,
+} from "./web-host-contract.ts";
 import { MEDIA_TOGGLE_SCRIPT } from "./media-toggle.ts";
 import type { WebAppDescription } from "./web-app.ts";
 import type {
@@ -151,7 +174,10 @@ function electronRig(description: WebAppDescription): HostRig {
     answer: (part, value) => void contents.answers.push([part, value]),
     failScripts: () => void (contents.failing = true),
     scripts: () => contents.scripts,
-    keys: () => contents.inputs.filter((i) => i.type === "keyDown").map((i) => i.keyCode),
+    keys: () =>
+      contents.inputs
+        .filter((i): i is { type: string; keyCode: string } => i.type === "keyDown" && !!i.keyCode)
+        .map((i) => i.keyCode),
     navigate: (url) => {
       contents.url = url;
       contents.emit("did-navigate-in-page", {}, url);
@@ -195,6 +221,15 @@ function electronRig(description: WebAppDescription): HostRig {
       vm.runInNewContext(`(${COUCH_HOST_CONSOLE})()`, sandbox);
       sandbox.couchHost.send(message);
     },
+    pointerEvents: () =>
+      contents.inputs.flatMap<HostPointerEvent>((i) => {
+        if (i.type === "mouseMove") return [{ type: "move", x: i.x!, y: i.y! }];
+        if (i.type === "mouseDown") return [{ type: "down", button: i.button!, x: i.x!, y: i.y! }];
+        if (i.type === "mouseUp") return [{ type: "up", button: i.button!, x: i.x!, y: i.y! }];
+        if (i.type === "mouseWheel")
+          return [{ type: "wheel", x: i.x!, y: i.y!, dx: i.deltaX!, dy: i.deltaY! }];
+        return [];
+      }),
   };
 }
 
@@ -228,9 +263,15 @@ class FakeWebKitView implements WebKitView {
   focus() {}
   answerKey() {}
   wakePointer() {}
-  pointerLog: string[] = [];
+  pointerEvents: HostPointerEvent[] = [];
+  /** What the native view makes of each kind: a click or right-click is a move, a press and a release. */
   pointer(kind: PointerKind, x: number, y: number, dx = 0, dy = 0) {
-    this.pointerLog.push(kind === "scroll" ? `scroll:${x},${y},${dx},${dy}` : `${kind}:${x},${y}`);
+    const out = this.pointerEvents;
+    if (kind === "scroll") return void out.push({ type: "wheel", x, y, dx, dy });
+    out.push({ type: "move", x, y });
+    if (kind === "move") return;
+    const button = kind === "click" ? "left" : "right";
+    out.push({ type: "down", button, x, y }, { type: "up", button, x, y });
   }
   setInputRouting() {}
   guard = false;
@@ -297,7 +338,7 @@ function webkitRig(description: WebAppDescription): HostRig {
         l({ type: "loaded", url: "https://www.netflix.com/browse" });
     },
     allowHistoryBack: () => void view.answers.push(["__couchCanGoBack", true]),
-    pointerLog: () => view.pointerLog,
+    pointerEvents: () => view.pointerEvents,
     couchSend: (message, frame = { main: true, origin: "https://www.netflix.com" }) => {
       const sandbox: any = {
         webkit: {
