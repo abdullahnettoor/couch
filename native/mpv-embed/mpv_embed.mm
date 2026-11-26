@@ -575,8 +575,9 @@ static CAShapeLayer *pointerArrow = nil;
 static CGFloat pointerHeight = 0;
 static BOOL pointerShown = NO;
 
+// Returns an owned colour (+1): the caller releases it once the layer has taken it.
 static CGColorRef pointerColor(NSArray *c) {
-  if (c.count < 4) return CGColorGetConstantColor(kCGColorBlack);
+  if (c.count < 4) return CGColorRetain(CGColorGetConstantColor(kCGColorBlack));
   return CGColorCreateGenericRGB([c[0] doubleValue], [c[1] doubleValue], [c[2] doubleValue], [c[3] doubleValue]);
 }
 
@@ -626,9 +627,15 @@ static napi_value SetPointerStyle(napi_env env, napi_callback_info info) {
     pointerArrow.path = path;
     pointerArrow.lineJoin = kCALineJoinRound;
     pointerArrow.lineWidth = stroke;
-    pointerArrow.fillColor = pointerColor(d[@"fill"]);
-    pointerArrow.strokeColor = pointerColor(d[@"stroke"]);
-    pointerArrow.shadowColor = pointerColor(d[@"shadow"][@"color"]);
+    CGColorRef fill = pointerColor(d[@"fill"]);
+    CGColorRef line = pointerColor(d[@"stroke"]);
+    CGColorRef shade = pointerColor(d[@"shadow"][@"color"]);
+    pointerArrow.fillColor = fill;
+    pointerArrow.strokeColor = line;
+    pointerArrow.shadowColor = shade;
+    CGColorRelease(fill);
+    CGColorRelease(line);
+    CGColorRelease(shade);
     pointerArrow.shadowOpacity = [d[@"shadow"][@"color"][3] doubleValue];
     pointerArrow.shadowRadius = [d[@"shadow"][@"blur"] doubleValue];
     pointerArrow.shadowOffset = CGSizeMake(0, -[d[@"shadow"][@"drop"] doubleValue]);

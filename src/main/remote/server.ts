@@ -6,6 +6,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { COMMAND_NAMES, type Command, type CommandName } from "../../shared/protocol.ts";
 import type { Core } from "../core/core.ts";
 import { safeEqual } from "../constant-time.ts";
+import { PointerCoalescer } from "./pointer-coalescer.ts";
 import { remoteManifest } from "./manifest.ts";
 import { REMOTE_PAGE } from "./page.ts";
 
@@ -207,11 +208,13 @@ export async function startRemoteServer(
     // An oversize or malformed frame emits 'error' on this socket alone, and ws then closes it (1009 or
     // 1002); without a handler the event would be uncaught in main.
     ws.on("error", () => {});
+    const coalescer = new PointerCoalescer((command) => core.handle(command, id));
     ws.on("message", (data) => {
       const command = parseCommand(data.toString());
-      if (command) core.handle(command, id);
+      if (command) coalescer.push(command);
     });
     ws.on("close", () => {
+      coalescer.dispose();
       sockets.delete(ws);
       core.disconnect(id);
     });

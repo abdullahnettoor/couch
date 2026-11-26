@@ -34,6 +34,7 @@ import { drmGate } from "./drm-gate.ts";
 import { textZoom, type TextSize } from "../../shared/text-size.ts";
 import { WebHostCore } from "./web-host-core.ts";
 import type { WebAppDescription, WebIdentity } from "./web-app.ts";
+import { sendMouse } from "../pointer-delivery.ts";
 import { CONFIRM_MESSAGE, confirmScript, noteScript, volumeScript } from "./web-hud.ts";
 import {
   allowsPermission,
@@ -574,57 +575,21 @@ export class ElectronWebApp implements YouTube {
     }
   }
 
-  #sendPointer(fn: () => void): void {
+  #sendPointer(event: Parameters<typeof sendMouse>[1]): void {
     if (this.#disposed) return;
     this.#sending = true;
     try {
-      fn();
+      sendMouse(this.#view.webContents, event);
     } finally {
       this.#sending = false;
     }
   }
 
   readonly pointer: AppPointer = {
-    move: (x, y) => {
-      this.#sendPointer(() => {
-        this.#view.webContents.sendInputEvent({
-          type: "mouseMove",
-          x: Math.round(x),
-          y: Math.round(y),
-        });
-      });
-    },
-    click: (x, y) => {
-      const rx = Math.round(x);
-      const ry = Math.round(y);
-      this.#sendPointer(() => {
-        const wc = this.#view.webContents;
-        wc.sendInputEvent({ type: "mouseMove", x: rx, y: ry });
-        wc.sendInputEvent({ type: "mouseDown", x: rx, y: ry, button: "left", clickCount: 1 });
-        wc.sendInputEvent({ type: "mouseUp", x: rx, y: ry, button: "left", clickCount: 1 });
-      });
-    },
-    rightClick: (x, y) => {
-      const rx = Math.round(x);
-      const ry = Math.round(y);
-      this.#sendPointer(() => {
-        const wc = this.#view.webContents;
-        wc.sendInputEvent({ type: "mouseMove", x: rx, y: ry });
-        wc.sendInputEvent({ type: "mouseDown", x: rx, y: ry, button: "right", clickCount: 1 });
-        wc.sendInputEvent({ type: "mouseUp", x: rx, y: ry, button: "right", clickCount: 1 });
-      });
-    },
-    scroll: (x, y, dx, dy) => {
-      this.#sendPointer(() => {
-        this.#view.webContents.sendInputEvent({
-          type: "mouseWheel",
-          x: Math.round(x),
-          y: Math.round(y),
-          deltaX: Math.round(dx),
-          deltaY: Math.round(dy),
-        });
-      });
-    },
+    move: (x, y) => this.#sendPointer({ type: "move", x, y }),
+    click: (x, y) => this.#sendPointer({ type: "click", x, y }),
+    rightClick: (x, y) => this.#sendPointer({ type: "rightClick", x, y }),
+    scroll: (x, y, dx, dy) => this.#sendPointer({ type: "scroll", x, y, dx, dy }),
     setMode: (on) => {
       if (this.#disposed) return;
       this.#pointerMode = on;

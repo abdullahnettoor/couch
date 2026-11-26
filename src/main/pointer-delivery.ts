@@ -27,24 +27,42 @@ export function deliverPointerInput(input: PointerInput, targets: PointerTargets
   const target =
     input.layer === "page" ? targets.page() : input.layer === "quick" ? targets.quick() : undefined;
   if (!target) return;
-  const x = Math.round(input.x);
-  const y = Math.round(input.y);
-  switch (input.type) {
+  sendMouse(target, input);
+}
+
+/** One pointer event as the mouse events it makes at its point: a click or right-click is a move, a press and a release; a scroll is a wheel. */
+export function sendMouse(
+  target: InputTarget,
+  event: {
+    type: "move" | "click" | "rightClick" | "scroll";
+    x: number;
+    y: number;
+    dx?: number;
+    dy?: number;
+  },
+): void {
+  const x = Math.round(event.x);
+  const y = Math.round(event.y);
+  switch (event.type) {
     case "move":
       target.sendInputEvent({ type: "mouseMove", x, y });
       break;
     case "click":
+    case "rightClick": {
+      const button = event.type === "click" ? "left" : "right";
       target.sendInputEvent({ type: "mouseMove", x, y });
-      target.sendInputEvent({ type: "mouseDown", x, y, button: "left", clickCount: 1 });
-      target.sendInputEvent({ type: "mouseUp", x, y, button: "left", clickCount: 1 });
+      target.sendInputEvent({ type: "mouseDown", x, y, button, clickCount: 1 });
+      target.sendInputEvent({ type: "mouseUp", x, y, button, clickCount: 1 });
       break;
-    case "rightClick":
-      target.sendInputEvent({ type: "mouseMove", x, y });
-      target.sendInputEvent({ type: "mouseDown", x, y, button: "right", clickCount: 1 });
-      target.sendInputEvent({ type: "mouseUp", x, y, button: "right", clickCount: 1 });
-      break;
+    }
     case "scroll":
-      target.sendInputEvent({ type: "mouseWheel", x, y, deltaX: input.dx, deltaY: input.dy });
+      target.sendInputEvent({
+        type: "mouseWheel",
+        x,
+        y,
+        deltaX: Math.round(event.dx ?? 0),
+        deltaY: Math.round(event.dy ?? 0),
+      });
       break;
   }
 }

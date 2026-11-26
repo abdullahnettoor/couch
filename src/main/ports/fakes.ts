@@ -279,6 +279,7 @@ export class FakeWebApp implements App {
     rightClick: (x, y) => this.pointerCalls.push({ call: "rightClick", args: [x, y] }),
     scroll: (x, y, dx, dy) => this.pointerCalls.push({ call: "scroll", args: [x, y, dx, dy] }),
     setMode: (on) => this.pointerCalls.push({ call: "setMode", args: [on] }),
+    questionsOnPage: false,
   };
   /** Settable, so a test can play an App whose engine stops supporting Text size. */
   supportsTextSize: boolean;

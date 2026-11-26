@@ -24,7 +24,7 @@ afterEach(() => h.stop());
 
 const send = async (p: FakePhone, command: Parameters<FakePhone["send"]>[0]) => {
   p.send(command);
-  await p.settle(15);
+  await p.settle(40);
 };
 const move = (dx: number, dy: number, p = phone) =>
   send(p, { command: "pointerMove", args: { dx, dy } });
@@ -280,6 +280,83 @@ describe("Pointer mode: the pointer", () => {
   });
 });
 
+describe("Pointer mode: the first gesture of Picture off", () => {
+  beforeEach(async () => {
+    await send(phone, { command: "pointerMode", args: { on: true } });
+    await phone.press({ command: "openApp", args: { app: "tube" } });
+    await send(phone, { command: "pointerMode", args: { on: true } });
+    tube.emit({
+      type: "playback",
+      playback: { position: 30, duration: 600, paused: false, title: "Cat" },
+    });
+    await phone.waitFor(() => phone.last?.nowPlaying !== undefined);
+    await phone.press({ command: "setPictureOff", args: { on: true } });
+  });
+  const appCalls = () => tube.pointerCalls.filter((c) => c.call !== "setMode");
+
+  test("a whole drag during Picture off moves nothing, and the next gesture works", async () => {
+    for (let i = 0; i < 5; i++) {
+      await move(10, 5);
+      h.clock.advance(50);
+    }
+    expect(h.screen.last.state.pictureOff).toBe(false);
+    expect(appCalls()).toEqual([]);
+    h.clock.advance(300);
+    await move(10, 5);
+    expect(appCalls().map((c) => c.call)).toEqual(["move"]);
+  });
+
+  test("a whole scroll during Picture off scrolls nothing", async () => {
+    for (let i = 0; i < 4; i++) {
+      await scroll(0, -20);
+      h.clock.advance(50);
+    }
+    expect(appCalls()).toEqual([]);
+    h.clock.advance(300);
+    await scroll(0, -20);
+    expect(appCalls().map((c) => c.call)).toEqual(["scroll"]);
+  });
+
+  test("another phone is not held back by it", async () => {
+    const second = await h.connectPhone();
+    await move(10, 5);
+    await move(10, 5, second);
+    expect(appCalls().map((c) => c.call)).toEqual(["move"]);
+  });
+});
+
+describe("Pointer mode: showing and resizing", () => {
+  beforeEach(() => send(phone, { command: "pointerMode", args: { on: true } }));
+
+  test("pointerShow brings a faded pointer back where it was, without clicking", async () => {
+    await move(30, 30);
+    const at = lastDraw();
+    h.clock.advance(6000);
+    expect(lastDraw().shown).toBe(false);
+    const delivered = h.screen.pointer.inputs.length;
+    await send(phone, { command: "pointerShow" });
+    expect(lastDraw()).toMatchObject({ shown: true, x: at.x, y: at.y });
+    h.clock.advance(1000);
+    expect(h.screen.pointer.inputs).toHaveLength(delivered);
+  });
+
+  test("a resize clamps the pointer into the new bounds and draws it again", async () => {
+    for (let i = 0; i < 40; i++) await move(100, 100);
+    expect(lastDraw()).toMatchObject({ x: 1920, y: 1080 });
+    const before = draws().length;
+    h.app.setScreenSize({ width: 800, height: 600 });
+    expect(draws().length).toBeGreaterThan(before);
+    expect(lastDraw()).toMatchObject({ x: 800, y: 600, shown: true });
+  });
+
+  test("a resize draws a pointer that was inside again, for the new scale", async () => {
+    await move(0, 0);
+    const before = draws().length;
+    h.app.setScreenSize({ width: 3840, height: 2160 });
+    expect(draws().length).toBe(before + 1);
+  });
+});
+
 describe("Pointer mode: routing to the layer in front", () => {
   beforeEach(() => send(phone, { command: "pointerMode", args: { on: true } }));
 
@@ -333,6 +410,30 @@ describe("Pointer mode: routing to the layer in front", () => {
     expect(h.screen.last.state.confirm).toBeDefined();
     await send(phone, "pointerClick");
     expect(h.screen.pointer.inputs.at(-1)).toMatchObject({ layer: "page", type: "click" });
+  });
+
+  test("a question over an App whose questions Couch's screen draws gets the pointer on the page", async () => {
+    tube.pointer.questionsOnPage = true;
+    await phone.press({ command: "openApp", args: { app: "tube" } });
+    await send(phone, { command: "pointerMode", args: { on: true } });
+    h.app.askQuit();
+    await move(10, 10);
+    h.clock.advance(400);
+    await send(phone, "pointerClick");
+    expect(h.screen.pointer.inputs.map((i) => `${i.layer}:${i.type}`)).toEqual([
+      "page:move",
+      "page:click",
+    ]);
+    expect(tube.pointerCalls.filter((c) => c.call !== "setMode")).toEqual([]);
+  });
+
+  test("a question injected into a Chromium App's page keeps the pointer in the App", async () => {
+    await phone.press({ command: "openApp", args: { app: "tube" } });
+    await send(phone, { command: "pointerMode", args: { on: true } });
+    h.app.askQuit();
+    await send(phone, "pointerClick");
+    expect(h.screen.pointer.inputs).toEqual([]);
+    expect(tube.pointerCalls.at(-1)?.call).toBe("click");
   });
 
   test("a web App in front gets every move live, and its clicks, from its own mode", async () => {

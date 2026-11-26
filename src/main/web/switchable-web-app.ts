@@ -53,6 +53,9 @@ export class SwitchableWebApp implements YouTube {
     this.#create = create;
     this.#engine = engine;
     this.#host = create(engine);
+    Object.defineProperty(this.#pointer, "questionsOnPage", {
+      get: () => this.#host.pointer?.questionsOnPage,
+    });
     this.#stop = this.#host.onEvent((e) => this.#emit(e));
   }
 

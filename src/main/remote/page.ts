@@ -512,7 +512,6 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     $("nowp").hidden = !np || padShown;
     $("npad").hidden = !np || !padShown || pointer;
     $("tpad").hidden = !pointer || (!!np && !padShown);
-    $("tp-dpad").hidden = !!np;
     $("tp-now").hidden = !np;
     $("tp-type").hidden = !s.typeAvailable;
     $("ptoggle").hidden = !s.pointerAvailable || pointer;
@@ -710,6 +709,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
       }, LONG_MS);
     } else setStripOn(mode);
     touch = t;
+    sendPointer("pointerShow");
     if (pad.setPointerCapture) pad.setPointerCapture(e.pointerId);
   });
   pad.addEventListener("pointermove", function (e) {

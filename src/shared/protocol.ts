@@ -68,6 +68,7 @@ export const COMMAND_NAMES = [
   "openApp",
   "forgetContinue",
   "pointerMode",
+  "pointerShow",
   "pointerMove",
   "pointerScroll",
   "pointerClick",

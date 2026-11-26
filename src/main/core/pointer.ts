@@ -120,6 +120,24 @@ export class PointerControl {
     this.sync();
   }
 
+  /** A phone touched down: the pointer shows again where it was (or in the middle at first), restarting its fade. */
+  show(from: string): void {
+    if (!this.#usable()) return;
+    this.#take(from);
+    this.#moved(false);
+  }
+
+  /** The Screen changed size: the pointer stays inside it, and is drawn again (the overlay's scale follows the width). */
+  resize(): void {
+    if (this.#placed) {
+      const { width, height } = this.#deps.size();
+      this.#x = Math.min(this.#x, width);
+      this.#y = Math.min(this.#y, height);
+    }
+    this.#drawn = undefined;
+    this.#publish();
+  }
+
   /** A phone moved its thumb. */
   move(dx: number, dy: number, from: string): void {
     if (!this.#usable()) return;

@@ -1051,6 +1051,7 @@ export function describeWebHostContract(
           pointer!.click(300, 400);
           pointer!.rightClick(500, 600);
           pointer!.scroll(300, 400, -12, -24);
+          await new Promise((r) => setTimeout(r, 0));
 
           expect(rig.pointerEvents?.()).toEqual([
             { type: "move", x: 120, y: 241 },
@@ -1064,6 +1065,15 @@ export function describeWebHostContract(
           ]);
           // Couch's own pointer clicks are not reported as the household's Mac mouse.
           expect(rig.events.filter((e) => e.type === "input")).toEqual([]);
+        });
+
+        test("the household's own mouse press shortly after is still reported", async () => {
+          const rig = makeRig();
+          await rig.show();
+          rig.host.pointer!.click(300, 400);
+          await new Promise((r) => setTimeout(r, 700));
+          rig.pageMouseDown();
+          expect(rig.events.filter((e) => e.type === "input")).toHaveLength(1);
         });
 
         test("setMode lifts the D-pad shield while on, keeps it lifted on reload, and restores it when off", async () => {

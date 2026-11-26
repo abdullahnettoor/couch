@@ -127,7 +127,9 @@ function load() {
     surface.handlers.pointerup?.({ pointerId: id, clientX: x, clientY: y });
   const commands = () =>
     sent.map((m) => JSON.parse(m) as { command: string; args?: Record<string, number> });
-  const pointerCommands = () => commands().filter((c) => c.command.startsWith("pointer"));
+  const pointerCommands = () =>
+    commands().filter((c) => c.command.startsWith("pointer") && c.command !== "pointerShow");
+  const shows = () => commands().filter((c) => c.command === "pointerShow");
   const tap = (id: string) => {
     const el = els.get(id)!;
     el.handlers.click?.();
@@ -146,6 +148,7 @@ function load() {
     buzzes,
     commands,
     pointerCommands,
+    shows,
     tap,
     sent,
   };
@@ -320,6 +323,41 @@ describe("the Remote's touchpad", () => {
     p.els.get("tp-now")!.handlers.click!();
     expect(p.els.get("nowp")!.hidden).toBe(false);
     expect(p.els.get("tpad")!.hidden).toBe(true);
+  });
+
+  test("during playback the touchpad keeps its D-pad button, which turns Pointer mode off", () => {
+    const p = load();
+    p.snapshot({
+      layout: "app",
+      nowPlaying: {
+        title: "T",
+        folder: "F",
+        position: 1,
+        duration: 10,
+        paused: false,
+        subtitlesOn: false,
+        active: true,
+      },
+    });
+    p.els.get("chip-pad")!.handlers.click!();
+    expect(p.els.get("tp-dpad")!.hidden).toBe(false);
+    expect(p.els.get("tp-now")!.hidden).toBe(false);
+    p.tap("tp-dpad");
+    expect(p.commands().at(-1)).toEqual({
+      type: "command",
+      command: "pointerMode",
+      args: { on: false },
+    });
+  });
+
+  test("a still touch asks Couch to show the pointer, without clicking or moving", () => {
+    const p = load();
+    p.down(100, 100);
+    expect(p.shows()).toEqual([{ type: "command", command: "pointerShow" }]);
+    expect(p.pointerCommands()).toEqual([]);
+    p.up(100, 100);
+    p.advance(600);
+    expect(p.pointerCommands().map((c) => c.command)).toEqual(["pointerClick"]);
   });
 
   test("the touchpad marks a right-edge and a bottom-edge scroll strip", () => {

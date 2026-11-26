@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import vm from "node:vm";
 import { tmpdir } from "node:os";
-import { afterEach, beforeEach, expect, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
 const fake = vi.hoisted(() => {
   class FakeContents {
@@ -133,6 +133,7 @@ import type { YouTubeEvent } from "../ports/youtube.ts";
 import { COUCH_HOST_CONSOLE, COUCH_HOST_WEBKIT } from "./couch-host.ts";
 import { ElectronWebApp } from "./electron-web-app.ts";
 import {
+  demoflixDescription,
   describeWebHostContract,
   type HostPointerEvent,
   type HostRig,
@@ -272,6 +273,16 @@ class FakeWebKitView implements WebKitView {
     if (kind === "move") return;
     const button = kind === "click" ? "left" : "right";
     out.push({ type: "down", button, x, y }, { type: "up", button, x, y });
+    // The page's own mousedown reporter hears the press, and tells the host a moment later.
+    queueMicrotask(() => {
+      for (const l of Array.from(this.listeners))
+        l({
+          type: "message",
+          name: "couch",
+          body: { type: "input" },
+          frame: { isMainFrame: true, origin: "https://www.netflix.com" },
+        });
+    });
   }
   setInputRouting() {}
   guard = false;
@@ -388,4 +399,11 @@ afterEach(() => {
 describeWebHostContract("ElectronWebApp on fake WebContents", electronRig);
 describeWebHostContract("WebKitWebApp on the fake bridge", webkitRig, {
   playerOutsideDocument: false,
+});
+
+describe("who draws an App's questions, for the pointer", () => {
+  test("Chromium's are injected into the page; WebKit's are drawn by Couch's screen", () => {
+    expect(electronRig(demoflixDescription).host.pointer?.questionsOnPage ?? false).toBe(false);
+    expect(webkitRig(demoflixDescription).host.pointer?.questionsOnPage).toBe(true);
+  });
 });

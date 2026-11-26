@@ -30,6 +30,8 @@ export interface AppPointer {
   click(x: number, y: number): void;
   rightClick(x: number, y: number): void;
   scroll(x: number, y: number, dx: number, dy: number): void;
+  /** Present and true when Couch's own screen draws this App's questions (WebKit), so a question takes the pointer on the page, not in the App. */
+  questionsOnPage?: boolean;
   /** Pointer mode is on (true) or off for this App: lifts or restores the page's D-pad shield. */
   setMode(on: boolean): void;
 }

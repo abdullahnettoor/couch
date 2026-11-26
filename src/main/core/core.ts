@@ -133,12 +133,21 @@ const PICTURE_KEYS = [
   "typeText",
   "typeSubmit",
   "typeCancel",
+  "pointerShow",
   "pointerMove",
   "pointerScroll",
   "pointerClick",
   "pointerRightClick",
 ];
-const POINTER_TOUCH = ["pointerMove", "pointerScroll", "pointerClick", "pointerRightClick"];
+/** A phone's pointer gesture ends after this long without one of its commands (finger up). */
+const GESTURE_GAP_MS = 250;
+const POINTER_TOUCH = [
+  "pointerShow",
+  "pointerMove",
+  "pointerScroll",
+  "pointerClick",
+  "pointerRightClick",
+];
 /** A phone's D-pad: pressing it puts the pointer away. */
 const DPAD = [...NAV, "ok"];
 /** Views the Library search's query and focus survive, so Back returns to them. */
@@ -285,6 +294,7 @@ export class Core {
   #unsubDisplays: () => void;
   #screenSize = { width: 1920, height: 1080 };
   #pointer: PointerControl;
+  #gestures = new Map<string, () => void>();
   #idle = false;
   #cancelIdle: (() => void) | undefined;
   #displayAwake: boolean | undefined;
@@ -1365,18 +1375,35 @@ export class Core {
     this.#uiSounds.cue(sound);
   }
 
+  /** True while `from`'s pointer gesture that ended Picture off is still going; `start` begins it. Each command restarts the quiet gap that ends it. */
+  #swallowing(from: string, start = false): boolean {
+    if (!start && !this.#gestures.has(from)) return false;
+    this.#gestures.get(from)?.();
+    this.#gestures.set(
+      from,
+      this.#ports.clock.setTimeout(() => this.#gestures.delete(from), GESTURE_GAP_MS),
+    );
+    return true;
+  }
+
   /** The layer a pointer event goes to: only the one in front. Undefined where the pointer isn't used. */
   #pointerLayer(): PointerLayer | undefined {
     const s = this.#state;
     if (this.#quick.isOpen) return "quick";
     if (s.view === "player" || s.player) return undefined;
-    if (s.view === "app") return this.#front()?.pointer ? "app" : undefined;
+    if (s.view === "app") {
+      const pointer = this.#front()?.pointer;
+      if (!pointer) return undefined;
+      return s.confirm && pointer.questionsOnPage ? "page" : "app";
+    }
     return "page";
   }
 
   /** The Screen's content size, in the pixels the pointer moves in. */
   setScreenSize(size: { width: number; height: number }): void {
-    if (size.width > 0 && size.height > 0) this.#screenSize = size;
+    if (!(size.width > 0 && size.height > 0)) return;
+    this.#screenSize = size;
+    this.#pointer.resize();
   }
 
   /** The Mac's keyboard or mouse was used: the pointer steps aside until the next touch. */
@@ -1394,6 +1421,8 @@ export class Core {
 
   #handle(command: Command, from: Source): void {
     if (SCREEN_ONLY.includes(command.command) && from !== "screen") return;
+    if (from !== "screen" && POINTER_TOUCH.includes(command.command) && this.#swallowing(from))
+      return;
     this.#source = from;
     if (from !== "screen") this.#lastFrom = from;
     if (from !== "screen" && DPAD.includes(command.command)) this.#pointer.hide();
@@ -1401,6 +1430,8 @@ export class Core {
     this.#armIdle();
     if (this.#state.pictureOff && !this.#quick.isOpen && PICTURE_KEYS.includes(command.command)) {
       this.#state.pictureOff = false;
+      if (POINTER_TOUCH.includes(command.command) && from !== "screen")
+        this.#swallowing(from, true);
       this.#armAmbient();
       this.#emit();
       return;
@@ -1416,7 +1447,8 @@ export class Core {
     this.#armAmbient();
     if (POINTER_TOUCH.includes(command.command)) {
       if (from === "screen") return;
-      if (command.command === "pointerMove")
+      if (command.command === "pointerShow") this.#pointer.show(from);
+      else if (command.command === "pointerMove")
         this.#pointer.move(command.args?.dx ?? 0, command.args?.dy ?? 0, from);
       else if (command.command === "pointerScroll")
         this.#pointer.scroll(command.args?.dx ?? 0, command.args?.dy ?? 0, from);
