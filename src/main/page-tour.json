@@ -159,6 +159,7 @@
         "volume": 60,
         "muted": false,
         "pictureOff": false,
+        "pointerAvailable": true,
         "quickSettings": false,
         "remotes": 1
       },
@@ -578,7 +579,7 @@
           }
         ]
       },
-      "removed": ["apps", "continueCard"]
+      "removed": ["apps", "continueCard", "pointerAvailable"]
     },
     "sounds": []
   },
@@ -778,7 +779,8 @@
           "title": "S1E1 name",
           "left": "30 min left",
           "thumbKey": "still94605-1"
-        }
+        },
+        "pointerAvailable": true
       },
       "removed": ["nowPlaying", "upNext"]
     },
@@ -14161,7 +14163,7 @@
           }
         ]
       },
-      "removed": ["apps", "typeLabel"]
+      "removed": ["apps", "typeLabel", "pointerAvailable"]
     },
     "sounds": []
   },
@@ -15035,7 +15037,8 @@
           }
         ],
         "typeAvailable": true,
-        "typeLabel": "Search Library"
+        "typeLabel": "Search Library",
+        "pointerAvailable": true
       },
       "removed": ["nowPlaying", "upNext"]
     },
@@ -20675,7 +20678,7 @@
         "showVolume": true,
         "showSkip": true
       },
-      "removed": ["continueCard"]
+      "removed": ["continueCard", "pointerAvailable"]
     },
     "sounds": []
   },
@@ -21004,7 +21007,8 @@
         },
         "typeAvailable": false,
         "showVolume": false,
-        "showSkip": false
+        "showSkip": false,
+        "pointerAvailable": true
       },
       "removed": ["confirm", "typeLabel"]
     },
@@ -21093,7 +21097,7 @@
         "showVolume": true,
         "showSkip": true
       },
-      "removed": ["continueCard"]
+      "removed": ["continueCard", "pointerAvailable"]
     },
     "sounds": []
   },
@@ -21190,7 +21194,8 @@
         "layout": "other",
         "typeAvailable": false,
         "showVolume": false,
-        "showSkip": false
+        "showSkip": false,
+        "pointerAvailable": true
       },
       "removed": ["typeLabel"]
     },
@@ -22081,7 +22086,7 @@
           }
         ]
       },
-      "removed": ["apps", "continueCard"]
+      "removed": ["apps", "continueCard", "pointerAvailable"]
     },
     "sounds": []
   },
@@ -22389,7 +22394,8 @@
           "title": "S1E1 name",
           "left": "30 min left",
           "thumbKey": "still94605-1"
-        }
+        },
+        "pointerAvailable": true
       },
       "removed": ["nowPlaying", "upNext"]
     },
@@ -32164,7 +32170,7 @@
           }
         }
       },
-      "removed": ["apps", "typeLabel"]
+      "removed": ["apps", "typeLabel", "pointerAvailable"]
     },
     "sounds": []
   },
@@ -32456,7 +32462,8 @@
           }
         ],
         "typeAvailable": true,
-        "typeLabel": "Search Library"
+        "typeLabel": "Search Library",
+        "pointerAvailable": true
       },
       "removed": ["nowPlaying"]
     },
@@ -35174,7 +35181,7 @@
           }
         ]
       },
-      "removed": ["apps", "typeLabel"]
+      "removed": ["apps", "typeLabel", "pointerAvailable"]
     },
     "sounds": []
   },
@@ -37228,6 +37235,7 @@
     },
     "phone": {
       "set": {
+        "pointerAvailable": true,
         "quickSettings": true
       },
       "removed": []
@@ -39450,7 +39458,7 @@
           }
         ]
       },
-      "removed": ["apps", "typeLabel"]
+      "removed": ["apps", "typeLabel", "pointerAvailable"]
     },
     "sounds": []
   },
@@ -39639,6 +39647,7 @@
     },
     "phone": {
       "set": {
+        "pointerAvailable": true,
         "quickSettings": true
       },
       "removed": []
@@ -39655,7 +39664,7 @@
       "set": {
         "quickSettings": false
       },
-      "removed": []
+      "removed": ["pointerAvailable"]
     },
     "sounds": []
   },
@@ -39858,7 +39867,8 @@
           }
         ],
         "typeAvailable": true,
-        "typeLabel": "Search Library"
+        "typeLabel": "Search Library",
+        "pointerAvailable": true
       },
       "removed": ["nowPlaying", "upNext"]
     },
@@ -40801,7 +40811,7 @@
         "showVolume": true,
         "showSkip": true
       },
-      "removed": []
+      "removed": ["pointerAvailable"]
     },
     "sounds": []
   },
@@ -40905,7 +40915,8 @@
         "layout": "other",
         "typeAvailable": false,
         "showVolume": false,
-        "showSkip": false
+        "showSkip": false,
+        "pointerAvailable": true
       },
       "removed": ["typeLabel"]
     },

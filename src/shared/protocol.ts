@@ -66,6 +66,10 @@ export const COMMAND_NAMES = [
   "confirmAnswer",
   "openApp",
   "forgetContinue",
+  "pointerMode",
+  "pointerMove",
+  "pointerClick",
+  "pointerRightClick",
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
@@ -118,8 +122,11 @@ export interface CommandArgs {
   addon?: string;
   /** forgetContinue: the Continue watching entry's id (its `path`); without it, the newest */
   entry?: string;
-  /** setPictureOff: true hides the picture, false brings it back */
+  /** setPictureOff: true hides the picture, false brings it back; pointerMode: Pointer mode on or off */
   on?: boolean;
+  /** pointerMove: how far the thumb moved, in phone pixels */
+  dx?: number;
+  dy?: number;
   /** quickPick (Screen only): the id of the drawer row clicked */
   item?: string;
   /** typeText: the whole current text; confirmAnswer: the question's title the phone is answering; typeOpen and screenKey (Screen only): the first character */
@@ -626,6 +633,12 @@ export interface RemoteSnapshot {
   muted: boolean;
   /** Picture off is on: the Screen shows a black cover (the phone offers "Picture on"). */
   pictureOff: boolean;
+  /** The layer in front takes the pointer, so the phone offers the Pointer mode toggle. */
+  pointerAvailable?: true;
+  /** Pointer mode is on for what is in front: every phone shows its touchpad instead of the D-pad. */
+  pointer?: true;
+  /** Only to the phone that moved the pointer: counts the times it reached the Screen's edge, so that phone vibrates once per arrival. */
+  edgeCue?: number;
   /** The Quick settings drawer is open on the Screen (the phone shows the D-pad). */
   quickSettings: boolean;
   remotes: number;

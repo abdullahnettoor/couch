@@ -1,4 +1,5 @@
 import type { ScreenPayload, UiSoundEvent } from "../shared/protocol.ts";
+import type { PointerDraw, PointerInput } from "../shared/pointer.ts";
 import { Core, type Ports, type Source } from "./core/core.ts";
 import type { Command } from "../shared/protocol.ts";
 import { createFrontdoor, type FrontdoorOptions } from "./frontdoor.ts";
@@ -21,6 +22,14 @@ export interface CouchApp {
   onScreen(listener: (payload: ScreenPayload) => void): () => void;
   /** Subscribe to the Interface sounds the renderer should play. */
   onSound(listener: (event: UiSoundEvent) => void): () => void;
+  /** The Mac's keyboard or mouse was used: the pointer steps aside until a phone touches again. */
+  hidePointer(): void;
+  /** The Screen's content size (window pixels), where the pointer is drawn and clamped. */
+  setScreenSize(size: { width: number; height: number }): void;
+  /** Subscribe to where and whether to draw the pointer. */
+  onPointerDraw(listener: (draw: PointerDraw) => void): () => void;
+  /** Subscribe to the pointer events for Couch's own layers (the Screen's page and Quick settings). */
+  onPointerInput(listener: (input: PointerInput) => void): () => void;
   stop(): Promise<void>;
 }
 
@@ -90,6 +99,10 @@ export async function startApp(options: AppOptions): Promise<CouchApp> {
       return core.onChange(() => listener(core.screen()));
     },
     onSound: (listener) => core.onSound(listener),
+    hidePointer: () => core.hidePointer(),
+    setScreenSize: (size) => core.setScreenSize(size),
+    onPointerDraw: (listener) => core.onPointerDraw(listener),
+    onPointerInput: (listener) => core.onPointerInput(listener),
     async stop() {
       await remote?.close();
       core.dispose();

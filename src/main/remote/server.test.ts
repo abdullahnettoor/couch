@@ -52,6 +52,22 @@ describe("parseCommand limits", () => {
     ).toBeUndefined();
   });
 
+  test("pointer commands take only the numbers and the switch they are for", () => {
+    expect(parseCommand(raw("pointerMode", { on: true }))?.args).toEqual({ on: true });
+    expect(parseCommand(raw("pointerMode", { on: "yes" }))).toBeUndefined();
+    expect(parseCommand(raw("pointerMove", { dx: 3, dy: -4.5 }))?.args).toEqual({
+      dx: 3,
+      dy: -4.5,
+    });
+    expect(parseCommand(raw("pointerMove", { dx: "3", dy: 1 }))).toBeUndefined();
+    expect(
+      parseCommand(`{"type":"command","command":"pointerMove","args":{"dx":1e999,"dy":0}}`),
+    ).toBeUndefined();
+    expect(parseCommand(raw("pointerMove", { dx: 1, dy: 1, x: 5 }))).toBeUndefined();
+    expect(parseCommand(raw("pointerClick"))).toEqual({ command: "pointerClick" });
+    expect(parseCommand(raw("pointerRightClick", { dx: 1 }))).toBeUndefined();
+  });
+
   test("the transport ceiling is the Listener's 1 MiB", () => {
     expect(MAX_MESSAGE).toBe(1 << 20);
   });

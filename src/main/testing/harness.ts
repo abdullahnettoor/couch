@@ -3,6 +3,7 @@ import { IdleUnloader } from "../web/idle-unload.ts";
 import { NetflixApp } from "../apps/netflix/netflix-app.ts";
 import { YouTubeApp } from "../apps/youtube/youtube-app.ts";
 import type { App } from "../apps/app.ts";
+import type { PointerDraw, PointerInput } from "../../shared/pointer.ts";
 import { APP_ENTRIES, type AppEntry } from "../apps/index.ts";
 import type {
   Command,
@@ -103,7 +104,11 @@ export class FakeScreen {
   payloads: ScreenPayload[] = [];
   /** Every Interface sound the core asked the Screen to play. */
   sounds: UiSoundEvent[] = [];
+  /** Where the pointer was drawn, and the events it sent to Couch's own layers. */
+  pointer: { draws: PointerDraw[]; inputs: PointerInput[] } = { draws: [], inputs: [] };
   constructor(app: CouchApp) {
+    app.onPointerDraw((draw) => this.pointer.draws.push(draw));
+    app.onPointerInput((input) => this.pointer.inputs.push(input));
     app.onSound((event) => this.sounds.push(event));
     app.onScreen((payload) => this.payloads.push(payload));
     this.payloads.push(app.screen());

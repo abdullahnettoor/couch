@@ -53,6 +53,8 @@ const ARGS: Partial<Record<CommandName, Record<string, Field>>> = {
   pressPrompt: { id: { kind: "enum", values: ["skipIntro", "skipRecap", "nextEpisode"] } },
   setPictureOff: { on: { kind: "boolean" } },
   forgetContinue: { entry: text(2048, CONTINUE_ENTRY) },
+  pointerMode: { on: { kind: "boolean" } },
+  pointerMove: { dx: number, dy: number },
   confirmAnswer: { index: { kind: "integer" }, text: text() },
 };
 
