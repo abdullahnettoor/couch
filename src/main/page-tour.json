@@ -159,6 +159,7 @@
         "volume": 60,
         "muted": false,
         "pictureOff": false,
+        "pointerAvailable": true,
         "quickSettings": false,
         "remotes": 1
       },
@@ -578,7 +579,7 @@
           }
         ]
       },
-      "removed": ["apps", "continueCard"]
+      "removed": ["apps", "continueCard", "pointerAvailable"]
     },
     "sounds": []
   },
@@ -778,7 +779,8 @@
           "title": "S1E1 name",
           "left": "30 min left",
           "thumbKey": "still94605-1"
-        }
+        },
+        "pointerAvailable": true
       },
       "removed": ["nowPlaying", "upNext"]
     },
@@ -14161,7 +14163,7 @@
           }
         ]
       },
-      "removed": ["apps", "typeLabel"]
+      "removed": ["apps", "typeLabel", "pointerAvailable"]
     },
     "sounds": []
   },
@@ -15035,7 +15037,8 @@
           }
         ],
         "typeAvailable": true,
-        "typeLabel": "Search Library"
+        "typeLabel": "Search Library",
+        "pointerAvailable": true
       },
       "removed": ["nowPlaying", "upNext"]
     },
@@ -15908,6 +15911,7 @@
           "on": false,
           "running": false
         },
+        "pointerSpeed": "normal",
         "state": {
           "view": "settingsRemotes",
           "focus": {
@@ -15960,10 +15964,17 @@
             "c": 0
           },
           {
+            "id": "pointer-speed",
+            "label": "Pointer speed",
+            "action": "settings:pointer-speed",
+            "r": 2,
+            "c": 0
+          },
+          {
             "id": "listener",
             "label": "Start Couch Listener at login",
             "action": "settings:listener",
-            "r": 2,
+            "r": 3,
             "c": 0
           }
         ],
@@ -16041,7 +16052,7 @@
         "focusedId": "done",
         "focusedLabel": "Done"
       },
-      "removed": ["listener"]
+      "removed": ["listener", "pointerSpeed"]
     },
     "phone": {
       "set": {
@@ -16069,6 +16080,7 @@
           "on": false,
           "running": false
         },
+        "pointerSpeed": "normal",
         "state": {
           "view": "settingsRemotes",
           "focus": {
@@ -16121,10 +16133,17 @@
             "c": 0
           },
           {
+            "id": "pointer-speed",
+            "label": "Pointer speed",
+            "action": "settings:pointer-speed",
+            "r": 2,
+            "c": 0
+          },
+          {
             "id": "listener",
             "label": "Start Couch Listener at login",
             "action": "settings:listener",
-            "r": 2,
+            "r": 3,
             "c": 0
           }
         ],
@@ -16253,7 +16272,7 @@
         "focusedId": "remotes",
         "focusedLabel": "Remotes and Devices"
       },
-      "removed": ["listener"]
+      "removed": ["listener", "pointerSpeed"]
     },
     "phone": {
       "set": {
@@ -22081,7 +22100,7 @@
           }
         ]
       },
-      "removed": ["apps", "continueCard"]
+      "removed": ["apps", "continueCard", "pointerAvailable"]
     },
     "sounds": []
   },
@@ -22389,7 +22408,8 @@
           "title": "S1E1 name",
           "left": "30 min left",
           "thumbKey": "still94605-1"
-        }
+        },
+        "pointerAvailable": true
       },
       "removed": ["nowPlaying", "upNext"]
     },
@@ -32164,7 +32184,7 @@
           }
         }
       },
-      "removed": ["apps", "typeLabel"]
+      "removed": ["apps", "typeLabel", "pointerAvailable"]
     },
     "sounds": []
   },
@@ -32456,7 +32476,8 @@
           }
         ],
         "typeAvailable": true,
-        "typeLabel": "Search Library"
+        "typeLabel": "Search Library",
+        "pointerAvailable": true
       },
       "removed": ["nowPlaying"]
     },
@@ -35174,7 +35195,7 @@
           }
         ]
       },
-      "removed": ["apps", "typeLabel"]
+      "removed": ["apps", "typeLabel", "pointerAvailable"]
     },
     "sounds": []
   },
@@ -37228,6 +37249,7 @@
     },
     "phone": {
       "set": {
+        "pointerAvailable": true,
         "quickSettings": true
       },
       "removed": []
@@ -39450,7 +39472,7 @@
           }
         ]
       },
-      "removed": ["apps", "typeLabel"]
+      "removed": ["apps", "typeLabel", "pointerAvailable"]
     },
     "sounds": []
   },
@@ -39639,6 +39661,7 @@
     },
     "phone": {
       "set": {
+        "pointerAvailable": true,
         "quickSettings": true
       },
       "removed": []
@@ -39655,7 +39678,7 @@
       "set": {
         "quickSettings": false
       },
-      "removed": []
+      "removed": ["pointerAvailable"]
     },
     "sounds": []
   },
@@ -39858,7 +39881,8 @@
           }
         ],
         "typeAvailable": true,
-        "typeLabel": "Search Library"
+        "typeLabel": "Search Library",
+        "pointerAvailable": true
       },
       "removed": ["nowPlaying", "upNext"]
     },

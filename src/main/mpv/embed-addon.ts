@@ -6,6 +6,7 @@ import type { DrawerGlass } from "../web/quick-drawer.ts";
 import type { WebKitBridge, WebKitEvent, WebKitKey, WebKitView } from "../web/webkit-bridge.ts";
 import type { MediaCommand, RemoteCommands } from "../media-keys.ts";
 import type { EmbedFactory } from "./mpv-player.ts";
+import type { NativePointer } from "../pointer-presenter.ts";
 
 type DrawerGlassRect = Parameters<DrawerGlass["open"]>[0];
 
@@ -48,6 +49,10 @@ interface Addon {
   getColor(id: number): [number, number, number] | null;
   glassSupported(): boolean;
   destroy(id: number): void;
+  /** Pointer mode's arrow: a click-through view above every other view of the window. `styleJson` is a `PointerPixels`. */
+  setPointerStyle?(handle: Buffer, styleJson: string): void;
+  /** Places the arrow's tip at a point of the window's content (top-left origin), shown or faded out. */
+  setPointer?(handle: Buffer, x: number, y: number, shown: boolean): void;
   setCursorHidden(hidden: boolean): void;
   watchMouseMoves(cb: () => void): void;
   unwatchMouseMoves(): void;
@@ -105,6 +110,8 @@ export interface WebKitAddon {
   webkitAnswerKey(id: number, keyId: number, replay: boolean): void;
   /** A real mouse-moved event at a point of the page (client coordinates, top-left origin). */
   webkitWakePointer(id: number, x: number, y: number): void;
+  /** Pointer mode: kind 0 move, 1 click, 2 right-click, 3 scroll (`dx`, `dy` in wheel pixels), at a point of the view. */
+  webkitPointer(id: number, kind: number, x: number, y: number, dx: number, dy: number): void;
   /**
    * What real input the view takes off Chromium's transparent layer: `keys` reports physical keys (kind "key", b = JSON
    * of the key, with the id the host answers) while the view is the first responder, holding back the keys Couch may want;
@@ -176,6 +183,37 @@ export function watchMouseMoves(cb: () => void): () => void {
     return () => addon.unwatchMouseMoves();
   } catch {
     return () => {};
+  }
+}
+
+/**
+ * Pointer mode's arrow as a native click-through view above all of the window's views, or undefined when the
+ * add-on isn't built (or is an older build without it): the renderer then draws it.
+ */
+export function createPointerOverlay(
+  win: () => BrowserWindow | undefined,
+  load: () => Pick<Addon, "setPointer" | "setPointerStyle"> = loadAddon,
+): NativePointer | undefined {
+  try {
+    const addon = load();
+    if (typeof addon.setPointer !== "function" || typeof addon.setPointerStyle !== "function")
+      return undefined;
+    const live = () => {
+      const window = win();
+      return window && !window.isDestroyed() ? window : undefined;
+    };
+    return {
+      setStyle: (style) => {
+        const window = live();
+        if (window) addon.setPointerStyle?.(window.getNativeWindowHandle(), JSON.stringify(style));
+      },
+      place: (x, y, shown) => {
+        const window = live();
+        if (window) addon.setPointer?.(window.getNativeWindowHandle(), x, y, shown);
+      },
+    };
+  } catch {
+    return undefined;
   }
 }
 
@@ -370,6 +408,15 @@ export function createWebKitBridge(
         sendKey: (key, down) => addon.webkitSendKey(id, key, down),
         answerKey: (keyId, replay) => addon.webkitAnswerKey(id, keyId, replay),
         wakePointer: (x, y) => addon.webkitWakePointer(id, x, y),
+        pointer: (kind, x, y, dx = 0, dy = 0) =>
+          addon.webkitPointer(
+            id,
+            ["move", "click", "rightClick", "scroll"].indexOf(kind),
+            x,
+            y,
+            dx,
+            dy,
+          ),
         setNavigationGuard: (on) => addon.webkitSetNavigationGuard(id, on),
         answerNavigation: (navId, allow) => addon.webkitAnswerNavigation(id, navId, allow),
         setInputRouting: (r) =>

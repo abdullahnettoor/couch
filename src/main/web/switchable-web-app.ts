@@ -1,3 +1,4 @@
+import type { AppPointer } from "../../shared/pointer.ts";
 import type { Confirmation, PromptId, TrackKind } from "../../shared/protocol.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
 import type { KeyGate } from "./keyboard-policy.ts";
@@ -36,11 +37,25 @@ export class SwitchableWebApp implements YouTube {
   #visible = false;
   #pending: Engine | undefined;
   #textSize: TextSize | undefined;
+  #pointerMode = false;
+  readonly #pointer: AppPointer = {
+    move: (x, y) => this.#host.pointer?.move(x, y),
+    click: (x, y) => this.#host.pointer?.click(x, y),
+    rightClick: (x, y) => this.#host.pointer?.rightClick(x, y),
+    scroll: (x, y, dx, dy) => this.#host.pointer?.scroll(x, y, dx, dy),
+    setMode: (on) => {
+      this.#pointerMode = on;
+      this.#host.pointer?.setMode(on);
+    },
+  };
 
   constructor(create: (engine: Engine) => SwitchableHost, engine: Engine) {
     this.#create = create;
     this.#engine = engine;
     this.#host = create(engine);
+    Object.defineProperty(this.#pointer, "questionsOnPage", {
+      get: () => this.#host.pointer?.questionsOnPage,
+    });
     this.#stop = this.#host.onEvent((e) => this.#emit(e));
   }
 
@@ -71,6 +86,7 @@ export class SwitchableWebApp implements YouTube {
       if (this.#capturing) next.captureText(true);
       if (this.#overlay) next.setOverlay?.(true);
       if (this.#textSize !== undefined) next.setTextSize?.(this.#textSize);
+      if (this.#pointerMode) next.pointer?.setMode(true);
     } catch (e) {
       try {
         next.dispose();
@@ -221,6 +237,9 @@ export class SwitchableWebApp implements YouTube {
   }
   setAddons(ids: string[], note?: string): void {
     this.#host.setAddons(ids, note);
+  }
+  get pointer(): AppPointer | undefined {
+    return this.#host.pointer ? this.#pointer : undefined;
   }
   onEvent(listener: (event: YouTubeEvent) => void): () => void {
     this.#listeners.add(listener);

@@ -3,13 +3,15 @@ import type { Confirmation, PromptId, TrackKind } from "../../shared/protocol.ts
 import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
 import { FIELD_BLURRED, FIELD_FOCUSED, FIELD_FOCUSED_QUERY } from "./page-focus.ts";
 import { hiddenScript } from "./hidden-audio.ts";
-import { pageFocusFunction } from "./page-focus.ts";
+import { pageFocusFunction, pointerModeScript } from "./page-focus.ts";
+import type { AppPointer } from "../../shared/pointer.ts";
 import type { KeyGate } from "./keyboard-policy.ts";
 import { WebKitKeyboard } from "./webkit-keyboard.ts";
 import { KEY_CLAIM_FUNCTION, PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import type { IdleLifecycle } from "./idle-unload.ts";
 import type { WebAppDescription } from "./web-app.ts";
 import type {
+  PointerKind,
   WebKitBridge,
   WebKitEvent,
   WebKitCookie,
@@ -53,6 +55,9 @@ export interface WebKitHostWindow {
 export function userScriptSource(funcs: string[]): string {
   return funcs.map((f) => `try { (${f})(); } catch (e) {}`).join("\n");
 }
+
+/** How long after Couch's own pointer click the page's mouse-down report is taken as that click's. */
+const OWN_PRESS_REPORT_MS = 500;
 
 /**
  * WebKit has no console-message event: Couch's own `console.debug("couch:...")` signals (the confirmation's buttons,
@@ -123,6 +128,10 @@ export class WebKitWebApp implements YouTube {
   /** Something of Couch's own that takes the pointer and the keys is drawn over the page (Quick settings, a confirmation, Picture off). */
   #overlay = false;
   #disposed = false;
+  /** Pointer mode is on for this App: the page's D-pad shield is lifted. */
+  #pointerMode = false;
+  /** When Couch last clicked in the page itself: the page's report of that press is not the household's input. */
+  #ownPressAt = -Infinity;
   /** The native view holds main-frame navigations for `navigating` while a Continue open is pending. */
   #guardOn = false;
   #stopResize: (() => void) | void = undefined;
@@ -264,6 +273,7 @@ export class WebKitWebApp implements YouTube {
     switch (event.type) {
       case "loaded":
         this.#applyZoom();
+        if (this.#pointerMode) this.#run(pointerModeScript(true));
         // The address change may have been answered by the old document; the new one is asked once it is there.
         this.#recheckField();
         if (this.#failed || !this.#isOwnPage(event.url)) return;
@@ -300,6 +310,25 @@ export class WebKitWebApp implements YouTube {
     }
   }
 
+  /** The pointer, as Pointer mode asks of an App: real mouse events in the view at a window point, only while it is on screen. */
+  readonly pointer: AppPointer = {
+    questionsOnPage: true,
+    move: (x, y) => this.#point("move", Math.round(x), Math.round(y)),
+    click: (x, y) => this.#point("click", Math.round(x), Math.round(y)),
+    rightClick: (x, y) => this.#point("rightClick", Math.round(x), Math.round(y)),
+    scroll: (x, y, dx, dy) => this.#point("scroll", Math.round(x), Math.round(y), dx, dy),
+    setMode: (on) => {
+      this.#pointerMode = on;
+      this.#run(pointerModeScript(on));
+    },
+  };
+
+  #point(kind: PointerKind, x: number, y: number, dx?: number, dy?: number): void {
+    if (!this.#visible || this.#overlay) return;
+    if (kind === "click" || kind === "rightClick") this.#ownPressAt = Date.now();
+    this.#view?.pointer(kind, x, y, dx, dy);
+  }
+
   /** A finished load counts only over https at one of the App's own hosts (the dev test page's loopback origin is its own too). */
   #isOwnPage(url: string): boolean {
     try {
@@ -323,7 +352,9 @@ export class WebKitWebApp implements YouTube {
     } else if (message?.type === "console") {
       this.#onConsole(message.message);
     } else if (message?.type === "input") {
-      if (this.#visible && !this.#capturing) this.#emit({ type: "input" });
+      // The page reports Couch's own pointer click too, a moment after it: that is not the household's mouse.
+      const own = Date.now() - this.#ownPressAt < OWN_PRESS_REPORT_MS;
+      if (this.#visible && !this.#capturing && !own) this.#emit({ type: "input" });
     } else if (message?.type === "wake-pointer" && this.#visible) {
       this.#view?.wakePointer(message.x, message.y);
     }

@@ -50,6 +50,13 @@ class Keeper {
     auto it = std::find(apps_.begin(), apps_.end(), v);
     if (it != apps_.end()) apps_.erase(it);
   }
+  // The pointer overlay: always the topmost view of the window, above the video and its glass, whatever Electron adds.
+  void setPointer(V v) { pointer_ = v; hasPointer_ = true; ensure(); }
+  void removePointer() {
+    if (!hasPointer_) return;
+    hasPointer_ = false;
+    host_.remove(pointer_);
+  }
   // Ends the video's role (its glass stays in the host for the caller to remove); the drawer's glass is untouched.
   void release() { has_ = false; glass_.clear(); }
 
@@ -66,6 +73,7 @@ class Keeper {
     V added{};
     for (V v : now) {
       if (std::find(before_.begin(), before_.end(), v) != before_.end()) continue;
+      if (hasPointer_ && v == pointer_) continue;
       if (found) many = true;
       added = v; found = true;
     }
@@ -101,6 +109,7 @@ class Keeper {
   // The window is going away: nothing is placed or kept any more, and the drawer's glass leaves the host.
   void dispose() {
     clearDrawer();
+    removePointer();
     has_ = false; glass_.clear(); apps_.clear(); hasAnchor_ = false; registering_ = false; before_.clear();
   }
 
@@ -121,10 +130,11 @@ class Keeper {
     out.insert(out.end(), apps_.begin(), apps_.end());
     return out;
   }
-  // What must be on top, in order: the video and its glass when the Library places them above the web contents.
+  // What must be on top, in order: the video and its glass when the Library places them above the web contents, then the pointer.
   std::vector<V> topRoles() const {
     std::vector<V> out;
     if (has_ && !below_) { out.push_back(video_); out.insert(out.end(), glass_.begin(), glass_.end()); }
+    if (hasPointer_) out.push_back(pointer_);
     return out;
   }
 
@@ -169,8 +179,8 @@ class Keeper {
 
   Host<V> &host_;
   V video_{};
-  V drawerGlass_{}, anchor_{};
-  bool below_ = true, has_ = false, busy_ = false, drawerOn_ = false, hasAnchor_ = false, registering_ = false;
+  V drawerGlass_{}, anchor_{}, pointer_{};
+  bool below_ = true, has_ = false, busy_ = false, drawerOn_ = false, hasAnchor_ = false, registering_ = false, hasPointer_ = false;
   std::vector<V> glass_, before_, apps_;
 };
 

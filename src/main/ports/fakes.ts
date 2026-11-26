@@ -1,4 +1,5 @@
 import type { TextSize } from "../../shared/text-size.ts";
+import type { AppPointer } from "../../shared/pointer.ts";
 import type { Thumbnails } from "./thumbnails.ts";
 import type {
   ConvertedPicture,
@@ -112,6 +113,15 @@ export class FakePlayer implements Player {
 
 export class FakeYouTube implements YouTube {
   readonly calls: Array<{ call: string; args: unknown[] }> = [];
+  /** Every pointer call (Pointer mode), in order. */
+  readonly pointerCalls: Array<{ call: string; args: unknown[] }> = [];
+  readonly pointer: AppPointer = {
+    move: (x, y) => this.pointerCalls.push({ call: "move", args: [x, y] }),
+    click: (x, y) => this.pointerCalls.push({ call: "click", args: [x, y] }),
+    rightClick: (x, y) => this.pointerCalls.push({ call: "rightClick", args: [x, y] }),
+    scroll: (x, y, dx, dy) => this.pointerCalls.push({ call: "scroll", args: [x, y, dx, dy] }),
+    setMode: (on) => this.pointerCalls.push({ call: "setMode", args: [on] }),
+  };
   #events = emitter<YouTubeEvent>();
   #tracker = new RouteTracker();
   #record(call: string, ...args: unknown[]) {
@@ -261,6 +271,16 @@ export class FakeWebApp implements App {
   readonly setTrack: ((kind: TrackKind, id: string) => void) | undefined;
   readonly pressPrompt: ((id: PromptId) => void) | undefined;
   readonly setSpeed: ((speed: number) => void) | undefined;
+  /** Every pointer call (Pointer mode), in order. */
+  readonly pointerCalls: Array<{ call: string; args: unknown[] }> = [];
+  readonly pointer: AppPointer = {
+    move: (x, y) => this.pointerCalls.push({ call: "move", args: [x, y] }),
+    click: (x, y) => this.pointerCalls.push({ call: "click", args: [x, y] }),
+    rightClick: (x, y) => this.pointerCalls.push({ call: "rightClick", args: [x, y] }),
+    scroll: (x, y, dx, dy) => this.pointerCalls.push({ call: "scroll", args: [x, y, dx, dy] }),
+    setMode: (on) => this.pointerCalls.push({ call: "setMode", args: [on] }),
+    questionsOnPage: false,
+  };
   /** Settable, so a test can play an App whose engine stops supporting Text size. */
   supportsTextSize: boolean;
   setTextSize: ((size: TextSize) => void) | undefined;

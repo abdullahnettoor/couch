@@ -10,3 +10,19 @@ body.idle,
 body.idle * {
   cursor: none !important;
 }
+
+/* Pointer mode's arrow when the native overlay isn't there: above the whole page, click-through. */
+.couch-pointer {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--duration-fade);
+  will-change: transform;
+}
+.couch-pointer.on {
+  opacity: 1;
+  transition: none;
+}

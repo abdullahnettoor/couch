@@ -80,6 +80,9 @@ export const ICON_PATHS = {
   /** Phosphor has no monitor-slash: this is its Monitor (fill) with a slash and a gap cut around it. */
   monitorSlash:
     '<mask id="couch-monitor-slash"><rect width="256" height="256" fill="#fff"/><path d="M40,32L216,224" stroke="#000" stroke-width="44" stroke-linecap="round"/></mask><path mask="url(#couch-monitor-slash)" d="M232,64V176a24,24,0,0,1-24,24H48a24,24,0,0,1-24-24V64A24,24,0,0,1,48,40H208A24,24,0,0,1,232,64ZM160,216H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16Z"/><path d="M40,32L216,224" fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round"/>',
+  /** Couch's own: the pointer arrow, for the Pointer mode toggle. */
+  pointer:
+    '<path d="M60,28L60,196L108,156L140,228L170,214L138,144L204,138Z" stroke-linejoin="round"/>',
 } as const;
 
 export type IconName = keyof typeof ICON_PATHS;

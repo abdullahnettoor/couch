@@ -11,6 +11,8 @@
  * (the Screen's `--u`, the phone's `1px`, a Web App page's `--couch-u`). Strings that carry lengths
  * write them as `{u}`, e.g. `calc(24 * {u})`.
  */
+import type { PointerStyleName } from "./pointer.ts";
+
 export interface Look {
   /** Colours, written as `--<name>`. */
   color: Record<ColorName, string>;
@@ -55,6 +57,11 @@ export interface Look {
     scales: Record<FocusScaleName, number>;
     /** Backgrounds, text colours and shadows of the focus styles that differ (`--focus-<name>`; `{u}` is the unit). */
     variant: Record<FocusVariantName, string>;
+  };
+  /** The pointer Pointer mode draws on the Screen: the style in use, and each style Couch can draw. */
+  pointer: {
+    style: PointerStyleName;
+    styles: Record<PointerStyleName, PointerArrow>;
   };
   metrics: {
     base: { width: number; height: number };
@@ -111,6 +118,17 @@ export interface Look {
       panScale: number;
     };
   };
+}
+
+/** The large arrow: its outline as points in a box whose height is 1 (the tip at 0,0), and how it is painted. Lengths are design pixels. */
+export interface PointerArrow {
+  /** The arrow's height. */
+  size: number;
+  points: [number, number][];
+  fill: string;
+  stroke: string;
+  strokeWidth: number;
+  shadow: { color: string; blur: number; drop: number };
 }
 
 export type ColorName =
@@ -969,6 +987,28 @@ export const GLASS: Look = {
       shadowField:
         "inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 0 0 calc(3 * {u}) rgba(255, 255, 255, 0.85), 0 calc(16 * {u}) calc(40 * {u}) rgba(0, 0, 0, 0.45)",
       shadowSlider: "0 0 0 calc(3 * {u}) rgba(255, 255, 255, 0.5)",
+    },
+  },
+  pointer: {
+    style: "arrow",
+    styles: {
+      // About twice a Mac cursor at TV distance: a calm white arrow with a dark edge and a soft shadow.
+      arrow: {
+        size: 48,
+        points: [
+          [0, 0],
+          [0, 0.86],
+          [0.2, 0.68],
+          [0.34, 1],
+          [0.5, 0.93],
+          [0.37, 0.62],
+          [0.62, 0.62],
+        ],
+        fill: "rgba(255, 255, 255, 1)",
+        stroke: "rgba(18, 18, 20, 1)",
+        strokeWidth: 3,
+        shadow: { color: "rgba(0, 0, 0, 0.45)", blur: 10, drop: 4 },
+      },
     },
   },
   metrics: {

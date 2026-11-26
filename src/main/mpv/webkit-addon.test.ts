@@ -42,6 +42,7 @@ function fakeAddon() {
     webkitSendKey: (id, key, down) => calls.push(["key", id, key, down]),
     webkitAnswerKey: (id, keyId, replay) => calls.push(["answer", id, keyId, replay]),
     webkitWakePointer: (id, x, y) => calls.push(["wake", id, x, y]),
+    webkitPointer: (id, kind, x, y, dx, dy) => calls.push(["pointer", id, kind, x, y, dx, dy]),
     webkitSetInput: (id, k, c, f, p) => calls.push(["input", id, k, c, f, p]),
     webkitSetNavigationGuard: (id, on) => calls.push(["guard", id, on]),
     webkitAnswerNavigation: (id, navId, allow) => calls.push(["navigation", id, navId, allow]),
@@ -240,11 +241,19 @@ describe("the WebKit bridge over the native add-on", () => {
     view.answerKey(5, true);
     view.answerKey(6, false);
     view.wakePointer(510, 400);
+    view.pointer("move", 1, 2);
+    view.pointer("click", 3, 4);
+    view.pointer("rightClick", 5, 6);
+    view.pointer("scroll", 7, 8, 0, -40);
     expect(f.calls.slice(1)).toEqual([
       ["input", 7, true, false, true, true],
       ["answer", 7, 5, true],
       ["answer", 7, 6, false],
       ["wake", 7, 510, 400],
+      ["pointer", 7, 0, 1, 2, 0, 0],
+      ["pointer", 7, 1, 3, 4, 0, 0],
+      ["pointer", 7, 2, 5, 6, 0, 0],
+      ["pointer", 7, 3, 7, 8, 0, -40],
     ]);
   });
 

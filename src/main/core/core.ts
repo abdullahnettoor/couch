@@ -85,6 +85,13 @@ import { LibrarySearchPage } from "./pages/library-search-page.ts";
 import { AMBIENT_MS } from "./home-view.ts";
 import type { TimeFormat } from "../../shared/clock-format.ts";
 import { AppSpeed } from "./app-speed.ts";
+import { PointerControl } from "./pointer.ts";
+import {
+  nextPointerSpeed,
+  type PointerDraw,
+  type PointerInput,
+  type PointerLayer,
+} from "../../shared/pointer.ts";
 import { MetadataService } from "./metadata-service.ts";
 import { nullMetadata, type Metadata } from "../ports/metadata.ts";
 
@@ -126,7 +133,23 @@ const PICTURE_KEYS = [
   "typeText",
   "typeSubmit",
   "typeCancel",
+  "pointerShow",
+  "pointerMove",
+  "pointerScroll",
+  "pointerClick",
+  "pointerRightClick",
 ];
+/** A phone's pointer gesture ends after this long without one of its commands (finger up). */
+const GESTURE_GAP_MS = 250;
+const POINTER_TOUCH = [
+  "pointerShow",
+  "pointerMove",
+  "pointerScroll",
+  "pointerClick",
+  "pointerRightClick",
+];
+/** A phone's D-pad: pressing it puts the pointer away. */
+const DPAD = [...NAV, "ok"];
 /** Views the Library search's query and focus survive, so Back returns to them. */
 const SEARCH_KEEPS: View[] = ["librarySearch", "show", "fixMatch", "player"];
 const SEARCH_FROM: View[] = ["library", "folder", "show", "librarySearch"];
@@ -269,12 +292,27 @@ export class Core {
   #cancelNote: (() => void) | undefined;
   #displayId: number | undefined;
   #unsubDisplays: () => void;
+  #screenSize = { width: 1920, height: 1080 };
+  #pointer: PointerControl;
+  #gestures = new Map<string, () => void>();
   #idle = false;
   #cancelIdle: (() => void) | undefined;
   #displayAwake: boolean | undefined;
 
   constructor(ports: Ports) {
     this.#ports = ports;
+    this.#pointer = new PointerControl({
+      clock: ports.clock,
+      store: ports.store,
+      size: () => this.#screenSize,
+      place: () => (this.#state.view === "app" && this.#state.app ? this.#state.app : "couch"),
+      layer: () => this.#pointerLayer(),
+      app: () => {
+        const front = this.#front();
+        return front?.pointer ? { id: front.id, pointer: front.pointer } : undefined;
+      },
+      changed: () => this.#emit(),
+    });
     this.#history = new History(ports.store);
     const art =
       ports.continueArt && new ContinueArt(ports.continueArt.dir, ports.continueArt.fetch);
@@ -584,6 +622,8 @@ export class Core {
       settingsRemotes: new RemotesPage(pageContext, {
         listener: () => this.#login.item,
         refresh: () => void this.refreshLoginItem(),
+        pointerSpeed: () => this.#pointer.speed,
+        stepPointerSpeed: () => this.#pointer.setSpeed(nextPointerSpeed(this.#pointer.speed)),
       }),
       settingsLibrary: new LibrarySettingsPage(pageContext, settingsHost),
       addPhone: new AddPhonePage(pageContext),
@@ -1174,6 +1214,9 @@ export class Core {
       volume: s.volume,
       muted: this.#sound.muted,
       pictureOff: s.pictureOff,
+      ...(this.#pointerLayer() ? { pointerAvailable: true as const } : {}),
+      ...(this.#pointer.active ? { pointer: true as const } : {}),
+      ...(this.#pointer.edgeCue(remote) ? { edgeCue: this.#pointer.edgeCue(remote) } : {}),
       quickSettings: this.#quick.isOpen,
       ...(setup ? { setup } : {}),
       remotes: s.remotes,
@@ -1332,14 +1375,63 @@ export class Core {
     this.#uiSounds.cue(sound);
   }
 
+  /** True while `from`'s pointer gesture that ended Picture off is still going; `start` begins it. Each command restarts the quiet gap that ends it. */
+  #swallowing(from: string, start = false): boolean {
+    if (!start && !this.#gestures.has(from)) return false;
+    this.#gestures.get(from)?.();
+    this.#gestures.set(
+      from,
+      this.#ports.clock.setTimeout(() => this.#gestures.delete(from), GESTURE_GAP_MS),
+    );
+    return true;
+  }
+
+  /** The layer a pointer event goes to: only the one in front. Undefined where the pointer isn't used. */
+  #pointerLayer(): PointerLayer | undefined {
+    const s = this.#state;
+    if (this.#quick.isOpen) return "quick";
+    if (s.view === "player" || s.player) return undefined;
+    if (s.view === "app") {
+      const pointer = this.#front()?.pointer;
+      if (!pointer) return undefined;
+      return s.confirm && pointer.questionsOnPage ? "page" : "app";
+    }
+    return "page";
+  }
+
+  /** The Screen's content size, in the pixels the pointer moves in. */
+  setScreenSize(size: { width: number; height: number }): void {
+    if (!(size.width > 0 && size.height > 0)) return;
+    this.#screenSize = size;
+    this.#pointer.resize();
+  }
+
+  /** The Mac's keyboard or mouse was used: the pointer steps aside until the next touch. */
+  hidePointer(): void {
+    this.#pointer.hide();
+  }
+
+  onPointerDraw(listener: (draw: PointerDraw) => void): () => void {
+    return this.#pointer.onDraw(listener);
+  }
+
+  onPointerInput(listener: (input: PointerInput) => void): () => void {
+    return this.#pointer.onInput(listener);
+  }
+
   #handle(command: Command, from: Source): void {
     if (SCREEN_ONLY.includes(command.command) && from !== "screen") return;
+    if (from !== "screen" && POINTER_TOUCH.includes(command.command) && this.#swallowing(from))
+      return;
     this.#source = from;
     if (from !== "screen") this.#lastFrom = from;
+    if (from !== "screen" && DPAD.includes(command.command)) this.#pointer.hide();
     this.#ports.mac.wakeDisplay();
     this.#armIdle();
     if (this.#state.pictureOff && !this.#quick.isOpen && PICTURE_KEYS.includes(command.command)) {
       this.#state.pictureOff = false;
+      if (POINTER_TOUCH.includes(command.command) && from !== "screen")
+        this.#swallowing(from, true);
       this.#armAmbient();
       this.#emit();
       return;
@@ -1353,6 +1445,16 @@ export class Core {
       }
     }
     this.#armAmbient();
+    if (POINTER_TOUCH.includes(command.command)) {
+      if (from === "screen") return;
+      if (command.command === "pointerShow") this.#pointer.show(from);
+      else if (command.command === "pointerMove")
+        this.#pointer.move(command.args?.dx ?? 0, command.args?.dy ?? 0, from);
+      else if (command.command === "pointerScroll")
+        this.#pointer.scroll(command.args?.dx ?? 0, command.args?.dy ?? 0, from);
+      else this.#pointer.press(command.command === "pointerClick" ? "click" : "rightClick", from);
+      return;
+    }
     if (this.#setup.isOpen && this.#confirmCommand(command)) return;
     if (this.#setup.handle(command)) return;
     if (command.command === "openApp") {
@@ -1461,6 +1563,10 @@ export class Core {
         break;
       case "setPictureOff":
         this.#setPictureOff(command.args?.on === true);
+        break;
+      case "pointerMode":
+        if (from !== "screen" && this.#pointerLayer() !== undefined)
+          this.#pointer.setMode(command.args?.on === true);
         break;
       case "openSettings":
         if (this.#state.view === "home") this.#setView("settings");
@@ -1818,6 +1924,7 @@ export class Core {
     this.#unsubPlayer();
     this.#offUpdates();
     for (const off of this.#appsOff) off();
+    this.#pointer.dispose();
     this.#listeners.clear();
     this.#soundListeners.clear();
   }
@@ -2141,6 +2248,7 @@ export class Core {
 
   #emit(): void {
     this.#syncPictureOff();
+    this.#pointer.sync();
     this.#releaseStrayTyping();
     const raised =
       this.#player.mode !== "hidden" &&

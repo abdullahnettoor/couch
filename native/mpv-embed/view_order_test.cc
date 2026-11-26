@@ -420,6 +420,46 @@ int main() {
   all.electronAdds("webkit");
   CHECK(layered(all, {"video", "glass0", "webkit", "compositor", "web:renderer"}));
 
+  // The pointer overlay is the topmost view, above the web contents, the cover, the drawer and a video placed above them.
+  FakeWindow ptr;
+  ptr.stack = {"compositor", "web:renderer"};
+  vieworder::Keeper<std::string> pok(ptr, [&](std::function<void()> n) { ptr.notify = n; });
+  pok.setVideo("video", true);
+  pok.addApp("webkit");
+  pok.setPointer("pointer");
+  auto onTop = [&] { return ptr.at("pointer") == int(ptr.stack.size()) - 1; };
+  CHECK(onTop());
+  ptr.electronAdds("web:cover");
+  CHECK(onTop());
+  // The drawer's registration never mistakes the pointer for the drawer's view, even if it is placed in between.
+  pok.beginDrawerRegistration();
+  ptr.electronAdds("web:drawer");
+  ptr.electronRaises("pointer");
+  CHECK(pok.endDrawerRegistration());
+  CHECK(onTop());
+  CHECK(pok.setDrawer("dglass"));
+  CHECK(ptr.at("dglass") == ptr.at("web:drawer") - 1);
+  CHECK(onTop());
+  // The Library puts the video above the web contents: the pointer still sits above the video.
+  pok.setBelow(false);
+  CHECK(ptr.at("video") > ptr.at("web:drawer"));
+  CHECK(onTop());
+  ptr.electronRaises("web:cover");
+  ptr.electronAdds("web:late");
+  CHECK(onTop());
+  CHECK(ptr.at("video") < ptr.at("pointer"));
+  // Taken away, it leaves the window and nothing else moves.
+  pok.removePointer();
+  CHECK(!ptr.has("pointer"));
+  pok.removePointer();
+  pok.setBelow(true);
+  CHECK(ptr.at("video") == 0);
+  // dispose() removes it as well.
+  pok.setPointer("pointer");
+  CHECK(onTop());
+  pok.dispose();
+  CHECK(!ptr.has("pointer"));
+
   std::printf("ok\n");
   return 0;
 }

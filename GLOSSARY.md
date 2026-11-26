@@ -87,6 +87,14 @@ _Avoid_: navigation clicks, UI sounds, beeps
 A black cover over the whole Screen, with a small dim Couch mark, while playback and sound carry on underneath; the phone's Picture off button on Now Playing turns it on, any navigation key turns it off (playback controls like play/pause, volume and seek work without turning it off), and it also ends when playback stops, on Home or when the App changes.
 _Avoid_: screen off, blank, sleep
 
+**Pointer mode**:
+The Remote's touchpad: the phone's screen moves a large pointer on the Screen; tap clicks, long press right-clicks, the right and bottom edges scroll. Switched per App with a toggle; the D-pad is the default.
+_Avoid_: mouse mode, trackpad mode
+
+**Pointer**:
+The arrow Couch draws on the Screen in Pointer mode, above every view of the window and never taking the Mac's own mouse. It fades after a few seconds still. (Not the Mac's _cursor_, which is the Mac's own.)
+_Avoid_: cursor, mouse
+
 **Quick settings**:
 A drawer that slides in from the right of the Screen, over Home, the Library and any App without pausing it, for what you change mid-watch: Sound output, volume and mute, Text size (only while an App that has it is in front), Picture off (only while something plays) and All settings; opened from the phone's Quick settings button or by resting the mouse at the Screen's right edge, closed by Back, Right (except on the Volume and Text size rows, where Left and Right step the value), the button again, a click outside or 10 s without input.
 _Avoid_: side menu, control centre

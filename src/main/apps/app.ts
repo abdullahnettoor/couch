@@ -6,6 +6,7 @@ import type {
   TrackKind,
   TrackList,
 } from "../../shared/protocol.ts";
+import type { AppPointer } from "../../shared/pointer.ts";
 import type { TextEdit } from "../../shared/keyboard.ts";
 import type { TextSize } from "../../shared/text-size.ts";
 
@@ -163,6 +164,8 @@ export interface App extends SoundSink {
   readonly signIn?: AppSignIn;
   /** Present when the App takes text; without it the Remote shows no Type button. */
   readonly typing?: AppTyping;
+  /** Present when the App takes the pointer (Pointer mode): every move, click and scroll reaches its page as a real mouse event. */
+  readonly pointer?: AppPointer;
   /** Which control layout the Remote shows while the App is in front; "app" when absent. */
   readonly layout?: RemoteLayout;
   /** The Remote shows its volume −/+ pair. */

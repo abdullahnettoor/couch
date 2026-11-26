@@ -42,7 +42,7 @@ const preload = join(scratch, "preload.cjs");
 // The Screen's bridge, as look-snap-preload.cjs stands it in, but with the page's real animations and transitions.
 writeFileSync(
   preload,
-  `window.couch = { send() {}, reportGrid() {}, reportGlass() {}, onScreen: (l) => (window.__screen = l), onTint() {}, onSound() {}, onMpv() {} };`,
+  `window.couch = { send() {}, reportGrid() {}, reportGlass() {}, onScreen: (l) => (window.__screen = l), onTint() {}, onSound() {}, onPointer() {}, onMpv() {} };`,
 );
 
 let failed = false;

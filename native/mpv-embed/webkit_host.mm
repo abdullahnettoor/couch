@@ -907,6 +907,57 @@ static void bindEventToWindow(NSEvent *e, NSWindow *w, NSPoint p) {
   objc_setAssociatedObject(e, kEventPointKey, [NSValue valueWithPoint:p], OBJC_ASSOCIATION_RETAIN);
 }
 
+// A pointer event at a point of the view (points, top-left origin; the page zoom is already in them) for Couch's Pointer mode: kind 0 move,
+// 1 click (a left press and release), 2 right-click, 3 scroll (dx, dy in wheel pixels, positive up/left as an NSEvent's).
+// Each is a real NSEvent for the view bound to its window, as the input monitor's are, so the page sees trusted events.
+static void deliverPointer(WKWebView *web, int kind, double x, double y, double dx, double dy) {
+  NSWindow *win = web.window;
+  if (!win) return;
+  NSPoint p = [web convertPoint:NSMakePoint(x, y) toView:nil];
+  NSInteger num = win.windowNumber;
+  auto mouse = ^NSEvent *(NSEventType t, NSInteger clicks) {
+    return [NSEvent mouseEventWithType:t location:p modifierFlags:0 timestamp:uptime() windowNumber:num context:nil eventNumber:0 clickCount:clicks pressure:clicks ? 1 : 0];
+  };
+  switch (kind) {
+    case 0: sendMouseMoved(web, mouse(NSEventTypeMouseMoved, 0)); break;
+    case 1:
+      sendMouseMoved(web, mouse(NSEventTypeMouseMoved, 0));
+      [web mouseDown:mouse(NSEventTypeLeftMouseDown, 1)];
+      [web mouseUp:mouse(NSEventTypeLeftMouseUp, 1)];
+      break;
+    case 2:
+      sendMouseMoved(web, mouse(NSEventTypeMouseMoved, 0));
+      [web rightMouseDown:mouse(NSEventTypeRightMouseDown, 1)];
+      [web rightMouseUp:mouse(NSEventTypeRightMouseUp, 1)];
+      break;
+    case 3: {
+      CGEventRef cg = CGEventCreateScrollWheelEvent(NULL, kCGScrollEventUnitPixel, 2, (int32_t)lround(dy), (int32_t)lround(dx));
+      NSEvent *wheel = [NSEvent eventWithCGEvent:cg];
+      CFRelease(cg);
+      bindEventToWindow(wheel, win, p);
+      [web scrollWheel:wheel];
+      break;
+    }
+  }
+}
+
+// webkitPointer(id, kind, x, y, dx, dy): see deliverPointer. Only while the view is on screen.
+static napi_value WebkitPointer(napi_env env, napi_callback_info info) {
+  size_t argc = 6; napi_value argv[6];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  CouchWebKit *wk = wkFor(env, argv[0]);
+  int32_t kind; double x, y, dx, dy;
+  napi_get_value_int32(env, argv[1], &kind);
+  napi_get_value_double(env, argv[2], &x); napi_get_value_double(env, argv[3], &y);
+  napi_get_value_double(env, argv[4], &dx); napi_get_value_double(env, argv[5], &dy);
+  if (!wk) return NULL;
+  onMain(^{
+    if (wk.web.hidden) return;
+    deliverPointer(wk.web, kind, x, y, dx, dy);
+  });
+  return NULL;
+}
+
 static napi_value WebkitSelfTest(napi_env env, napi_callback_info info) {
   size_t argc = 3; napi_value argv[3];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
@@ -929,7 +980,7 @@ static napi_value WebkitSelfTest(napi_env env, napi_callback_info info) {
       static NSMutableArray *keepAlive = [NSMutableArray new];
       [keepAlive addObject:wk]; [keepAlive addObject:w];
       wk.offscreen = w;
-      NSString *html = @"<!doctype html><title>t</title><script>window.__keys=[];addEventListener('keydown',function(e){window.__keys.push(e.type+':'+e.key)});addEventListener('keyup',function(e){window.__keys.push(e.type+':'+e.key)});['mousemove','mousedown','mouseup','click','wheel'].forEach(function(n){addEventListener(n,function(e){window.__keys.push(n+':'+(e.isTrusted?'trusted':'untrusted'));if(n=='mousemove')(window.__moves=window.__moves||[]).push([e.clientX,e.clientY])},true)});</script><body>x</body>";
+      NSString *html = @"<!doctype html><title>t</title><script>window.__keys=[];addEventListener('keydown',function(e){window.__keys.push(e.type+':'+e.key)});addEventListener('keyup',function(e){window.__keys.push(e.type+':'+e.key)});['mousemove','mousedown','mouseup','click','contextmenu','wheel'].forEach(function(n){addEventListener(n,function(e){window.__keys.push(n+':'+(e.isTrusted?'trusted':'untrusted'));if(n!='mousemove')window.__keys.push(n+'@'+e.clientX+','+e.clientY+(n=='wheel'?'/'+e.deltaY:''));if(n=='mousemove')(window.__moves=window.__moves||[]).push([e.clientX,e.clientY])},true)});</script><body>x</body>";
       wk.events = NULL;
       __block NSString *scriptCopy = script;
       __weak CouchWebKit *weak = wk;
@@ -974,6 +1025,18 @@ static napi_value WebkitSelfTest(napi_env env, napi_callback_info info) {
             [wk2.web scrollWheel:wheel];
             continue;
           }
+          // "at:<x>:<y>" (a point of the view): Pointer mode's move, click, right-click and scroll there.
+          if (k.rfind("at:", 0) == 0) {
+            NSArray<NSString *> *p = [[NSString stringWithUTF8String:k.c_str()] componentsSeparatedByString:@":"];
+            if (p.count < 3) continue;
+            wk2.offscreen.acceptsMouseMovedEvents = YES;
+            double x = [p[1] doubleValue], y = [p[2] doubleValue];
+            deliverPointer(wk2.web, 0, x, y, 0, 0);
+            deliverPointer(wk2.web, 1, x, y, 0, 0);
+            deliverPointer(wk2.web, 2, x, y, 0, 0);
+            deliverPointer(wk2.web, 3, x, y, 0, -40);
+            continue;
+          }
           sendKeyEvent(wk2.web, k, true); sendKeyEvent(wk2.web, k, false);
         }
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -1010,6 +1073,7 @@ void registerWebKit(napi_env env, napi_value exports) {
     {"webkitSetNavigationGuard", 0, WebkitSetNavigationGuard, 0, 0, 0, napi_default, 0},
     {"webkitAnswerNavigation", 0, WebkitAnswerNavigation, 0, 0, 0, napi_default, 0},
     {"webkitWakePointer", 0, WebkitWakePointer, 0, 0, 0, napi_default, 0},
+    {"webkitPointer", 0, WebkitPointer, 0, 0, 0, napi_default, 0},
     {"webkitDestroy", 0, WebkitDestroy, 0, 0, 0, napi_default, 0},
     {"webkitRemoveStore", 0, WebkitRemoveStore, 0, 0, 0, napi_default, 0},
     {"webkitSelfTest", 0, WebkitSelfTest, 0, 0, 0, napi_default, 0},

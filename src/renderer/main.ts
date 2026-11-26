@@ -13,6 +13,7 @@ import { renderOverlay, setNativeGlass, setVideoTint } from "./player-overlay.ts
 import { darkTint } from "../shared/glass-tint.ts";
 import { iconSvg } from "../shared/icons.ts";
 import { GLASS, lookCss } from "../shared/look.ts";
+import { pointerSvg } from "../shared/pointer.ts";
 import "./style.css";
 import "./glass.css";
 import "./home.css";
@@ -132,6 +133,16 @@ window.addEventListener("mousemove", () => {
 });
 
 const notice = document.getElementById("notice")!;
+
+// Pointer mode's arrow, where the native overlay isn't there: above every view of this page, never taking the mouse.
+const pointerEl = document.createElement("div");
+pointerEl.className = "couch-pointer";
+pointerEl.innerHTML = pointerSvg(GLASS);
+document.body.append(pointerEl);
+window.couch.onPointer((draw) => {
+  pointerEl.style.transform = `translate(${draw.x}px, ${draw.y}px)`;
+  pointerEl.classList.toggle("on", draw.shown);
+});
 
 window.couch.onScreen((payload) => {
   current = payload;

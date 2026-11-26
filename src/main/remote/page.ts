@@ -98,7 +98,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .app .ic svg { width:30px; height:30px; font-size:var(--type-phone-icon-app); }
   .app:active .ic { background:var(--card-active); }
   .app span.n { max-width:68px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .padwrap { flex:1; min-height:0; display:grid; place-items:center; }
+  .padwrap { flex:1; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
   body.idle .pad { margin:0; width:min(320px, 82vw, 100%, 46dvh); }
   body.idle .other { margin:0; }
   body.idle .vpill { margin-top:2px; }
@@ -158,6 +158,23 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .npad .pad { margin:auto; width:min(270px, 70vw, 40vh); }
   .npad .back { height:56px; border-radius:var(--radius-phone-pill-large); background:var(--focus-bg); color:var(--focus-fg); font-size:var(--type-phone-control); font-weight:var(--weight-bold); display:flex; align-items:center; justify-content:center; gap:10px; flex:none; margin-top:auto; }
   .npad .back svg { font-size:var(--type-phone-icon-medium); }
+  .tpad { flex:1; min-height:0; display:flex; flex-direction:column; gap:10px; padding-top:8px; transition:opacity var(--duration-quick); }
+  .off .tpad { opacity:.35; pointer-events:none; }
+  .tprow { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:8px; flex:none; }
+  .tprow button { height:44px; border-radius:var(--radius-phone-pill); background:var(--glass); box-shadow:var(--shadow-glass-edge); backdrop-filter:var(--blur-glass); -webkit-backdrop-filter:var(--blur-glass); display:flex; align-items:center; justify-content:center; font-size:var(--type-phone-icon); color:var(--text-primary); transition:transform var(--duration-press); }
+  .tprow button:active { transform:scale(.95); background:var(--press); }
+  .tsurface { position:relative; overflow:hidden; flex:1; min-height:0; border-radius:var(--radius-art); background:var(--card); box-shadow:var(--shadow-pad); touch-action:none; display:grid; place-items:center; text-align:center; padding:24px 60px 60px 24px; color:var(--text-tertiary); font-size:var(--type-phone-small); cursor:pointer; }
+  .tsurface:active { background:var(--card-raised); }
+  .tstrip { position:absolute; pointer-events:none; display:grid; place-items:center; border-radius:var(--radius-card-small); background:var(--track-faint); transition:background var(--duration-quick); }
+  .tstrip::after { content:""; border-radius:var(--radius-hairline); background:var(--track); transition:background var(--duration-quick); }
+  .tstrip.on { background:var(--press-soft); }
+  .tstrip.on::after { background:var(--text-tertiary); }
+  .tstrip-y { top:10px; right:8px; bottom:58px; width:40px; }
+  .tstrip-y::after { width:4px; height:48px; }
+  .tstrip-x { left:10px; right:58px; bottom:8px; height:40px; }
+  .tstrip-x::after { width:48px; height:4px; }
+  .ptoggle { margin:14px auto 0; flex:none; padding:0 18px; gap:8px; }
+  .ptoggle svg { font-size:var(--type-phone-icon); }
   .npad .hint { text-align:center; color:var(--text-tertiary); font-size:var(--type-phone-small); flex:none; }
   .sheet .rows { width:100%; max-width:480px; margin:0 auto; padding:18px 16px max(22px, env(safe-area-inset-bottom)); background:var(--card); border-radius:var(--radius-sheet) var(--radius-sheet) 0 0; display:grid; gap:6px; box-shadow:var(--shadow-sheet); max-height:70dvh; overflow-y:auto; animation:rise var(--duration-drop-in) var(--ease-rise); }
   .sheet .rows .h { font-size:var(--type-phone-small); font-weight:var(--weight-semibold); color:var(--text-tertiary); padding:0 8px 6px; }
@@ -262,7 +279,20 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   <div class="bar">__BAR_PAD__<button id="npad-qs" data-cmd="quickSettings" aria-label="Quick settings" data-i="sliders"></button></div>
   <div class="hint">Menus on the Screen</div>
   <div class="pad">__PAD__</div>
+  <button class="chip ptoggle" id="npad-ptoggle" hidden><span data-i="pointer"></span>Pointer mode</button>
   <button class="back" id="npad-back"><span data-i="monitorPlay"></span>Now Playing</button>
+</section>
+<section class="tpad" id="tpad" hidden>
+  <div class="tprow">
+    <button id="tp-back" aria-label="Back" data-i="backArrow" data-cmd="back"></button>
+    <button data-cmd="home" aria-label="Home" data-i="home"></button>
+    <button data-cmd="volDown" aria-label="Volume down" data-i="minus"></button>
+    <button data-cmd="volUp" aria-label="Volume up" data-i="plus"></button>
+    <button data-cmd="typeOpen" aria-label="Type" data-i="keyboard" id="tp-type"></button>
+    <button id="tp-dpad" aria-label="D-pad" data-i="dpad"></button>
+    <button id="tp-now" aria-label="Now Playing" data-i="monitorPlay" hidden></button>
+  </div>
+  <div class="tsurface" id="tsurface" role="application" aria-label="Touchpad: drag to move the pointer, tap to click, hold to right-click, slide the right or bottom edge to scroll">Drag to move. Tap to click. Hold to right-click. Slide the edges to scroll.<div class="tstrip tstrip-y" id="tscroll-y" aria-hidden="true"></div><div class="tstrip tstrip-x" id="tscroll-x" aria-hidden="true"></div></div>
 </section>
 <div class="sheet" id="np-sheet" hidden>
   <div class="rows" id="np-rows" role="dialog"></div>
@@ -276,7 +306,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   <a class="search" id="link" href="#" target="_blank" rel="noopener" hidden><span id="link-label"></span></a>
   <div class="other" id="other" hidden>Typing on another phone</div>
   <div class="apps" id="apps" role="group" aria-label="Apps" hidden></div>
-  <div class="padwrap"><div class="pad" id="dpad">__PAD__</div></div>
+  <div class="padwrap"><div class="pad" id="dpad">__PAD__</div><button class="chip ptoggle" id="ptoggle" hidden><span data-i="pointer"></span>Pointer mode</button></div>
   __VPILL_ID__
 </main>
 <div class="sheet" id="sheet" hidden>
@@ -478,11 +508,17 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     var noBack = L === "home" && !np && !s.confirm && !s.setup;
     $("id-back").hidden = $("np-back").hidden = $("pad-back").hidden = noBack;
     var padShown = padOpen || !!s.quickSettings;
+    var pointer = !!s.pointer && !!s.pointerAvailable;
     $("nowp").hidden = !np || padShown;
-    $("npad").hidden = !np || !padShown;
+    $("npad").hidden = !np || !padShown || pointer;
+    $("tpad").hidden = !pointer || (!!np && !padShown);
+    $("tp-now").hidden = !np;
+    $("tp-type").hidden = !s.typeAvailable;
+    $("ptoggle").hidden = !s.pointerAvailable || pointer;
+    $("npad-ptoggle").hidden = !s.pointerAvailable || pointer;
     $("qs").classList.toggle("on", !!s.quickSettings);
     $("npad-qs").classList.toggle("on", !!s.quickSettings);
-    $("controls").hidden = !!np;
+    $("controls").hidden = !!np || pointer;
     setMute(!!s.muted);
     if (np) {
       renderNow(s);
@@ -619,6 +655,118 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     post({ type: "command", command: command, args: args });
   }
 
+  /** Pointer mode's touchpad: a drag moves the pointer, a quick lift with no real movement taps, holding still right-clicks; the right and bottom strips scroll. */
+  var SLOP = 10, TAP_MS = 250, LONG_MS = 500, STRIP = 52;
+  var pad = $("tsurface"), stripY = $("tscroll-y"), stripX = $("tscroll-x");
+  var touch = null, owed = { dx: 0, dy: 0 }, owedScroll = { dx: 0, dy: 0 }, frame = null, sframe = null, lastEdge = null;
+  function sendPointer(command, args) {
+    if (!open || !got) return;
+    var msg = { type: "command", command: command };
+    if (args) msg.args = args;
+    ws.send(JSON.stringify(msg));
+  }
+  function buzz() { if (navigator.vibrate) navigator.vibrate(12); }
+  function flushMove() {
+    frame = null;
+    if (!owed.dx && !owed.dy) return;
+    var dx = Math.round(owed.dx * 10) / 10, dy = Math.round(owed.dy * 10) / 10;
+    owed = { dx: 0, dy: 0 };
+    sendPointer("pointerMove", { dx: dx, dy: dy });
+  }
+  function flushScroll() {
+    sframe = null;
+    if (!owedScroll.dx && !owedScroll.dy) return;
+    var dx = Math.round(owedScroll.dx * 10) / 10, dy = Math.round(owedScroll.dy * 10) / 10;
+    owedScroll = { dx: 0, dy: 0 };
+    sendPointer("pointerScroll", { dx: dx, dy: dy });
+  }
+  function padZone(e) {
+    var r = pad.getBoundingClientRect();
+    if (!(r.width > STRIP * 2 && r.height > STRIP * 2)) return "pad";
+    if (e.clientX >= r.left + r.width - STRIP) return "scrollY";
+    if (e.clientY >= r.top + r.height - STRIP) return "scrollX";
+    return "pad";
+  }
+  function setStripOn(mode) {
+    if (stripY) stripY.classList.toggle("on", mode === "scrollY");
+    if (stripX) stripX.classList.toggle("on", mode === "scrollX");
+  }
+  function endTouch() {
+    if (touch && touch.timer) clearTimeout(touch.timer);
+    touch = null;
+    setStripOn(null);
+  }
+  pad.addEventListener("pointerdown", function (e) {
+    if (touch || !open) return;
+    var mode = padZone(e);
+    var t = { id: e.pointerId, mode: mode, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, at: Date.now(), moved: false, long: false, timer: null };
+    if (mode === "pad") {
+      t.timer = setTimeout(function () {
+        if (touch !== t || t.moved) return;
+        t.long = true;
+        buzz();
+        sendPointer("pointerRightClick");
+      }, LONG_MS);
+    } else setStripOn(mode);
+    touch = t;
+    sendPointer("pointerShow");
+    if (pad.setPointerCapture) pad.setPointerCapture(e.pointerId);
+  });
+  pad.addEventListener("pointermove", function (e) {
+    var t = touch;
+    if (!t || e.pointerId !== t.id || t.long) return;
+    if (t.mode === "scrollY" || t.mode === "scrollX") {
+      if (t.mode === "scrollY") owedScroll.dy += e.clientY - t.y;
+      else owedScroll.dx += e.clientX - t.x;
+      t.x = e.clientX; t.y = e.clientY;
+      if (sframe === null) sframe = requestAnimationFrame(flushScroll);
+      return;
+    }
+    if (!t.moved) {
+      if (Math.sqrt(Math.pow(e.clientX - t.x0, 2) + Math.pow(e.clientY - t.y0, 2)) < SLOP) return;
+      t.moved = true;
+      clearTimeout(t.timer);
+      t.x = e.clientX; t.y = e.clientY;
+      return;
+    }
+    owed.dx += e.clientX - t.x;
+    owed.dy += e.clientY - t.y;
+    t.x = e.clientX; t.y = e.clientY;
+    if (frame === null) frame = requestAnimationFrame(flushMove);
+  });
+  pad.addEventListener("pointerup", function (e) {
+    var t = touch;
+    if (!t || e.pointerId !== t.id) return;
+    endTouch();
+    if (t.mode === "scrollY" || t.mode === "scrollX") {
+      if (sframe !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(sframe);
+      flushScroll();
+      return;
+    }
+    if (t.moved) {
+      if (frame !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(frame);
+      flushMove();
+    } else if (!t.long && Date.now() - t.at < TAP_MS) {
+      buzz();
+      sendPointer("pointerClick");
+    }
+  });
+  pad.addEventListener("pointercancel", endTouch);
+  pad.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+  $("ptoggle").addEventListener("click", function () { sendArgs("pointerMode", { on: true }); });
+  $("npad-ptoggle").addEventListener("click", function () { sendArgs("pointerMode", { on: true }); });
+  $("tp-dpad").addEventListener("click", function () { sendArgs("pointerMode", { on: false }); });
+  $("tp-now").addEventListener("click", function () {
+    if (last && last.quickSettings) { sendArgs("quickSettings"); return; }
+    padOpen = false; if (last) render(last);
+  });
+  /** Reaching the Screen's edge buzzes the phone that took the pointer there (a count only this phone is told). */
+  function edgeCue(s) {
+    var n = typeof s.edgeCue === "number" ? s.edgeCue : 0;
+    if (lastEdge !== null && n > lastEdge) buzz();
+    lastEdge = n;
+  }
+
   var seek = $("seek");
   function fracAt(e) {
     var r = seek.getBoundingClientRect();
@@ -750,7 +898,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     sock.onopen = function () { retry = 0; got = false; setOnline(true); };
     sock.onmessage = function (e) {
       var msg = JSON.parse(e.data);
-      if (msg.type === "snapshot") { setPower("on"); render(msg); remember(msg); if (!got) { got = true; flushQueue(); } }
+      if (msg.type === "snapshot") { setPower("on"); render(msg); edgeCue(msg); remember(msg); if (!got) { got = true; flushQueue(); } }
       else if (msg.type === "power") { setPower(msg.state, msg.failed); if (msg.state !== "on") dropQueue(); }
     };
     sock.onclose = function () {

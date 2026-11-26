@@ -24,6 +24,7 @@ export const SETTINGS_ITEMS: GridItem[] = column([
 export const REMOTES_ITEMS: GridItem[] = column([
   { id: "add-phone", label: "Add a phone", action: "settings:add-phone" },
   { id: "forget-phones", label: "Forget all phones", action: "settings:forget-phones" },
+  { id: "pointer-speed", label: "Pointer speed", action: "settings:pointer-speed" },
   { id: "listener", label: "Start Couch Listener at login", action: "settings:listener" },
 ]);
 

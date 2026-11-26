@@ -118,6 +118,10 @@ export function backAction(answer: unknown): "press" | "none" | "history" {
   return "history";
 }
 
+/** Page script: lifts the D-pad shield while Pointer mode is on, and restores it when it is off. */
+export const pointerModeScript = (on: boolean): string =>
+  `(function(){try{window.__couchPointerOn=${on};if(window.__couchPointerMode)window.__couchPointerMode(${on});}catch(e){}})()`;
+
 export const DEFAULT_FOCUS_SELECTORS = [
   "a[href]",
   "button",
@@ -1048,7 +1052,7 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
     // hover it); real mouse movement beyond a few pixels ends it. Couch's synthetic events are untrusted: ignored.
     // The pointer is hidden and made inert by a transparent shield over the viewport, built through the CSSOM
     // (YouTube's CSP ignores an injected <style>). hitAt() and the pointer wake look through it.
-    var DPAD = 'data-couch-dpad', dpadAnchor = null, shield = null;
+    var DPAD = 'data-couch-dpad', dpadAnchor = null, shield = null, pointerOn = !!window.__couchPointerOn;
     var shieldUp = function () {
       try {
         if (shield) return;
@@ -1067,7 +1071,17 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       shield = null;
     };
     var dpadOn = function () {
+      if (pointerOn) return;
       try { dpadAnchor = null; document.documentElement.setAttribute(DPAD, ''); shieldUp(); } catch (e) {}
+    };
+    window.__couchPointerMode = function (on) {
+      pointerOn = !!on;
+      if (pointerOn) {
+        try { document.documentElement.removeAttribute(DPAD); } catch (e) {}
+        shieldDown();
+      } else {
+        dpadOn();
+      }
     };
     addEventListener('keydown', dpadOn, true);
     addEventListener('mousemove', function (e) {

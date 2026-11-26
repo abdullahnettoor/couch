@@ -109,6 +109,11 @@ export interface WebKitView {
    * D-pad shield doesn't take it for the household's mouse (the script that asks marks it first).
    */
   wakePointer(x: number, y: number): void;
+  /**
+   * Pointer mode: a real, trusted mouse event in the page at a point of the view (points, top-left origin; the window point, as the view fills the window). `click`
+   * is a left press and release, `rightClick` a right one, `scroll` a wheel tick of `dx`, `dy` pixels (positive up and left).
+   */
+  pointer(kind: PointerKind, x: number, y: number, dx?: number, dy?: number): void;
   /** What real input the view takes. Off by default; the host sets it while the view is on screen. */
   setInputRouting(routing: WebKitInputRouting): void;
   /** A native NSEvent keyDown or keyUp sent to the view (names as in a description's `keyCodes`: Up, Down, Left, Right, Return, Escape). */
@@ -116,6 +121,9 @@ export interface WebKitView {
   onEvent(listener: (event: WebKitEvent) => void): () => void;
   destroy(): void;
 }
+
+/** The kinds of pointer event the native view takes. */
+export type PointerKind = "move" | "click" | "rightClick" | "scroll";
 
 /** The persistent `WKWebsiteDataStore(forIdentifier:)` of one App in one userData root, or the non-persistent store. */
 export type WebKitStore = { ephemeral: true } | { ephemeral: false; id: string };
