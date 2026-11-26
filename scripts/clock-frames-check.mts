@@ -89,7 +89,7 @@ const preload = join(scratch, "preload.cjs");
 // The Screen's bridge, as look-snap-preload.cjs stands it in, but with the page's real animations and transitions.
 writeFileSync(
   preload,
-  `window.couch = { send() {}, reportGrid() {}, reportGlass() {}, onScreen: (l) => (window.__screen = l), onTint() {}, onSound() {}, onMpv() {} };` +
+  `window.couch = { send() {}, reportGrid() {}, reportGlass() {}, onScreen: (l) => (window.__screen = l), onTint() {}, onSound() {}, onPointer() {}, onMpv() {} };` +
     // Counts the page's live workers, so a worker left running shows.
     `window.__workers = 0; const W = window.Worker; window.Worker = class extends W { constructor(...a) { super(...a); window.__workers++; } terminate() { window.__workers--; super.terminate(); } };` +
     // Collects the clock's own timings (clock-glass.ts measures each step of a drawing).

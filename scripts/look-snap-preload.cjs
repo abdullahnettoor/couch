@@ -25,6 +25,7 @@ window.couch = {
   onScreen: (l) => (window.__screen = l),
   onTint: (l) => (window.__tint = l),
   onSound() {},
+  onPointer() {},
   onMpv: (l) => (window.__mpv = l),
 };
 // The Quick settings drawer: __drawerIn settles once the drawer has started sliding in (it waits a frame first).
