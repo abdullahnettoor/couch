@@ -11,6 +11,8 @@ export const SELF_TEST_KEYS = [
   "replay:0:A:131072",
   // A move, a click and a wheel tick at (200, 200), handed to the view as Couch's input monitor hands real ones (ticket 112).
   "pointer:200:200",
+  // Pointer mode's move, click, right-click and scroll at a point of the page (client coordinates), through the host's own entry.
+  "at:300:400",
 ];
 
 /** Events the page must have recorded for the keys above: a move reaching WebKit as a trusted `mousemove` (ticket 112). */
@@ -21,6 +23,9 @@ export const SELF_TEST_EXPECTED_EVENTS = [
   "mousedown:trusted",
   "click:trusted",
   "wheel:trusted",
+  "click@300,400",
+  "contextmenu@300,400",
+  "wheel@300,400/40",
 ];
 
 /** The move at window point (200, 200) of a 720 px high window lands at this client point (top-left origin). */

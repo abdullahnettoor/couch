@@ -110,6 +110,8 @@ export interface WebKitAddon {
   webkitAnswerKey(id: number, keyId: number, replay: boolean): void;
   /** A real mouse-moved event at a point of the page (client coordinates, top-left origin). */
   webkitWakePointer(id: number, x: number, y: number): void;
+  /** Pointer mode: kind 0 move, 1 click, 2 right-click, 3 scroll (`dx`, `dy` in wheel pixels), at a point of the view. */
+  webkitPointer(id: number, kind: number, x: number, y: number, dx: number, dy: number): void;
   /**
    * What real input the view takes off Chromium's transparent layer: `keys` reports physical keys (kind "key", b = JSON
    * of the key, with the id the host answers) while the view is the first responder, holding back the keys Couch may want;
@@ -406,6 +408,15 @@ export function createWebKitBridge(
         sendKey: (key, down) => addon.webkitSendKey(id, key, down),
         answerKey: (keyId, replay) => addon.webkitAnswerKey(id, keyId, replay),
         wakePointer: (x, y) => addon.webkitWakePointer(id, x, y),
+        pointer: (kind, x, y, dx = 0, dy = 0) =>
+          addon.webkitPointer(
+            id,
+            ["move", "click", "rightClick", "scroll"].indexOf(kind),
+            x,
+            y,
+            dx,
+            dy,
+          ),
         setNavigationGuard: (on) => addon.webkitSetNavigationGuard(id, on),
         answerNavigation: (navId, allow) => addon.webkitAnswerNavigation(id, navId, allow),
         setInputRouting: (r) =>

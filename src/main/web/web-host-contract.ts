@@ -7,10 +7,14 @@ import type { PlaybackAdapter, WebAppDescription } from "./web-app.ts";
 import { urlRoute } from "./url-route.ts";
 import { soundScript } from "./web-sound.ts";
 import { pageWithPlayerOutsideDocument } from "./fake-media-page.ts";
+import { pointerModeScript } from "./pointer-wake.ts";
 
 /** What the shared host contract needs of an engine's test rig (fake `WebContents`, or the fake WebKit bridge). */
 export interface HostRig {
-  host: Required<Omit<YouTube, "followsMacOutput" | "supportsTextSize" | "setTextSize">>;
+  host: Required<
+    Omit<YouTube, "followsMacOutput" | "supportsTextSize" | "setTextSize" | "pointer">
+  > &
+    Pick<YouTube, "pointer">;
   events: YouTubeEvent[];
   /** Shows the host and waits until its home has been asked for. */
   show(): Promise<void>;
@@ -47,6 +51,11 @@ export interface HostRig {
   pageMouseDown(): void;
   /** The page calls `couchHost.send(message)` (the engine's own bridge script, run for real), from a frame (default: the App's main frame). */
   couchSend(message: unknown, frame?: { main: boolean; origin: string }): void;
+  /**
+   * Every pointer event the engine was given for the page, as "move:x,y", "click:x,y", "rightClick:x,y" and "scroll:x,y,dx,dy"
+   * (points in the window; the rig puts the page's frame at the window's origin). Absent for an engine without Pointer mode.
+   */
+  pointerLog?(): string[];
 }
 
 export const contractDescription = netflixDescription("130.0.0.0");
@@ -89,6 +98,58 @@ export function describeWebHostContract(
     afterEach(() => {
       disposeRigs();
       vi.useRealTimers();
+    });
+
+    describe("pointer mode", () => {
+      test("a move, click, right-click and scroll reach the page as real mouse events at the point", async () => {
+        const rig = makeRig();
+        if (!rig.pointerLog) return;
+        await rig.show();
+        const pointer = rig.host.pointer!;
+        expect(pointer).toBeDefined();
+        pointer.move(100, 50);
+        pointer.click(120, 60);
+        pointer.rightClick(130, 70);
+        pointer.scroll(140, 80, 0, -40);
+        expect(rig.pointerLog()).toEqual([
+          "move:100,50",
+          "click:120,60",
+          "rightClick:130,70",
+          "scroll:140,80,0,-40",
+        ]);
+      });
+
+      test("the D-pad shield is lifted while pointer mode is on and restored when it is off", async () => {
+        const rig = makeRig();
+        if (!rig.pointerLog) return;
+        await rig.show();
+        const ran = (on: boolean) =>
+          rig.scripts().filter((s) => s === pointerModeScript(on)).length;
+        rig.host.pointer!.setMode(true);
+        expect(ran(true)).toBe(1);
+        rig.host.pointer!.setMode(false);
+        expect(ran(false)).toBe(1);
+      });
+
+      test("a page that loads while pointer mode is on gets it too", async () => {
+        const rig = makeRig();
+        if (!rig.pointerLog) return;
+        await rig.show();
+        rig.host.pointer!.setMode(true);
+        rig.loaded();
+        expect(rig.scripts().filter((s) => s === pointerModeScript(true)).length).toBeGreaterThan(
+          1,
+        );
+      });
+
+      test("nothing is delivered while the App is hidden", async () => {
+        const rig = makeRig();
+        if (!rig.pointerLog) return;
+        await rig.show();
+        rig.host.hide();
+        rig.host.pointer!.click(1, 1);
+        expect(rig.pointerLog()).toEqual([]);
+      });
     });
 
     describe("playback", () => {

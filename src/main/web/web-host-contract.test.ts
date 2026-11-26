@@ -116,7 +116,13 @@ import { ElectronWebApp } from "./electron-web-app.ts";
 import { describeWebHostContract, type HostRig } from "./web-host-contract.ts";
 import { MEDIA_TOGGLE_SCRIPT } from "./media-toggle.ts";
 import type { WebAppDescription } from "./web-app.ts";
-import type { EvaluateKind, WebKitBridge, WebKitEvent, WebKitView } from "./webkit-bridge.ts";
+import type {
+  EvaluateKind,
+  PointerKind,
+  WebKitBridge,
+  WebKitEvent,
+  WebKitView,
+} from "./webkit-bridge.ts";
 import { WebKitWebApp } from "./webkit-web-app.ts";
 
 const electronWindow: any = {
@@ -222,6 +228,10 @@ class FakeWebKitView implements WebKitView {
   focus() {}
   answerKey() {}
   wakePointer() {}
+  pointerLog: string[] = [];
+  pointer(kind: PointerKind, x: number, y: number, dx = 0, dy = 0) {
+    this.pointerLog.push(kind === "scroll" ? `scroll:${x},${y},${dx},${dy}` : `${kind}:${x},${y}`);
+  }
   setInputRouting() {}
   guard = false;
   setNavigationGuard(on: boolean) {
@@ -287,6 +297,7 @@ function webkitRig(description: WebAppDescription): HostRig {
         l({ type: "loaded", url: "https://www.netflix.com/browse" });
     },
     allowHistoryBack: () => void view.answers.push(["__couchCanGoBack", true]),
+    pointerLog: () => view.pointerLog,
     couchSend: (message, frame = { main: true, origin: "https://www.netflix.com" }) => {
       const sandbox: any = {
         webkit: {

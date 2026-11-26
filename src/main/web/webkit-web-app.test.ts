@@ -112,6 +112,10 @@ class FakeView implements WebKitView {
   wakePointer(x: number, y: number) {
     this.wakes.push([x, y]);
   }
+  pointers: Array<[string, number, number, number | undefined, number | undefined]> = [];
+  pointer(kind: string, x: number, y: number, dx?: number, dy?: number) {
+    this.pointers.push([kind, x, y, dx, dy]);
+  }
   guards: boolean[] = [];
   setNavigationGuard(on: boolean) {
     this.guards.push(on);

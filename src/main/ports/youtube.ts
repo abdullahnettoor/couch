@@ -3,6 +3,7 @@ import type { PlaybackReport } from "../apps/app.ts";
 import type { CommandName } from "../../shared/protocol.ts";
 import type { Confirmation } from "../../shared/protocol.ts";
 import type { TextSize } from "../../shared/text-size.ts";
+import type { AppPointer } from "../../shared/pointer.ts";
 import type { TextEdit } from "../../shared/keyboard.ts";
 
 export type YouTubeKey = "up" | "down" | "left" | "right" | "ok" | "back";
@@ -68,6 +69,8 @@ export interface YouTube {
   showSearchBar(text: string | undefined): void;
   /** While on, every key on the Mac keyboard becomes an `edit` event instead of reaching YouTube. */
   captureText(on: boolean): void;
+  /** Present when the view takes the pointer (Pointer mode). */
+  readonly pointer?: AppPointer;
   playPause(): void;
   /** Skips the playing video forward (+) or back (−) by this many seconds. */
   seekBy(seconds: number): void;

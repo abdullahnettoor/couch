@@ -1,6 +1,7 @@
 import type { Confirmation, PromptId, TrackKind } from "../../../shared/protocol.ts";
 import type { Clock } from "../../ports/clock.ts";
 import type { YouTube } from "../../ports/youtube.ts";
+import type { AppPointer } from "../../../shared/pointer.ts";
 import type { TextSize } from "../../../shared/text-size.ts";
 import type {
   App,
@@ -26,6 +27,7 @@ export class NetflixApp implements App {
   readonly showSkip = true;
   readonly typing: AppTyping;
   readonly playback: AppPlayback | undefined;
+  readonly pointer: AppPointer | undefined;
   readonly welcome: AppWelcome | undefined;
   #signIn: AppSignIn | (() => AppSignIn | undefined) | undefined;
   #port: YouTube;
@@ -49,6 +51,7 @@ export class NetflixApp implements App {
     this.#signIn = signIn;
     this.playback = playback;
     this.#port = port;
+    this.pointer = port.pointer;
     this.#clock = clock;
     this.typing = {
       label: "Search Netflix",

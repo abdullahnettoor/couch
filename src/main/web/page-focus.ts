@@ -1066,7 +1066,12 @@ export function pageFocusFunction(extraSelectors: string[] = [], layout: FocusLa
       try { if (shield && shield.remove) shield.remove(); } catch (e) {}
       shield = null;
     };
+    // Pointer mode lifts the shield: the household's pointer hovers, and a D-pad key doesn't put the shield back.
+    window.__couchPointerLift = function () {
+      try { dpadAnchor = null; document.documentElement.removeAttribute(DPAD); shieldDown(); } catch (e) {}
+    };
     var dpadOn = function () {
+      if (window.__couchPointerMode) return;
       try { dpadAnchor = null; document.documentElement.setAttribute(DPAD, ''); shieldUp(); } catch (e) {}
     };
     addEventListener('keydown', dpadOn, true);

@@ -4,12 +4,15 @@ import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
 import { FIELD_BLURRED, FIELD_FOCUSED, FIELD_FOCUSED_QUERY } from "./page-focus.ts";
 import { hiddenScript } from "./hidden-audio.ts";
 import { pageFocusFunction } from "./page-focus.ts";
+import type { AppPointer } from "../../shared/pointer.ts";
+import { pointerModeScript } from "./pointer-wake.ts";
 import type { KeyGate } from "./keyboard-policy.ts";
 import { WebKitKeyboard } from "./webkit-keyboard.ts";
 import { KEY_CLAIM_FUNCTION, PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import type { IdleLifecycle } from "./idle-unload.ts";
 import type { WebAppDescription } from "./web-app.ts";
 import type {
+  PointerKind,
   WebKitBridge,
   WebKitEvent,
   WebKitCookie,
@@ -123,6 +126,8 @@ export class WebKitWebApp implements YouTube {
   /** Something of Couch's own that takes the pointer and the keys is drawn over the page (Quick settings, a confirmation, Picture off). */
   #overlay = false;
   #disposed = false;
+  /** Pointer mode is on for this App: the page's D-pad shield is lifted. */
+  #pointerMode = false;
   /** The native view holds main-frame navigations for `navigating` while a Continue open is pending. */
   #guardOn = false;
   #stopResize: (() => void) | void = undefined;
@@ -264,6 +269,7 @@ export class WebKitWebApp implements YouTube {
     switch (event.type) {
       case "loaded":
         this.#applyZoom();
+        if (this.#pointerMode) this.#run(pointerModeScript(true));
         // The address change may have been answered by the old document; the new one is asked once it is there.
         this.#recheckField();
         if (this.#failed || !this.#isOwnPage(event.url)) return;
@@ -298,6 +304,22 @@ export class WebKitWebApp implements YouTube {
         if (event.name === MESSAGE_HANDLER) this.#onPageMessage(event.body, event.frame);
         return;
     }
+  }
+
+  /** The pointer, as Pointer mode asks of an App: real mouse events in the view at a window point, only while it is on screen. */
+  readonly pointer: AppPointer = {
+    move: (x, y) => this.#point("move", x, y),
+    click: (x, y) => this.#point("click", x, y),
+    rightClick: (x, y) => this.#point("rightClick", x, y),
+    scroll: (x, y, dx, dy) => this.#point("scroll", x, y, dx, dy),
+    setMode: (on) => {
+      this.#pointerMode = on;
+      this.#run(pointerModeScript(on));
+    },
+  };
+
+  #point(kind: PointerKind, x: number, y: number, dx?: number, dy?: number): void {
+    if (this.#visible && !this.#overlay) this.#view?.pointer(kind, x, y, dx, dy);
   }
 
   /** A finished load counts only over https at one of the App's own hosts (the dev test page's loopback origin is its own too). */

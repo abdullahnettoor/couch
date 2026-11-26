@@ -32,3 +32,11 @@ export const WAKE_POINTER_SOURCE = `function (step) {
     t.dispatchEvent(new C(n, { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, screenX: x, screenY: y, movementX: 7, movementY: 5 }));
   });
 }`;
+
+/**
+ * The page script that tells the D-pad shield whether Pointer mode is on: on lifts the shield (and keeps keys from raising
+ * it), off lets the next key put it back. Run again when a page loads, as a new document starts without it.
+ */
+export function pointerModeScript(on: boolean): string {
+  return `(function () { window.__couchPointerMode = ${on}; if (${on} && window.__couchPointerLift) window.__couchPointerLift(); })()`;
+}
