@@ -281,7 +281,8 @@ describe("BitChord's focus layout, on its saved pages", () => {
           }
         }
       }
-    });
+      // 625 key presses over five saved pages: about 2.7 s alone on a Mac, past 5 s on CI.
+    }, 30_000);
 
     test("the shelves' paging arrows are never stops", () => {
       const p = open("home");
