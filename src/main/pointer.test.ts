@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
-import { FakeWebApp } from "./ports/fakes.ts";
+import { BitChordApp } from "./apps/bitchord/bitchord-app.ts";
+import { FakeClock, FakeWebApp, FakeYouTube } from "./ports/fakes.ts";
 import { startHarness, type FakePhone, type Harness } from "./testing/harness.ts";
 
 let h: Harness;
@@ -416,5 +417,68 @@ describe("Pointer mode: routing to the layer in front", () => {
     await scroll(0, -30);
     expect(h.screen.last.state.pictureOff).toBe(false);
     expect(tube.pointerCalls.filter((c) => c.call === "scroll")).toEqual([]);
+  });
+
+  test("with Quick settings open over a web App, pointer events go to Quick settings and not the App", async () => {
+    await phone.press({ command: "openApp", args: { app: "tube" } });
+    await send(phone, { command: "pointerMode", args: { on: true } });
+    await move(20, 10);
+    const appCallsBefore = tube.pointerCalls.length;
+
+    await phone.press("quickSettings");
+    await move(15, 10);
+    h.clock.advance(300);
+    await send(phone, "pointerClick");
+    await send(phone, "pointerRightClick");
+    await scroll(0, -20);
+
+    expect(tube.pointerCalls).toHaveLength(appCallsBefore);
+    expect(h.screen.pointer.inputs.map((i) => `${i.layer}:${i.type}`)).toEqual([
+      "quick:move",
+      "quick:click",
+      "quick:rightClick",
+      "quick:scroll",
+    ]);
+  });
+
+  test("YouTube, Netflix and BitChord expose their host's pointer while defaulting to the D-pad", async () => {
+    const bitchordPort = new FakeYouTube();
+    const custom = await startHarness(undefined, {
+      apps: [
+        {
+          entry: entry("bitchord", "BitChord"),
+          app: new BitChordApp(bitchordPort, new FakeClock()),
+        },
+      ],
+    });
+    const p = await custom.connectPhone();
+    for (const [id, port] of [
+      ["youtube", custom.youtube],
+      ["netflix", custom.netflix],
+      ["bitchord", bitchordPort],
+    ] as const) {
+      await p.press({ command: "openApp", args: { app: id } });
+      expect(p.last?.pointerAvailable).toBe(true);
+      expect(p.last?.pointer).toBeUndefined();
+
+      await send(p, { command: "pointerMode", args: { on: true } });
+      expect(p.last?.pointer).toBe(true);
+      await move(12, 8, p);
+      await send(p, "pointerClick");
+      await send(p, "pointerRightClick");
+      await scroll(0, -20, p);
+      expect(port.pointerCalls.map((c) => c.call)).toEqual([
+        "setMode",
+        "move",
+        "click",
+        "rightClick",
+        "scroll",
+      ]);
+
+      await send(p, { command: "pointerMode", args: { on: false } });
+      expect(port.pointerCalls.at(-1)).toEqual({ call: "setMode", args: [false] });
+      await p.press("home");
+    }
+    await custom.stop();
   });
 });

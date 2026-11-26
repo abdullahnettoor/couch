@@ -12,7 +12,16 @@ const fake = vi.hoisted(() => {
     handlers = new Map<string, Array<(...args: any[]) => void>>();
     scripts: string[] = [];
     loads: string[] = [];
-    inputs: Array<{ type: string; keyCode: string }> = [];
+    inputs: Array<{
+      type: string;
+      keyCode?: string;
+      x?: number;
+      y?: number;
+      button?: "left" | "right";
+      clickCount?: number;
+      deltaX?: number;
+      deltaY?: number;
+    }> = [];
     answers: Array<[string, unknown]> = [];
     failing = false;
     debugger = {
@@ -52,8 +61,18 @@ const fake = vi.hoisted(() => {
         if (script.includes(part)) return typeof answer === "function" ? answer(script) : answer;
       return undefined;
     }
-    sendInputEvent(event: { type: string; keyCode: string }) {
+    sendInputEvent(event: {
+      type: string;
+      keyCode?: string;
+      x?: number;
+      y?: number;
+      button?: "left" | "right";
+      clickCount?: number;
+      deltaX?: number;
+      deltaY?: number;
+    }) {
       this.inputs.push(event);
+      if (event.type === "mouseDown") this.emit("before-mouse-event", {}, { type: "mouseDown" });
     }
     setUserAgent() {}
     setZoomMode() {}
@@ -113,7 +132,11 @@ vi.mock("electron", () => {
 import type { YouTubeEvent } from "../ports/youtube.ts";
 import { COUCH_HOST_CONSOLE, COUCH_HOST_WEBKIT } from "./couch-host.ts";
 import { ElectronWebApp } from "./electron-web-app.ts";
-import { describeWebHostContract, type HostRig } from "./web-host-contract.ts";
+import {
+  describeWebHostContract,
+  type HostPointerEvent,
+  type HostRig,
+} from "./web-host-contract.ts";
 import { MEDIA_TOGGLE_SCRIPT } from "./media-toggle.ts";
 import type { WebAppDescription } from "./web-app.ts";
 import type { EvaluateKind, WebKitBridge, WebKitEvent, WebKitView } from "./webkit-bridge.ts";
@@ -145,7 +168,10 @@ function electronRig(description: WebAppDescription): HostRig {
     answer: (part, value) => void contents.answers.push([part, value]),
     failScripts: () => void (contents.failing = true),
     scripts: () => contents.scripts,
-    keys: () => contents.inputs.filter((i) => i.type === "keyDown").map((i) => i.keyCode),
+    keys: () =>
+      contents.inputs
+        .filter((i): i is { type: string; keyCode: string } => i.type === "keyDown" && !!i.keyCode)
+        .map((i) => i.keyCode),
     navigate: (url) => {
       contents.url = url;
       contents.emit("did-navigate-in-page", {}, url);
@@ -189,6 +215,15 @@ function electronRig(description: WebAppDescription): HostRig {
       vm.runInNewContext(`(${COUCH_HOST_CONSOLE})()`, sandbox);
       sandbox.couchHost.send(message);
     },
+    pointerEvents: () =>
+      contents.inputs.flatMap<HostPointerEvent>((i) => {
+        if (i.type === "mouseMove") return [{ type: "move", x: i.x!, y: i.y! }];
+        if (i.type === "mouseDown") return [{ type: "down", button: i.button!, x: i.x!, y: i.y! }];
+        if (i.type === "mouseUp") return [{ type: "up", button: i.button!, x: i.x!, y: i.y! }];
+        if (i.type === "mouseWheel")
+          return [{ type: "wheel", x: i.x!, y: i.y!, dx: i.deltaX!, dy: i.deltaY! }];
+        return [];
+      }),
   };
 }
 
@@ -336,4 +371,5 @@ afterEach(() => {
 describeWebHostContract("ElectronWebApp on fake WebContents", electronRig);
 describeWebHostContract("WebKitWebApp on the fake bridge", webkitRig, {
   playerOutsideDocument: false,
+  pointer: false,
 });

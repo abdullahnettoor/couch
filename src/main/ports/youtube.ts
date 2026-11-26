@@ -1,4 +1,5 @@
 import type { PromptId, TrackKind } from "../../shared/protocol.ts";
+import type { AppPointer } from "../../shared/pointer.ts";
 import type { PlaybackReport } from "../apps/app.ts";
 import type { CommandName } from "../../shared/protocol.ts";
 import type { Confirmation } from "../../shared/protocol.ts";
@@ -106,5 +107,7 @@ export interface YouTube {
   unload(): void;
   /** Runs exactly these add-ons (by id) from the next page load, and reloads the page now; `note` is overlaid once it has loaded. */
   setAddons(ids: string[], note?: string): void;
+  /** Pointer mode delivery: real mouse events at a point, and lifting/restoring the D-pad shield. */
+  readonly pointer?: AppPointer;
   onEvent(listener: (event: YouTubeEvent) => void): () => void;
 }

@@ -8,13 +8,19 @@ import {
   session,
   type Session,
 } from "electron";
+import type { AppPointer } from "../../shared/pointer.ts";
 import type { Confirmation, PromptId, TrackKind } from "../../shared/protocol.ts";
 import { revealScreen } from "../reveal.ts";
 import type { YouTube, YouTubeEvent, YouTubeKey } from "../ports/youtube.ts";
 import { BlankGuard, backIsSafe } from "./blank-guard.ts";
 import { HiddenAudio } from "./hidden-audio.ts";
 import { decideKey, type KeyGate } from "./keyboard-policy.ts";
-import { FIELD_BLURRED, FIELD_FOCUSED, pageFocusFunction } from "./page-focus.ts";
+import {
+  FIELD_BLURRED,
+  FIELD_FOCUSED,
+  pageFocusFunction,
+  pointerModeScript,
+} from "./page-focus.ts";
 import { PAGE_HOOKS_FUNCTION } from "./page-hooks.ts";
 import { PAGE_MEDIA_FUNCTION } from "./page-media.ts";
 import { COUCH_HOST_CONSOLE, HOST_CONSOLE_PREFIX } from "./couch-host.ts";
@@ -83,6 +89,7 @@ export class ElectronWebApp implements YouTube {
   #ownHooks: Array<() => void> = [];
   #onDownload = (_event: unknown, item: { cancel(): void }) => item.cancel();
   #textSize: TextSize = "default";
+  #pointerMode = false;
   #onResize = () => {
     this.#fit();
     this.#applyZoom();
@@ -229,6 +236,7 @@ export class ElectronWebApp implements YouTube {
       // A style the page itself adds doesn't beat the site's own rules; Chromium's inserted CSS does.
       if (this.#desc.hideScrollbars) void wc.insertCSS(HIDE_SCROLLBARS_CSS).catch(() => {});
       void this.#applySound();
+      if (this.#pointerMode) void wc.executeJavaScript(pointerModeScript(true)).catch(() => {});
       if (!this.#visible) this.#silence.hide();
     });
     wc.on("did-start-navigation", (_e, _url, inPlace, isMainFrame) => {
@@ -565,6 +573,64 @@ export class ElectronWebApp implements YouTube {
       this.#sending = false;
     }
   }
+
+  #sendPointer(fn: () => void): void {
+    if (this.#disposed) return;
+    this.#sending = true;
+    try {
+      fn();
+    } finally {
+      this.#sending = false;
+    }
+  }
+
+  readonly pointer: AppPointer = {
+    move: (x, y) => {
+      this.#sendPointer(() => {
+        this.#view.webContents.sendInputEvent({
+          type: "mouseMove",
+          x: Math.round(x),
+          y: Math.round(y),
+        });
+      });
+    },
+    click: (x, y) => {
+      const rx = Math.round(x);
+      const ry = Math.round(y);
+      this.#sendPointer(() => {
+        const wc = this.#view.webContents;
+        wc.sendInputEvent({ type: "mouseMove", x: rx, y: ry });
+        wc.sendInputEvent({ type: "mouseDown", x: rx, y: ry, button: "left", clickCount: 1 });
+        wc.sendInputEvent({ type: "mouseUp", x: rx, y: ry, button: "left", clickCount: 1 });
+      });
+    },
+    rightClick: (x, y) => {
+      const rx = Math.round(x);
+      const ry = Math.round(y);
+      this.#sendPointer(() => {
+        const wc = this.#view.webContents;
+        wc.sendInputEvent({ type: "mouseMove", x: rx, y: ry });
+        wc.sendInputEvent({ type: "mouseDown", x: rx, y: ry, button: "right", clickCount: 1 });
+        wc.sendInputEvent({ type: "mouseUp", x: rx, y: ry, button: "right", clickCount: 1 });
+      });
+    },
+    scroll: (x, y, dx, dy) => {
+      this.#sendPointer(() => {
+        this.#view.webContents.sendInputEvent({
+          type: "mouseWheel",
+          x: Math.round(x),
+          y: Math.round(y),
+          deltaX: Math.round(dx),
+          deltaY: Math.round(dy),
+        });
+      });
+    },
+    setMode: (on) => {
+      if (this.#disposed) return;
+      this.#pointerMode = on;
+      void this.#view.webContents.executeJavaScript(pointerModeScript(on)).catch(() => {});
+    },
+  };
 
   scrollToTop(): void {
     this.#core.scrollToTop();

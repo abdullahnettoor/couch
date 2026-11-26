@@ -1,3 +1,4 @@
+import type { AppPointer } from "../../../shared/pointer.ts";
 import type { Confirmation, PromptId, TrackKind } from "../../../shared/protocol.ts";
 import type { Clock } from "../../ports/clock.ts";
 import type { YouTube } from "../../ports/youtube.ts";
@@ -146,6 +147,9 @@ export class NetflixApp implements App {
   }
   setOutputDevice(name: string | undefined) {
     return this.#port.setOutputDevice(name);
+  }
+  get pointer(): AppPointer | undefined {
+    return this.#port.pointer;
   }
   restart() {
     this.#port.restart();

@@ -4,6 +4,7 @@ import {
   FIELD_BLURRED,
   FIELD_FOCUSED,
   pageFocusFunction,
+  pointerModeScript,
   type FocusLayout,
   pickInDirection,
   typeIntoFieldScript,
@@ -779,6 +780,26 @@ describe("D-pad mode (no hover from a resting mouse)", () => {
     fire("mousemove", null, mv(600, 400));
     expect(dpad(doc)).toBe(false);
     key("ArrowLeft");
+    expect(dpad(doc)).toBe(true);
+  });
+  test("pointer mode lifts the D-pad shield, keeps keys from re-raising it, and restores it when turned off", () => {
+    const { key, doc, run } = setup(els());
+    key("ArrowRight");
+    expect(shieldOf(doc)).toBeTruthy();
+    expect(dpad(doc)).toBe(true);
+
+    run(pointerModeScript(true));
+    expect(shieldOf(doc)).toBeUndefined();
+    expect(dpad(doc)).toBe(false);
+
+    // Keys while pointer mode is on (e.g. Back or typing) do not put the shield back up.
+    key("Escape");
+    expect(shieldOf(doc)).toBeUndefined();
+    expect(dpad(doc)).toBe(false);
+
+    // Turning pointer mode off brings the shield back so a resting Mac mouse does not hover.
+    run(pointerModeScript(false));
+    expect(shieldOf(doc)).toBeTruthy();
     expect(dpad(doc)).toBe(true);
   });
 });

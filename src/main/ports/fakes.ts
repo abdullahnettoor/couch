@@ -113,6 +113,15 @@ export class FakePlayer implements Player {
 
 export class FakeYouTube implements YouTube {
   readonly calls: Array<{ call: string; args: unknown[] }> = [];
+  /** Every pointer call (Pointer mode), in order. */
+  readonly pointerCalls: Array<{ call: string; args: unknown[] }> = [];
+  readonly pointer: AppPointer = {
+    move: (x, y) => this.pointerCalls.push({ call: "move", args: [x, y] }),
+    click: (x, y) => this.pointerCalls.push({ call: "click", args: [x, y] }),
+    rightClick: (x, y) => this.pointerCalls.push({ call: "rightClick", args: [x, y] }),
+    scroll: (x, y, dx, dy) => this.pointerCalls.push({ call: "scroll", args: [x, y, dx, dy] }),
+    setMode: (on) => this.pointerCalls.push({ call: "setMode", args: [on] }),
+  };
   #events = emitter<YouTubeEvent>();
   #tracker = new RouteTracker();
   #record(call: string, ...args: unknown[]) {

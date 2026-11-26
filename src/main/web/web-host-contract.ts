@@ -8,9 +8,18 @@ import { urlRoute } from "./url-route.ts";
 import { soundScript } from "./web-sound.ts";
 import { pageWithPlayerOutsideDocument } from "./fake-media-page.ts";
 
+/** One native mouse event delivered to the view by Pointer mode. */
+export type HostPointerEvent =
+  | { type: "move"; x: number; y: number }
+  | { type: "down" | "up"; button: "left" | "right"; x: number; y: number }
+  | { type: "wheel"; x: number; y: number; dx: number; dy: number };
+
 /** What the shared host contract needs of an engine's test rig (fake `WebContents`, or the fake WebKit bridge). */
 export interface HostRig {
-  host: Required<Omit<YouTube, "followsMacOutput" | "supportsTextSize" | "setTextSize">>;
+  host: Required<
+    Omit<YouTube, "followsMacOutput" | "supportsTextSize" | "setTextSize" | "pointer">
+  > &
+    Pick<YouTube, "pointer">;
   events: YouTubeEvent[];
   /** Shows the host and waits until its home has been asked for. */
   show(): Promise<void>;
@@ -47,6 +56,8 @@ export interface HostRig {
   pageMouseDown(): void;
   /** The page calls `couchHost.send(message)` (the engine's own bridge script, run for real), from a frame (default: the App's main frame). */
   couchSend(message: unknown, frame?: { main: boolean; origin: string }): void;
+  /** Every native mouse event delivered to the view by Pointer mode, in order. */
+  pointerEvents?: () => HostPointerEvent[];
 }
 
 export const contractDescription = netflixDescription("130.0.0.0");
@@ -72,8 +83,11 @@ const playing = { position: 12, duration: 3000, paused: false, title: "Test Patt
 export function describeWebHostContract(
   name: string,
   make: (description: WebAppDescription) => HostRig,
-  /** False for a host that installs no page-media hook: Couch doesn't serve a player outside the document there (BitChord is Chromium-only; WebKit's isolated world can't see the page's records). */
-  options: { playerOutsideDocument: boolean } = { playerOutsideDocument: true },
+  /**
+   * `playerOutsideDocument`: false for a host that installs no page-media hook (BitChord is Chromium-only; WebKit's isolated world can't see the page's records).
+   * `pointer`: false while an engine does not implement `pointer` yet.
+   */
+  options: { playerOutsideDocument?: boolean; pointer?: boolean } = {},
 ): void {
   describe(`web host contract: ${name}`, () => {
     // Every rig is disposed after its test, and before fake timers are restored (a timer the host armed must not outlive its clock).
@@ -403,7 +417,8 @@ export function describeWebHostContract(
       });
     });
 
-    describe.skipIf(!options.playerOutsideDocument)("a player outside the page's document", () => {
+    const outside = options.playerOutsideDocument !== false;
+    describe.skipIf(!outside)("a player outside the page's document", () => {
       const ran = (rig: HostRig, part: string) => rig.scripts().filter((s) => s.includes(part));
 
       test("the sound script the host runs reaches it", async () => {
@@ -448,7 +463,11 @@ export function describeWebHostContract(
         const probe = ran(rig, 'querySelectorAll("video")').at(-1)!;
         const page = pageWithPlayerOutsideDocument(rig.installed());
         page.start();
-        expect(await page.run(probe)).toMatchObject({ position: 31, duration: 200, paused: false });
+        expect(await page.run(probe)).toMatchObject({
+          position: 31,
+          duration: 200,
+          paused: false,
+        });
       });
     });
 
@@ -1019,5 +1038,72 @@ export function describeWebHostContract(
         expect(rig.scripts().at(-1)).toContain("couch-search");
       });
     });
+
+    if (options.pointer !== false) {
+      describe("pointer", () => {
+        test("move, click, right-click and scroll reach the page as real mouse events at that point", async () => {
+          const rig = makeRig();
+          await rig.show();
+          const pointer = rig.host.pointer;
+          expect(pointer).toBeDefined();
+
+          pointer!.move(120.4, 240.6);
+          pointer!.click(300, 400);
+          pointer!.rightClick(500, 600);
+          pointer!.scroll(300, 400, -12, -24);
+
+          expect(rig.pointerEvents?.()).toEqual([
+            { type: "move", x: 120, y: 241 },
+            { type: "move", x: 300, y: 400 },
+            { type: "down", button: "left", x: 300, y: 400 },
+            { type: "up", button: "left", x: 300, y: 400 },
+            { type: "move", x: 500, y: 600 },
+            { type: "down", button: "right", x: 500, y: 600 },
+            { type: "up", button: "right", x: 500, y: 600 },
+            { type: "wheel", x: 300, y: 400, dx: -12, dy: -24 },
+          ]);
+          // Couch's own pointer clicks are not reported as the household's Mac mouse.
+          expect(rig.events.filter((e) => e.type === "input")).toEqual([]);
+        });
+
+        test("setMode lifts the D-pad shield while on, keeps it lifted on reload, and restores it when off", async () => {
+          const rig = makeRig();
+          await rig.show();
+          const pointer = rig.host.pointer!;
+
+          pointer.setMode(true);
+          expect(rig.scripts().at(-1)).toContain("__couchPointerMode(true)");
+
+          // A fresh document load while pointer mode is on keeps the shield lifted.
+          const beforeLoad = rig.scripts().length;
+          rig.loaded();
+          expect(
+            rig
+              .scripts()
+              .slice(beforeLoad)
+              .some((s) => s.includes("__couchPointerMode(true)")),
+          ).toBe(true);
+
+          pointer.setMode(false);
+          expect(rig.scripts().at(-1)).toContain("__couchPointerMode(false)");
+        });
+
+        test("after dispose, pointer calls do nothing", async () => {
+          const rig = makeRig();
+          await rig.show();
+          const pointer = rig.host.pointer!;
+          rig.dispose();
+          const before = rig.pointerEvents?.().length ?? 0;
+          const scriptsBefore = rig.scripts().length;
+          pointer.move(10, 20);
+          pointer.click(10, 20);
+          pointer.rightClick(10, 20);
+          pointer.scroll(10, 20, 0, -10);
+          pointer.setMode(true);
+          expect(rig.pointerEvents?.().length ?? 0).toBe(before);
+          expect(rig.scripts().length).toBe(scriptsBefore);
+        });
+      });
+    }
   });
 }

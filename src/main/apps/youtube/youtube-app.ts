@@ -1,3 +1,4 @@
+import type { AppPointer } from "../../../shared/pointer.ts";
 import type { Confirmation, TrackKind } from "../../../shared/protocol.ts";
 import type { Clock } from "../../ports/clock.ts";
 import type { YouTube } from "../../ports/youtube.ts";
@@ -110,6 +111,9 @@ export class YouTubeApp implements App {
   }
   setAddons(ids: string[], note?: string) {
     this.#port.setAddons(ids, note);
+  }
+  get pointer(): AppPointer | undefined {
+    return this.#port.pointer;
   }
   onEvent(listener: (event: AppEvent) => void) {
     this.#listeners.add(listener);
