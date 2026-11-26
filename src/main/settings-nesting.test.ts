@@ -44,7 +44,12 @@ describe("Settings nesting", () => {
     const phone = await openSettings();
     await enter(phone, "Remotes and Devices");
     expect(view()).toBe("settingsRemotes");
-    expect(labels()).toEqual(["Add a phone", "Forget all phones", "Start Couch Listener at login"]);
+    expect(labels()).toEqual([
+      "Add a phone",
+      "Forget all phones",
+      "Pointer speed",
+      "Start Couch Listener at login",
+    ]);
   });
 
   test("Library lists its items", async () => {

@@ -15911,6 +15911,7 @@
           "on": false,
           "running": false
         },
+        "pointerSpeed": "normal",
         "state": {
           "view": "settingsRemotes",
           "focus": {
@@ -15963,10 +15964,17 @@
             "c": 0
           },
           {
+            "id": "pointer-speed",
+            "label": "Pointer speed",
+            "action": "settings:pointer-speed",
+            "r": 2,
+            "c": 0
+          },
+          {
             "id": "listener",
             "label": "Start Couch Listener at login",
             "action": "settings:listener",
-            "r": 2,
+            "r": 3,
             "c": 0
           }
         ],
@@ -16044,7 +16052,7 @@
         "focusedId": "done",
         "focusedLabel": "Done"
       },
-      "removed": ["listener"]
+      "removed": ["listener", "pointerSpeed"]
     },
     "phone": {
       "set": {
@@ -16072,6 +16080,7 @@
           "on": false,
           "running": false
         },
+        "pointerSpeed": "normal",
         "state": {
           "view": "settingsRemotes",
           "focus": {
@@ -16124,10 +16133,17 @@
             "c": 0
           },
           {
+            "id": "pointer-speed",
+            "label": "Pointer speed",
+            "action": "settings:pointer-speed",
+            "r": 2,
+            "c": 0
+          },
+          {
             "id": "listener",
             "label": "Start Couch Listener at login",
             "action": "settings:listener",
-            "r": 2,
+            "r": 3,
             "c": 0
           }
         ],
@@ -16256,7 +16272,7 @@
         "focusedId": "remotes",
         "focusedLabel": "Remotes and Devices"
       },
-      "removed": ["listener"]
+      "removed": ["listener", "pointerSpeed"]
     },
     "phone": {
       "set": {

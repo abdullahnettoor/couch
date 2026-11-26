@@ -1,6 +1,7 @@
 import type { TimeFormat } from "./clock-format.ts";
 /** Remote protocol and the state shapes shared by the core, the Remote page and the Screen renderer. */
 import type { PlayerOverlay } from "./player.ts";
+import type { PointerSpeed } from "./pointer.ts";
 import type { TextSize } from "./text-size.ts";
 import type { PictureTile, Slideshow, WallpaperChoice } from "./wallpapers.ts";
 
@@ -487,6 +488,8 @@ export interface ScreenPayload {
   homeApps?: Array<{ id: string; label: string; icon: string; shown: boolean; beta?: true }>;
   /** Settings: the listener's login item and whether a listener is running now. */
   listener?: { available: boolean; on: boolean; running: boolean };
+  /** Settings → Remotes and Devices: the pointer speed choice. */
+  pointerSpeed?: PointerSpeed;
   /** Present for library, folder and libraryFolders. */
   library?: LibraryPayload;
   /** Present on the show page. */

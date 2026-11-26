@@ -37,6 +37,17 @@ export interface AppPointer {
 export const POINTER_SPEEDS = ["slow", "normal", "fast"] as const;
 export type PointerSpeed = (typeof POINTER_SPEEDS)[number];
 
+export const POINTER_SPEED_LABELS: Record<PointerSpeed, string> = {
+  slow: "Slow",
+  normal: "Normal",
+  fast: "Fast",
+};
+
+/** The next pointer speed in order, wrapping from Fast back to Slow. */
+export function nextPointerSpeed(speed: PointerSpeed): PointerSpeed {
+  return POINTER_SPEEDS[(POINTER_SPEEDS.indexOf(speed) + 1) % POINTER_SPEEDS.length]!;
+}
+
 /** A CSS `rgb()` or `rgba()` colour as [r, g, b, a] with every part 0–1; opaque black when it isn't one. */
 export function parseRgba(css: string): [number, number, number, number] {
   const m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$/.exec(

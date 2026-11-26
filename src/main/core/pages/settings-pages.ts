@@ -1,3 +1,4 @@
+import type { PointerSpeed } from "../../../shared/pointer.ts";
 import type { GridItem, ScreenPayload } from "../../../shared/protocol.ts";
 import {
   ADD_PHONE_ITEMS,
@@ -62,7 +63,13 @@ export interface RemotesPageHost {
   listener(): { available: boolean; on: boolean; running: boolean };
   /** Reads the login item again from the Mac. */
   refresh(): void;
+  /** The pointer speed setting (Slow, Normal, Fast). */
+  pointerSpeed(): PointerSpeed;
+  /** Cycles the pointer speed to the next choice. */
+  stepPointerSpeed(): void;
 }
+
+const POINTER_SPEED = "settings:pointer-speed";
 
 /** Settings → Remotes and Devices: refreshes the listener's login item on entering. */
 export class RemotesPage extends MenuPage {
@@ -78,7 +85,16 @@ export class RemotesPage extends MenuPage {
   }
 
   override payload(): Partial<ScreenPayload> {
-    return { listener: { ...this.#h.listener() } };
+    return {
+      listener: { ...this.#h.listener() },
+      pointerSpeed: this.#h.pointerSpeed(),
+    };
+  }
+
+  override action(action: string): boolean {
+    if (action !== POINTER_SPEED) return false;
+    this.#h.stepPointerSpeed();
+    return true;
   }
 
   enter(): void {
