@@ -27,6 +27,8 @@ const send = async (p: FakePhone, command: Parameters<FakePhone["send"]>[0]) => 
 };
 const move = (dx: number, dy: number, p = phone) =>
   send(p, { command: "pointerMove", args: { dx, dy } });
+const scroll = (dx: number, dy: number, p = phone) =>
+  send(p, { command: "pointerScroll", args: { dx, dy } });
 const draws = () => h.screen.pointer.draws;
 const lastDraw = () => draws().at(-1)!;
 
@@ -306,5 +308,66 @@ describe("Pointer mode: routing to the layer in front", () => {
     await send(phone, { command: "pointerMode", args: { on: true } });
     await phone.press("home");
     expect(tube.pointerCalls.at(-1)).toEqual({ call: "setMode", args: [false] });
+  });
+
+  test("a scroll reaches the front Couch page at the pointer's position without moving it", async () => {
+    await move(20, 10);
+    const { x, y } = lastDraw();
+    await scroll(0, -30);
+    await scroll(-25, 0);
+    expect(lastDraw()).toMatchObject({ x, y, shown: true });
+    expect(h.screen.pointer.inputs).toEqual([
+      { layer: "page", type: "scroll", x, y, dx: 0, dy: expect.any(Number) },
+      { layer: "page", type: "scroll", x, y, dx: expect.any(Number), dy: 0 },
+    ]);
+    const [vert, horiz] = h.screen.pointer.inputs as Array<{ dx: number; dy: number }>;
+    expect(vert!.dy).toBeLessThan(0);
+    expect(horiz!.dx).toBeLessThan(0);
+  });
+
+  test("a huge scroll delta is clamped like a move", async () => {
+    await scroll(0, -1e9);
+    await scroll(0, -120);
+    const [huge, max] = h.screen.pointer.inputs as Array<{ dy: number }>;
+    expect(huge!.dy).toBe(max!.dy);
+    expect(Math.abs(huge!.dy)).toBeLessThan(500);
+  });
+
+  test("scroll goes to Quick settings when open, and to a web App when it is in front", async () => {
+    await phone.press("quickSettings");
+    await scroll(0, -20);
+    expect(h.screen.pointer.inputs.at(-1)).toMatchObject({ layer: "quick", type: "scroll" });
+
+    await phone.press("quickSettings");
+    await phone.press({ command: "openApp", args: { app: "tube" } });
+    await send(phone, { command: "pointerMode", args: { on: true } });
+    await move(15, 10);
+    const { x, y } = lastDraw();
+    const pageCount = h.screen.pointer.inputs.length;
+    await scroll(-20, -15);
+    const lastAppCall = tube.pointerCalls.at(-1);
+    expect(lastAppCall?.call).toBe("scroll");
+    expect(lastAppCall?.args.slice(0, 2)).toEqual([x, y]);
+    expect(lastAppCall?.args[2] as number).toBeLessThan(0);
+    expect(lastAppCall?.args[3] as number).toBeLessThan(0);
+    expect(h.screen.pointer.inputs).toHaveLength(pageCount);
+  });
+
+  test("a scroll needs Pointer mode on, and during Picture off only brings the picture back", async () => {
+    await send(phone, { command: "pointerMode", args: { on: false } });
+    await scroll(0, -30);
+    expect(h.screen.pointer.inputs).toEqual([]);
+
+    await phone.press({ command: "openApp", args: { app: "tube" } });
+    await send(phone, { command: "pointerMode", args: { on: true } });
+    tube.emit({
+      type: "playback",
+      playback: { position: 30, duration: 600, paused: false, title: "Cat" },
+    });
+    await phone.waitFor(() => phone.last?.nowPlaying !== undefined);
+    await phone.press({ command: "setPictureOff", args: { on: true } });
+    await scroll(0, -30);
+    expect(h.screen.last.state.pictureOff).toBe(false);
+    expect(tube.pointerCalls.filter((c) => c.call === "scroll")).toEqual([]);
   });
 });

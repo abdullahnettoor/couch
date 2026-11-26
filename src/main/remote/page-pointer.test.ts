@@ -40,7 +40,11 @@ function load() {
             remove: (c: string) => t.classes.delete(c),
           };
         if (k === "disabled") return false;
-        if (k === "getBoundingClientRect") return () => ({ left: 0, width: 1 });
+        if (k === "getBoundingClientRect")
+          return () =>
+            t.id === "tsurface"
+              ? { left: 0, top: 0, width: 390, height: 600 }
+              : { left: 0, width: 1 };
         return () => {};
       },
       set(t, k: string, v) {
@@ -316,5 +320,71 @@ describe("the Remote's touchpad", () => {
     p.els.get("tp-now")!.handlers.click!();
     expect(p.els.get("nowp")!.hidden).toBe(false);
     expect(p.els.get("tpad")!.hidden).toBe(true);
+  });
+
+  test("the touchpad marks a right-edge and a bottom-edge scroll strip", () => {
+    const p = load();
+    expect(p.els.get("tscroll-y")).toBeDefined();
+    expect(p.els.get("tscroll-x")).toBeDefined();
+  });
+
+  test("sliding in the right strip scrolls up and down, coalesced per frame, and never moves the pointer", () => {
+    const p = load();
+    p.down(365, 300);
+    p.move(365, 280);
+    p.move(350, 250);
+    // Drift out of the strip into the pad: still scrolls vertically, never moves.
+    p.move(120, 230);
+    expect(p.pointerCommands()).toEqual([]);
+    p.frame();
+    expect(p.pointerCommands()).toEqual([
+      { type: "command", command: "pointerScroll", args: { dx: 0, dy: -70 } },
+    ]);
+    p.move(120, 210);
+    p.up(120, 210);
+    expect(p.pointerCommands()).toEqual([
+      { type: "command", command: "pointerScroll", args: { dx: 0, dy: -70 } },
+      { type: "command", command: "pointerScroll", args: { dx: 0, dy: -20 } },
+    ]);
+  });
+
+  test("sliding in the bottom strip scrolls sideways, coalesced per frame, and never moves the pointer", () => {
+    const p = load();
+    p.down(200, 575);
+    p.move(180, 570);
+    p.move(150, 400);
+    expect(p.pointerCommands()).toEqual([]);
+    p.frame();
+    expect(p.pointerCommands()).toEqual([
+      { type: "command", command: "pointerScroll", args: { dx: -50, dy: 0 } },
+    ]);
+    p.move(175, 390);
+    p.up(175, 390);
+    expect(p.pointerCommands()).toEqual([
+      { type: "command", command: "pointerScroll", args: { dx: -50, dy: 0 } },
+      { type: "command", command: "pointerScroll", args: { dx: 25, dy: 0 } },
+    ]);
+  });
+
+  test("a drag that starts in the pad never scrolls, even if it crosses into a strip", () => {
+    const p = load();
+    p.down(150, 200);
+    p.move(200, 200);
+    p.move(375, 580);
+    p.frame();
+    p.up(375, 580);
+    expect(p.pointerCommands().map((c) => c.command)).toEqual(["pointerMove"]);
+    expect(p.pointerCommands().some((c) => c.command === "pointerScroll")).toBe(false);
+  });
+
+  test("tapping or holding in a scroll strip never clicks or right-clicks", () => {
+    const p = load();
+    p.down(365, 300);
+    p.advance(100);
+    p.up(365, 300);
+    p.down(200, 575);
+    p.advance(700);
+    p.up(200, 575);
+    expect(p.pointerCommands()).toEqual([]);
   });
 });

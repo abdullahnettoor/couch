@@ -15,6 +15,8 @@ export const POINTER_IDLE_MS = 5000;
 export const POINTER_DWELL_MS = 300;
 /** The most one move may carry, in phone pixels: a flood or a bad value can't throw the pointer across the Screen. */
 export const MAX_POINTER_DELTA = 120;
+/** Wheel pixels per phone pixel when sliding in a scroll strip. */
+const SCROLL_GAIN = 2;
 
 /** Screen pixels per phone pixel at the slowest drag, for each speed setting. */
 const BASE_GAIN: Record<PointerSpeed, number> = { slow: 1.4, normal: 2.2, fast: 3.4 };
@@ -134,6 +136,17 @@ export class PointerControl {
     this.#send({ type: kind });
   }
 
+  /** A phone slid along a scroll strip: wheel input at the pointer's place, without moving it. */
+  scroll(dx: number, dy: number, from: string): void {
+    if (!this.#usable()) return;
+    this.#take(from);
+    this.#moved(false);
+    const sdx = Math.round(clampDelta(dx) * SCROLL_GAIN);
+    const sdy = Math.round(clampDelta(dy) * SCROLL_GAIN);
+    if (sdx === 0 && sdy === 0) return;
+    this.#send({ type: "scroll", dx: sdx, dy: sdy });
+  }
+
   /** The Mac's keyboard or mouse, or a D-pad press: the pointer steps aside until the next touch. */
   hide(): void {
     this.#cancelIdle?.();
@@ -211,13 +224,16 @@ export class PointerControl {
     this.#send({ type: "move" });
   }
 
-  #send(event: { type: "move" | "click" | "rightClick" }): void {
+  #send(
+    event: { type: "move" | "click" | "rightClick" } | { type: "scroll"; dx: number; dy: number },
+  ): void {
     const layer = this.#deps.layer();
     if (!layer) return;
     if (layer === "app") {
       const app = this.#deps.app()?.pointer;
       if (event.type === "click") app?.click(this.#x, this.#y);
       else if (event.type === "rightClick") app?.rightClick(this.#x, this.#y);
+      else if (event.type === "scroll") app?.scroll(this.#x, this.#y, event.dx, event.dy);
       return;
     }
     const input: PointerInput = { layer, x: this.#x, y: this.#y, ...event };

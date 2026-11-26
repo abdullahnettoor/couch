@@ -163,8 +163,16 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
   .tprow { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:8px; flex:none; }
   .tprow button { height:44px; border-radius:var(--radius-phone-pill); background:var(--glass); box-shadow:var(--shadow-glass-edge); backdrop-filter:var(--blur-glass); -webkit-backdrop-filter:var(--blur-glass); display:flex; align-items:center; justify-content:center; font-size:var(--type-phone-icon); color:var(--text-primary); transition:transform var(--duration-press); }
   .tprow button:active { transform:scale(.95); background:var(--press); }
-  .tsurface { flex:1; min-height:0; border-radius:var(--radius-art); background:var(--card); box-shadow:var(--shadow-pad); touch-action:none; display:grid; place-items:center; text-align:center; padding:24px; color:var(--text-tertiary); font-size:var(--type-phone-small); cursor:pointer; }
+  .tsurface { position:relative; overflow:hidden; flex:1; min-height:0; border-radius:var(--radius-art); background:var(--card); box-shadow:var(--shadow-pad); touch-action:none; display:grid; place-items:center; text-align:center; padding:24px 60px 60px 24px; color:var(--text-tertiary); font-size:var(--type-phone-small); cursor:pointer; }
   .tsurface:active { background:var(--card-raised); }
+  .tstrip { position:absolute; pointer-events:none; display:grid; place-items:center; border-radius:var(--radius-card-small); background:var(--track-faint); transition:background var(--duration-quick); }
+  .tstrip::after { content:""; border-radius:var(--radius-hairline); background:var(--track); transition:background var(--duration-quick); }
+  .tstrip.on { background:var(--press-soft); }
+  .tstrip.on::after { background:var(--text-tertiary); }
+  .tstrip-y { top:10px; right:8px; bottom:58px; width:40px; }
+  .tstrip-y::after { width:4px; height:48px; }
+  .tstrip-x { left:10px; right:58px; bottom:8px; height:40px; }
+  .tstrip-x::after { width:48px; height:4px; }
   .ptoggle { margin:14px auto 0; flex:none; padding:0 18px; gap:8px; }
   .ptoggle svg { font-size:var(--type-phone-icon); }
   .npad .hint { text-align:center; color:var(--text-tertiary); font-size:var(--type-phone-small); flex:none; }
@@ -284,7 +292,7 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     <button id="tp-dpad" aria-label="D-pad" data-i="dpad"></button>
     <button id="tp-now" aria-label="Now Playing" data-i="monitorPlay" hidden></button>
   </div>
-  <div class="tsurface" id="tsurface" role="application" aria-label="Touchpad: drag to move the pointer, tap to click, hold to right-click">Drag to move. Tap to click. Hold to right-click.</div>
+  <div class="tsurface" id="tsurface" role="application" aria-label="Touchpad: drag to move the pointer, tap to click, hold to right-click, slide the right or bottom edge to scroll">Drag to move. Tap to click. Hold to right-click. Slide the edges to scroll.<div class="tstrip tstrip-y" id="tscroll-y" aria-hidden="true"></div><div class="tstrip tstrip-x" id="tscroll-x" aria-hidden="true"></div></div>
 </section>
 <div class="sheet" id="np-sheet" hidden>
   <div class="rows" id="np-rows" role="dialog"></div>
@@ -648,9 +656,10 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     post({ type: "command", command: command, args: args });
   }
 
-  /** Pointer mode's touchpad: a drag moves the pointer, a quick lift with no real movement taps, holding still right-clicks. */
-  var SLOP = 10, TAP_MS = 250, LONG_MS = 500;
-  var pad = $("tsurface"), touch = null, owed = { dx: 0, dy: 0 }, frame = null, lastEdge = null;
+  /** Pointer mode's touchpad: a drag moves the pointer, a quick lift with no real movement taps, holding still right-clicks; the right and bottom strips scroll. */
+  var SLOP = 10, TAP_MS = 250, LONG_MS = 500, STRIP = 52;
+  var pad = $("tsurface"), stripY = $("tscroll-y"), stripX = $("tscroll-x");
+  var touch = null, owed = { dx: 0, dy: 0 }, owedScroll = { dx: 0, dy: 0 }, frame = null, sframe = null, lastEdge = null;
   function sendPointer(command, args) {
     if (!open || !got) return;
     var msg = { type: "command", command: command };
@@ -665,25 +674,54 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     owed = { dx: 0, dy: 0 };
     sendPointer("pointerMove", { dx: dx, dy: dy });
   }
+  function flushScroll() {
+    sframe = null;
+    if (!owedScroll.dx && !owedScroll.dy) return;
+    var dx = Math.round(owedScroll.dx * 10) / 10, dy = Math.round(owedScroll.dy * 10) / 10;
+    owedScroll = { dx: 0, dy: 0 };
+    sendPointer("pointerScroll", { dx: dx, dy: dy });
+  }
+  function padZone(e) {
+    var r = pad.getBoundingClientRect();
+    if (!(r.width > STRIP * 2 && r.height > STRIP * 2)) return "pad";
+    if (e.clientX >= r.left + r.width - STRIP) return "scrollY";
+    if (e.clientY >= r.top + r.height - STRIP) return "scrollX";
+    return "pad";
+  }
+  function setStripOn(mode) {
+    if (stripY) stripY.classList.toggle("on", mode === "scrollY");
+    if (stripX) stripX.classList.toggle("on", mode === "scrollX");
+  }
   function endTouch() {
-    if (touch) clearTimeout(touch.timer);
+    if (touch && touch.timer) clearTimeout(touch.timer);
     touch = null;
+    setStripOn(null);
   }
   pad.addEventListener("pointerdown", function (e) {
     if (touch || !open) return;
-    var t = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, at: Date.now(), moved: false, long: false, timer: null };
-    t.timer = setTimeout(function () {
-      if (touch !== t || t.moved) return;
-      t.long = true;
-      buzz();
-      sendPointer("pointerRightClick");
-    }, LONG_MS);
+    var mode = padZone(e);
+    var t = { id: e.pointerId, mode: mode, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, at: Date.now(), moved: false, long: false, timer: null };
+    if (mode === "pad") {
+      t.timer = setTimeout(function () {
+        if (touch !== t || t.moved) return;
+        t.long = true;
+        buzz();
+        sendPointer("pointerRightClick");
+      }, LONG_MS);
+    } else setStripOn(mode);
     touch = t;
     if (pad.setPointerCapture) pad.setPointerCapture(e.pointerId);
   });
   pad.addEventListener("pointermove", function (e) {
     var t = touch;
     if (!t || e.pointerId !== t.id || t.long) return;
+    if (t.mode === "scrollY" || t.mode === "scrollX") {
+      if (t.mode === "scrollY") owedScroll.dy += e.clientY - t.y;
+      else owedScroll.dx += e.clientX - t.x;
+      t.x = e.clientX; t.y = e.clientY;
+      if (sframe === null) sframe = requestAnimationFrame(flushScroll);
+      return;
+    }
     if (!t.moved) {
       if (Math.sqrt(Math.pow(e.clientX - t.x0, 2) + Math.pow(e.clientY - t.y0, 2)) < SLOP) return;
       t.moved = true;
@@ -700,6 +738,11 @@ export const REMOTE_PAGE = String.raw`<!doctype html>
     var t = touch;
     if (!t || e.pointerId !== t.id) return;
     endTouch();
+    if (t.mode === "scrollY" || t.mode === "scrollX") {
+      if (sframe !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(sframe);
+      flushScroll();
+      return;
+    }
     if (t.moved) {
       if (frame !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(frame);
       flushMove();

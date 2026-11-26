@@ -55,6 +55,7 @@ const ARGS: Partial<Record<CommandName, Record<string, Field>>> = {
   forgetContinue: { entry: text(2048, CONTINUE_ENTRY) },
   pointerMode: { on: { kind: "boolean" } },
   pointerMove: { dx: number, dy: number },
+  pointerScroll: { dx: number, dy: number },
   confirmAnswer: { index: { kind: "integer" }, text: text() },
 };
 

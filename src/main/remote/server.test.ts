@@ -64,6 +64,15 @@ describe("parseCommand limits", () => {
       parseCommand(`{"type":"command","command":"pointerMove","args":{"dx":1e999,"dy":0}}`),
     ).toBeUndefined();
     expect(parseCommand(raw("pointerMove", { dx: 1, dy: 1, x: 5 }))).toBeUndefined();
+    expect(parseCommand(raw("pointerScroll", { dx: 0, dy: -24.5 }))?.args).toEqual({
+      dx: 0,
+      dy: -24.5,
+    });
+    expect(parseCommand(raw("pointerScroll", { dx: "1", dy: 0 }))).toBeUndefined();
+    expect(
+      parseCommand(`{"type":"command","command":"pointerScroll","args":{"dx":0,"dy":1e999}}`),
+    ).toBeUndefined();
+    expect(parseCommand(raw("pointerScroll", { dx: 0, dy: 1, z: 2 }))).toBeUndefined();
     expect(parseCommand(raw("pointerClick"))).toEqual({ command: "pointerClick" });
     expect(parseCommand(raw("pointerRightClick", { dx: 1 }))).toBeUndefined();
   });
