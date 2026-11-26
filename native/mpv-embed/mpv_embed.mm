@@ -560,12 +560,121 @@ static napi_value HideDrawerGlass(napi_env env, napi_callback_info info) {
   return NULL;
 }
 
+// ---- Pointer mode's arrow -------------------------------------------------------------------------------------------
+// One click-through view covering the window, kept above every other view by the keeper (view_order.h). It never takes
+// the Mac mouse: hitTest returns nil, so every click and move reaches the view underneath. The arrow is one shape layer.
+@interface PointerView : NSView
+@end
+@implementation PointerView
+- (NSView *)hitTest:(NSPoint)point { return nil; }
+- (BOOL)acceptsFirstResponder { return NO; }
+@end
+
+static PointerView *pointerView = nil;
+static CAShapeLayer *pointerArrow = nil;
+static CGFloat pointerHeight = 0;
+static BOOL pointerShown = NO;
+
+static CGColorRef pointerColor(NSArray *c) {
+  if (c.count < 4) return CGColorGetConstantColor(kCGColorBlack);
+  return CGColorCreateGenericRGB([c[0] doubleValue], [c[1] doubleValue], [c[2] doubleValue], [c[3] doubleValue]);
+}
+
+static void ensurePointerView(NSView *parent) {
+  if (pointerView && pointerView.superview == parent) return;
+  [pointerView removeFromSuperview];
+  pointerView = [[PointerView alloc] initWithFrame:parent.bounds];
+  pointerView.wantsLayer = YES;
+  pointerView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+  pointerArrow = [CAShapeLayer layer];
+  pointerArrow.opacity = 0;
+  pointerArrow.anchorPoint = CGPointMake(0, 0);
+  [pointerView.layer addSublayer:pointerArrow];
+  [parent addSubview:pointerView];
+  orderFor(parent)->keeper.setPointer(pointerView);
+}
+
+// setPointerStyle(handle, json): the arrow's outline and paint in window pixels (see PointerPixels in shared/pointer.ts).
+static napi_value SetPointerStyle(napi_env env, napi_callback_info info) {
+  size_t argc = 2; napi_value argv[2];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  NSView *parent = windowParent(env, argv[0]);
+  if (!parent || argc < 2) return NULL;
+  NSData *json = [NSData dataWithBytes:str(env, argv[1]).data() length:str(env, argv[1]).size()];
+  onMain(^{
+    NSDictionary *d = [NSJSONSerialization JSONObjectWithData:json options:0 error:nil];
+    if (![d isKindOfClass:[NSDictionary class]]) return;
+    ensurePointerView(parent);
+    CGFloat h = [d[@"height"] doubleValue];
+    NSArray *pts = d[@"points"];
+    if (h <= 0 || pts.count < 3) return;
+    CGFloat w = 0;
+    for (NSArray *p in pts) w = MAX(w, [p[0] doubleValue]);
+    CGFloat stroke = [d[@"strokeWidth"] doubleValue];
+    CGFloat pad = stroke + [d[@"shadow"][@"blur"] doubleValue] + [d[@"shadow"][@"drop"] doubleValue];
+    CGMutablePathRef path = CGPathCreateMutable();
+    // The layer's y runs up: the outline is flipped inside its own box, which is as tall as the arrow.
+    for (NSUInteger i = 0; i < pts.count; i++) {
+      CGPoint pt = CGPointMake([pts[i][0] doubleValue], h - [pts[i][1] doubleValue]);
+      if (i == 0) CGPathMoveToPoint(path, NULL, pt.x, pt.y); else CGPathAddLineToPoint(path, NULL, pt.x, pt.y);
+    }
+    CGPathCloseSubpath(path);
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    pointerHeight = h;
+    pointerArrow.bounds = CGRectMake(0, 0, w + pad, h + pad);
+    pointerArrow.path = path;
+    pointerArrow.lineJoin = kCALineJoinRound;
+    pointerArrow.lineWidth = stroke;
+    pointerArrow.fillColor = pointerColor(d[@"fill"]);
+    pointerArrow.strokeColor = pointerColor(d[@"stroke"]);
+    pointerArrow.shadowColor = pointerColor(d[@"shadow"][@"color"]);
+    pointerArrow.shadowOpacity = [d[@"shadow"][@"color"][3] doubleValue];
+    pointerArrow.shadowRadius = [d[@"shadow"][@"blur"] doubleValue];
+    pointerArrow.shadowOffset = CGSizeMake(0, -[d[@"shadow"][@"drop"] doubleValue]);
+    [CATransaction commit];
+    CGPathRelease(path);
+  });
+  return NULL;
+}
+
+// setPointer(handle, x, y, shown): the arrow's tip at (x, y) in the window's content (top-left origin). Appearing is
+// instant, fading out takes a moment, and moving never animates.
+static napi_value SetPointer(napi_env env, napi_callback_info info) {
+  size_t argc = 4; napi_value argv[4];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  NSView *parent = windowParent(env, argv[0]);
+  double x = 0, y = 0; bool shown = false;
+  napi_get_value_double(env, argv[1], &x); napi_get_value_double(env, argv[2], &y); napi_get_value_bool(env, argv[3], &shown);
+  if (!parent) return NULL;
+  onMain(^{
+    ensurePointerView(parent);
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    pointerArrow.position = CGPointMake(x, parent.bounds.size.height - y - pointerHeight);
+    [CATransaction commit];
+    if (shown != pointerShown) {
+      pointerShown = shown;
+      [CATransaction begin];
+      [CATransaction setAnimationDuration:shown ? 0 : 0.25];
+      [CATransaction setDisableActions:shown];
+      pointerArrow.opacity = shown ? 1 : 0;
+      [CATransaction commit];
+    }
+  });
+  return NULL;
+}
+
 // disposeWindow(): the Screen window is closing. Pending animation completions are invalidated, the drawer's glass and
 // the keeper (with its run-loop observer) go, and the globals reset, all on the main thread. Safe to call twice.
 static napi_value DisposeWindow(napi_env env, napi_callback_info info) {
   onMain(^{
     drawerGen++;
     if (winOrder) winOrder->keeper.dispose();
+    [pointerView removeFromSuperview];
+    pointerView = nil;
+    pointerArrow = nil;
+    pointerShown = NO;
     [drawerGlass removeFromSuperview];
     drawerGlass = nil;
     for (auto &kv : glass) [kv.second removeFromSuperview];
@@ -682,6 +791,8 @@ static napi_value Init(napi_env env, napi_value exports) {
     {"disposeWindow", 0, DisposeWindow, 0, 0, 0, napi_default, 0},
     {"getColor", 0, GetColor, 0, 0, 0, napi_default, 0},
     {"glassSupported", 0, GlassSupported, 0, 0, 0, napi_default, 0},
+    {"setPointerStyle", 0, SetPointerStyle, 0, 0, 0, napi_default, 0},
+    {"setPointer", 0, SetPointer, 0, 0, 0, napi_default, 0},
     {"setCursorHidden", 0, SetCursorHidden, 0, 0, 0, napi_default, 0},
     {"watchMouseMoves", 0, WatchMouseMoves, 0, 0, 0, napi_default, 0},
     {"unwatchMouseMoves", 0, UnwatchMouseMoves, 0, 0, 0, napi_default, 0},

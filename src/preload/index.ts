@@ -13,6 +13,9 @@ const api: CouchApi = {
   onSound: (listener) => {
     ipcRenderer.on(Channel.sound, (_event, sound) => listener(sound));
   },
+  onPointer: (listener) => {
+    ipcRenderer.on(Channel.pointer, (_event, draw) => listener(draw));
+  },
   onMpv: (listener) => {
     ipcRenderer.on(Channel.mpv, (_event, status) => listener(status));
   },

@@ -79,6 +79,7 @@ import {
 import {
   createDrawerGlass,
   createEmbedFactory,
+  createPointerOverlay,
   createRemoteCommands,
   createWebKitBridge,
   disposeNativeWindow,
@@ -93,6 +94,8 @@ import { QuickDrawer } from "./web/quick-drawer.ts";
 import { EdgeGesture } from "./quick-edge.ts";
 import { MediaKeys } from "./media-keys.ts";
 import { MouseMoves } from "./mouse-moves.ts";
+import { PointerPresenter } from "./pointer-presenter.ts";
+import { deliverPointerInput } from "./pointer-delivery.ts";
 import { wireQuickIpc } from "./quick-ipc.ts";
 import { MpvPlayer } from "./mpv/mpv-player.ts";
 
@@ -478,9 +481,46 @@ async function createScreen(): Promise<void> {
     drawer.fit();
   });
   for (const web of [youtube, netflix, bitchord])
-    web.setKeyGate((e, i) => drawer.intercept(e, i) || cover.intercept(e, i));
-  // One native mouse-moved subscription (starting a second would replace the first), shared by the cursor and the edge gesture.
+    web.setKeyGate((e, i) => {
+      if (i.type === "keyDown") couch?.hidePointer();
+      return drawer.intercept(e, i) || cover.intercept(e, i);
+    });
+  // One native mouse-moved subscription (starting a second would replace the first), shared by the cursor, the edge gesture and Pointer mode.
   const moves = new MouseMoves(watchMouseMoves);
+  // Pointer mode: the arrow is drawn in a native click-through overlay above every view (the renderer draws it where the
+  // add-on isn't there), and its moves and clicks reach Couch's own layers as real mouse input. The Mac's keyboard or mouse
+  // puts it away at once.
+  const pointer = new PointerPresenter({
+    native: createPointerOverlay(() => win),
+    fallback: (draw) => {
+      if (win && !win.isDestroyed()) win.webContents.send(Channel.pointer, draw);
+    },
+    width: () => (win && !win.isDestroyed() ? win.getContentBounds().width : 1920),
+  });
+  const fitPointer = () => {
+    if (win && !win.isDestroyed()) couch?.setScreenSize(win.getContentBounds());
+  };
+  fitPointer();
+  win.on("resize", fitPointer);
+  // The Mac's mouse is only listened for while the arrow shows.
+  let offMouse: (() => void) | undefined;
+  couch.onPointerDraw((draw) => {
+    pointer.draw(draw);
+    if (draw.shown) offMouse ??= moves.subscribe(() => couch?.hidePointer());
+    else {
+      offMouse?.();
+      offMouse = undefined;
+    }
+  });
+  couch.onPointerInput((input) =>
+    deliverPointerInput(input, {
+      page: () => (win && !win.isDestroyed() ? win.webContents : undefined),
+      quick: () => drawer.webContents,
+    }),
+  );
+  win.webContents.on("before-input-event", (_event, input) => {
+    if (input.type === "keyDown") couch?.hidePointer();
+  });
   const cursor = new CursorHider({
     clock: systemClock,
     onMouseMoved: moves.subscribe,

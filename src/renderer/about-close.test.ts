@@ -37,6 +37,7 @@ test("clicking Close, as a mouse would, closes the panel and About's rows come b
     onScreen: (f: (p: ScreenPayload) => void) => (deliver = f),
     onTint() {},
     onSound() {},
+    onPointer() {},
     onMpv() {},
   };
   await import("./main.ts");

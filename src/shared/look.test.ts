@@ -172,6 +172,7 @@ describe("GLASS", () => {
         "gradient",
         "metrics",
         "motion",
+        "pointer",
         "radius",
         "shadow",
         "type",

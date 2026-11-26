@@ -221,7 +221,7 @@ export class PointerControl {
       return;
     }
     const input: PointerInput = { layer, x: this.#x, y: this.#y, ...event };
-    for (const l of [...this.#input]) l(input);
+    for (const l of this.#input) l(input);
   }
 
   #publish(): void {
@@ -234,6 +234,6 @@ export class PointerControl {
     const last = this.#drawn;
     if (last && last.x === draw.x && last.y === draw.y && last.shown === draw.shown) return;
     this.#drawn = draw;
-    for (const l of [...this.#draw]) l(draw);
+    for (const l of this.#draw) l(draw);
   }
 }

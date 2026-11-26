@@ -1,4 +1,5 @@
 import type { Command, QuickPayload, ScreenPayload, UiSoundEvent } from "./protocol.ts";
+import type { PointerDraw } from "./pointer.ts";
 
 /** Channel names and payloads between the Screen renderer and the main process. */
 export const Channel = {
@@ -20,6 +21,8 @@ export const Channel = {
   tint: "couch:tint",
   /** main → renderer: an Interface sound to play */
   sound: "couch:sound",
+  /** main → renderer: where to draw the pointer, when the native overlay isn't there */
+  pointer: "couch:pointer",
 } as const;
 
 /** A glass panel's rectangle in window (CSS) pixels, corner radius and opacity (0 hides it). */
@@ -47,6 +50,8 @@ export interface CouchApi {
   reportGlass(rects: GlassRect[]): void;
   onTint(listener: (rgb: [number, number, number] | null) => void): void;
   onSound(listener: (event: UiSoundEvent) => void): void;
+  /** Where to draw the pointer (only sent where the native overlay isn't there). */
+  onPointer(listener: (draw: PointerDraw) => void): void;
 }
 
 /** All the Quick settings drawer's page may do: pick a row, close, and be handed what to draw. */
