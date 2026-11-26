@@ -69,6 +69,7 @@ export const COMMAND_NAMES = [
   "forgetContinue",
   "pointerMode",
   "pointerMove",
+  "pointerScroll",
   "pointerClick",
   "pointerRightClick",
 ] as const;
@@ -125,7 +126,7 @@ export interface CommandArgs {
   entry?: string;
   /** setPictureOff: true hides the picture, false brings it back; pointerMode: Pointer mode on or off */
   on?: boolean;
-  /** pointerMove: how far the thumb moved, in phone pixels */
+  /** pointerMove and pointerScroll: how far the thumb moved, in phone pixels */
   dx?: number;
   dy?: number;
   /** quickPick (Screen only): the id of the drawer row clicked */

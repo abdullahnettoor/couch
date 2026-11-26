@@ -134,10 +134,11 @@ const PICTURE_KEYS = [
   "typeSubmit",
   "typeCancel",
   "pointerMove",
+  "pointerScroll",
   "pointerClick",
   "pointerRightClick",
 ];
-const POINTER_TOUCH = ["pointerMove", "pointerClick", "pointerRightClick"];
+const POINTER_TOUCH = ["pointerMove", "pointerScroll", "pointerClick", "pointerRightClick"];
 /** A phone's D-pad: pressing it puts the pointer away. */
 const DPAD = [...NAV, "ok"];
 /** Views the Library search's query and focus survive, so Back returns to them. */
@@ -1417,6 +1418,8 @@ export class Core {
       if (from === "screen") return;
       if (command.command === "pointerMove")
         this.#pointer.move(command.args?.dx ?? 0, command.args?.dy ?? 0, from);
+      else if (command.command === "pointerScroll")
+        this.#pointer.scroll(command.args?.dx ?? 0, command.args?.dy ?? 0, from);
       else this.#pointer.press(command.command === "pointerClick" ? "click" : "rightClick", from);
       return;
     }
