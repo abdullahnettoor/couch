@@ -1,3 +1,4 @@
+import { POINTER_SPEED_LABELS } from "../../shared/pointer.ts";
 import type { ScreenPayload, View } from "../../shared/protocol.ts";
 import { VIEW_LABELS } from "../../shared/protocol.ts";
 import { homeAppSwitch } from "../../shared/home-apps.ts";
@@ -87,6 +88,8 @@ function rowValue(id: string, payload: ScreenPayload): string | undefined {
       return "Show the QR code";
     case "forget-phones":
       return payload.state.remotes > 0 ? `${payload.state.remotes} connected` : undefined;
+    case "pointer-speed":
+      return payload.pointerSpeed ? POINTER_SPEED_LABELS[payload.pointerSpeed] : undefined;
     case "listener":
       return payload.listener?.on ? "On" : "Off";
     case "details":

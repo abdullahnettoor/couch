@@ -95,6 +95,17 @@ export class PointerControl {
     return this.#usable();
   }
 
+  /** The pointer speed setting: Normal until the household chooses otherwise. */
+  get speed(): PointerSpeed {
+    return this.#speed();
+  }
+
+  /** Saves the pointer speed and applies it at once. */
+  setSpeed(speed: PointerSpeed): void {
+    this.#deps.store.write(SPEED, speed);
+    this.#deps.changed();
+  }
+
   /** How many times the phone `remote` took the pointer to the Screen's edge; absent for any other phone or before the first. */
   edgeCue(remote: string): number | undefined {
     return this.#driver === remote && this.#edgeHits > 0 ? this.#edgeHits : undefined;

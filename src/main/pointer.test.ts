@@ -482,3 +482,119 @@ describe("Pointer mode: routing to the layer in front", () => {
     await custom.stop();
   });
 });
+
+describe("Pointer speed setting", () => {
+  const openRemotes = async (p = phone) => {
+    await p.press({ command: "openSettings" });
+    expect(h.screen.last.state.view).toBe("settings");
+    await p.press("ok");
+    expect(h.screen.last.state.view).toBe("settingsRemotes");
+  };
+
+  const focusSpeed = async (p = phone) => {
+    for (let i = 0; i < 10 && h.screen.last.focusedId !== "pointer-speed"; i++)
+      await p.press("down");
+    expect(h.screen.last.focusedId).toBe("pointer-speed");
+  };
+
+  test("the row is on Settings → Remotes and Devices, defaults to Normal, and can be changed from the Remote and the Mac", async () => {
+    await openRemotes();
+    expect(h.screen.last.grid.map((i) => i.label)).toContain("Pointer speed");
+    expect(h.screen.last.pointerSpeed).toBe("normal");
+
+    await focusSpeed();
+    await phone.press("ok");
+    expect(h.screen.last.pointerSpeed).toBe("fast");
+
+    h.app.screenCommand({ command: "ok" });
+    expect(h.screen.last.pointerSpeed).toBe("slow");
+
+    await phone.press("ok");
+    expect(h.screen.last.pointerSpeed).toBe("normal");
+  });
+
+  test("changing the setting applies at once: Slow moves less and Fast more than Normal, while a slow drag stays precise on every speed", async () => {
+    await openRemotes();
+    await focusSpeed();
+    await send(phone, { command: "pointerMode", args: { on: true } });
+
+    const measure = async (dx: number) => {
+      await move(-1000, 0);
+      await move(0, 0);
+      const from = lastDraw().x;
+      await move(dx, 0);
+      return lastDraw().x - from;
+    };
+
+    const normalDrag = await measure(10);
+    const normalSlow = await measure(1);
+
+    await phone.press("ok");
+    expect(h.screen.last.pointerSpeed).toBe("fast");
+    const fastDrag = await measure(10);
+    const fastSlow = await measure(1);
+
+    await phone.press("ok");
+    expect(h.screen.last.pointerSpeed).toBe("slow");
+    const slowDrag = await measure(10);
+    const slowSlow = await measure(1);
+
+    expect(slowDrag).toBeGreaterThan(0);
+    expect(slowDrag).toBeLessThan(normalDrag);
+    expect(fastDrag).toBeGreaterThan(normalDrag);
+
+    for (const [tiny, drag] of [
+      [slowSlow, slowDrag],
+      [normalSlow, normalDrag],
+      [fastSlow, fastDrag],
+    ] as const) {
+      expect(tiny).toBeGreaterThan(0);
+      expect(tiny).toBeLessThan(5);
+      expect(drag / 10).toBeGreaterThan(tiny);
+    }
+  });
+
+  test("the choice survives a restart and keeps its effect on pointer movement", async () => {
+    await openRemotes();
+    await focusSpeed();
+    await phone.press("ok");
+    expect(h.screen.last.pointerSpeed).toBe("fast");
+
+    const store = h.store;
+    for (const p of h.phones) p.close();
+    await h.app.stop();
+
+    const again = await startHarness(store);
+    try {
+      const p = await again.connectPhone();
+      await p.press({ command: "openSettings" });
+      await p.press("ok");
+      expect(again.screen.last.state.view).toBe("settingsRemotes");
+      expect(again.screen.last.pointerSpeed).toBe("fast");
+
+      await send(p, { command: "pointerMode", args: { on: true } });
+      await move(-1000, 0, p);
+      await move(0, 0, p);
+      const from = again.screen.pointer.draws.at(-1)!.x;
+      await move(10, 0, p);
+      const fastTravel = again.screen.pointer.draws.at(-1)!.x - from;
+
+      // Cycle twice (Fast → Slow → Normal) and confirm Fast really was in effect after restart.
+      for (let i = 0; i < 10 && again.screen.last.focusedId !== "pointer-speed"; i++)
+        await p.press("down");
+      await p.press("ok");
+      await p.press("ok");
+      expect(again.screen.last.pointerSpeed).toBe("normal");
+      await move(-1000, 0, p);
+      await move(0, 0, p);
+      const fromNormal = again.screen.pointer.draws.at(-1)!.x;
+      await move(10, 0, p);
+      const normalTravel = again.screen.pointer.draws.at(-1)!.x - fromNormal;
+      expect(fastTravel).toBeGreaterThan(normalTravel);
+    } finally {
+      await again.stop();
+      h = await startHarness();
+      phone = await h.connectPhone();
+    }
+  });
+});

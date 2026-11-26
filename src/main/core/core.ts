@@ -86,7 +86,12 @@ import { AMBIENT_MS } from "./home-view.ts";
 import type { TimeFormat } from "../../shared/clock-format.ts";
 import { AppSpeed } from "./app-speed.ts";
 import { PointerControl } from "./pointer.ts";
-import type { PointerDraw, PointerInput, PointerLayer } from "../../shared/pointer.ts";
+import {
+  nextPointerSpeed,
+  type PointerDraw,
+  type PointerInput,
+  type PointerLayer,
+} from "../../shared/pointer.ts";
 import { MetadataService } from "./metadata-service.ts";
 import { nullMetadata, type Metadata } from "../ports/metadata.ts";
 
@@ -607,6 +612,8 @@ export class Core {
       settingsRemotes: new RemotesPage(pageContext, {
         listener: () => this.#login.item,
         refresh: () => void this.refreshLoginItem(),
+        pointerSpeed: () => this.#pointer.speed,
+        stepPointerSpeed: () => this.#pointer.setSpeed(nextPointerSpeed(this.#pointer.speed)),
       }),
       settingsLibrary: new LibrarySettingsPage(pageContext, settingsHost),
       addPhone: new AddPhonePage(pageContext),
