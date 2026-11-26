@@ -181,7 +181,8 @@ describe("Pointer mode: the pointer", () => {
     for (let i = 0; i < 80; i++) await move(-1e9, -1e9);
     expect(lastDraw().x).toBeGreaterThanOrEqual(0);
     expect(lastDraw().y).toBeGreaterThanOrEqual(0);
-  });
+    // 121 moves, each waiting out the server's coalescing: about 5 s, over the default limit on CI.
+  }, 20_000);
 
   test("the Screen's size is where the edges are", async () => {
     h.app.setScreenSize({ width: 800, height: 600 });
@@ -203,7 +204,7 @@ describe("Pointer mode: the pointer", () => {
     await move(-100, 0);
     for (let i = 0; i < 40; i++) await move(100, 0);
     expect(phone.last?.edgeCue).toBe(arrived! + 1);
-  });
+  }, 20_000);
 
   test("the last phone to touch drives the one shared pointer", async () => {
     const second = await h.connectPhone();
